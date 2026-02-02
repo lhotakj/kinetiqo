@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Kinetiqo - Containerized Strava Activity Synchronization Tool">
+    <title>Kinetiqo Documentation</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">🚀</div>
+                    <h1 class="logo-title">Kinetiqo</h1>
+                </div>
+                <div class="header-description">
+                    Containerized Strava Activity Synchronization
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="main-wrapper">
+            <!-- Sidebar Navigation -->
+            <nav class="sidebar">
+                <div class="sidebar-content">
+                    <!-- Getting Started Section -->
+                    <div class="nav-section">
+                        <button class="nav-section-header" data-section="getting-started">
+                            <span class="arrow">▶</span>
+                            <span class="nav-section-title">Getting Started</span>
+                        </button>
+                        <div class="nav-section-content" id="getting-started">
+                            <a href="#installation" class="nav-link">Installation</a>
+                            <a href="#quick-start" class="nav-link">Quick Start</a>
+                            <a href="#configuration" class="nav-link">Configuration</a>
+                        </div>
+                    </div>
+
+                    <!-- How-tos Section -->
+                    <div class="nav-section">
+                        <button class="nav-section-header" data-section="how-tos">
+                            <span class="arrow">▶</span>
+                            <span class="nav-section-title">How-tos</span>
+                        </button>
+                        <div class="nav-section-content" id="how-tos">
+                            <a href="#sync-activities" class="nav-link">Sync Activities</a>
+                            <a href="#database-setup" class="nav-link">Database Setup</a>
+                            <a href="#docker-deployment" class="nav-link">Docker Deployment</a>
+                        </div>
+                    </div>
+
+                    <!-- References Section -->
+                    <div class="nav-section">
+                        <button class="nav-section-header" data-section="references">
+                            <span class="arrow">▶</span>
+                            <span class="nav-section-title">References</span>
+                        </button>
+                        <div class="nav-section-content" id="references">
+                            <a href="#api-reference" class="nav-link">API Reference</a>
+                            <a href="#environment-variables" class="nav-link">Environment Variables</a>
+                            <a href="#troubleshooting" class="nav-link">Troubleshooting</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="content">
+                <article class="article">
+                    <!-- Hero Section -->
+                    <section class="hero-section">
+                        <div class="hero-content">
+                            <h1 class="hero-title">Welcome to Kinetiqo</h1>
+                            <p class="hero-description">
+                                A powerful, containerized tool for synchronizing your Strava activities to any database. 
+                                Built for developers who need reliable, scalable activity data management.
+                            </p>
+                            <div class="strava-badge">
+                                <svg class="strava-logo" viewBox="0 0 384 384" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill="#FC4C02" d="M158.4 0L96.8 145.3h61.6l30.7-72.5L219.8 145.3h61.6z"/>
+                                    <path fill="#FC4C02" d="M244.7 145.3h-46.5l23.3 54.6z"/>
+                                </svg>
+                                <span>Powered by Strava API</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Overview Section -->
+                    <section id="overview" class="content-section">
+                        <h2>Overview</h2>
+                        <p>
+                            Kinetiqo is a containerized application designed to seamlessly synchronize your Strava 
+                            activities with any database backend. Whether you're building analytics dashboards, 
+                            training logs, or custom fitness applications, Kinetiqo provides a reliable bridge 
+                            between Strava and your data infrastructure.
+                        </p>
+                        
+                        <div class="feature-grid">
+                            <div class="feature-card">
+                                <div class="feature-icon">🐳</div>
+                                <h3>Containerized</h3>
+                                <p>Deploy anywhere with Docker. No complex setup required.</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">⚡</div>
+                                <h3>Fast & Efficient</h3>
+                                <p>Optimized sync process with minimal API calls.</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">🔒</div>
+                                <h3>Secure</h3>
+                                <p>OAuth 2.0 authentication with Strava API.</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">🔧</div>
+                                <h3>Configurable</h3>
+                                <p>Flexible configuration for any database backend.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Getting Started -->
+                    <section id="installation" class="content-section">
+                        <h2>Installation</h2>
+                        <p>Get started with Kinetiqo in minutes using Docker:</p>
+                        <div class="code-block">
+                            <pre><code># Pull the latest image
+docker pull kinetiqo/kinetiqo:latest
+
+# Or build from source
+git clone https://github.com/lhotakj/kinetiqo.git
+cd kinetiqo
+docker build -t kinetiqo .</code></pre>
+                        </div>
+                    </section>
+
+                    <section id="quick-start" class="content-section">
+                        <h2>Quick Start</h2>
+                        <p>Set up your environment and start syncing:</p>
+                        <div class="code-block">
+                            <pre><code># Create a .env file
+cat > .env << EOF
+STRAVA_CLIENT_ID=your_client_id
+STRAVA_CLIENT_SECRET=your_client_secret
+DATABASE_URL=postgresql://user:pass@host:5432/db
+EOF
+
+# Run the container
+docker run --env-file .env kinetiqo/kinetiqo:latest</code></pre>
+                        </div>
+                    </section>
+
+                    <section id="configuration" class="content-section">
+                        <h2>Configuration</h2>
+                        <p>Kinetiqo supports various configuration options through environment variables:</p>
+                        <ul>
+                            <li><code>STRAVA_CLIENT_ID</code> - Your Strava application client ID</li>
+                            <li><code>STRAVA_CLIENT_SECRET</code> - Your Strava application client secret</li>
+                            <li><code>DATABASE_URL</code> - Connection string for your database</li>
+                            <li><code>SYNC_INTERVAL</code> - How often to sync (default: 3600 seconds)</li>
+                        </ul>
+                    </section>
+
+                    <!-- How-tos -->
+                    <section id="sync-activities" class="content-section">
+                        <h2>Sync Activities</h2>
+                        <p>Learn how to configure and run activity synchronization:</p>
+                        <ol>
+                            <li>Authenticate with Strava using OAuth 2.0</li>
+                            <li>Configure your database connection</li>
+                            <li>Run the sync command or schedule automatic syncs</li>
+                            <li>Monitor sync status and logs</li>
+                        </ol>
+                    </section>
+
+                    <section id="database-setup" class="content-section">
+                        <h2>Database Setup</h2>
+                        <p>Supported databases:</p>
+                        <ul>
+                            <li>PostgreSQL</li>
+                            <li>MySQL</li>
+                            <li>SQLite</li>
+                            <li>MongoDB</li>
+                        </ul>
+                    </section>
+
+                    <section id="docker-deployment" class="content-section">
+                        <h2>Docker Deployment</h2>
+                        <p>Deploy using Docker Compose for production environments:</p>
+                        <div class="code-block">
+                            <pre><code>version: '3.8'
+services:
+  kinetiqo:
+    image: kinetiqo/kinetiqo:latest
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data</code></pre>
+                        </div>
+                    </section>
+
+                    <!-- References -->
+                    <section id="api-reference" class="content-section">
+                        <h2>API Reference</h2>
+                        <p>Complete API documentation coming soon...</p>
+                    </section>
+
+                    <section id="environment-variables" class="content-section">
+                        <h2>Environment Variables</h2>
+                        <p>Complete list of configuration options coming soon...</p>
+                    </section>
+
+                    <section id="troubleshooting" class="content-section">
+                        <h2>Troubleshooting</h2>
+                        <p>Common issues and solutions coming soon...</p>
+                    </section>
+                </article>
+            </main>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <p>&copy; 2026 Kinetiqo. All rights reserved.</p>
+                </div>
+                <div class="footer-section">
+                    <a href="https://github.com/lhotakj/kinetiqo" class="footer-link">GitHub</a>
+                    <span class="footer-separator">•</span>
+                    <a href="https://kinetiqo.lhotak.net" class="footer-link">kinetiqo.lhotak.net</a>
+                    <span class="footer-separator">•</span>
+                    <span class="footer-text">Hosted on Cloudflare</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="js/navigation.js"></script>
+</body>
+</html>
