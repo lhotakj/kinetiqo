@@ -172,21 +172,6 @@ window.addEventListener('popstate', function() {
     }
 });
 
-/**
- * Utility: Debounce function for performance optimization
- */
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
 // Add keyboard navigation support
 document.addEventListener('keydown', function(e) {
     // Press 'Escape' to collapse all navigation sections
