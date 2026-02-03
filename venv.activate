@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+ACTIVATE_SCRIPT="./.venv/bin/activate"
+
+if [ ! -f "$ACTIVATE_SCRIPT" ]; then
+    echo "Error: $ACTIVATE_SCRIPT not found."
+fi
+
+# Check if the script is being sourced or executed
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    # Script is being sourced
+    source "$ACTIVATE_SCRIPT"
+else
+    # Script is being executed
+    # We cannot modify the parent shell's environment from a child process.
+    # Instead, we spawn a new interactive shell with the environment activated.
+    echo "Spawning new shell with virtual environment activated..."
+    exec bash --rcfile <(cat ~/.bashrc 2>/dev/null; echo "source $ACTIVATE_SCRIPT")
+fi
