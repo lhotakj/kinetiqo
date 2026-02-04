@@ -25,7 +25,7 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger("sync")
+logger = logging.getLogger("kinetiqo")
 logger.setLevel(logging.DEBUG)
 
 # Reduce noise from libraries
@@ -116,11 +116,11 @@ class CacheManager:
             age_seconds = time.time() - cached_time
 
             if age_seconds > self.ttl_seconds:
-                logger.debug(f"Cache EXPIRED: {endpoint} (age: {age_seconds/60:.1f}min)")
+                logger.debug(f"Cache EXPIRED: {endpoint} (age: {age_seconds / 60:.1f}min)")
                 cache_path.unlink()
                 return None
 
-            logger.debug(f"Cache HIT: {endpoint} (age: {age_seconds/60:.1f}min)")
+            logger.debug(f"Cache HIT: {endpoint} (age: {age_seconds / 60:.1f}min)")
             return cached.get('data')
 
         except Exception as e:
@@ -465,12 +465,14 @@ class InfluxDB2Repository(DatabaseRepository):
         # Delete metadata
         predicate_meta = f'_measurement="activity_metadata" AND activity_id="{activity_id}"'
         logger.debug(f"Deleting metadata with predicate: {predicate_meta}")
-        self.delete_api.delete(start, stop, predicate_meta, bucket=self.config.influx_bucket, org=self.config.influx_org)
+        self.delete_api.delete(start, stop, predicate_meta, bucket=self.config.influx_bucket,
+                               org=self.config.influx_org)
 
         # Delete streams
         predicate_streams = f'_measurement="activity_streams" AND activity_id="{activity_id}"'
         logger.debug(f"Deleting streams with predicate: {predicate_streams}")
-        self.delete_api.delete(start, stop, predicate_streams, bucket=self.config.influx_bucket, org=self.config.influx_org)
+        self.delete_api.delete(start, stop, predicate_streams, bucket=self.config.influx_bucket,
+                               org=self.config.influx_org)
 
     def close(self):
         self.client.close()
@@ -502,61 +504,63 @@ class QuestDBRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             # Create activities metadata table
             cur.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_name = 'activities'
-            """)
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_name = 'activities'
+                        """)
             activities_exists = cur.fetchone() is not None
 
             if not activities_exists:
                 logger.info("QuestDB: Creating 'activities' table...")
                 cur.execute("""
-                    CREATE TABLE activities (
-                        timestamp TIMESTAMP,
-                        activity_id LONG,
-                        name STRING,
-                        sport STRING,
-                        athlete_id LONG,
-                        distance DOUBLE,
-                        moving_time INT,
-                        elapsed_time INT,
-                        total_elevation_gain DOUBLE,
-                        average_speed DOUBLE,
-                        max_speed DOUBLE,
-                        average_heartrate INT,
-                        max_heartrate INT,
-                        average_cadence DOUBLE
-                    ) timestamp(timestamp) PARTITION BY DAY
-                """)
+                            CREATE TABLE activities
+                            (
+                                timestamp         TIMESTAMP,
+                                activity_id       LONG,
+                                name              STRING,
+                                sport             STRING,
+                                athlete_id        LONG,
+                                distance DOUBLE,
+                                moving_time       INT,
+                                elapsed_time      INT,
+                                total_elevation_gain DOUBLE,
+                                average_speed DOUBLE,
+                                max_speed DOUBLE,
+                                average_heartrate INT,
+                                max_heartrate     INT,
+                                average_cadence DOUBLE
+                            ) timestamp(timestamp) PARTITION BY DAY
+                            """)
                 logger.info("QuestDB: Table 'activities' created successfully.")
             else:
                 logger.info("QuestDB: Table 'activities' already exists.")
 
             # Create streams data table
             cur.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_name = 'streams'
-            """)
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_name = 'streams'
+                        """)
             streams_exists = cur.fetchone() is not None
 
             if not streams_exists:
                 logger.info("QuestDB: Creating 'streams' table...")
                 cur.execute("""
-                    CREATE TABLE streams (
-                        timestamp TIMESTAMP,
-                        activity_id LONG,
-                        sport STRING,
-                        athlete_id LONG,
-                        lat DOUBLE,
-                        lng DOUBLE,
-                        altitude DOUBLE,
-                        heartrate INT,
-                        cadence INT,
-                        speed DOUBLE,
-                        distance DOUBLE
-                    ) timestamp(timestamp) PARTITION BY DAY
-                """)
+                            CREATE TABLE streams
+                            (
+                                timestamp   TIMESTAMP,
+                                activity_id LONG,
+                                sport       STRING,
+                                athlete_id  LONG,
+                                lat DOUBLE,
+                                lng DOUBLE,
+                                altitude DOUBLE,
+                                heartrate   INT,
+                                cadence     INT,
+                                speed DOUBLE,
+                                distance DOUBLE
+                            ) timestamp(timestamp) PARTITION BY DAY
+                            """)
                 logger.info("QuestDB: Table 'streams' created successfully.")
             else:
                 logger.info("QuestDB: Table 'streams' already exists.")
@@ -572,10 +576,10 @@ class QuestDBRepository(DatabaseRepository):
             max_activity_id = result[0]
 
             cur.execute("""
-                SELECT timestamp
-                FROM activities
-                WHERE activity_id = %s
-            """, (max_activity_id,))
+                        SELECT timestamp
+                        FROM activities
+                        WHERE activity_id = %s
+                        """, (max_activity_id,))
 
             result = cur.fetchone()
             if result and result[0]:
@@ -619,11 +623,12 @@ class QuestDBRepository(DatabaseRepository):
 
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO activities (timestamp, activity_id, name, sport, athlete_id, distance,
-                                        moving_time, elapsed_time, total_elevation_gain, average_speed,
-                                        max_speed, average_heartrate, max_heartrate, average_cadence)
-                VALUES (to_timestamp(%s, 'yyyy-MM-ddTHH:mm:ss.SSSUUUZ'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, row)
+                        INSERT INTO activities (timestamp, activity_id, name, sport, athlete_id, distance,
+                                                moving_time, elapsed_time, total_elevation_gain, average_speed,
+                                                max_speed, average_heartrate, max_heartrate, average_cadence)
+                        VALUES (to_timestamp(%s, 'yyyy-MM-ddTHH:mm:ss.SSSUUUZ'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s)
+                        """, row)
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to QuestDB."""
@@ -665,10 +670,11 @@ class QuestDBRepository(DatabaseRepository):
 
         with self.conn.cursor() as cur:
             execute_batch(cur, """
-                INSERT INTO streams (timestamp, activity_id, sport, athlete_id, lat, lng, altitude,
-                                     heartrate, cadence, speed, distance)
-                VALUES (to_timestamp(%s, 'yyyy-MM-ddTHH:mm:ss.SSSUUUZ'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, rows, page_size=1000)
+                               INSERT INTO streams (timestamp, activity_id, sport, athlete_id, lat, lng, altitude,
+                                                    heartrate, cadence, speed, distance)
+                               VALUES (to_timestamp(%s, 'yyyy-MM-ddTHH:mm:ss.SSSUUUZ'), %s, %s, %s, %s, %s, %s, %s, %s,
+                                       %s, %s)
+                               """, rows, page_size=1000)
 
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from QuestDB."""
@@ -949,8 +955,6 @@ def cli(version, database, full_sync, fast_sync, enable_strava_cache, cache_ttl,
         if missing:
             logger.error(f"Missing required InfluxDB2 environment variables: {', '.join(missing)}")
             exit(1)
-
-
 
     config.database_type = database.lower()
     config.enable_strava_cache = enable_strava_cache
