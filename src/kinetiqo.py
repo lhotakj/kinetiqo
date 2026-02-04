@@ -805,10 +805,18 @@ class SyncService:
 
 
 def print_version():
-    with open(os.path.join(os.path.dirname(__file__), "version.txt"), "r") as vf:
-        version = vf.read().strip()
+    version = "dev"
+    version_file: str = "version.txt"
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        version_path = os.path.join(base_dir, version_file)
+        if not os.path.exists(version_path):
+            version_path = os.path.join(os.path.dirname(base_dir), version_file)
+        with open(version_path, "r") as vf:
+            version = vf.read().strip()
+    except:
+        pass
     print(f"Kinetiqo {version}")
-
 
 # -----------------------------
 # CLI

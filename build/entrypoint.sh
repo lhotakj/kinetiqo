@@ -46,7 +46,7 @@ else
 fi
 
 echo "[INFO] Check version"
-kinetiqo --version
+python3 /app/kinetiqo.py --version
 
 # Keep the container running
 tail -f /dev/null
