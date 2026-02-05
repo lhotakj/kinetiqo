@@ -13,7 +13,7 @@ import threading
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kinetiqo.web")
 
-app = Flask(__name__, template_folder='../../templates')
+app = Flask(__name__, template_folder='./templates')
 app.secret_key = 'super_secret_key_for_demo_only'
 
 # --- Configuration & Database ---
