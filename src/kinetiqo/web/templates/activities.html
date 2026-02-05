@@ -34,6 +34,8 @@
                 "data": function(d) {
                     d.page = (d.start / d.length) + 1;
                     d.per_page = d.length;
+                    d.sortColumn = d.columns[d.order[0].column].data;
+                    d.sortDir = d.order[0].dir.toUpperCase();
                 }
             },
             "columns": [

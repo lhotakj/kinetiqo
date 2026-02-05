@@ -152,6 +152,46 @@ class QuestDBRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC'):
+        """Fetch activities with pagination and sorting from QuestDB"""
+        # Validate sort_by to prevent SQL injection
+        allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
+                           'total_elevation_gain']
+        if sort_by not in allowed_columns:
+            sort_by = 'timestamp'
+
+        sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
+
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT
+                    activity_id as id,
+                    name,
+                    sport as type,
+                    distance,
+                    moving_time,
+                    total_elevation_gain,
+                    timestamp as start_date
+                FROM activities
+                ORDER BY {sort_by} {sort_order}
+                LIMIT %s, %s
+            """, (offset, limit))
+
+            activities = []
+            for row in cur.fetchall():
+                activity = dict(row)
+                if isinstance(activity['start_date'], datetime):
+                    activity['start_date'] = activity['start_date'].isoformat()
+                activities.append(activity)
+            return activities
+
+    def count_activities(self):
+        """Get total count of activities"""
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM activities")
+            result = cur.fetchone()
+            return result[0] if result else 0
+
     def write_activity(self, activity: dict):
         """Write activity metadata to QuestDB."""
         activity_id = activity["id"]

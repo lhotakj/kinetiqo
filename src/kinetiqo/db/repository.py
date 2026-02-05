@@ -25,6 +25,15 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC'):
+        """Get a list of activities for display."""
+        pass
+
+    @abstractmethod
+    def count_activities(self):
+        pass
+
+    @abstractmethod
     def write_activity(self, activity: dict):
         """Write activity metadata to the database."""
         pass

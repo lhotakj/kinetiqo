@@ -83,17 +83,22 @@ def activities():
 def get_activities_api():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
+    sort_column = request.args.get('sortColumn', 'start_date')
+    sort_dir = request.args.get('sortDir', 'DESC')
 
-    # Calculate offset for pagination
     offset = (page - 1) * per_page
 
     try:
-        # Fetch all activities (or a large limit if you prefer)
-        activities = db_repo.get_activities(limit=10000)
-        total = len(activities)
+        # Fetch paginated activities directly from database with sorting
+        activities = db_repo.get_activities_web(
+            limit=per_page,
+            offset=offset,
+            sort_by=sort_column,
+            sort_order=sort_dir
+        )
 
-        # Apply manual pagination
-        paginated_activities = activities[offset:offset + per_page]
+        # Get total count
+        total = db_repo.count_activities()
 
         return jsonify({
             'data': [{
@@ -103,7 +108,7 @@ def get_activities_api():
                 'date': a['start_date'],
                 'distance': round(float(a['distance']), 2),
                 'elevation': float(a['total_elevation_gain'])
-            } for a in paginated_activities],
+            } for a in activities],
             'recordsTotal': total,
             'recordsFiltered': total
         })
