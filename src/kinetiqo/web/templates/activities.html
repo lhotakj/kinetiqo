@@ -19,24 +19,6 @@
             </tr>
         </thead>
         <tbody class="text-gray-700 text-sm">
-            {% for activity in activities %}
-            <tr class="hover:bg-warm-50 border-b border-gray-100 transition-colors">
-                <td class="py-3 px-4 text-gray-400 font-mono text-xs">#{{ activity.id }}</td>
-                <td class="py-3 px-4 font-medium text-gray-900">{{ activity.name }}</td>
-                <td class="py-3 px-4">
-                    <span class="px-2 py-1 rounded-full text-xs font-medium
-                        {% if activity.type == 'Ride' %}bg-orange-100 text-orange-800
-                        {% elif activity.type == 'Run' %}bg-blue-100 text-blue-800
-                        {% elif activity.type == 'Swim' %}bg-cyan-100 text-cyan-800
-                        {% else %}bg-gray-100 text-gray-800{% endif %}">
-                        {{ activity.type }}
-                    </span>
-                </td>
-                <td class="py-3 px-4">{{ activity.date }}</td>
-                <td class="py-3 px-4 font-mono">{{ activity.distance }}</td>
-                <td class="py-3 px-4 font-mono">{{ activity.elevation }}</td>
-            </tr>
-            {% endfor %}
         </tbody>
     </table>
 </div>
@@ -44,20 +26,37 @@
 <script>
     $(document).ready(function() {
         $('#activitiesTable').DataTable({
-            "paging": true,
-            "ordering": true,
-            "info": true,
+            "processing": true,
+            "serverSide": true,
             "pageLength": 10,
+            "ajax": {
+                "url": "/api/activities",
+                "data": function(d) {
+                    d.page = (d.start / d.length) + 1;
+                    d.per_page = d.length;
+                }
+            },
+            "columns": [
+                { "data": "id", "render": function(data) { return '#' + data; } },
+                { "data": "name" },
+                { "data": "type", "render": function(data) {
+                    const colors = {'Ride': 'orange', 'Run': 'blue', 'Swim': 'cyan'};
+                    const color = colors[data] || 'gray';
+                    return `<span class="px-2 py-1 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800">${data}</span>`;
+                }},
+                { "data": "date" },
+                { "data": "distance" },
+                { "data": "elevation" }
+            ],
             "language": {
                 "search": "",
                 "searchPlaceholder": "Filter activities..."
             },
-            // This dom definition allows us to place search/pagination exactly where we want
             "dom": '<"flex justify-between items-center mb-4"f>rt<"flex justify-between items-center mt-4"ip>'
         });
 
-        // Custom styling for the search input injected by DataTables
         $('.dataTables_filter input').addClass('px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm w-64');
     });
 </script>
+
 {% endblock %}

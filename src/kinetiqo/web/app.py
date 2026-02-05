@@ -79,6 +79,40 @@ def activities():
     return render_template('activities.html', title="Activities", activities=data)
 
 
+@app.route('/api/activities', methods=['GET'])
+def get_activities_api():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+
+    try:
+        # Fetch all activities (or a large limit if you prefer)
+        activities = db_repo.get_activities(limit=10000)
+        total = len(activities)
+
+        # Apply manual pagination
+        paginated_activities = activities[offset:offset + per_page]
+
+        return jsonify({
+            'data': [{
+                'id': a['id'],
+                'name': a['name'],
+                'type': a['type'],
+                'date': a['start_date'],
+                'distance': round(float(a['distance']), 2),
+                'elevation': float(a['total_elevation_gain'])
+            } for a in paginated_activities],
+            'recordsTotal': total,
+            'recordsFiltered': total
+        })
+    except Exception as e:
+        logger.error(f"Error fetching activities: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+
 @app.route('/fullsync')
 @login_required
 def fullsync():
