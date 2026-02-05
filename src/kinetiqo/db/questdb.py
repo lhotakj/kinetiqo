@@ -163,23 +163,29 @@ class QuestDBRepository(DatabaseRepository):
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # QuestDB requires different pagination approach
+            # Use row_number() to implement offset
             cur.execute(f"""
-                SELECT
-                    activity_id as id,
-                    name,
-                    sport as type,
-                    distance,
-                    moving_time,
-                    total_elevation_gain,
-                    timestamp as start_date
-                FROM activities
-                ORDER BY {sort_by} {sort_order}
-                LIMIT %s, %s
-            """, (offset, limit))
+                SELECT * FROM (
+                    SELECT
+                        activity_id as id,
+                        name,
+                        sport as type,
+                        distance,
+                        moving_time,
+                        total_elevation_gain,
+                        timestamp as start_date,
+                        row_number() OVER (ORDER BY {sort_by} {sort_order}) as rn
+                    FROM activities
+                )
+                WHERE rn > %s AND rn <= %s
+            """, (offset, offset + limit))
 
             activities = []
             for row in cur.fetchall():
                 activity = dict(row)
+                # Remove the row_number column
+                activity.pop('rn', None)
                 if isinstance(activity['start_date'], datetime):
                     activity['start_date'] = activity['start_date'].isoformat()
                 activities.append(activity)

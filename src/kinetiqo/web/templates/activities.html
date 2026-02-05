@@ -16,6 +16,7 @@
                 <th class="py-3 px-4">Date</th>
                 <th class="py-3 px-4">Distance (km)</th>
                 <th class="py-3 px-4">Elevation (m)</th>
+                <th class="py-3 px-4">Link to Strava</th>
             </tr>
         </thead>
         <tbody class="text-gray-700 text-sm">
@@ -29,6 +30,7 @@
             "processing": true,
             "serverSide": true,
             "pageLength": 10,
+            "order": [[0, "desc"]],
             "ajax": {
                 "url": "/api/activities",
                 "data": function(d) {
@@ -48,7 +50,14 @@
                 }},
                 { "data": "date" },
                 { "data": "distance" },
-                { "data": "elevation" }
+                { "data": "elevation" },
+                {
+                    "data": null,
+                    "orderable": false,
+                    "render": function(data, type, row) {
+                        return `<a href="https://www.strava.com/activities/${row.id}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">View on Strava</a>`;
+                    }
+                }
             ],
             "language": {
                 "search": "",
