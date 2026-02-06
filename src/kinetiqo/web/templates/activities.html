@@ -5,7 +5,6 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <style>
-
     .select2-selection__choice__display {
         padding-left:15px !important;
     }
@@ -65,6 +64,14 @@
     .icon-AlpineSki, .icon-BackcountrySki, .icon-NordicSki, .icon-Snowboard, .icon-IceSkate, .icon-RollerSki, .icon-InlineSkate { color: #2563EB; background-color: #DBEAFE; } /* Blue */
     .icon-Workout, .icon-WeightTraining, .icon-Crossfit, .icon-Yoga, .icon-Pilates, .icon-HighIntensityIntervalTraining, .icon-RockClimbing { color: #7C3AED; background-color: #EDE9FE; } /* Violet */
     .icon-Golf, .icon-Soccer, .icon-Tennis, .icon-Squash, .icon-Badminton, .icon-Pickleball, .icon-Racquetball, .icon-TableTennis { color: #DB2777; background-color: #FCE7F3; } /* Pink */
+
+    /* Dynamic Select2 Choice Colors */
+    .select2-selection__choice.choice-Ride, .select2-selection__choice.choice-GravelRide, .select2-selection__choice.choice-MountainBikeRide, .select2-selection__choice.choice-VirtualRide, .select2-selection__choice.choice-EBikeRide, .select2-selection__choice.choice-EMountainBikeRide, .select2-selection__choice.choice-Velomobile, .select2-selection__choice.choice-Handcycle { background-color: #FFEDD5 !important; color: #EA580C !important; border-color: #FDBA74 !important; }
+    .select2-selection__choice.choice-Run, .select2-selection__choice.choice-TrailRun, .select2-selection__choice.choice-VirtualRun, .select2-selection__choice.choice-Walk, .select2-selection__choice.choice-Hike, .select2-selection__choice.choice-Snowshoe, .select2-selection__choice.choice-Wheelchair { background-color: #D1FAE5 !important; color: #059669 !important; border-color: #6EE7B7 !important; }
+    .select2-selection__choice.choice-Swim, .select2-selection__choice.choice-Surfing, .select2-selection__choice.choice-Windsurf, .select2-selection__choice.choice-Kitesurf, .select2-selection__choice.choice-Kayaking, .select2-selection__choice.choice-Rowing, .select2-selection__choice.choice-Canoeing, .select2-selection__choice.choice-StandUpPaddling, .select2-selection__choice.choice-Sail { background-color: #E0F2FE !important; color: #0284C7 !important; border-color: #7DD3FC !important; }
+    .select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate { background-color: #DBEAFE !important; color: #2563EB !important; border-color: #93C5FD !important; }
+    .select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing { background-color: #EDE9FE !important; color: #7C3AED !important; border-color: #C4B5FD !important; }
+    .select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis { background-color: #FCE7F3 !important; color: #DB2777 !important; border-color: #F9A8D4 !important; }
 </style>
 
 <div class="mb-8">
@@ -175,7 +182,14 @@
         $('#activityTypeFilter').select2({
             placeholder: "Select activity types",
             width: '100%',
-            closeOnSelect: false
+            closeOnSelect: false,
+            templateSelection: function(data, container) {
+                // Add custom class to selection container based on value
+                if (data.id) {
+                    $(container).addClass('choice-' + data.id);
+                }
+                return data.text;
+            }
         });
 
         // Select All / Deselect All buttons
