@@ -81,44 +81,52 @@ def activities():
 
 @app.route('/api/activities', methods=['GET'])
 def get_activities_api():
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    # Check if pagination parameters are provided
+    page = request.args.get('page', type=int)
+    per_page = request.args.get('per_page', type=int)
+    
     sort_column = request.args.get('sortColumn', 'start_date')
     sort_dir = request.args.get('sortDir', 'DESC')
     
     # Handle types filtering
-    # DataTables sends array parameters with [] suffix or indices
-    # We need to parse 'types[]' from query parameters
     types = request.args.getlist('types[]')
     if not types:
         types = None
 
-    offset = (page - 1) * per_page
+    if per_page is None:
+        # Client-side processing mode: return all data
+        # We use a very high limit to effectively fetch "all"
+        limit = 100000 
+        offset = 0
+    else:
+        # Server-side processing mode
+        if page is None: page = 1
+        limit = per_page
+        offset = (page - 1) * per_page
 
     try:
-        # Fetch paginated activities directly from database with sorting
+        # Fetch activities directly from database
         activities = db_repo.get_activities_web(
-            limit=per_page,
+            limit=limit,
             offset=offset,
             sort_by=sort_column,
             sort_order=sort_dir,
             types=types
         )
 
-        # Get total count
-        total = db_repo.count_activities(types=types)
+        data = [{
+            'id': a['id'],
+            'name': a['name'],
+            'type': a['type'],
+            'date': a['start_date'],
+            'distance': round(float(a['distance']), 2),
+            'elevation': float(a['total_elevation_gain'])
+        } for a in activities]
 
         return jsonify({
-            'data': [{
-                'id': a['id'],
-                'name': a['name'],
-                'type': a['type'],
-                'date': a['start_date'],
-                'distance': round(float(a['distance']), 2),
-                'elevation': float(a['total_elevation_gain'])
-            } for a in activities],
-            'recordsTotal': total,
-            'recordsFiltered': total
+            'data': data,
+            'recordsTotal': len(data),
+            'recordsFiltered': len(data)
         })
     except Exception as e:
         logger.error(f"Error fetching activities: {e}")

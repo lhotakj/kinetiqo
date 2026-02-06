@@ -212,25 +212,36 @@
 
         var table = $('#activitiesTable').DataTable({
             "processing": true,
-            "serverSide": true,
-            "pageLength": 10,
-            "order": [[0, "desc"]],
+            "serverSide": false, // Client-side processing
+            "pageLength": 20, // Increased page length to show more activities by default
+            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
+            "order": [[3, "desc"]],
             "ajax": {
                 "url": "/api/activities",
                 "data": function(d) {
-                    d.page = (d.start / d.length) + 1;
-                    d.per_page = d.length;
-                    d.sortColumn = d.columns[d.order[0].column].data;
-                    d.sortDir = d.order[0].dir.toUpperCase();
+                    // For client-side processing, we just need to fetch the data once (or when filters change)
+                    // We can pass the type filter to the server to reduce initial payload if desired,
+                    // but for pure client-side filtering of text, we fetch all and filter in browser.
 
-                    // Add selected types to the request
+                    // However, since we still want server-side filtering for Types (as per previous instructions which might still hold for large datasets),
+                    // but client-side filtering for the Search Box.
+
+                    // Let's keep server-side filtering for Types to avoid fetching massive datasets if not needed,
+                    // BUT the user asked for "Filter activities" (search box) to be client side.
+                    // Usually mixing server-side and client-side in DataTables is tricky.
+                    // If we set serverSide: false, DataTables expects the server to return ALL data at once.
+
+                    // So we will send the type filter to server to get a subset, but then do search/pagination client side.
+
                     var selectedTypes = $('#activityTypeFilter').val();
                     if (selectedTypes === null || selectedTypes.length === 0) {
-                        // If nothing selected, send a dummy value to match nothing
                         d.types = ["_NO_MATCH_"];
                     } else {
                         d.types = selectedTypes;
                     }
+
+                    // We don't send page/start/length/search to server anymore for processing,
+                    // just the custom filters that define the dataset.
                 }
             },
             "columns": [
@@ -254,16 +265,15 @@
                 "search": "",
                 "searchPlaceholder": "Filter activities..."
             },
-            // Removed 'f' (filtering) from dom to use custom search input
             "dom": 'rt<"flex justify-between items-center mt-4"ip>'
         });
 
-        // Bind custom search input to DataTable
+        // Bind custom search input to DataTable (Client-side search)
         $('#customSearch').on('keyup', function() {
             table.search(this.value).draw();
         });
 
-        // Reload table when filter changes
+        // Reload table when filter changes (fetches new dataset from server based on types)
         $('#activityTypeFilter').on('change', function() {
             table.ajax.reload();
         });
