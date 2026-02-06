@@ -14,12 +14,47 @@
         border-radius: 0.5rem;
         padding: 0.25rem;
         min-height: 42px;
+
+        /* Condensed State (Default) */
+        max-height: 42px;
+        overflow: hidden;
+        transition: max-height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+
+        /* Flex layout for summary text */
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
     }
-    .select2-container--default.select2-container--focus .select2-selection--multiple {
+
+    /* Expanded State (Focus or Open) */
+    .select2-container--default.select2-container--focus .select2-selection--multiple,
+    .select2-container--default.select2-container--open .select2-selection--multiple {
+        max-height: 400px; /* Expand to show content */
+        overflow-y: auto;
+
+        /* Focus styles */
         border-color: #D1D5DB;
         outline: none;
         box-shadow: 0 0 0 1px #D1D5DB;
     }
+
+    /* Hide choices in condensed state (except when container is focused/open) */
+    .select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection--multiple .select2-selection__choice {
+        display: none;
+    }
+
+    /* Show summary text in condensed state */
+    .select2-selection__summary {
+        display: none;
+        padding: 0 0.5rem;
+        color: #374151;
+        font-size: 0.875rem;
+    }
+
+    .select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection__summary {
+        display: block;
+    }
+
     .select2-container--default .select2-selection--multiple .select2-selection__choice {
         background-color: #F3F4F6;
         border: 1px solid #E5E7EB;
@@ -179,8 +214,8 @@
 <script>
     $(document).ready(function() {
         // Initialize Select2
-        $('#activityTypeFilter').select2({
-            placeholder: "Select activity types",
+        var $select = $('#activityTypeFilter').select2({
+            placeholder: "",
             width: '100%',
             closeOnSelect: false,
             templateSelection: function(data, container) {
@@ -191,6 +226,32 @@
                 return data.text;
             }
         });
+
+        // Add summary element to the selection container
+        var $container = $select.next('.select2-container').find('.select2-selection--multiple');
+        $container.prepend('<div class="select2-selection__summary"></div>');
+
+        function updateSummary() {
+            var count = $('#activityTypeFilter').select2('data').length;
+            var total = $('#activityTypeFilter option').length;
+            var text = "";
+
+            if (count === 0) {
+                text = "No activities selected";
+            } else if (count === total) {
+                text = "All activities selected (" + count + ")";
+            } else {
+                text = count + " Activities selected";
+            }
+
+            $('.select2-selection__summary').text(text);
+        }
+
+        // Update summary on change
+        $('#activityTypeFilter').on('change', updateSummary);
+
+        // Initial update
+        updateSummary();
 
         // Select All / Deselect All buttons
         $('#selectAllBtn').click(function() {
@@ -213,7 +274,7 @@
         var table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": false, // Client-side processing
-            "pageLength": 20, // Increased page length to show more activities by default
+            "pageLength": 50, // Increased page length to show more activities by default
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
             "order": [[3, "desc"]],
             "ajax": {
