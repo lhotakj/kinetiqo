@@ -1,9 +1,154 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<style>
+
+    .select2-selection__choice__display {
+        padding-left:15px !important;
+    }
+    /* Select2 Customization to match theme */
+    .select2-container--default .select2-selection--multiple {
+        border-color: #E5E7EB;
+        border-radius: 0.5rem;
+        padding: 0.25rem;
+        min-height: 42px;
+    }
+    .select2-container--default.select2-container--focus .select2-selection--multiple {
+        border-color: #D1D5DB;
+        outline: none;
+        box-shadow: 0 0 0 1px #D1D5DB;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #F3F4F6;
+        border: 1px solid #E5E7EB;
+        border-radius: 0.25rem;
+        color: #374151;
+        padding: 0 0.4rem;
+        margin-top: 0.25rem;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: #6B7280;
+        margin-right: 0.25rem;
+        border-right: none;
+    }
+    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+        background-color: #E5E7EB;
+        color: #111827;
+    }
+    .select2-dropdown {
+        border-color: #E5E7EB;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Activity Icons */
+    .activity-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        margin-right: 8px;
+        border-radius: 50%;
+        background-color: #F3F4F6;
+        color: #4B5563;
+        font-size: 12px;
+    }
+
+    /* Specific colors for common activities */
+    .icon-Ride, .icon-GravelRide, .icon-MountainBikeRide, .icon-VirtualRide, .icon-EBikeRide, .icon-EMountainBikeRide, .icon-Velomobile, .icon-Handcycle { color: #EA580C; background-color: #FFEDD5; } /* Orange */
+    .icon-Run, .icon-TrailRun, .icon-VirtualRun, .icon-Walk, .icon-Hike, .icon-Snowshoe, .icon-Wheelchair { color: #059669; background-color: #D1FAE5; } /* Emerald/Green */
+    .icon-Swim, .icon-Surfing, .icon-Windsurf, .icon-Kitesurf, .icon-Kayaking, .icon-Rowing, .icon-Canoeing, .icon-StandUpPaddling, .icon-Sail { color: #0284C7; background-color: #E0F2FE; } /* Sky Blue */
+    .icon-AlpineSki, .icon-BackcountrySki, .icon-NordicSki, .icon-Snowboard, .icon-IceSkate, .icon-RollerSki, .icon-InlineSkate { color: #2563EB; background-color: #DBEAFE; } /* Blue */
+    .icon-Workout, .icon-WeightTraining, .icon-Crossfit, .icon-Yoga, .icon-Pilates, .icon-HighIntensityIntervalTraining, .icon-RockClimbing { color: #7C3AED; background-color: #EDE9FE; } /* Violet */
+    .icon-Golf, .icon-Soccer, .icon-Tennis, .icon-Squash, .icon-Badminton, .icon-Pickleball, .icon-Racquetball, .icon-TableTennis { color: #DB2777; background-color: #FCE7F3; } /* Pink */
+</style>
+
 <div class="mb-8">
     <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
     <p class="text-gray-500">Your recent Strava activities from the mock database.</p>
+</div>
+
+<div class="bg-white rounded-lg p-4 mb-4 border border-gray-200">
+    <div class="flex flex-col md:flex-row gap-4 items-end">
+        <!-- Custom Search Input -->
+        <div class="w-full md:w-1/4">
+            <label for="customSearch" class="block text-sm font-medium text-gray-700 mb-1">Filter activities</label>
+            <input type="text" id="customSearch" placeholder="Search by name..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm" style="min-height: 42px;">
+        </div>
+
+        <!-- Activities Types Dropdown -->
+        <div class="w-full md:w-1/2">
+            <label for="activityTypeFilter" class="block text-sm font-medium text-gray-700 mb-1">Activities Types</label>
+            <select id="activityTypeFilter" class="w-full" multiple="multiple">
+                <optgroup label="All biking activities">
+                    <option value="GravelRide" selected>GravelRide</option>
+                    <option value="Ride" selected>Ride</option>
+                    <option value="VirtualRide" selected>VirtualRide</option>
+                </optgroup>
+                <optgroup label="All walking activities">
+                    <option value="Hike" selected>Hike</option>
+                    <option value="Walk" selected>Walk</option>
+                </optgroup>
+                <optgroup label="Other">
+                    <option value="AlpineSki" selected>AlpineSki</option>
+                    <option value="BackcountrySki" selected>BackcountrySki</option>
+                    <option value="Badminton" selected>Badminton</option>
+                    <option value="Canoeing" selected>Canoeing</option>
+                    <option value="Crossfit" selected>Crossfit</option>
+                    <option value="EBikeRide" selected>EBikeRide</option>
+                    <option value="Elliptical" selected>Elliptical</option>
+                    <option value="EMountainBikeRide" selected>EMountainBikeRide</option>
+                    <option value="Golf" selected>Golf</option>
+                    <option value="Handcycle" selected>Handcycle</option>
+                    <option value="HighIntensityIntervalTraining" selected>HighIntensityIntervalTraining</option>
+                    <option value="IceSkate" selected>IceSkate</option>
+                    <option value="InlineSkate" selected>InlineSkate</option>
+                    <option value="Kayaking" selected>Kayaking</option>
+                    <option value="Kitesurf" selected>Kitesurf</option>
+                    <option value="MountainBikeRide" selected>MountainBikeRide</option>
+                    <option value="NordicSki" selected>NordicSki</option>
+                    <option value="Pickleball" selected>Pickleball</option>
+                    <option value="Pilates" selected>Pilates</option>
+                    <option value="Racquetball" selected>Racquetball</option>
+                    <option value="RockClimbing" selected>RockClimbing</option>
+                    <option value="RollerSki" selected>RollerSki</option>
+                    <option value="Rowing" selected>Rowing</option>
+                    <option value="Run" selected>Run</option>
+                    <option value="Sail" selected>Sail</option>
+                    <option value="Skateboard" selected>Skateboard</option>
+                    <option value="Snowboard" selected>Snowboard</option>
+                    <option value="Snowshoe" selected>Snowshoe</option>
+                    <option value="Soccer" selected>Soccer</option>
+                    <option value="Squash" selected>Squash</option>
+                    <option value="StairStepper" selected>StairStepper</option>
+                    <option value="StandUpPaddling" selected>StandUpPaddling</option>
+                    <option value="Surfing" selected>Surfing</option>
+                    <option value="Swim" selected>Swim</option>
+                    <option value="TableTennis" selected>TableTennis</option>
+                    <option value="Tennis" selected>Tennis</option>
+                    <option value="TrailRun" selected>TrailRun</option>
+                    <option value="Velomobile" selected>Velomobile</option>
+                    <option value="VirtualRow" selected>VirtualRow</option>
+                    <option value="VirtualRun" selected>VirtualRun</option>
+                    <option value="WeightTraining" selected>WeightTraining</option>
+                    <option value="Wheelchair" selected>Wheelchair</option>
+                    <option value="Windsurf" selected>Windsurf</option>
+                    <option value="Workout" selected>Workout</option>
+                    <option value="Yoga" selected>Yoga</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-2 mb-0.5">
+            <button id="selectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Select All</button>
+            <button id="deselectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Deselect All</button>
+        </div>
+    </div>
 </div>
 
 <div class="bg-white rounded-lg">
@@ -26,7 +171,32 @@
 
 <script>
     $(document).ready(function() {
-        $('#activitiesTable').DataTable({
+        // Initialize Select2
+        $('#activityTypeFilter').select2({
+            placeholder: "Select activity types",
+            width: '100%',
+            closeOnSelect: false
+        });
+
+        // Select All / Deselect All buttons
+        $('#selectAllBtn').click(function() {
+            $('#activityTypeFilter > optgroup > option').prop('selected', true);
+            $('#activityTypeFilter').trigger('change');
+        });
+
+        $('#deselectAllBtn').click(function() {
+            $('#activityTypeFilter > optgroup > option').prop('selected', false);
+            $('#activityTypeFilter').trigger('change');
+        });
+
+        // Helper to get icon for activity type
+        function getActivityIcon(type) {
+            return `<span class="activity-icon icon-${type}">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd"></path></svg>
+            </span>`;
+        }
+
+        var table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": true,
             "pageLength": 10,
@@ -38,15 +208,22 @@
                     d.per_page = d.length;
                     d.sortColumn = d.columns[d.order[0].column].data;
                     d.sortDir = d.order[0].dir.toUpperCase();
+
+                    // Add selected types to the request
+                    var selectedTypes = $('#activityTypeFilter').val();
+                    if (selectedTypes === null || selectedTypes.length === 0) {
+                        // If nothing selected, send a dummy value to match nothing
+                        d.types = ["_NO_MATCH_"];
+                    } else {
+                        d.types = selectedTypes;
+                    }
                 }
             },
             "columns": [
                 { "data": "id", "render": function(data) { return '#' + data; } },
                 { "data": "name" },
                 { "data": "type", "render": function(data) {
-                    const colors = {'Ride': 'orange', 'Run': 'blue', 'Swim': 'cyan'};
-                    const color = colors[data] || 'gray';
-                    return `<span class="px-2 py-1 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800">${data}</span>`;
+                    return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
                 }},
                 { "data": "date" },
                 { "data": "distance" },
@@ -63,10 +240,19 @@
                 "search": "",
                 "searchPlaceholder": "Filter activities..."
             },
-            "dom": '<"flex justify-between items-center mb-4"f>rt<"flex justify-between items-center mt-4"ip>'
+            // Removed 'f' (filtering) from dom to use custom search input
+            "dom": 'rt<"flex justify-between items-center mt-4"ip>'
         });
 
-        $('.dataTables_filter input').addClass('px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm w-64');
+        // Bind custom search input to DataTable
+        $('#customSearch').on('keyup', function() {
+            table.search(this.value).draw();
+        });
+
+        // Reload table when filter changes
+        $('#activityTypeFilter').on('change', function() {
+            table.ajax.reload();
+        });
     });
 </script>
 

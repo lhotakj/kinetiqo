@@ -25,12 +25,12 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC'):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None):
         """Get a list of activities for display."""
         pass
 
     @abstractmethod
-    def count_activities(self):
+    def count_activities(self, types=None):
         pass
 
     @abstractmethod

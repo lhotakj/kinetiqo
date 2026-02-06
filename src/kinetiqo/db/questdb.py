@@ -152,7 +152,7 @@ class QuestDBRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC'):
+    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None):
         """Fetch activities with pagination and sorting from QuestDB"""
         # Validate sort_by to prevent SQL injection
         allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
@@ -162,10 +162,20 @@ class QuestDBRepository(DatabaseRepository):
 
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
+        where_clause = ""
+        params = []
+        if types:
+            placeholders = ', '.join(['%s'] * len(types))
+            where_clause = f"WHERE sport IN ({placeholders})"
+            params.extend(types)
+
+        # Add limit and offset params
+        params.extend([offset, offset + limit])
+
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             # QuestDB requires different pagination approach
             # Use row_number() to implement offset
-            cur.execute(f"""
+            query = f"""
                 SELECT * FROM (
                     SELECT
                         activity_id as id,
@@ -177,9 +187,11 @@ class QuestDBRepository(DatabaseRepository):
                         timestamp as start_date,
                         row_number() OVER (ORDER BY {sort_by} {sort_order}) as rn
                     FROM activities
+                    {where_clause}
                 )
                 WHERE rn > %s AND rn <= %s
-            """, (offset, offset + limit))
+            """
+            cur.execute(query, tuple(params))
 
             activities = []
             for row in cur.fetchall():
@@ -191,10 +203,17 @@ class QuestDBRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def count_activities(self):
+    def count_activities(self, types=None):
         """Get total count of activities"""
+        where_clause = ""
+        params = []
+        if types:
+            placeholders = ', '.join(['%s'] * len(types))
+            where_clause = f"WHERE sport IN ({placeholders})"
+            params.extend(types)
+
         with self.conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM activities")
+            cur.execute(f"SELECT COUNT(*) FROM activities {where_clause}", tuple(params))
             result = cur.fetchone()
             return result[0] if result else 0
 

@@ -119,6 +119,80 @@ class InfluxDB2Repository(DatabaseRepository):
         activities.sort(key=lambda x: x.get('start_date', ''), reverse=True)
         return activities[:limit]
 
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None):
+        """Fetch activities with pagination and sorting from InfluxDB2"""
+        # Note: InfluxDB Flux language pagination and sorting is complex and might be slow for large datasets
+        # This is a simplified implementation
+        
+        type_filter = ""
+        if types:
+            # Construct filter for types: r.sport == "Run" or r.sport == "Ride" ...
+            conditions = [f'r.sport == "{t}"' for t in types]
+            type_filter = f'|> filter(fn: (r) => {" or ".join(conditions)})'
+
+        query = f'''
+            from(bucket: "{self.config.influx_bucket}")
+            |> range(start: 0)
+            |> filter(fn: (r) => r._measurement == "activity_metadata")
+            {type_filter}
+            |> group(columns: ["activity_id"])
+            |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+            |> map(fn: (r) => ({{r with 
+                id: r.activity_id,
+                type: r.sport,
+                start_date: string(v: r._time)
+            }}))
+            |> group()
+            |> sort(columns: ["{sort_by}"], desc: {str(sort_order.upper() == 'DESC').lower()})
+            |> limit(n: {limit}, offset: {offset})
+        '''
+        
+        activities = []
+        try:
+            tables = self.query_api.query(query)
+            for table in tables:
+                for record in table.records:
+                    activity = record.values
+                    activity.pop('_start', None)
+                    activity.pop('_stop', None)
+                    activity.pop('_measurement', None)
+                    activities.append(activity)
+        except Exception as e:
+            logger.error(f"Error querying activities from InfluxDB: {e}")
+            
+        return activities
+
+    def count_activities(self, types=None):
+        """Get total count of activities"""
+        type_filter = ""
+        if types:
+            conditions = [f'r.sport == "{t}"' for t in types]
+            type_filter = f'|> filter(fn: (r) => {" or ".join(conditions)})'
+
+        query = f'''
+            from(bucket: "{self.config.influx_bucket}")
+            |> range(start: 0)
+            |> filter(fn: (r) => r._measurement == "activity_metadata")
+            {type_filter}
+            |> group(columns: ["activity_id"])
+            |> count(column: "_value") 
+            |> group()
+            |> count()
+        '''
+        # The above query is an approximation and might need adjustment based on exact schema
+        # Counting unique series (activity_id) is tricky in Flux efficiently without high cardinality impact
+        
+        try:
+            tables = self.query_api.query(query)
+            for table in tables:
+                for record in table.records:
+                    # This returns the count of groups, which corresponds to activity count
+                    return record.get_value()
+        except Exception as e:
+            logger.error(f"Error counting activities in InfluxDB: {e}")
+            
+        return 0
+
     def write_activity(self, activity: dict):
         """Write activity metadata to InfluxDB2."""
         activity_id = activity["id"]

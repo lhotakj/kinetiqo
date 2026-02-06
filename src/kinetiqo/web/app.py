@@ -85,6 +85,13 @@ def get_activities_api():
     per_page = request.args.get('per_page', 10, type=int)
     sort_column = request.args.get('sortColumn', 'start_date')
     sort_dir = request.args.get('sortDir', 'DESC')
+    
+    # Handle types filtering
+    # DataTables sends array parameters with [] suffix or indices
+    # We need to parse 'types[]' from query parameters
+    types = request.args.getlist('types[]')
+    if not types:
+        types = None
 
     offset = (page - 1) * per_page
 
@@ -94,11 +101,12 @@ def get_activities_api():
             limit=per_page,
             offset=offset,
             sort_by=sort_column,
-            sort_order=sort_dir
+            sort_order=sort_dir,
+            types=types
         )
 
         # Get total count
-        total = db_repo.count_activities()
+        total = db_repo.count_activities(types=types)
 
         return jsonify({
             'data': [{
