@@ -207,6 +207,7 @@
                 <th class="py-3 px-4 w-32">Date</th>
                 <th class="py-3 px-4 w-32">Distance (km)</th>
                 <th class="py-3 px-4 w-32">Elevation (m)</th>
+                <th class="py-3 px-4 w-32">Moving Time</th>
                 <th class="py-3 px-4 w-32">Link to Strava</th>
                 <th class="py-3 px-4 w-20 text-center">Delete</th>
             </tr>
@@ -276,6 +277,17 @@
             </span>`;
         }
 
+        // Helper to format seconds into HH:MM:SS
+        function formatDuration(seconds) {
+            if (isNaN(seconds) || seconds < 0) {
+                return "00:00:00";
+            }
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
         var table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": false, // Client-side processing
@@ -326,6 +338,15 @@
                 },
                 { "data": "distance" },
                 { "data": "elevation" },
+                {
+                    "data": "moving_time",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return formatDuration(data);
+                        }
+                        return data;
+                    }
+                },
                 {
                     "data": null,
                     "orderable": false,

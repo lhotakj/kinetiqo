@@ -142,7 +142,8 @@ def get_activities_api():
                     'timestamp': timestamp
                 },
                 'distance': round(float(a['distance']), 2),
-                'elevation': float(a['total_elevation_gain'])
+                'elevation': float(a['total_elevation_gain']),
+                'moving_time': a['moving_time']
             })
 
         return jsonify({
