@@ -205,8 +205,8 @@
                 <th class="py-3 px-4">Activity Name</th>
                 <th class="py-3 px-4 w-32">Type</th>
                 <th class="py-3 px-4 w-32">Date</th>
-                <th class="py-3 px-4 w-32">Distance (km)</th>
-                <th class="py-3 px-4 w-32">Elevation (m)</th>
+                <th class="py-3 px-4 w-32 text-right">Distance (km)</th>
+                <th class="py-3 px-4 w-32 text-right">Elevation (m)</th>
                 <th class="py-3 px-4 w-32">Moving Time</th>
                 <th class="py-3 px-4 w-32">Link to Strava</th>
                 <th class="py-3 px-4 w-20 text-center">Delete</th>
@@ -291,10 +291,18 @@
         // Helper to format distance
         function formatDistance(meters) {
             if (isNaN(meters) || meters < 0) {
-                return "0,0";
+                return "0.0";
             }
             const km = meters / 1000;
-            return km.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+            return km.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Helper to format elevation
+        function formatElevation(meters) {
+            if (isNaN(meters) || meters < 0) {
+                return "0.00";
+            }
+            return meters.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         var table = $('#activitiesTable').DataTable({
@@ -347,6 +355,7 @@
                 },
                 {
                     "data": "distance",
+                    "className": "text-right",
                     "render": function(data, type, row) {
                         if (type === 'display') {
                             return formatDistance(data);
@@ -354,7 +363,16 @@
                         return data;
                     }
                 },
-                { "data": "elevation" },
+                {
+                    "data": "elevation",
+                    "className": "text-right",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return formatElevation(data);
+                        }
+                        return data;
+                    }
+                },
                 {
                     "data": "moving_time",
                     "render": function(data, type, row) {
