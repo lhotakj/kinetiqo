@@ -8,6 +8,7 @@ import time
 import random
 import logging
 import threading
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -114,14 +115,31 @@ def get_activities_api():
             types=types
         )
 
-        data = [{
-            'id': a['id'],
-            'name': a['name'],
-            'type': a['type'],
-            'date': a['start_date'],
-            'distance': round(float(a['distance']), 2),
-            'elevation': float(a['total_elevation_gain'])
-        } for a in activities]
+        data = []
+        for a in activities:
+            # Format date
+            try:
+                # Parse ISO format (e.g., 2023-05-15T10:30:00Z)
+                dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                formatted_date = dt.strftime(config.date_format)
+                # Keep original timestamp for sorting
+                timestamp = int(dt.timestamp())
+            except Exception as e:
+                logger.warning(f"Could not parse date {a['start_date']}: {e}")
+                formatted_date = a['start_date']
+                timestamp = 0
+
+            data.append({
+                'id': a['id'],
+                'name': a['name'],
+                'type': a['type'],
+                'date': {
+                    'display': formatted_date,
+                    'timestamp': timestamp
+                },
+                'distance': round(float(a['distance']), 2),
+                'elevation': float(a['total_elevation_gain'])
+            })
 
         return jsonify({
             'data': data,

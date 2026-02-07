@@ -312,7 +312,13 @@
                 { "data": "type", "render": function(data) {
                     return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
                 }},
-                { "data": "date" },
+                {
+                    "data": "date",
+                    "render": {
+                        "_": "display",
+                        "sort": "timestamp"
+                    }
+                },
                 { "data": "distance" },
                 { "data": "elevation" },
                 {

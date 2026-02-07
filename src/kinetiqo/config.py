@@ -32,6 +32,9 @@ class Config:
     questdb_host: str = os.getenv("QUESTDB_HOST")
     questdb_port: int = 8812
     
+    # Date Format
+    date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
+    
     def __post_init__(self):
         if os.getenv("QUESTDB_PORT"):
             try:
