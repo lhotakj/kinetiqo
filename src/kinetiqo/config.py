@@ -34,6 +34,7 @@ class Config:
     postgresql_user: str = os.getenv("POSTGRESQL_USER")
     postgresql_password: str = os.getenv("POSTGRESQL_PASSWORD")
     postgresql_database: str = os.getenv("POSTGRESQL_DATABASE")
+    postgresql_ssl_mode: str = os.getenv("POSTGRESQL_SSL_MODE", "disable")  # e.g., disable, allow, prefer, require, verify-ca, verify-full
     
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")

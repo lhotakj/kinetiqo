@@ -14,11 +14,12 @@ class SyncService:
 
     def sync(self, full_sync: bool = True):
         """
-        Perform sync of Strava activities.
+        Perform sync of Strava activities, yielding progress updates.
 
         :param full_sync: If True, fetches ALL activities from Strava and checks for deletions.
                           If False, fetches only activities newer than the latest one in the database.
         """
+        yield "data: Starting sync...\n\n"
         logger.info(f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'})...")
 
         # 0. Initialize database schema
@@ -26,6 +27,7 @@ class SyncService:
 
         # 1. Get already synced activity IDs
         synced_ids = self.db.get_synced_activity_ids()
+        yield f"data: Found {len(synced_ids)} activities in the database.\n\n"
         logger.info(f"Found {len(synced_ids)} already synced activities in database.")
 
         # 2. Determine fetch strategy
@@ -34,16 +36,20 @@ class SyncService:
             latest_ts = self.db.get_latest_activity_time()
             if latest_ts:
                 after = latest_ts - 86400  # Go back 1 day
+                yield f"data: Fetching new activities since {datetime.fromtimestamp(after, tz=timezone.utc)}.\n\n"
                 logger.info(f"Fast sync: Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
             else:
+                yield "data: No previous data found, performing a full fetch.\n\n"
                 logger.info("Fast sync: No previous data found, falling back to full fetch.")
 
         # 3. Fetch activities from Strava
         activities = self.strava.get_activities(after=after)
+        yield f"data: Found {len(activities)} activities on Strava.\n\n"
         logger.info(f"Found {len(activities)} activities from Strava.")
 
         # 4. Identify new activities to sync
         new_activities = [a for a in activities if str(a["id"]) not in synced_ids]
+        yield f"data: {len(new_activities)} new activities to sync.\n\n"
         logger.info(f"Identified {len(new_activities)} new activities to sync.")
 
         # 5. Identify deleted activities (ONLY in Full Sync mode)
@@ -52,6 +58,7 @@ class SyncService:
             strava_ids = set(str(a["id"]) for a in activities)
             ids_to_delete = synced_ids - strava_ids
             if ids_to_delete:
+                yield f"data: {len(ids_to_delete)} activities to delete.\n\n"
                 logger.info(f"Found {len(ids_to_delete)} activities in database that are missing from Strava.")
             else:
                 logger.info("No activities to delete.")
@@ -66,6 +73,8 @@ class SyncService:
             name = activity.get("name", "Unknown Activity")
             percent = (i / total_new) * 100
 
+            progress_message = f"[{i}/{total_new}] ({percent:.1f}%) Syncing: {name} ({sport})"
+            yield f"data: {progress_message}\n\n"
             logger.info(f"[{i}/{total_new}] ({percent:.1f}%) Syncing activity {activity_id}: '{name}' ({sport})...")
 
             try:
@@ -83,6 +92,8 @@ class SyncService:
                     logger.warning(f"  ⚠ Activity {activity_id} has no stream data.")
 
             except Exception as e:
+                error_message = f"Error syncing activity {activity_id}: {e}"
+                yield f"data: {error_message}\n\n"
                 logger.error(f"  ✗ Error syncing activity {activity_id}: {e}")
 
             time.sleep(1)  # Respect rate limits
@@ -91,13 +102,18 @@ class SyncService:
         if ids_to_delete:
             total_del = len(ids_to_delete)
             for i, act_id in enumerate(ids_to_delete, 1):
+                delete_message = f"[{i}/{total_del}] Deleting activity {act_id}..."
+                yield f"data: {delete_message}\n\n"
                 logger.info(f"[{i}/{total_del}] Deleting activity {act_id} from database...")
                 try:
                     self.db.delete_activity(act_id)
                     logger.info(f"  ✓ Deleted activity {act_id}.")
                 except Exception as e:
+                    error_message = f"Error deleting activity {act_id}: {e}"
+                    yield f"data: {error_message}\n\n"
                     logger.error(f"  ✗ Error deleting activity {act_id}: {e}")
 
+        yield "data: Sync complete.\n\n"
         logger.info("Sync complete.")
 
     def close(self):

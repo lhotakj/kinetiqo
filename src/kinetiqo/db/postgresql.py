@@ -14,6 +14,7 @@ class PostgresqlRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
+            logger.info(f"Connected to PostgreSQL at {config.postgresql_host}:{config.postgresql_port} - {self.get_pg_version()}")
         except psycopg2.OperationalError as e:
             # Check if the error is "database does not exist"
             if f'database "{config.postgresql_database}" does not exist' in str(e):
@@ -31,7 +32,8 @@ class PostgresqlRepository(DatabaseRepository):
             port=self.config.postgresql_port,
             user=self.config.postgresql_user,
             password=self.config.postgresql_password,
-            database=dbname or self.config.postgresql_database
+            database=dbname or self.config.postgresql_database,
+            sslmode=self.config.postgresql_ssl_mode
         )
         conn.autocommit = True
         return conn
@@ -52,6 +54,13 @@ class PostgresqlRepository(DatabaseRepository):
         finally:
             if 'conn_temp' in locals() and conn_temp:
                 conn_temp.close()
+
+    def get_pg_version(self) -> str:
+        """Get the PostgreSQL version string."""
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT version();")
+            result = cur.fetchone()
+            return result[0] if result else "Unknown"
 
     def initialize_schema(self):
         """Create or update the activities and streams tables in PostgreSQL."""
@@ -348,11 +357,7 @@ class PostgresqlRepository(DatabaseRepository):
         aid = int(activity_id)
         
         with self.conn.cursor() as cur:
-            # Because of ON DELETE CASCADE on streams, deleting from activities is enough
-            # But let's be explicit or rely on cascade. I added CASCADE in schema.
-            # If schema was already created without cascade, we might need to delete streams first.
-            # Let's delete streams first to be safe if schema wasn't recreated.
-            cur.execute("DELETE FROM streams WHERE activity_id = %s", (aid,))
+            # Because of ON DELETE CASCADE on streams, a delete on activities is enough
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
 

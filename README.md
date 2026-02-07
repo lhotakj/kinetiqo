@@ -35,13 +35,14 @@ You need to register an application on [Strava settings](https://www.strava.com/
 Set `DATABASE_TYPE` to either `postgresql` (default) or `influxdb2`.
 
 #### PostgreSQL (Default)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRESQL_HOST` | Hostname of the PostgreSQL server | - |
-| `POSTGRESQL_PORT` | PostgreSQL port | `5432` |
+| Variable | Description | Default    |
+|----------|-------------|------------|
+| `POSTGRESQL_HOST` | Hostname of the PostgreSQL server | -          |
+| `POSTGRESQL_PORT` | PostgreSQL port | `5432`     |
 | `POSTGRESQL_USER` | Database username | `postgres` |
 | `POSTGRESQL_PASSWORD` | Database password | `postgres` |
 | `POSTGRESQL_DATABASE` | Database name | `kinetiqo` |
+| `POSTGRESQL_SSL_MODE` | SSL mode for the connection. Can be `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. | `disable`  |
 
 #### InfluxDB 2.x
 | Variable | Description | Default |
@@ -80,6 +81,7 @@ docker run -d \
   -e POSTGRESQL_USER="postgres" \
   -e POSTGRESQL_PASSWORD="password" \
   -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   kinetiqo:latest
@@ -109,6 +111,7 @@ services:
       - POSTGRESQL_USER=postgres
       - POSTGRESQL_PASSWORD=password
       - POSTGRESQL_DATABASE=kinetiqo
+      - POSTGRESQL_SSL_MODE=disable
       - FAST_SYNC=*/15 * * * *  # Every 15 minutes
       - FULL_SYNC=0 3 * * *     # Daily at 3 AM
     depends_on:

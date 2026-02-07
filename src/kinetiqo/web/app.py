@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
@@ -180,63 +180,26 @@ def fastsync():
 
 # --- HTMX / Reactive API Endpoints ---
 
-@app.route('/api/sync/<type>', methods=['POST'])
+@app.route('/api/sync/stream/<type>')
 @login_required
-def run_sync(type):
+def sync_stream(type):
     """
-    This endpoint is called by HTMX. It triggers the backend sync process
-    and returns an HTML snippet to update the UI.
+    This endpoint uses Server-Sent Events (SSE) to stream sync progress.
     """
-    
     is_full_sync = (type == 'full')
     
-    # Run sync in a separate thread to avoid blocking the request?
-    # For simplicity in this demo, we'll run it synchronously but it might timeout for large syncs.
-    # In a real app, use Celery or RQ.
-    
-    msg = ""
-    color_class = "green"
-    
-    try:
-        # Re-initialize sync service to ensure fresh state
+    def generate():
         sync_service = SyncService(config)
-        
-        # Capture start time
-        start_time = time.time()
-        
-        # Run sync
-        sync_service.sync(full_sync=is_full_sync)
-        
-        duration = time.time() - start_time
-        
-        # We don't have easy access to the exact count of processed items from here 
-        # without modifying SyncService to return stats. 
-        # For now, we'll return a generic success message.
-        
-        msg = f"{'Full' if is_full_sync else 'Fast'} synchronization completed in {duration:.1f}s."
-        color_class = "green"
-        
-    except Exception as e:
-        logger.error(f"Sync failed: {e}")
-        msg = f"Sync failed: {str(e)}"
-        color_class = "red"
-    finally:
-        # sync_service.close() # SyncService closes db in close(), but we share db_repo?
-        # Actually SyncService creates its own db repo instance.
-        pass
+        try:
+            for progress in sync_service.sync(full_sync=is_full_sync):
+                yield progress
+        except Exception as e:
+            logger.error(f"Sync failed: {e}")
+            yield f"data: <strong>Error:</strong> {str(e)}\n\n"
+        finally:
+            sync_service.close()
 
-    # Return HTML snippet for HTMX injection
-    return f'''
-        <div class="p-4 bg-{color_class}-50 border border-{color_class}-200 rounded-md text-{color_class}-800 animate-fade-in">
-            <div class="flex items-center">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                <span class="font-medium">{msg}</span>
-            </div>
-            <div class="mt-2 text-xs text-{color_class}-600 opacity-75">
-                Database: {config.database_type} | Strava API: OK
-            </div>
-        </div>
-    '''
+    return Response(generate(), mimetype='text/event-stream')
 
 
 def run_app():
