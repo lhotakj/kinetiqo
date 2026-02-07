@@ -141,7 +141,7 @@ def get_activities_api():
                     'display': formatted_date,
                     'timestamp': timestamp
                 },
-                'distance': round(float(a['distance']), 2),
+                'distance': float(a['distance']),
                 'elevation': float(a['total_elevation_gain']),
                 'moving_time': a['moving_time']
             })

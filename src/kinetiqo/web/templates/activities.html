@@ -288,6 +288,15 @@
             return `${h}:${m}:${s}`;
         }
 
+        // Helper to format distance
+        function formatDistance(meters) {
+            if (isNaN(meters) || meters < 0) {
+                return "0,0";
+            }
+            const km = meters / 1000;
+            return km.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        }
+
         var table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": false, // Client-side processing
@@ -336,7 +345,15 @@
                         "sort": "timestamp"
                     }
                 },
-                { "data": "distance" },
+                {
+                    "data": "distance",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return formatDistance(data);
+                        }
+                        return data;
+                    }
+                },
                 { "data": "elevation" },
                 {
                     "data": "moving_time",
