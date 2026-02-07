@@ -3,6 +3,9 @@
 {% block content %}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
 
 <style>
     .select2-selection__choice__display {
@@ -122,6 +125,46 @@
             <input type="text" id="customSearch" placeholder="Search by name..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm" style="min-height: 42px;">
         </div>
 
+        <!-- Date Filter Dropdown -->
+        <div class="w-full md:w-1/4">
+            <label for="dateFilter" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <div class="relative">
+                <button id="dateFilter" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-left focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm" style="min-height: 42px;">
+                    <span>All time</span>
+                </button>
+                <div id="dateFilterDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+                    <!-- Presets -->
+                    <div class="mb-4">
+                        <h4 class="font-semibold text-sm mb-2">Presets</h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button class="date-preset-btn" data-preset="all_time">All time</button>
+                            <button class="date-preset-btn" data-preset="today">Today</button>
+                            <button class="date-preset-btn" data-preset="yesterday">Yesterday</button>
+                            <button class="date-preset-btn" data-preset="last_week">Last Week</button>
+                            <button class="date-preset-btn" data-preset="this_month">This Month</button>
+                            <button class="date-preset-btn" data-preset="this_year">This Year</button>
+                            <button class="date-preset-btn" data-preset="7_days">7 Days</button>
+                            <button class="date-preset-btn" data-preset="14_days">14 Days</button>
+                            <button class="date-preset-btn" data-preset="year">Year</button>
+                        </div>
+                    </div>
+                    <!-- Date Pickers -->
+                    <div>
+                        <div class="flex gap-4">
+                            <div>
+                                <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                                <input type="text" id="startDate" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                                <input type="text" id="endDate" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Activities Types Dropdown -->
         <div class="w-full md:w-1/2">
             <label for="activityTypeFilter" class="block text-sm font-medium text-gray-700 mb-1">Activities Types</label>
@@ -219,6 +262,94 @@
 
 <script>
     $(document).ready(function() {
+        var table = $('#activitiesTable').DataTable({
+            "processing": true,
+            "serverSide": false, // Client-side processing
+            "pageLength": 50, // Increased page length to show more activities by default
+            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
+            "order": [[3, "desc"]],
+            "autoWidth": false, // Disable auto width calculation to use our custom widths
+            "ajax": {
+                "url": "/api/activities",
+                "data": function(d) {
+                    var selectedTypes = $('#activityTypeFilter').val();
+                    if (selectedTypes === null || selectedTypes.length === 0) {
+                        d.types = ["_NO_MATCH_"];
+                    } else {
+                        d.types = selectedTypes;
+                    }
+
+                    d.startDate = $('#startDate').val();
+                    d.endDate = $('#endDate').val();
+                }
+            },
+            "columns": [
+                { "data": "id", "render": function(data) { return '#' + data; } },
+                { "data": "name" },
+                { "data": "type", "render": function(data) {
+                    return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
+                }},
+                {
+                    "data": "date",
+                    "render": {
+                        "_": "display",
+                        "sort": "timestamp"
+                    }
+                },
+                {
+                    "data": "distance",
+                    "className": "text-right",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return formatDistance(data);
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": "elevation",
+                    "className": "text-right",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return formatElevation(data);
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": "moving_time",
+                    "render": function(data, type, row) {
+                        if (type === 'display') {
+                            return formatDuration(data);
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": null,
+                    "orderable": false,
+                    "render": function(data, type, row) {
+                        return `<a href="https://www.strava.com/activities/${row.id}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">View on Strava</a>`;
+                    }
+                },
+                {
+                    "data": null,
+                    "orderable": false,
+                    "className": "text-center",
+                    "render": function(data, type, row) {
+                        return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
+                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>`;
+                    }
+                }
+            ],
+            "language": {
+                "search": "",
+                "searchPlaceholder": "Filter activities..."
+            },
+            "dom": 'rt<"flex justify-between items-center mt-4"ip>'
+        });
+
         // Initialize Select2
         var $select = $('#activityTypeFilter').select2({
             placeholder: "Select activity types",
@@ -305,107 +436,113 @@
             return meters.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        var table = $('#activitiesTable').DataTable({
-            "processing": true,
-            "serverSide": false, // Client-side processing
-            "pageLength": 50, // Increased page length to show more activities by default
-            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
-            "order": [[3, "desc"]],
-            "autoWidth": false, // Disable auto width calculation to use our custom widths
-            "ajax": {
-                "url": "/api/activities",
-                "data": function(d) {
-                    // For client-side processing, we just need to fetch the data once (or when filters change)
-                    // We can pass the type filter to the server to reduce initial payload if desired,
-                    // but for pure client-side filtering of text, we fetch all and filter in browser.
+        // --- Date Filter Logic ---
 
-                    // However, since we still want server-side filtering for Types (as per previous instructions which might still hold for large datasets),
-                    // but client-side filtering for the Search Box.
+        function updateDateFilterDisplay() {
+            var startDate = $('#startDate').val();
+            var endDate = $('#endDate').val();
 
-                    // Let's keep server-side filtering for Types to avoid fetching massive datasets if not needed,
-                    // BUT the user asked for "Filter activities" (search box) to be client side.
-                    // Usually mixing server-side and client-side in DataTables is tricky.
-                    // If we set serverSide: false, DataTables expects the server to return ALL data at once.
+            if (startDate && endDate) {
+                var start = moment(startDate).format('MMM D, YYYY');
+                var end = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text(start + ' - ' + end);
+            } else if (startDate) {
+                var start = moment(startDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('From ' + start);
+            } else if (endDate) {
+                var end = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('To ' + end);
+            } else {
+                $('#dateFilter span').text('All time');
+            }
+        }
 
-                    // So we will send the type filter to server to get a subset, but then do search/pagination client side.
-
-                    var selectedTypes = $('#activityTypeFilter').val();
-                    if (selectedTypes === null || selectedTypes.length === 0) {
-                        d.types = ["_NO_MATCH_"];
-                    } else {
-                        d.types = selectedTypes;
-                    }
-
-                    // We don't send page/start/length/search to server anymore for processing,
-                    // just the custom filters that define the dataset.
-                }
-            },
-            "columns": [
-                { "data": "id", "render": function(data) { return '#' + data; } },
-                { "data": "name" },
-                { "data": "type", "render": function(data) {
-                    return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
-                }},
-                {
-                    "data": "date",
-                    "render": {
-                        "_": "display",
-                        "sort": "timestamp"
-                    }
-                },
-                {
-                    "data": "distance",
-                    "className": "text-right",
-                    "render": function(data, type, row) {
-                        if (type === 'display') {
-                            return formatDistance(data);
-                        }
-                        return data;
-                    }
-                },
-                {
-                    "data": "elevation",
-                    "className": "text-right",
-                    "render": function(data, type, row) {
-                        if (type === 'display') {
-                            return formatElevation(data);
-                        }
-                        return data;
-                    }
-                },
-                {
-                    "data": "moving_time",
-                    "render": function(data, type, row) {
-                        if (type === 'display') {
-                            return formatDuration(data);
-                        }
-                        return data;
-                    }
-                },
-                {
-                    "data": null,
-                    "orderable": false,
-                    "render": function(data, type, row) {
-                        return `<a href="https://www.strava.com/activities/${row.id}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">View on Strava</a>`;
-                    }
-                },
-                {
-                    "data": null,
-                    "orderable": false,
-                    "className": "text-center",
-                    "render": function(data, type, row) {
-                        return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
-                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>`;
-                    }
-                }
-            ],
-            "language": {
-                "search": "",
-                "searchPlaceholder": "Filter activities..."
-            },
-            "dom": 'rt<"flex justify-between items-center mt-4"ip>'
+        $('#dateFilter').on('click', function() {
+            $('#dateFilterDropdown').toggleClass('hidden');
         });
+
+        $('#startDate').daterangepicker({
+            singleDatePicker: true,
+            showDropdowns: true,
+            autoUpdateInput: false,
+            locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
+        }).on('apply.daterangepicker', function(ev, picker) {
+            $(this).val(picker.startDate.format('YYYY-MM-DD'));
+            updateDateFilterDisplay();
+            table.ajax.reload();
+        }).on('cancel.daterangepicker', function(ev, picker) {
+            $(this).val('');
+            updateDateFilterDisplay();
+            table.ajax.reload();
+        });
+
+        $('#endDate').daterangepicker({
+            singleDatePicker: true,
+            showDropdowns: true,
+            autoUpdateInput: false,
+            locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
+        }).on('apply.daterangepicker', function(ev, picker) {
+            $(this).val(picker.startDate.format('YYYY-MM-DD'));
+            updateDateFilterDisplay();
+            table.ajax.reload();
+        }).on('cancel.daterangepicker', function(ev, picker) {
+            $(this).val('');
+            updateDateFilterDisplay();
+            table.ajax.reload();
+        });
+
+        $('.date-preset-btn').on('click', function() {
+            var preset = $(this).data('preset');
+            var presetText = $(this).text();
+            var startDate, endDate;
+
+            if (preset === 'all_time') {
+                $('#startDate').val('');
+                $('#endDate').val('');
+            } else {
+                switch (preset) {
+                    case 'today':
+                        startDate = moment();
+                        endDate = moment();
+                        break;
+                    case 'yesterday':
+                        startDate = moment().subtract(1, 'days');
+                        endDate = moment().subtract(1, 'days');
+                        break;
+                    case 'last_week':
+                        startDate = moment().subtract(1, 'week').startOf('week');
+                        endDate = moment().subtract(1, 'week').endOf('week');
+                        break;
+                    case 'this_month':
+                        startDate = moment().startOf('month');
+                        endDate = moment().endOf('month');
+                        break;
+                    case 'this_year':
+                        startDate = moment().startOf('year');
+                        endDate = moment().endOf('year');
+                        break;
+                    case '7_days':
+                        startDate = moment().subtract(6, 'days');
+                        endDate = moment();
+                        break;
+                    case '14_days':
+                        startDate = moment().subtract(13, 'days');
+                        endDate = moment();
+                        break;
+                    case 'year':
+                        startDate = moment().subtract(1, 'year');
+                        endDate = moment();
+                        break;
+                }
+                $('#startDate').val(startDate.format('YYYY-MM-DD'));
+                $('#endDate').val(endDate.format('YYYY-MM-DD'));
+            }
+
+            $('#dateFilter span').text(presetText);
+            table.ajax.reload();
+        });
+
+        // --- General Table Logic ---
 
         // Bind custom search input to DataTable (Client-side search)
         $('#customSearch').on('keyup', function() {
@@ -433,6 +570,11 @@
                 });
             }
         };
+
+        // Set initial state
+        $('#startDate').val('');
+        $('#endDate').val('');
+        updateDateFilterDisplay();
     });
 </script>
 

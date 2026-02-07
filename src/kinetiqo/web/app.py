@@ -98,6 +98,10 @@ def get_activities_api():
     if not types:
         types = None
 
+    # Handle date filtering
+    start_date = request.args.get('startDate')
+    end_date = request.args.get('endDate')
+
     if per_page is None:
         # Client-side processing mode: return all data
         # We use a very high limit to effectively fetch "all"
@@ -116,7 +120,9 @@ def get_activities_api():
             offset=offset,
             sort_by=sort_column,
             sort_order=sort_dir,
-            types=types
+            types=types,
+            start_date=start_date,
+            end_date=end_date
         )
 
         data = []

@@ -196,7 +196,7 @@ class PostgresqlRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None, start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from PostgreSQL"""
         allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain']
@@ -205,12 +205,25 @@ class PostgresqlRepository(DatabaseRepository):
 
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
-        where_clause = ""
+        where_conditions = []
         params = []
+
         if types:
             placeholders = ', '.join(['%s'] * len(types))
-            where_clause = f"WHERE sport IN ({placeholders})"
+            where_conditions.append(f"sport IN ({placeholders})")
             params.extend(types)
+
+        if start_date:
+            where_conditions.append("timestamp >= %s")
+            params.append(start_date)
+
+        if end_date:
+            where_conditions.append("timestamp <= %s")
+            params.append(end_date)
+
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
 
         # PostgreSQL supports LIMIT and OFFSET directly
         query = f"""
