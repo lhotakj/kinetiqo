@@ -1,6 +1,6 @@
 # Kinetiqo
 
-Kinetiqo is a robust, containerized tool designed to synchronize your Strava activities with a time-series database. It supports both **QuestDB** and **InfluxDB 2.x** as backends, allowing you to visualize and analyze your fitness data with tools like Grafana.
+Kinetiqo is a robust, containerized tool designed to synchronize your Strava activities with a time-series database. It supports both **PostgreSQL** and **InfluxDB 2.x** as backends, allowing you to visualize and analyze your fitness data with tools like Grafana.
 
 ## Features
 
@@ -10,7 +10,7 @@ Kinetiqo is a robust, containerized tool designed to synchronize your Strava act
 - 🐳 **Dockerized**: Ready to deploy anywhere with Docker.
 - ⏱️ **Scheduled Execution**: Built-in cron support for automated syncing.
 - 💾 **Database Support**:
-  - **QuestDB** (via PostgreSQL wire protocol)
+  - **PostgreSQL** (version 18 or compatible)
   - **InfluxDB 2.x**
 - 🚀 **Performance**: Efficient caching to minimize Strava API calls.
 - 🔒 **Secure**: Uses OAuth 2.0 for Strava authentication.
@@ -32,16 +32,16 @@ You need to register an application on [Strava settings](https://www.strava.com/
 
 ### 2. Database Configuration
 
-Set `DATABASE_TYPE` to either `questdb` (default) or `influxdb2`.
+Set `DATABASE_TYPE` to either `postgresql` (default) or `influxdb2`.
 
-#### QuestDB (Default)
+#### PostgreSQL (Default)
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `QUESTDB_HOST` | Hostname of the QuestDB server | - |
-| `QUESTDB_PORT` | PostgreSQL wire protocol port | `8812` |
-| `QUESTDB_USER` | Database username | `admin` |
-| `QUESTDB_PASSWORD` | Database password | `quest` |
-| `QUESTDB_DATABASE` | Database name | `qdb` |
+| `POSTGRESQL_HOST` | Hostname of the PostgreSQL server | - |
+| `POSTGRESQL_PORT` | PostgreSQL port | `5432` |
+| `POSTGRESQL_USER` | Database username | `postgres` |
+| `POSTGRESQL_PASSWORD` | Database password | `postgres` |
+| `POSTGRESQL_DATABASE` | Database name | `kinetiqo` |
 
 #### InfluxDB 2.x
 | Variable | Description | Default |
@@ -74,12 +74,12 @@ docker run -d \
   -e STRAVA_CLIENT_ID="your_id" \
   -e STRAVA_CLIENT_SECRET="your_secret" \
   -e STRAVA_REFRESH_TOKEN="your_token" \
-  -e DATABASE_TYPE="questdb" \
-  -e QUESTDB_HOST="questdb" \
-  -e QUESTDB_PORT="8812" \
-  -e QUESTDB_USER="admin" \
-  -e QUESTDB_PASSWORD="quest" \
-  -e QUESTDB_DATABASE="qdb" \
+  -e DATABASE_TYPE="postgresql" \
+  -e POSTGRESQL_HOST="postgresql" \
+  -e POSTGRESQL_PORT="5432" \
+  -e POSTGRESQL_USER="postgres" \
+  -e POSTGRESQL_PASSWORD="password" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   kinetiqo:latest
@@ -87,7 +87,7 @@ docker run -d \
 
 ### Docker Compose
 
-Here is a complete example stack with QuestDB and Grafana.
+Here is a complete example stack with PostgreSQL and Grafana.
 
 `docker-compose.yml`:
 
@@ -103,28 +103,29 @@ services:
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
-      - DATABASE_TYPE=questdb
-      - QUESTDB_HOST=questdb
-      - QUESTDB_PORT=8812
-      - QUESTDB_USER=admin
-      - QUESTDB_PASSWORD=quest
-      - QUESTDB_DATABASE=qdb
+      - DATABASE_TYPE=postgresql
+      - POSTGRESQL_HOST=postgresql
+      - POSTGRESQL_PORT=5432
+      - POSTGRESQL_USER=postgres
+      - POSTGRESQL_PASSWORD=password
+      - POSTGRESQL_DATABASE=kinetiqo
       - FAST_SYNC=*/15 * * * *  # Every 15 minutes
       - FULL_SYNC=0 3 * * *     # Daily at 3 AM
     depends_on:
-      - questdb
+      - postgresql
 
-  questdb:
-    image: questdb/questdb:latest
-    container_name: questdb
+  postgresql:
+    image: postgres:18
+    container_name: postgresql
     restart: always
     ports:
-      - "9000:9000"  # Web Console
-      - "8812:8812"  # Postgres Wire Protocol
-      - "9009:9009"  # InfluxDB Line Protocol
+      - "5432:5432"
     environment:
-      - QDB_PG_USER=admin
-      - QDB_PG_PASSWORD=quest
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=kinetiqo
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
 
   grafana:
     image: grafana/grafana:latest
@@ -135,7 +136,10 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
-      - questdb
+      - postgresql
+
+volumes:
+  postgresql_data:
 ```
 
 Create a `.env` file alongside it:

@@ -66,9 +66,9 @@ def web(port, host):
 
 @cli.command(help="Synchronize activities with database")
 @click.option('--database', '-d',
-              type=click.Choice(['influxdb2', 'questdb'], case_sensitive=False),
-              default='questdb',
-              help='Database backend to use (default: questdb)')
+              type=click.Choice(['influxdb2', 'postgresql'], case_sensitive=False),
+              default='postgresql',
+              help='Database backend to use (default: postgresql)')
 @click.option('--full-sync', '-f',
               is_flag=True,
               help='Perform a full sync. Checks all activities and removes deleted ones from database.')
@@ -105,6 +105,10 @@ def sync(database, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_c
         is_full_sync = True
 
     config = Config()
+    
+    # Override database type from CLI argument if provided
+    if database:
+        config.database_type = database.lower()
 
     if not config.strava_client_id:
         logger.error("Environment variable STRAVA_CLIENT_ID is required.")
@@ -117,20 +121,20 @@ def sync(database, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_c
         exit(1)
 
     # Comprehensive config validation
-    if config.database_type == "questdb":
+    if config.database_type == "postgresql":
         missing = []
-        if not config.questdb_host:
-            missing.append("QUESTDB_HOST")
-        if not config.questdb_port:
-            missing.append("QUESTDB_PORT")
-        if not config.questdb_user:
-            missing.append("QUESTDB_USER")
-        if not config.questdb_password:
-            missing.append("QUESTDB_PASSWORD")
-        if not config.questdb_database:
-            missing.append("QUESTDB_DATABASE")
+        if not config.postgresql_host:
+            missing.append("POSTGRESQL_HOST")
+        if not config.postgresql_port:
+            missing.append("POSTGRESQL_PORT")
+        if not config.postgresql_user:
+            missing.append("POSTGRESQL_USER")
+        if not config.postgresql_password:
+            missing.append("POSTGRESQL_PASSWORD")
+        if not config.postgresql_database:
+            missing.append("POSTGRESQL_DATABASE")
         if missing:
-            logger.error(f"Missing required QuestDB environment variables: {', '.join(missing)}")
+            logger.error(f"Missing required PostgreSQL environment variables: {', '.join(missing)}")
             exit(1)
     elif config.database_type == "influxdb2":
         missing = []
@@ -146,7 +150,6 @@ def sync(database, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_c
             logger.error(f"Missing required InfluxDB2 environment variables: {', '.join(missing)}")
             exit(1)
 
-    config.database_type = database.lower()
     config.enable_strava_cache = enable_strava_cache
     config.cache_ttl = cache_ttl
 

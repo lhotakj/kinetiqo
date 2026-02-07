@@ -10,9 +10,9 @@ def create_repository(config: Config) -> DatabaseRepository:
         logger.info("Using InfluxDB2 as the database backend.")
         from kinetiqo.db.influxdb import InfluxDB2Repository
         return InfluxDB2Repository(config)
-    elif config.database_type == "questdb":
-        logger.info("Using QuestDB as the database backend.")
-        from kinetiqo.db.questdb import QuestDBRepository
-        return QuestDBRepository(config)
+    elif config.database_type == "postgresql":
+        logger.info("Using PostgreSQL as the database backend.")
+        from kinetiqo.db.postgresql import PostgresqlRepository
+        return PostgresqlRepository(config)
     else:
         raise ValueError(f"Unsupported database type: {config.database_type}")

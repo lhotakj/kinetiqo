@@ -19,7 +19,7 @@ class Config:
     cache_dir: Path = Path(".cache")
 
     # Database - Common
-    database_type: str = os.getenv("DATABASE_TYPE", "questdb").lower()  # influxdb2 or questdb
+    database_type: str = os.getenv("DATABASE_TYPE", "postgresql").lower()  # influxdb2 or postgresql
 
     # InfluxDB2
     influx_token: str = os.getenv("INFLUX_TOKEN")
@@ -28,21 +28,20 @@ class Config:
     influx_bucket: str = os.getenv("INFLUX_BUCKET")
     influx_verify_ssl: bool = os.getenv("INFLUX_VERIFY_SSL", "True").lower() == "true"
 
-    # QuestDB
-    questdb_host: str = os.getenv("QUESTDB_HOST")
-    questdb_port: int = 8812
+    # PostgreSQL
+    postgresql_host: str = os.getenv("POSTGRESQL_HOST")
+    postgresql_port: int = 5432
+    postgresql_user: str = os.getenv("POSTGRESQL_USER")
+    postgresql_password: str = os.getenv("POSTGRESQL_PASSWORD")
+    postgresql_database: str = os.getenv("POSTGRESQL_DATABASE")
     
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
     
     def __post_init__(self):
-        if os.getenv("QUESTDB_PORT"):
+        if os.getenv("POSTGRESQL_PORT"):
             try:
-                self.questdb_port = int(os.getenv("QUESTDB_PORT"))
+                self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))
             except ValueError:
-                logger.error(f"Environment variable QUESTDB_PORT should be a number")
+                logger.error(f"Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
-
-    questdb_user: str = os.getenv("QUESTDB_USER")
-    questdb_password: str = os.getenv("QUESTDB_PASSWORD")
-    questdb_database: str = os.getenv("QUESTDB_DATABASE")

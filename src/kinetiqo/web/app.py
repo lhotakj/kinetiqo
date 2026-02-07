@@ -21,6 +21,10 @@ app.secret_key = 'super_secret_key_for_demo_only'
 config = Config()
 db_repo = create_repository(config)
 
+# Initialize the database schema when the app starts
+with app.app_context():
+    db_repo.initialize_schema()
+
 # --- Login Configuration ---
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -189,6 +193,9 @@ def run_sync(type):
     # Run sync in a separate thread to avoid blocking the request?
     # For simplicity in this demo, we'll run it synchronously but it might timeout for large syncs.
     # In a real app, use Celery or RQ.
+    
+    msg = ""
+    color_class = "green"
     
     try:
         # Re-initialize sync service to ensure fresh state
