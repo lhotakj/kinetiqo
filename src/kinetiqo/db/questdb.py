@@ -40,6 +40,8 @@ class QuestDBRepository(DatabaseRepository):
 
             if not activities_exists:
                 logger.info("QuestDB: Creating 'activities' table...")
+                # Note: For DELETE support, tables should ideally be WAL enabled in newer QuestDB versions,
+                # but we'll stick to standard creation.
                 cur.execute("""
                             CREATE TABLE activities
                             (
@@ -57,7 +59,7 @@ class QuestDBRepository(DatabaseRepository):
                                 average_heartrate INT,
                                 max_heartrate     INT,
                                 average_cadence DOUBLE
-                            ) timestamp(timestamp) PARTITION BY DAY
+                            ) timestamp(timestamp) PARTITION BY DAY WAL
                             """)
                 logger.info("QuestDB: Table 'activities' created successfully.")
             else:
@@ -87,7 +89,7 @@ class QuestDBRepository(DatabaseRepository):
                                 cadence     INT,
                                 speed DOUBLE,
                                 distance DOUBLE
-                            ) timestamp(timestamp) PARTITION BY DAY
+                            ) timestamp(timestamp) PARTITION BY DAY WITH WAL
                             """)
                 logger.info("QuestDB: Table 'streams' created successfully.")
             else:
@@ -299,11 +301,25 @@ class QuestDBRepository(DatabaseRepository):
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from QuestDB."""
         logger.debug(f"Deleting activity {activity_id} from QuestDB...")
+        
+        aid = int(activity_id)
+        
         with self.conn.cursor() as cur:
-            # Delete from activities metadata table
-            cur.execute("DELETE FROM activities WHERE activity_id = %s", (int(activity_id),))
-            # Delete from streams data table
-            cur.execute("DELETE FROM streams WHERE activity_id = %s", (int(activity_id),))
+            for table in ["streams", "activities"]:
+                success = False
+                last_error = None
+                
+                try:
+                    cur.execute(f"DELETE * FROM \"{table}\" WHERE activity_id = %s;", (aid,))
+                    success = True
+                    logger.info(f"DELETE succeeded for {table};")
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"DELETE failed for {table}: {e}")
+
+                if not success:
+                    logger.error(f"Delete attempt failed for {table}")
+                    raise last_error
 
     def close(self):
         self.conn.close()

@@ -151,6 +151,16 @@ def get_activities_api():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/activities/<activity_id>', methods=['DELETE'])
+@login_required
+def delete_activity_api(activity_id):
+    try:
+        db_repo.delete_activity(activity_id)
+        return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
+    except Exception as e:
+        logger.error(f"Error deleting activity {activity_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/fullsync')
 @login_required

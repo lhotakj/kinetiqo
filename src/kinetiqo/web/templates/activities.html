@@ -204,6 +204,7 @@
                 <th class="py-3 px-4 w-32">Distance (km)</th>
                 <th class="py-3 px-4 w-32">Elevation (m)</th>
                 <th class="py-3 px-4 w-32">Link to Strava</th>
+                <th class="py-3 px-4 w-20 text-center">Delete</th>
             </tr>
         </thead>
         <tbody class="text-gray-700 text-sm">
@@ -327,6 +328,16 @@
                     "render": function(data, type, row) {
                         return `<a href="https://www.strava.com/activities/${row.id}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">View on Strava</a>`;
                     }
+                },
+                {
+                    "data": null,
+                    "orderable": false,
+                    "className": "text-center",
+                    "render": function(data, type, row) {
+                        return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
+                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>`;
+                    }
                 }
             ],
             "language": {
@@ -345,6 +356,23 @@
         $('#activityTypeFilter').on('change', function() {
             table.ajax.reload();
         });
+
+        // Global delete function
+        window.deleteActivity = function(activityId) {
+            if (confirm('Are you sure you want to delete this activity? This action cannot be undone.')) {
+                $.ajax({
+                    url: '/api/activities/' + activityId,
+                    type: 'DELETE',
+                    success: function(result) {
+                        // Reload the table to reflect changes
+                        table.ajax.reload(null, false); // false to keep current paging
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error deleting activity: ' + error);
+                    }
+                });
+            }
+        };
     });
 </script>
 
