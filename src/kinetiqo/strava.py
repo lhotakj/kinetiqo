@@ -50,20 +50,27 @@ class StravaClient:
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self._get_access_token()}"}
 
-    def get_activities(self, after: int = None) -> list:
-        """Fetch activities, optionally after a given Unix timestamp."""
+    def get_activities(self, result_container: list, after: int = None):
+        """
+        Fetch activities, optionally after a given Unix timestamp.
+        Yields progress messages.
+        Populates result_container with the fetched activities.
+        """
         # Check cache first
         cache_params = {"after": after} if after else {}
         cached_activities = self.cache.get("activities", cache_params)
         if cached_activities is not None:
             logger.info(f"Using cached activities list ({len(cached_activities)} activities)")
-            return cached_activities
+            yield f"Using cached activities list ({len(cached_activities)} activities)"
+            result_container.extend(cached_activities)
+            return
 
         page = 1
         per_page = 200
         activities = []
 
         logger.info(f"Fetching activities list from Strava (after={after})...")
+        yield "Fetching data from Strava ..."
 
         while True:
             url = f"{self.BASE_URL}/athlete/activities"
@@ -80,14 +87,17 @@ class StravaClient:
                 logger.debug(f"Page {page} is empty. Reached end of activities.")
                 break
 
-            logger.debug(f"Page {page}: Found {len(batch)} activities.")
+            msg = f"Page {page}: Found {len(batch)} activities."
+            logger.debug(msg)
+            yield msg
+            
             activities.extend(batch)
             page += 1
 
         # Cache the results
         self.cache.set("activities", activities, cache_params)
-
-        return activities
+        
+        result_container.extend(activities)
 
     def get_streams(self, activity_id: int) -> dict:
         """Fetch detailed streams for an activity."""

@@ -187,6 +187,20 @@ def fastsync():
 
 # --- HTMX / Reactive API Endpoints ---
 
+@app.route('/sync/start/<type>')
+@login_required
+def start_sync_ui(type):
+    """
+    Returns the HTML snippet to connect to the SSE stream.
+    """
+    return f'''
+    <div sse-connect="/api/sync/stream/{type}" class="mb-6">
+        <div id="sync-result" sse-swap="message" class="space-y-2">
+            <p class="text-sm text-gray-500 italic">Initializing sync...</p>
+        </div>
+    </div>
+    '''
+
 @app.route('/api/sync/stream/<type>')
 @login_required
 def sync_stream(type):
