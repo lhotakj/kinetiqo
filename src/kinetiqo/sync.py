@@ -20,20 +20,54 @@ class SyncService:
                           If False, fetches only activities newer than the latest one in the database.
         """
         log_buffer = []
+        sync_type_str = 'full' if full_sync else 'fast'
 
-        def yield_log(msg):
+        def yield_log(msg, final=False):
+            # Sanitize message to ensure it doesn't break SSE format (no newlines)
+            msg = str(msg).replace('\n', ' ').replace('\r', '')
             logger.info(msg)
+            
             log_buffer.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
             if len(log_buffer) > 20:
                 log_buffer.pop(0)
             
-            log_html = '<div class="font-mono text-xs text-gray-600 overflow-y-auto max-h-64 flex flex-col-reverse">'
-            # Reverse for display so newest is at top (or bottom if we use flex-col-reverse correctly? No, usually logs scroll down)
-            # Let's just list them.
+            log_content = '<div class="font-mono text-xs text-gray-600 overflow-y-auto max-h-64 flex flex-col-reverse">'
             for line in log_buffer:
-                log_html += f'<div class="truncate">{line}</div>'
-            log_html += '</div>'
-            return f"data: {log_html}\n\n"
+                log_content += f'<div class="truncate">{line}</div>'
+            log_content += '</div>'
+
+            if final:
+                # OOB Swap to replace the log area (stopping SSE) and re-enable the button
+                
+                # 1. Replace wrapper to remove sse-connect but keep log
+                wrapper_html = f"""<div id="sync-log-area" hx-swap-oob="true">
+                    <div class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
+                        <div class="mb-4">
+                            {log_content}
+                        </div>
+                        <div class="text-center pt-4 border-t border-gray-200">
+                            <p class="text-sm text-green-600 font-medium mb-3">Sync completed successfully.</p>
+                        </div>
+                    </div>
+                </div>"""
+
+                # 2. Re-enable the button
+                button_html = f"""<button id="start-sync-btn" 
+                        hx-get="/sync/start/{sync_type_str}" 
+                        hx-target="#sync-log-area" 
+                        hx-swap="outerHTML"
+                        hx-swap-oob="true"
+                        class="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Start Sync
+                </button>"""
+
+                # Combine into a single SSE message and strip newlines from HTML
+                combined_html = (wrapper_html + button_html).replace('\n', '')
+                return f"data: {combined_html}\n\n"
+            else:
+                # Normal update targets #sync-result (implied by sse-swap="message" in the client)
+                return f"data: {log_content}\n\n"
 
         yield yield_log(f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'})...")
 
@@ -118,7 +152,7 @@ class SyncService:
                 except Exception as e:
                     yield yield_log(f"Error deleting activity {act_id}: {e}")
 
-        yield yield_log("Sync complete.")
+        yield yield_log("Sync complete.", final=True)
 
     def close(self):
         self.db.close()
