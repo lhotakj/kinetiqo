@@ -161,7 +161,9 @@ def sync(database, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_c
     sync_service = SyncService(config)
 
     try:
-        sync_service.sync(full_sync=is_full_sync)
+        # Consume the generator to execute the sync process
+        for _ in sync_service.sync(full_sync=is_full_sync):
+            pass
     finally:
         sync_service.close()
 
