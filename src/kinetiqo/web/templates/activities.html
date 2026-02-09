@@ -457,8 +457,16 @@
             }
         }
 
-        $('#dateFilter').on('click', function() {
+        $('#dateFilter').on('click', function(e) {
+            e.stopPropagation();
             $('#dateFilterDropdown').toggleClass('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('#dateFilterDropdown').length && !$(e.target).closest('#dateFilter').length) {
+                $('#dateFilterDropdown').addClass('hidden');
+            }
         });
 
         // Helper to initialize date picker with current value
