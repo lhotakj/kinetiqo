@@ -116,20 +116,6 @@
     .select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate { background-color: #DBEAFE !important; color: #2563EB !important; border-color: #93C5FD !important; }
     .select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing { background-color: #EDE9FE !important; color: #7C3AED !important; border-color: #C4B5FD !important; }
     .select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis { background-color: #FCE7F3 !important; color: #DB2777 !important; border-color: #F9A8D4 !important; }
-
-    /* DataTables Customization */
-    .dt-buttons .dt-button {
-        background-color: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.5rem;
-        color: #374151;
-        font-size: 0.875rem;
-        padding: 0.5rem 1rem;
-        margin-right: 0.5rem;
-    }
-    .dt-buttons .dt-button:hover {
-        background-color: #f3f4f6;
-    }
 </style>
 
 <div class="mb-8">
@@ -253,7 +239,8 @@
         </div>
 
         <!-- Buttons -->
-        <div class="flex gap-2 mb-0.5">
+        <div class="flex-grow"></div>
+        <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5">
             <button id="selectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Select All</button>
             <button id="deselectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Deselect All</button>
         </div>
@@ -289,12 +276,15 @@
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
             "order": [[3, "desc"]],
             "autoWidth": false, // Disable auto width calculation to use our custom widths
-            "dom": 'Brt<"flex justify-between items-center mt-4"ilp>', // Added 'B' for buttons and 'l' for length menu
+            "dom": 'Brt<"flex justify-between items-center mt-4"ilp>',
             "buttons": [
                 {
                     extend: 'csv',
                     text: 'Export to CSV',
-                    className: 'px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50'
+                    className: 'px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]',
+                    init: function(api, node, config) {
+                        $(node).removeClass('dt-button buttons-csv buttons-html5');
+                    }
                 }
             ],
             "ajax": {
@@ -377,6 +367,9 @@
                 "lengthMenu": "Show _MENU_ entries"
             }
         });
+
+        // Move buttons to the container
+        table.buttons().container().prependTo('#custom-buttons-wrapper');
 
         // Initialize Select2
         var $select = $('#activityTypeFilter').select2({
