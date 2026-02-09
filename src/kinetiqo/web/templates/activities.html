@@ -87,6 +87,48 @@
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
 
+    /* Dark mode for Select2 */
+    body.dark .select2-selection__summary {
+        color: #d4d4d4;
+    }
+    body.dark .select2-container--default .select2-selection--multiple {
+        background-color: #262626;
+        border-color: #404040;
+    }
+    body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #333333;
+        border-color: #525252;
+        color: #e5e5e5;
+    }
+    body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: #a3a3a3;
+    }
+    body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+        color: #e5e5e5;
+    }
+    body.dark .select2-dropdown {
+        background-color: #262626;
+        border-color: #404040;
+    }
+    body.dark .select2-results__option {
+        color: #e5e5e5;
+    }
+    body.dark .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+        background-color: #333333;
+        color: #f5f5f5;
+    }
+    body.dark .select2-results__option--selected {
+        background-color: #404040;
+    }
+    body.dark .select2-container--default .select2-results__group {
+        color: #a3a3a3;
+    }
+    body.dark .select2-search__field {
+        background-color: #1a1a1a;
+        border-color: #525252;
+        color: #e5e5e5;
+    }
+
     /* Activity Icons */
     .activity-icon {
         display: inline-flex;
@@ -131,6 +173,77 @@
     }
     .dt-buttons .dt-button:hover {
         background-color: #f3f4f6; /* hover:bg-gray-100 */
+    }
+
+    /* Dark mode for DataTables buttons */
+    body.dark .dt-buttons .dt-button {
+        background-color: #262626;
+        border-color: #404040;
+        color: #d4d4d4;
+    }
+    body.dark .dt-buttons .dt-button:hover {
+        background-color: #333333;
+    }
+
+    /* Dark mode for date filter dropdown */
+    body.dark #dateFilter {
+        background-color: #262626 !important;
+        border-color: #404040;
+        color: #e5e5e5;
+    }
+    body.dark #dateFilterDropdown {
+        background-color: #262626;
+        border-color: #404040;
+    }
+    body.dark .date-preset-btn {
+        color: #e5e5e5;
+    }
+    body.dark .date-preset-btn:hover {
+        background-color: #333333;
+    }
+
+    /* Dark mode for divider */
+    body.dark .bg-gray-300 {
+        background-color: #525252;
+    }
+
+    /* Dark mode for daterangepicker */
+    body.dark .daterangepicker {
+        background-color: #262626;
+        border-color: #404040;
+    }
+    body.dark .daterangepicker .calendar-table {
+        background-color: #262626;
+        border-color: #404040;
+    }
+    body.dark .daterangepicker td, body.dark .daterangepicker th {
+        color: #e5e5e5;
+    }
+    body.dark .daterangepicker td.off, body.dark .daterangepicker td.off.in-range, body.dark .daterangepicker td.off.start-date, body.dark .daterangepicker td.off.end-date {
+        color: #737373;
+    }
+    body.dark .daterangepicker td.available:hover, body.dark .daterangepicker th.available:hover {
+        background-color: #333333;
+    }
+    body.dark .daterangepicker td.active, body.dark .daterangepicker td.active:hover {
+        background-color: #EA580C;
+    }
+    body.dark .daterangepicker .calendar-table thead tr {
+        background-color: #1a1a1a;
+    }
+    body.dark .daterangepicker select {
+        background-color: #1a1a1a;
+        border-color: #525252;
+        color: #e5e5e5;
+    }
+    body.dark .daterangepicker .ranges li {
+        color: #e5e5e5;
+    }
+    body.dark .daterangepicker .ranges li:hover {
+        background-color: #333333;
+    }
+    body.dark .daterangepicker .ranges li.active {
+        background-color: #EA580C;
     }
 </style>
 

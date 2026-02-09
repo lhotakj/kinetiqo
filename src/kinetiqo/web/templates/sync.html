@@ -1,5 +1,17 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+    /* Dark mode for sync page */
+    body.dark .bg-gray-50 {
+        background-color: #262626;
+    }
+    body.dark .border-gray-100 {
+        background-color: #333333;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8">
     <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>

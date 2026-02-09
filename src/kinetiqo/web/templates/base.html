@@ -62,11 +62,62 @@
         body.dark aside { background-color: #262626; border-color: #404040; }
         body.dark .text-warm-900 { color: #f5f5f5; }
         body.dark .text-gray-500 { color: #a3a3a3; }
+        body.dark .text-gray-600 { color: #d4d4d4; }
+        body.dark .text-gray-700 { color: #d4d4d4; }
         body.dark .text-gray-900 { color: #f5f5f5; }
         body.dark .bg-white { background-color: #1a1a1a; border-color: #404040; }
+        body.dark .bg-gray-50 { background-color: #262626; }
+        body.dark .bg-gray-100 { background-color: #2a2a2a; }
+        body.dark .hover\:bg-gray-100:hover { background-color: #333333; }
+        body.dark .hover\:bg-gray-200:hover { background-color: #404040; }
         body.dark main { background-color: #171717; }
         body.dark .border-warm-200 { border-color: #404040; }
+        body.dark .border-gray-100 { border-color: #333333; }
+        body.dark .border-gray-200 { border-color: #404040; }
+        body.dark .border-gray-300 { border-color: #525252; }
         body.dark .hover\:bg-warm-200:hover { background-color: #404040; }
+
+        /* Input fields dark mode */
+        body.dark input[type="text"],
+        body.dark input[type="password"] {
+            background-color: #262626;
+            border-color: #404040;
+            color: #e5e5e5;
+        }
+        body.dark input[type="text"]:focus,
+        body.dark input[type="password"]:focus {
+            background-color: #2a2a2a;
+            border-color: #525252;
+        }
+        body.dark input::placeholder {
+            color: #737373;
+        }
+
+        /* Button dark mode */
+        body.dark button.bg-gray-900 {
+            background-color: #f5f5f5;
+            color: #171717;
+        }
+        body.dark button.bg-gray-900:hover {
+            background-color: #e5e5e5;
+        }
+
+        /* User section dark mode */
+        body.dark .bg-orange-200 {
+            background-color: #7c2d12;
+        }
+        body.dark .text-orange-800 {
+            color: #fed7aa;
+        }
+        body.dark .border-orange-300 {
+            border-color: #9a3412;
+        }
+        body.dark .text-gray-400 {
+            color: #737373;
+        }
+        body.dark .hover\:text-gray-600:hover {
+            color: #d4d4d4;
+        }
 
         /* DataTables Minimalist Style */
         .dataTables_wrapper .dataTables_length,
@@ -94,6 +145,38 @@
 
         body.dark table.dataTable tbody tr { background-color: #1a1a1a; color: #d4d4d4; }
         body.dark table.dataTable tbody tr:hover { background-color: #262626; }
+        body.dark table.dataTable tfoot { background-color: #262626; color: #d4d4d4; }
+        body.dark table.dataTable tfoot tr { border-color: #404040; }
+
+        /* DataTables pagination buttons */
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button {
+            color: #d4d4d4 !important;
+        }
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: #333333 !important;
+            border-color: #404040 !important;
+            color: #f5f5f5 !important;
+        }
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background: #404040 !important;
+            border-color: #525252 !important;
+            color: #f5f5f5 !important;
+        }
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.disabled {
+            color: #525252 !important;
+        }
+
+        /* DataTables filter input */
+        body.dark .dataTables_wrapper .dataTables_filter input {
+            background-color: #262626;
+            border-color: #404040;
+            color: #e5e5e5;
+        }
+        body.dark .dataTables_wrapper .dataTables_length select {
+            background-color: #262626;
+            border-color: #404040;
+            color: #e5e5e5;
+        }
 
         /* Fade In Animation for HTMX */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
