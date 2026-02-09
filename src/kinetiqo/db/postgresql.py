@@ -218,6 +218,9 @@ class PostgresqlRepository(DatabaseRepository):
             params.append(start_date)
 
         if end_date:
+            # Ensure end_date covers the full day
+            if len(end_date) == 10:  # YYYY-MM-DD
+                end_date += " 23:59:59.999999"
             where_conditions.append("timestamp <= %s")
             params.append(end_date)
 
