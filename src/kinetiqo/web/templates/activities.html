@@ -464,8 +464,14 @@
 
         // Close dropdown when clicking outside
         $(document).on('click', function(e) {
-            if (!$(e.target).closest('#dateFilterDropdown').length && !$(e.target).closest('#dateFilter').length) {
+            if (!$(e.target).closest('#dateFilterDropdown').length &&
+                !$(e.target).closest('#dateFilter').length &&
+                !$(e.target).closest('.daterangepicker').length) {
+
                 $('#dateFilterDropdown').addClass('hidden');
+                // Force hide pickers
+                $('#startDate').data('daterangepicker').hide();
+                $('#endDate').data('daterangepicker').hide();
             }
         });
 
