@@ -7,6 +7,12 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
 
+<!-- DataTables Buttons -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+
 <style>
     .select2-selection__choice__display {
         padding-left:15px !important;
@@ -110,6 +116,20 @@
     .select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate { background-color: #DBEAFE !important; color: #2563EB !important; border-color: #93C5FD !important; }
     .select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing { background-color: #EDE9FE !important; color: #7C3AED !important; border-color: #C4B5FD !important; }
     .select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis { background-color: #FCE7F3 !important; color: #DB2777 !important; border-color: #F9A8D4 !important; }
+
+    /* DataTables Customization */
+    .dt-buttons .dt-button {
+        background-color: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        color: #374151;
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        margin-right: 0.5rem;
+    }
+    .dt-buttons .dt-button:hover {
+        background-color: #f3f4f6;
+    }
 </style>
 
 <div class="mb-8">
@@ -269,6 +289,14 @@
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
             "order": [[3, "desc"]],
             "autoWidth": false, // Disable auto width calculation to use our custom widths
+            "dom": 'Brt<"flex justify-between items-center mt-4"ilp>', // Added 'B' for buttons and 'l' for length menu
+            "buttons": [
+                {
+                    extend: 'csv',
+                    text: 'Export to CSV',
+                    className: 'px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50'
+                }
+            ],
             "ajax": {
                 "url": "/api/activities",
                 "data": function(d) {
@@ -345,9 +373,9 @@
             ],
             "language": {
                 "search": "",
-                "searchPlaceholder": "Filter activities..."
-            },
-            "dom": 'rt<"flex justify-between items-center mt-4"ip>'
+                "searchPlaceholder": "Filter activities...",
+                "lengthMenu": "Show _MENU_ entries"
+            }
         });
 
         // Initialize Select2
