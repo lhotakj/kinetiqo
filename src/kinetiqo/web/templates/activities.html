@@ -461,35 +461,33 @@
             $('#dateFilterDropdown').toggleClass('hidden');
         });
 
-        $('#startDate').daterangepicker({
-            singleDatePicker: true,
-            showDropdowns: true,
-            autoUpdateInput: false,
-            locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
-        }).on('apply.daterangepicker', function(ev, picker) {
-            $(this).val(picker.startDate.format('YYYY-MM-DD'));
-            updateDateFilterDisplay();
-            table.ajax.reload();
-        }).on('cancel.daterangepicker', function(ev, picker) {
-            $(this).val('');
-            updateDateFilterDisplay();
-            table.ajax.reload();
-        });
+        // Helper to initialize date picker with current value
+        function initDatePicker(element) {
+            var currentVal = $(element).val();
+            var options = {
+                singleDatePicker: true,
+                showDropdowns: true,
+                autoUpdateInput: false,
+                locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
+            };
 
-        $('#endDate').daterangepicker({
-            singleDatePicker: true,
-            showDropdowns: true,
-            autoUpdateInput: false,
-            locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
-        }).on('apply.daterangepicker', function(ev, picker) {
-            $(this).val(picker.startDate.format('YYYY-MM-DD'));
-            updateDateFilterDisplay();
-            table.ajax.reload();
-        }).on('cancel.daterangepicker', function(ev, picker) {
-            $(this).val('');
-            updateDateFilterDisplay();
-            table.ajax.reload();
-        });
+            if (currentVal) {
+                options.startDate = currentVal;
+            }
+
+            $(element).daterangepicker(options).on('apply.daterangepicker', function(ev, picker) {
+                $(this).val(picker.startDate.format('YYYY-MM-DD'));
+                updateDateFilterDisplay();
+                table.ajax.reload();
+            }).on('cancel.daterangepicker', function(ev, picker) {
+                $(this).val('');
+                updateDateFilterDisplay();
+                table.ajax.reload();
+            });
+        }
+
+        initDatePicker('#startDate');
+        initDatePicker('#endDate');
 
         $('.date-preset-btn').on('click', function() {
             var preset = $(this).data('preset');
@@ -537,6 +535,10 @@
                 $('#startDate').val(startDate.format('YYYY-MM-DD'));
                 $('#endDate').val(endDate.format('YYYY-MM-DD'));
             }
+
+            // Re-init date pickers to update their internal state
+            initDatePicker('#startDate');
+            initDatePicker('#endDate');
 
             $('#dateFilter span').text(presetText);
             table.ajax.reload();
