@@ -256,6 +256,45 @@ class PostgresqlRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
+        """Get totals for distance, elevation, and moving_time for the filtered activities."""
+        where_conditions = []
+        params = []
+
+        if types:
+            placeholders = ', '.join(['%s'] * len(types))
+            where_conditions.append(f"sport IN ({placeholders})")
+            params.extend(types)
+
+        if start_date:
+            where_conditions.append("timestamp >= %s")
+            params.append(start_date)
+
+        if end_date:
+            # Ensure end_date covers the full day
+            if len(end_date) == 10:  # YYYY-MM-DD
+                end_date += " 23:59:59.999999"
+            where_conditions.append("timestamp <= %s")
+            params.append(end_date)
+
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+
+        query = f"""
+            SELECT
+                COALESCE(SUM(distance), 0) as total_distance,
+                COALESCE(SUM(total_elevation_gain), 0) as total_elevation,
+                COALESCE(SUM(moving_time), 0) as total_moving_time
+            FROM activities
+            {where_clause}
+        """
+
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, tuple(params))
+            result = cur.fetchone()
+            return dict(result) if result else {'total_distance': 0, 'total_elevation': 0, 'total_moving_time': 0}
+
     def count_activities(self, types=None):
         """Get total count of activities"""
         where_clause = ""

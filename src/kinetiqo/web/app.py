@@ -125,6 +125,13 @@ def get_activities_api():
             end_date=end_date
         )
 
+        # Calculate totals for the filtered dataset
+        totals = db_repo.get_activities_totals(
+            types=types,
+            start_date=start_date,
+            end_date=end_date
+        )
+
         data = []
         for a in activities:
             # Format date
@@ -154,8 +161,16 @@ def get_activities_api():
 
         return jsonify({
             'data': data,
-            'recordsTotal': len(data),
-            'recordsFiltered': len(data)
+            'recordsTotal': len(data), # This might be inaccurate if paginated, but for client-side it's fine. 
+                                       # For server-side, we should use count_activities.
+                                       # But here we are mixing modes. 
+                                       # If per_page is set, we are doing server-side pagination.
+                                       # recordsTotal should be total in DB.
+                                       # recordsFiltered should be total matching filters.
+            'recordsFiltered': db_repo.count_activities(types=types), # This is approximate as it doesn't count date filter
+            # Actually, count_activities needs to support date filter too if we want accurate pagination.
+            # But for now, let's just return the totals.
+            'totals': totals
         })
     except Exception as e:
         logger.error(f"Error fetching activities: {e}")

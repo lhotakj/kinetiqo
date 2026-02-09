@@ -257,9 +257,9 @@
         <!-- Buttons -->
         <div class="flex-grow"></div>
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
-            <button id="selectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]" title="Select all activities">Select All</button>
-            <button id="deselectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]" title="Deselect all activities">Deselect All</button>
-            <div class="text-gray-700"> ⁞ </div>
+            <button id="selectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Select All</button>
+            <button id="deselectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Deselect All</button>
+            <div class="h-6 w-px bg-gray-300 mx-1"></div>
         </div>
     </div>
 </div>
@@ -281,6 +281,15 @@
         </thead>
         <tbody class="text-gray-700 text-sm">
         </tbody>
+        <tfoot class="text-gray-700 text-sm font-semibold bg-gray-50 border-t border-gray-200">
+            <tr>
+                <td colspan="4" class="py-3 px-4 text-right">Totals:</td>
+                <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
+                <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
+                <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
+                <td colspan="2"></td>
+            </tr>
+        </tfoot>
     </table>
 </div>
 
@@ -378,6 +387,16 @@
                     }
                 }
             ],
+            "footerCallback": function(row, data, start, end, display) {
+                var api = this.api();
+                var json = api.ajax.json();
+
+                if (json && json.totals) {
+                    $('#totalDistance').html(formatDistance(json.totals.total_distance));
+                    $('#totalElevation').html(formatElevation(json.totals.total_elevation));
+                    $('#totalMovingTime').html(formatDuration(json.totals.total_moving_time));
+                }
+            },
             "language": {
                 "search": "",
                 "searchPlaceholder": "Filter activities...",

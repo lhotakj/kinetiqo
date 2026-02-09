@@ -30,6 +30,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
+        """Get totals for distance, elevation, and moving_time for the filtered activities."""
+        pass
+
+    @abstractmethod
     def count_activities(self, types=None):
         pass
 
