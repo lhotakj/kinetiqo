@@ -1,8 +1,12 @@
+import os
 from flask_login import UserMixin
 
-# Mock User Database
+# User Database from Environment Variables
+username = os.environ.get("WEB_LOGIN", "admin")
+password = os.environ.get("WEB_PASSWORD", "admin123")
+
 users = {
-    "jarda": {"password": "jarda"}
+    username: {"password": password}
 }
 
 class User(UserMixin):

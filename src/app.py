@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask import render_template
 from auth import User, users
+from datetime import datetime
 from mock_data import get_mock_activities
 import time
 import random
@@ -43,7 +45,7 @@ def login():
         else:
             flash('Invalid username or password')
 
-    return render_template('login.html')
+    return render_template('login.html', current_year=datetime.now().year)
 
 
 @app.route('/logout')

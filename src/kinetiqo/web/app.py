@@ -60,7 +60,7 @@ def login():
         else:
             flash('Invalid username or password')
 
-    return render_template('login.html')
+    return render_template('login.html', current_year=datetime.now().year)
 
 
 @app.route('/logout')

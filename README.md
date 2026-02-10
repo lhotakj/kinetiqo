@@ -61,6 +61,12 @@ The container has a built-in cron scheduler. You can define schedules using stan
 | `FULL_SYNC` | Cron schedule for a full sync | `0 3 * * *` (Daily at 3 AM) |
 | `FAST_SYNC` | Cron schedule for a fast sync | `*/15 * * * *` (Every 15 mins) |
 
+### 4. Web Interface Configuration
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `WEB_LOGIN` | Username for the web interface | `admin` |
+| `WEB_PASSWORD` | Password for the web interface | `admin123` |
+
 > **Note:** If the sync script fails, the container is designed to crash (exit code 1) to allow your orchestrator (Docker/K8s) to restart it.
 
 ---
@@ -84,6 +90,8 @@ docker run -d \
   -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
+  -e WEB_LOGIN="admin" \
+  -e WEB_PASSWORD="securepassword" \
   kinetiqo:latest
 ```
 
@@ -114,6 +122,8 @@ services:
       - POSTGRESQL_SSL_MODE=disable
       - FAST_SYNC=*/15 * * * *  # Every 15 minutes
       - FULL_SYNC=0 3 * * *     # Daily at 3 AM
+      - WEB_LOGIN=admin
+      - WEB_PASSWORD=admin123
     depends_on:
       - postgresql
 
