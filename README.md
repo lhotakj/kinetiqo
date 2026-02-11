@@ -178,12 +178,35 @@ You can also run the python script directly if you have the environment set up.
 # Show help
 python kinetiqo.py --help
 
+# Show version
+python kinetiqo.py version
+
 # Run a full sync
-python kinetiqo.py --full-sync
+python kinetiqo.py sync --full-sync
 
 # Run a fast sync with caching enabled
-python kinetiqo.py --fast-sync --enable-strava-cache
+python kinetiqo.py sync --fast-sync --enable-strava-cache
+
+# Check database availability
+python kinetiqo.py flightcheck
+
+# Start the web interface
+python kinetiqo.py web --port 8000
 ```
+
+### CLI Commands
+
+*   `sync`: Synchronize activities with database.
+    *   `--full-sync` / `-f`: Perform a full sync.
+    *   `--fast-sync` / `-q`: Perform a fast sync.
+    *   `--enable-strava-cache`: Enable caching of Strava API responses.
+    *   `--cache-ttl`: Cache time-to-live in minutes.
+    *   `--clear-cache`: Clear the cache before syncing.
+*   `web`: Start the web interface.
+    *   `--port`: Port to run the web server on (default: 4444).
+    *   `--host`: Host to bind to (default: 0.0.0.0).
+*   `flightcheck`: Check database availability and schema.
+*   `version`: Show the version and exit.
 
 ## License
 
