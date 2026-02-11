@@ -9,6 +9,7 @@ import random
 import logging
 import threading
 from datetime import datetime
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +34,31 @@ def load_user(user_id):
         return User(user_id)
     return None
 
+def describe_cron(expression):
+    if not expression:
+        return "Not scheduled"
+    
+    parts = expression.strip().split()
+    if len(parts) != 5:
+        return expression
+
+    minute, hour, day, month, dow = parts
+
+    try:
+        if minute.startswith("*/") and hour == "*" and day == "*" and month == "*" and dow == "*":
+            interval = minute.split("/")[1]
+            return f"Every {interval} minutes"
+        
+        if minute == "0" and hour != "*" and day == "*" and month == "*" and dow == "*":
+            return f"Daily at {hour}:00"
+            
+        if minute != "*" and hour != "*" and day == "*" and month == "*" and dow == "*":
+             return f"Daily at {hour}:{minute.zfill(2)}"
+
+    except:
+        pass
+        
+    return expression
 
 # --- Routes ---
 
@@ -79,6 +105,27 @@ def activities():
         
     return render_template('activities.html', title="Activities", activities=data)
 
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template('settings.html', title="Settings")
+
+@app.route('/api/settings')
+@login_required
+def get_settings():
+    full_sync = os.environ.get('FULL_SYNC', '')
+    fast_sync = os.environ.get('FAST_SYNC', '')
+    
+    return jsonify({
+        'full_sync': {
+            'expression': full_sync,
+            'description': describe_cron(full_sync)
+        },
+        'fast_sync': {
+            'expression': fast_sync,
+            'description': describe_cron(fast_sync)
+        }
+    })
 
 @app.route('/api/activities', methods=['GET'])
 def get_activities_api():
