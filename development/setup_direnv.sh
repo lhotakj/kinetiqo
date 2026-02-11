@@ -6,7 +6,7 @@ cd ..
 
 # Logging functions
 info() {
-    printf "\033[0;32m[INFO]\033[0m %s\n" "$1"
+    printf "\033[0;32m[INFO]\033[0m %s\n"  "$1"
 }
 
 debug() {

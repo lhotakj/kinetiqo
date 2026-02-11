@@ -46,3 +46,5 @@ class Config:
             except ValueError:
                 logger.error(f"Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
+
+    database_connect_verbose: bool = True  # Show verbose output in init

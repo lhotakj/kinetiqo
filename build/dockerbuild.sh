@@ -1,22 +1,40 @@
 #!/bin/sh
 
+# Logging functions
+info() {
+    printf "\033[0;32m[INFO]\033[0m %s\n"  "$1"
+}
+
+debug() {
+    printf "\033[0;90m[DEBUG]\033[0m %s\n" "$1"
+}
+
+error() {
+    printf "\033[0;31m[ERROR]\033[0m %s\n" "$1"
+}
+
+warn() {
+    printf "\033[0;33m[WARN]\033[0m %s\n"  "$1"
+}
+
+
 (
 cd ../src
 ls -al
-echo "[INFO] Reading version ..."
+info "Reading version ..."
 export VERSION=$(cat ./version.template)
 
 if [ -n "$GITHUB_RUN_ID" ]; then
-  echo "[INFO] Using GITHUB_RUN_ID value $GITHUB_RUN_ID"
+  info "Using GITHUB_RUN_ID value $GITHUB_RUN_ID"
   VERSION=$(echo $VERSION | awk -F. -v runid="$GITHUB_RUN_ID" '{print $1"."$2"."runid}')
 else
   VERSION=$(echo $VERSION | awk -F. -v runid="dev" '{print $1"."$2"."runid}')
-  echo "[WARN] GITHUB_RUN_ID is not set. Using 'dev' instead."
+  warn "GITHUB_RUN_ID is not set. Using 'dev' instead."
 fi
 
 echo "$VERSION" > ./version.txt
 
-echo "[INFO] Building version ${VERSION} ..."
+info "Building version ${VERSION} ..."
 docker build \
   --no-cache \
   --build-arg VERSION=${VERSION} \
@@ -25,6 +43,6 @@ docker build \
   -f ../build/Dockerfile \
   ..
 
-echo "[INFO] Built image size:"
+info "Built image size:"
 docker image ls kinetiqo:${VERSION}
 )

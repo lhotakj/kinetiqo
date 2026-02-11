@@ -4,6 +4,7 @@ import logging
 import click
 from kinetiqo.config import Config
 from kinetiqo.cache import CacheManager
+from kinetiqo.db.factory import create_repository
 from kinetiqo.sync import SyncService
 
 # -----------------------------
@@ -42,33 +43,82 @@ def print_version():
         pass
     print(f"Kinetiqo {version}")
 
+class State:
+    """A simple state object to pass config to subcommands."""
+    def __init__(self):
+        self.config = None
+
 # -----------------------------
 # CLI
 # -----------------------------
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--version', is_flag=True, help='Show the version and exit.')
-def cli(version):
+@click.option('--database', '-d',
+              type=click.Choice(['influxdb2', 'postgresql'], case_sensitive=False),
+              default=None,
+              help='Database backend to use (overrides config).')
+@click.pass_context
+def cli(ctx, version, database):
+    """Main CLI entry point."""
+    ctx.obj = State()
+    
     if version:
         print_version()
         sys.exit(0)
+
+    print_version()
+
+    config = Config()
+    if database:
+        config.database_type = database.lower()
+    ctx.obj.config = config
+
+    # Initialize schema for any command that needs the database.
+    # This ensures the DB and tables are ready before the command logic runs.
+    if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
+        try:
+            config.database_connect_verbose = False
+            repository = create_repository(config)
+            repository.initialize_schema()
+            repository.close()
+            ctx.obj.config.database_connect_verbose = True  # The init DB will be called later to hide connect info
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}")
+            sys.exit(1)
+
 
 @cli.command(help="Start the web interface")
 @click.option('--port', default=4444, help='Port to run the web server on')
 @click.option('--host', default='0.0.0.0', help='Host to bind to')
 def web(port, host):
     """Start the web interface."""
-    print_version()
     logger.info(f"Starting web server on {host}:{port}")
     
-    # Import here to avoid circular imports or unnecessary loading
+    # Import here to avoid circular imports or unnecessary loading.
+    # The web app will create its own repository using the global config.
     from kinetiqo.web.app import app
     app.run(debug=True, port=port, host=host, use_reloader=False)
 
+@cli.command(help="Check database availability and schema")
+@click.pass_context
+def flightcheck(ctx):
+    """Perform a health check on the database."""
+    logger.info("Performing flight check...")
+
+    config = ctx.obj.config
+    try:
+        repository = create_repository(config)
+        if repository.flightcheck():
+            logger.info("Database is ready.")
+            sys.exit(0)
+        else:
+            logger.error("Database check failed.")
+            sys.exit(1)
+    except Exception as e:
+        logger.error(f"An error occurred during flight check: {e}")
+        sys.exit(1)
+
 @cli.command(help="Synchronize activities with database")
-@click.option('--database', '-d',
-              type=click.Choice(['influxdb2', 'postgresql'], case_sensitive=False),
-              default='postgresql',
-              help='Database backend to use (default: postgresql)')
 @click.option('--full-sync', '-f',
               is_flag=True,
               help='Perform a full sync. Checks all activities and removes deleted ones from database.')
@@ -85,11 +135,11 @@ def web(port, host):
 @click.option('--clear-cache',
               is_flag=True,
               help='Clear the cache before syncing.')
-def sync(database, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache):
+@click.pass_context
+def sync(ctx, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache):
     """
     Synchronize activities with database.
     """
-    print_version()
 
     if full_sync and fast_sync:
         click.echo(click.style("Error: Cannot specify both --full-sync and --fast-sync.", fg="red"), err=True)
@@ -104,12 +154,8 @@ def sync(database, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_c
         logger.warning("No mode specified, defaulting to Full Sync.")
         is_full_sync = True
 
-    config = Config()
+    config = ctx.obj.config
     
-    # Override database type from CLI argument if provided
-    if database:
-        config.database_type = database.lower()
-
     if not config.strava_client_id:
         logger.error("Environment variable STRAVA_CLIENT_ID is required.")
         exit(1)

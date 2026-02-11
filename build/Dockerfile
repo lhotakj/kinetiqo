@@ -19,10 +19,13 @@ RUN apk add --no-cache dcron \
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-COPY src/version.txt src/kinetiqo.py ./
+COPY src ./
 COPY build/entrypoint.sh ./
 
 ENV FULL_SYNC=""
 ENV FAST_SYNC=""
 
+EXPOSE 8000
+
 ENTRYPOINT ["sh", "entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "kinetiqo.web.app:app"]

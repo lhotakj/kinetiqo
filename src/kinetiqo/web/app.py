@@ -21,10 +21,6 @@ app.secret_key = 'super_secret_key_for_demo_only'
 config = Config()
 db_repo = create_repository(config)
 
-# Initialize the database schema when the app starts
-with app.app_context():
-    db_repo.initialize_schema()
-
 # --- Login Configuration ---
 login_manager = LoginManager()
 login_manager.init_app(app)

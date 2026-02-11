@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional, Set, List, Dict, Any
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.rest import ApiException
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 
@@ -29,10 +30,44 @@ class InfluxDB2Repository(DatabaseRepository):
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
         self.query_api = self.client.query_api()
         self.delete_api = self.client.delete_api()
+        self.buckets_api = self.client.buckets_api()
 
     def initialize_schema(self):
-        """InfluxDB2 doesn't require schema initialization."""
-        logger.info("InfluxDB2: No schema initialization required.")
+        """Check for the InfluxDB bucket and create it if it doesn't exist."""
+        bucket_name = self.config.influx_bucket
+        logger.info(f"InfluxDB2: Checking for bucket '{bucket_name}'...")
+        try:
+            bucket = self.buckets_api.find_bucket_by_name(bucket_name)
+            if not bucket:
+                logger.warning(f"Bucket '{bucket_name}' not found. Attempting to create it...")
+                self.buckets_api.create_bucket(bucket_name=bucket_name, org=self.config.influx_org)
+                logger.info(f"Bucket '{bucket_name}' created successfully.")
+            else:
+                logger.info(f"Bucket '{bucket_name}' already exists.")
+        except ApiException as e:
+            logger.error(f"Error managing InfluxDB bucket: {e}")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during schema initialization: {e}")
+            sys.exit(1)
+
+    def flightcheck(self) -> bool:
+        """Perform a health check on the database."""
+        try:
+            if not self.client.ping():
+                logger.error("InfluxDB2 ping failed.")
+                return False
+
+            bucket = self.buckets_api.find_bucket_by_name(self.config.influx_bucket)
+            if not bucket:
+                logger.error(f"Bucket '{self.config.influx_bucket}' not found.")
+                return False
+            
+            logger.info(f"InfluxDB2 is connected and bucket '{self.config.influx_bucket}' is present.")
+            return True
+        except Exception as e:
+            logger.error(f"Flight check failed: {e}")
+            return False
 
     def get_latest_activity_time(self) -> Optional[int]:
         """Get the start timestamp of the activity with the highest ID."""
@@ -213,6 +248,7 @@ class InfluxDB2Repository(DatabaseRepository):
             .field("max_speed", activity.get("max_speed", 0.0))
             .field("average_heartrate", activity.get("average_heartrate"))
             .field("max_heartrate", activity.get("max_heartrate"))
+
             .field("average_cadence", activity.get("average_cadence"))
             .time(ts_ns, WritePrecision.NS)
         )

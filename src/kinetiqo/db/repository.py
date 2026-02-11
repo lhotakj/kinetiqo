@@ -10,6 +10,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def flightcheck(self) -> bool:
+        """Perform a health check on the database."""
+        pass
+
+    @abstractmethod
     def get_latest_activity_time(self) -> Optional[int]:
         """Get the start timestamp of the activity with the highest ID."""
         pass

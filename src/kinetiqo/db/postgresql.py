@@ -14,7 +14,8 @@ class PostgresqlRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
-            logger.info(f"Connected to PostgreSQL at {config.postgresql_host}:{config.postgresql_port} - {self.get_pg_version()}")
+            if config.database_connect_verbose:
+                logger.info(f"Connected to PostgreSQL at {config.postgresql_host}:{config.postgresql_port} - {self.get_pg_version()}")
         except psycopg2.OperationalError as e:
             # Check if the error is "database does not exist"
             if f'database "{config.postgresql_database}" does not exist' in str(e):
@@ -138,6 +139,32 @@ class PostgresqlRepository(DatabaseRepository):
                 logger.info("PostgreSQL: Table 'streams' created successfully.")
             else:
                 logger.info("PostgreSQL: Table 'streams' already exists.")
+
+    def flightcheck(self) -> bool:
+        """Perform a health check on the database."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                
+                # Check if tables exist
+                cur.execute("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_name IN ('activities', 'streams')
+                """)
+                tables = {row[0] for row in cur.fetchall()}
+                
+                if 'activities' not in tables:
+                    logger.error("Table 'activities' is missing.")
+                    return False
+                if 'streams' not in tables:
+                    logger.error("Table 'streams' is missing.")
+                    return False
+                
+                return True
+        except Exception as e:
+            logger.error(f"Flight check failed: {e}")
+            return False
 
     def get_latest_activity_time(self) -> Optional[int]:
         """Get the start timestamp of the activity with the highest ID."""
@@ -397,7 +424,7 @@ class PostgresqlRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             # First delete existing streams for this activity to avoid duplicates if re-syncing
             cur.execute("DELETE FROM streams WHERE activity_id = %s", (activity_id,))
-            
+
             execute_batch(cur, """
                                INSERT INTO streams (timestamp, activity_id, sport, athlete_id, lat, lng, altitude,
                                                     heartrate, cadence, speed, distance)
@@ -408,9 +435,9 @@ class PostgresqlRepository(DatabaseRepository):
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from PostgreSQL."""
         logger.debug(f"Deleting activity {activity_id} from PostgreSQL...")
-        
+
         aid = int(activity_id)
-        
+
         with self.conn.cursor() as cur:
             # Because of ON DELETE CASCADE on streams, a delete on activities is enough
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))

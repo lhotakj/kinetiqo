@@ -20,7 +20,7 @@ CRONFILE=/tmp/crontab
 > $CRONFILE
 
 if [ "$FULL_SYNC" != "" ]; then
-  echo "$FULL_SYNC python3 /app/kinetiqo.py --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
+  echo "$FULL_SYNC python3 /app/kinetiqo.py sync --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   echo "[INFO] Adding full sync to cron: $FULL_SYNC"
   CRON_ADDED=1
 else
@@ -28,25 +28,22 @@ else
 fi
 
 if [ "$FAST_SYNC" != "" ]; then
-  echo "$FAST_SYNC python3 /app/kinetiqo.py --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
+  echo "$FAST_SYNC python3 /app/kinetiqo.py sync --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   echo "[INFO] Adding fast sync to cron: ${FAST_SYNC}"
   CRON_ADDED=1
 else
   echo "[WARN] No fast sync set"
-
 fi
 
 if [ $CRON_ADDED -eq 1 ]; then
   crontab $CRONFILE
-  crond -f
-  echo "[INFO] Cron installed"
-else
-  echo "[WARN] No cron jobs defined. Exiting..."
-  exit 1
+  # Start cron in background
+  crond -b -L /dev/stdout
+  echo "[INFO] Cron started in background"
 fi
 
 echo "[INFO] Check version"
 python3 /app/kinetiqo.py --version
 
-# Keep the container running
-tail -f /dev/null
+# Execute the command passed to docker run
+exec "$@"
