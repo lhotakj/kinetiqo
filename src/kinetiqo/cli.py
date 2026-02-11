@@ -43,6 +43,48 @@ def print_version():
         pass
     print(f"Kinetiqo {version}")
 
+def validate_config(config):
+    logger.debug("Configuration validation started...")
+    if not config.strava_client_id:
+        logger.error("Environment variable STRAVA_CLIENT_ID is required.")
+        sys.exit(1)
+    if not config.strava_client_secret:
+        logger.error("Environment variable STRAVA_CLIENT_SECRET is required.")
+        sys.exit(1)
+    if not config.strava_refresh_token:
+        logger.error("Environment variable STRAVA_REFRESH_TOKEN is required.")
+        sys.exit(1)
+
+    # Comprehensive config validation
+    if config.database_type == "postgresql":
+        missing = []
+        if not config.postgresql_host:
+            missing.append("POSTGRESQL_HOST")
+        if not config.postgresql_port:
+            missing.append("POSTGRESQL_PORT")
+        if not config.postgresql_user:
+            missing.append("POSTGRESQL_USER")
+        if not config.postgresql_password:
+            missing.append("POSTGRESQL_PASSWORD")
+        if not config.postgresql_database:
+            missing.append("POSTGRESQL_DATABASE")
+        if missing:
+            logger.error(f"Missing required PostgreSQL environment variables: {', '.join(missing)}")
+            sys.exit(1)
+    elif config.database_type == "influxdb2":
+        missing = []
+        if not config.influx_token:
+            missing.append("INFLUX_TOKEN")
+        if not config.influx_url:
+            missing.append("INFLUX_URL")
+        if not config.influx_org:
+            missing.append("INFLUX_ORG")
+        if not config.influx_bucket:
+            missing.append("INFLUX_BUCKET")
+        if missing:
+            logger.error(f"Missing required InfluxDB2 environment variables: {', '.join(missing)}")
+            sys.exit(1)
+
 class State:
     """A simple state object to pass config to subcommands."""
     def __init__(self):
@@ -52,22 +94,15 @@ class State:
 # CLI
 # -----------------------------
 @click.group(help="Kinetiqo - Strava Sync Tool")
-@click.option('--version', is_flag=True, help='Show the version and exit.')
 @click.option('--database', '-d',
               type=click.Choice(['influxdb2', 'postgresql'], case_sensitive=False),
               default=None,
               help='Database backend to use (overrides config).')
 @click.pass_context
-def cli(ctx, version, database):
+def cli(ctx, database):
     """Main CLI entry point."""
     ctx.obj = State()
     
-    if version:
-        print_version()
-        sys.exit(0)
-
-    print_version()
-
     config = Config()
     if database:
         config.database_type = database.lower()
@@ -76,6 +111,7 @@ def cli(ctx, version, database):
     # Initialize schema for any command that needs the database.
     # This ensures the DB and tables are ready before the command logic runs.
     if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
+        validate_config(config)
         try:
             config.database_connect_verbose = False
             repository = create_repository(config)
@@ -86,6 +122,10 @@ def cli(ctx, version, database):
             logger.error(f"Failed to initialize database: {e}")
             sys.exit(1)
 
+@cli.command(help="Show the version and exit")
+def version():
+    """Show the version and exit."""
+    print_version()
 
 @cli.command(help="Start the web interface")
 @click.option('--port', default=4444, help='Port to run the web server on')
@@ -156,45 +196,7 @@ def sync(ctx, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache)
 
     config = ctx.obj.config
     
-    if not config.strava_client_id:
-        logger.error("Environment variable STRAVA_CLIENT_ID is required.")
-        exit(1)
-    if not config.strava_client_secret:
-        logger.error("Environment variable STRAVA_CLIENT_SECRET is required.")
-        exit(1)
-    if not config.strava_refresh_token:
-        logger.error("Environment variable STRAVA_REFRESH_TOKEN is required.")
-        exit(1)
-
-    # Comprehensive config validation
-    if config.database_type == "postgresql":
-        missing = []
-        if not config.postgresql_host:
-            missing.append("POSTGRESQL_HOST")
-        if not config.postgresql_port:
-            missing.append("POSTGRESQL_PORT")
-        if not config.postgresql_user:
-            missing.append("POSTGRESQL_USER")
-        if not config.postgresql_password:
-            missing.append("POSTGRESQL_PASSWORD")
-        if not config.postgresql_database:
-            missing.append("POSTGRESQL_DATABASE")
-        if missing:
-            logger.error(f"Missing required PostgreSQL environment variables: {', '.join(missing)}")
-            exit(1)
-    elif config.database_type == "influxdb2":
-        missing = []
-        if not config.influx_token:
-            missing.append("INFLUX_TOKEN")
-        if not config.influx_url:
-            missing.append("INFLUX_URL")
-        if not config.influx_org:
-            missing.append("INFLUX_ORG")
-        if not config.influx_bucket:
-            missing.append("INFLUX_BUCKET")
-        if missing:
-            logger.error(f"Missing required InfluxDB2 environment variables: {', '.join(missing)}")
-            exit(1)
+    # Config validation is now handled in cli() via validate_config()
 
     config.enable_strava_cache = enable_strava_cache
     config.cache_ttl = cache_ttl

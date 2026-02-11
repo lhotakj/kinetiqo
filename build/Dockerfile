@@ -1,7 +1,6 @@
 ARG VERSION="debug"
 FROM python:3.14-alpine AS builder
 
-ARG VERSION
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
@@ -9,21 +8,22 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 FROM python:3.14-alpine
 
 ARG VERSION
-LABEL maintainer="jarda@lhotak.net"
-LABEL version=$VERSION
-LABEL description="Kinetiqo sync tool"
+LABEL maintainer="jarda@lhotak.net" \
+      version=$VERSION \
+      description="Kinetiqo sync tool"
 
-RUN apk add --no-cache dcron \
-    && adduser -D appuser
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FULL_SYNC="" \
+    FAST_SYNC=""
 
 WORKDIR /app
+
+RUN apk add --no-cache dcron
 
 COPY --from=builder /install /usr/local
 COPY src ./
 COPY build/entrypoint.sh ./
-
-ENV FULL_SYNC=""
-ENV FAST_SYNC=""
 
 EXPOSE 8000
 
