@@ -16,6 +16,8 @@ cleanup() {
 # Trap signals (EXIT, SIGINT, SIGTERM) to run cleanup
 trap cleanup EXIT INT TERM
 
+POSTGRESQL_HOST='10.0.0.100'
+
 docker run --rm \
    -e FAST_SYNC="${FAST_SYNC}" \
    -e STRAVA_CLIENT_ID="${STRAVA_CLIENT_ID}" \
@@ -26,4 +28,5 @@ docker run --rm \
    -e POSTGRESQL_USER="${POSTGRESQL_USER}" \
    -e POSTGRESQL_PASSWORD="${POSTGRESQL_PASSWORD}" \
    -e POSTGRESQL_DATABASE="${POSTGRESQL_DATABASE}" \
+   -p "8180:8000" \
    kinetiqo:latest
