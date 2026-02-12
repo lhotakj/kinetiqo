@@ -31,17 +31,19 @@ else
   warn "GITHUB_RUN_NUMBER is not set. Using 'dev' instead."
 fi
 
+SHORT_VERSION=$(echo $VERSION | cut -d. -f1,2)
+
 echo "$VERSION" > ./version.txt
 
-info "Building version ${VERSION} ..."
+info "Building version ${VERSION} (Short: ${SHORT_VERSION}) ..."
 docker build \
   --no-cache \
-  --build-arg VERSION=${VERSION} \
+  --build-arg VERSION=${SHORT_VERSION} \
   -t kinetiqo:latest \
-  -t kinetiqo:${VERSION} \
+  -t kinetiqo:${SHORT_VERSION} \
   -f ../build/Dockerfile \
   ..
 
 info "Built image size:"
-docker image ls kinetiqo:${VERSION}
+docker image ls kinetiqo:${SHORT_VERSION}
 )
