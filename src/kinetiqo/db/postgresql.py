@@ -209,7 +209,9 @@ class PostgresqlRepository(DatabaseRepository):
                     distance,
                     moving_time,
                     total_elevation_gain,
-                    timestamp as start_date
+                    timestamp as start_date,
+                    average_speed,
+                    average_heartrate
                 FROM activities 
                 ORDER BY timestamp DESC 
                 LIMIT %s
@@ -226,7 +228,7 @@ class PostgresqlRepository(DatabaseRepository):
     def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None, start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from PostgreSQL"""
         allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate']
         if sort_by not in allowed_columns:
             sort_by = 'timestamp'
 
@@ -264,7 +266,9 @@ class PostgresqlRepository(DatabaseRepository):
                 distance,
                 moving_time,
                 total_elevation_gain,
-                timestamp as start_date
+                timestamp as start_date,
+                average_speed,
+                average_heartrate
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}

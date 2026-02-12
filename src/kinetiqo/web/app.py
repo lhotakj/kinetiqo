@@ -217,7 +217,9 @@ def get_activities_api():
                 },
                 'distance': float(a['distance']),
                 'elevation': float(a['total_elevation_gain']),
-                'moving_time': a['moving_time']
+                'moving_time': a['moving_time'],
+                'average_speed': float(a['average_speed']) if a.get('average_speed') is not None else 0.0,
+                'average_heartrate': int(a['average_heartrate']) if a.get('average_heartrate') is not None else 0
             })
 
         return jsonify({
