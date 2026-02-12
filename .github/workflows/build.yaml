@@ -32,7 +32,7 @@ jobs:
       - name: Get version from build
         id: get_version
         run: |
-          VERSION=$(cat /src/version.txt)
+          VERSION=$(cat ./src/version.txt)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Tag and push image

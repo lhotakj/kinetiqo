@@ -20,16 +20,15 @@ warn() {
 
 (
 cd ../src
-ls -al
 info "Reading version ..."
 export VERSION=$(cat ./version.template)
 
-if [ -n "$GITHUB_RUN_ID" ]; then
-  info "Using GITHUB_RUN_ID value $GITHUB_RUN_ID"
-  VERSION=$(echo $VERSION | awk -F. -v runid="$GITHUB_RUN_ID" '{print $1"."$2"."runid}')
+if [ -n "$GITHUB_RUN_NUMBER" ]; then
+  info "Using GITHUB_RUN_NUMBER value $GITHUB_RUN_NUMBER"
+  VERSION=$(echo $VERSION | awk -F. -v runid="$GITHUB_RUN_NUMBER" '{print $1"."$2"."runid}')
 else
   VERSION=$(echo $VERSION | awk -F. -v runid="dev" '{print $1"."$2"."runid}')
-  warn "GITHUB_RUN_ID is not set. Using 'dev' instead."
+  warn "GITHUB_RUN_NUMBER is not set. Using 'dev' instead."
 fi
 
 echo "$VERSION" > ./version.txt
