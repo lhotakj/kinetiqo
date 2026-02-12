@@ -20,7 +20,6 @@ logger.setLevel(logging.DEBUG)
 
 # Reduce noise from libraries
 logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("influxdb_client").setLevel(logging.WARNING)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 
@@ -71,18 +70,20 @@ def validate_config(config):
         if missing:
             logger.error(f"Missing required PostgreSQL environment variables: {', '.join(missing)}")
             sys.exit(1)
-    elif config.database_type == "influxdb2":
+    elif config.database_type == "mysql":
         missing = []
-        if not config.influx_token:
-            missing.append("INFLUX_TOKEN")
-        if not config.influx_url:
-            missing.append("INFLUX_URL")
-        if not config.influx_org:
-            missing.append("INFLUX_ORG")
-        if not config.influx_bucket:
-            missing.append("INFLUX_BUCKET")
+        if not config.mysql_host:
+            missing.append("MYSQL_HOST")
+        if not config.mysql_port:
+            missing.append("MYSQL_PORT")
+        if not config.mysql_user:
+            missing.append("MYSQL_USER")
+        if not config.mysql_password:
+            missing.append("MYSQL_PASSWORD")
+        if not config.mysql_database:
+            missing.append("MYSQL_DATABASE")
         if missing:
-            logger.error(f"Missing required InfluxDB2 environment variables: {', '.join(missing)}")
+            logger.error(f"Missing required MySQL environment variables: {', '.join(missing)}")
             sys.exit(1)
 
 class State:
@@ -95,7 +96,7 @@ class State:
 # -----------------------------
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--database', '-d',
-              type=click.Choice(['influxdb2', 'postgresql'], case_sensitive=False),
+              type=click.Choice(['mysql', 'postgresql'], case_sensitive=False),
               default=None,
               help='Database backend to use (overrides config).')
 @click.pass_context
@@ -130,13 +131,18 @@ def version():
 @cli.command(help="Start the web interface")
 @click.option('--port', default=4444, help='Port to run the web server on')
 @click.option('--host', default='0.0.0.0', help='Host to bind to')
-def web(port, host):
+@click.pass_context
+def web(ctx, port, host):
     """Start the web interface."""
     logger.info(f"Starting web server on {host}:{port}")
     
     # Import here to avoid circular imports or unnecessary loading.
     # The web app will create its own repository using the global config.
-    from kinetiqo.web.app import app
+    from kinetiqo.web.app import app, set_config
+    
+    # Pass the config from CLI to the web app
+    set_config(ctx.obj.config)
+
     app.run(debug=True, port=port, host=host, use_reloader=False)
 
 @cli.command(help="Check database availability and schema")

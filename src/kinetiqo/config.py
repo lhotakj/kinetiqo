@@ -19,14 +19,15 @@ class Config:
     cache_dir: Path = Path(".cache")
 
     # Database - Common
-    database_type: str = os.getenv("DATABASE_TYPE", "postgresql").lower()  # influxdb2 or postgresql
+    database_type: str = os.getenv("DATABASE_TYPE", "postgresql").lower()  # mysql or postgresql
 
-    # InfluxDB2
-    influx_token: str = os.getenv("INFLUX_TOKEN")
-    influx_url: str = os.getenv("INFLUX_URL")
-    influx_org: str = os.getenv("INFLUX_ORG")
-    influx_bucket: str = os.getenv("INFLUX_BUCKET")
-    influx_verify_ssl: bool = os.getenv("INFLUX_VERIFY_SSL", "True").lower() == "true"
+    # MySQL
+    mysql_host: str = os.getenv("MYSQL_HOST")
+    mysql_port: int = 3306
+    mysql_user: str = os.getenv("MYSQL_USER")
+    mysql_password: str = os.getenv("MYSQL_PASSWORD")
+    mysql_database: str = os.getenv("MYSQL_DATABASE")
+    mysql_ssl_mode: str = os.getenv("MYSQL_SSL_MODE", "disable")
 
     # PostgreSQL
     postgresql_host: str = os.getenv("POSTGRESQL_HOST")
@@ -45,6 +46,17 @@ class Config:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))
             except ValueError:
                 logger.error(f"Environment variable POSTGRESQL_PORT should be a number")
+                sys.exit(1)
+        
+        if os.path.exists(os.getenv("MYSQL_PORT", "")): # Check if env var exists before converting, though getenv returns string or None.
+             # Wait, os.getenv returns string.
+             pass
+
+        if os.getenv("MYSQL_PORT"):
+            try:
+                self.mysql_port = int(os.getenv("MYSQL_PORT"))
+            except ValueError:
+                logger.error(f"Environment variable MYSQL_PORT should be a number")
                 sys.exit(1)
 
     database_connect_verbose: bool = True  # Show verbose output in init

@@ -1,6 +1,6 @@
 # Kinetiqo
 
-Kinetiqo is a robust, containerized tool designed to synchronize your Strava activities with a time-series database. It supports both **PostgreSQL** and **InfluxDB 2.x** as backends, allowing you to visualize and analyze your fitness data with tools like Grafana.
+Kinetiqo is a robust, containerized tool designed to synchronize your Strava activities with a relational database. It supports both **PostgreSQL** and **MySQL/MariaDB** as backends, allowing you to visualize and analyze your fitness data with tools like Grafana.
 
 ## Features
 
@@ -11,7 +11,7 @@ Kinetiqo is a robust, containerized tool designed to synchronize your Strava act
 - ⏱️ **Scheduled Execution**: Built-in cron support for automated syncing.
 - 💾 **Database Support**:
   - **PostgreSQL** (version 18 or compatible)
-  - **InfluxDB 2.x**
+  - **MySQL 8 / MariaDB 12**
 - 🚀 **Performance**: Efficient caching to minimize Strava API calls.
 - 🔒 **Secure**: Uses OAuth 2.0 for Strava authentication.
 
@@ -32,7 +32,7 @@ You need to register an application on [Strava settings](https://www.strava.com/
 
 ### 2. Database Configuration
 
-Set `DATABASE_TYPE` to either `postgresql` (default) or `influxdb2`.
+Set `DATABASE_TYPE` to either `postgresql` (default) or `mysql`.
 
 #### PostgreSQL (Default)
 | Variable | Description | Default    |
@@ -44,14 +44,22 @@ Set `DATABASE_TYPE` to either `postgresql` (default) or `influxdb2`.
 | `POSTGRESQL_DATABASE` | Database name | `kinetiqo` |
 | `POSTGRESQL_SSL_MODE` | SSL mode for the connection. Can be `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. | `disable`  |
 
-#### InfluxDB 2.x
+#### MySQL / MariaDB
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `INFLUX_URL` | Full URL to InfluxDB (e.g., `http://influxdb:8086`) | - |
-| `INFLUX_TOKEN` | API Token with write access to the bucket | - |
-| `INFLUX_ORG` | Organization name | - |
-| `INFLUX_BUCKET` | Bucket name | - |
-| `INFLUX_VERIFY_SSL` | Verify SSL certificates (`True`/`False`) | `True` |
+| `MYSQL_HOST` | Hostname of the MySQL server | - |
+| `MYSQL_PORT` | MySQL port | `3306` |
+| `MYSQL_USER` | Database username | - |
+| `MYSQL_PASSWORD` | Database password | - |
+| `MYSQL_DATABASE` | Database name | - |
+
+Note that you need to explicitly grant permission to the `MYSQL_USER` on that DB to create database for you.
+Run this query to grant the permission before you run the tool, replace `$MYSQL_USER` with your username.
+```sql
+GRANT CREATE ON *.* TO '$MYSQL_USER'@'%';
+GRANT ALL PRIVILEGES ON *.* TO '$MYSQL_USER'@'%'
+FLUSH PRIVILEGES;
+```
 
 ### 3. Scheduling (Cron)
 The container has a built-in cron scheduler. You can define schedules using standard cron syntax (e.g., `0 * * * *` for hourly).

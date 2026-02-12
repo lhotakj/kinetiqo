@@ -19,8 +19,16 @@ app = Flask(__name__, template_folder='./templates')
 app.secret_key = 'super_secret_key_for_demo_only'
 
 # --- Configuration & Database ---
+# Default config, will be overwritten by set_config
 config = Config()
-db_repo = create_repository(config)
+db_repo = None
+
+def set_config(new_config: Config):
+    """Sets the configuration and initializes the repository."""
+    global config, db_repo
+    config = new_config
+    # Initialize the repository immediately with the provided config
+    db_repo = create_repository(config)
 
 # --- Login Configuration ---
 login_manager = LoginManager()
@@ -97,7 +105,12 @@ def logout():
 def activities():
     # Load real data from database
     try:
-        data = db_repo.get_activities(limit=50)
+        # Ensure db_repo is initialized if not already (fallback for direct run)
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+            
+        data = repo.get_activities(limit=50)
     except Exception as e:
         logger.error(f"Error fetching activities: {e}")
         flash(f"Error fetching activities: {e}")
@@ -157,8 +170,13 @@ def get_activities_api():
         offset = (page - 1) * per_page
 
     try:
+        # Ensure db_repo is initialized
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+
         # Fetch activities directly from database
-        activities = db_repo.get_activities_web(
+        activities = repo.get_activities_web(
             limit=limit,
             offset=offset,
             sort_by=sort_column,
@@ -169,7 +187,7 @@ def get_activities_api():
         )
 
         # Calculate totals for the filtered dataset
-        totals = db_repo.get_activities_totals(
+        totals = repo.get_activities_totals(
             types=types,
             start_date=start_date,
             end_date=end_date
@@ -210,7 +228,7 @@ def get_activities_api():
                                        # If per_page is set, we are doing server-side pagination.
                                        # recordsTotal should be total in DB.
                                        # recordsFiltered should be total matching filters.
-            'recordsFiltered': db_repo.count_activities(types=types), # This is approximate as it doesn't count date filter
+            'recordsFiltered': repo.count_activities(types=types), # This is approximate as it doesn't count date filter
             # Actually, count_activities needs to support date filter too if we want accurate pagination.
             # But for now, let's just return the totals.
             'totals': totals
@@ -224,7 +242,12 @@ def get_activities_api():
 @login_required
 def delete_activity_api(activity_id):
     try:
-        db_repo.delete_activity(activity_id)
+        # Ensure db_repo is initialized
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+            
+        repo.delete_activity(activity_id)
         return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
     except Exception as e:
         logger.error(f"Error deleting activity {activity_id}: {e}")
