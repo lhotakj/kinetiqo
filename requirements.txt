@@ -1,4 +1,4 @@
-mysql-connector-python==8.3.0
+mysql-connector-python==9.1.0
 requests==2.32.5
 python-dateutil==2.9.0
 click==8.3.1
