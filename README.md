@@ -1,19 +1,62 @@
 # Kinetiqo
 
-Kinetiqo is a robust, containerized tool designed to synchronize your Strava activities with a relational database. It supports both **PostgreSQL** and **MySQL/MariaDB** as backends, allowing you to visualize and analyze your fitness data with tools like Grafana.
+Kinetiqo liberates your Strava activities, syncing them into a high-performance SQL database (**PostgreSQL** or **MySQL/MariaDB**) for ultimate control.
+
+Visualize your progress with our **built-in Web UI** or dive deep with the included **Grafana dashboards**. Whether you're a data nerd or just want to see your stats without limits, Kinetiqo is your personal fitness data warehouse.
 
 ## Features
 
-- 🔄 **Two Sync Modes**:
-  - **Full Sync**: Fetches all activities, downloads missing ones, and removes deleted activities from the database.
-  - **Fast Sync**: Fetches only new activities since the last sync for quick updates.
-- 🐳 **Dockerized**: Ready to deploy anywhere with Docker.
-- ⏱️ **Scheduled Execution**: Built-in cron support for automated syncing.
-- 💾 **Database Support**:
-  - **PostgreSQL** (version 18 or compatible)
+- 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
+- 🔄 **Smart Sync**:
+  - **Full Sync**: Complete library audit—fetches everything, fills gaps, and prunes deleted activities.
+  - **Fast Sync**: Lightning-fast updates for your latest workouts.
+- 🐳 **Docker Native**: Drop it into your stack and forget it.
+- ⏱️ **Set & Forget**: Built-in cron scheduler keeps your data fresh automatically.
+- 💾 **Database Agnostic**:
+  - **PostgreSQL** (version 18+)
   - **MySQL 8 / MariaDB 12**
-- 🚀 **Performance**: Efficient caching to minimize Strava API calls.
-- 🔒 **Secure**: Uses OAuth 2.0 for Strava authentication.
+- 🚀 **Optimized**: Intelligent caching minimizes API usage and maximizes speed.
+- 🔒 **Secure**: OAuth 2.0 authentication keeps your Strava account safe.
+
+---
+
+## Requirements
+
+- Python 3.8+
+- Dependencies listed in `requirements.txt` (e.g., `click`, `requests`, `Flask`).
+
+## Installation
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/lhotakj/kinetiqo.git
+    cd kinetiqo
+    ```
+
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    ```
+
+3.  **Install the required packages:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Configure your environment variables.**
+    You can create a `.env` file in the project root to store your secrets. This file is ignored by Git.
+    
+    **.env example:**
+    ```env
+    STRAVA_CLIENT_ID=12345
+    STRAVA_CLIENT_SECRET=your_secret_here
+    STRAVA_REFRESH_TOKEN=your_refresh_token_here
+    DATABASE_TYPE=postgresql
+    POSTGRESQL_HOST=localhost
+    POSTGRESQL_USER=postgres
+    POSTGRESQL_PASSWORD=password
+    ```
 
 ---
 
@@ -57,7 +100,7 @@ Note that you need to explicitly grant permission to the `MYSQL_USER` on that DB
 Run this query to grant the permission before you run the tool, replace `$MYSQL_USER` with your username.
 ```sql
 GRANT CREATE ON *.* TO '$MYSQL_USER'@'%';
-GRANT ALL PRIVILEGES ON *.* TO '$MYSQL_USER'@'%'
+GRANT ALL PRIVILEGES ON *.* TO '$MYSQL_USER'@'%';
 FLUSH PRIVILEGES;
 ```
 
@@ -75,7 +118,7 @@ The container has a built-in cron scheduler. You can define schedules using stan
 | `WEB_LOGIN` | Username for the web interface | `admin` |
 | `WEB_PASSWORD` | Password for the web interface | `admin123` |
 
-> **Note:** If the sync script fails, the container is designed to crash (exit code 1) to allow your orchestrator (Docker/K8s) to restart it.
+> **Note:** Sync failures are logged in logs, your can review them using `docker logs` command.  
 
 ---
 
@@ -83,6 +126,7 @@ The container has a built-in cron scheduler. You can define schedules using stan
 
 ### Docker Run
 
+Example if you prefer to run it using `docker` command.
 ```bash
 docker run -d \
   --name kinetiqo \
@@ -99,7 +143,7 @@ docker run -d \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -e WEB_LOGIN="admin" \
-  -e WEB_PASSWORD="securepassword" \
+  -e WEB_PASSWORD="securepassword13" \
   kinetiqo:latest
 ```
 
@@ -125,13 +169,13 @@ services:
       - POSTGRESQL_HOST=postgresql
       - POSTGRESQL_PORT=5432
       - POSTGRESQL_USER=postgres
-      - POSTGRESQL_PASSWORD=password
+      - POSTGRESQL_PASSWORD=${POSTGRESQL_PASSWORD}
       - POSTGRESQL_DATABASE=kinetiqo
       - POSTGRESQL_SSL_MODE=disable
       - FAST_SYNC=*/15 * * * *  # Every 15 minutes
       - FULL_SYNC=0 3 * * *     # Daily at 3 AM
       - WEB_LOGIN=admin
-      - WEB_PASSWORD=admin123
+      - WEB_PASSWORD=securepassword13
     depends_on:
       - postgresql
 
@@ -169,6 +213,7 @@ Create a `.env` file alongside it:
 STRAVA_CLIENT_ID=12345
 STRAVA_CLIENT_SECRET=your_secret_here
 STRAVA_REFRESH_TOKEN=your_refresh_token_here
+POSTGRESQL_PASSWORD=your_password_here
 ```
 
 Then run:
@@ -178,7 +223,7 @@ docker-compose up -d
 
 ---
 
-## Manual Usage (CLI)
+## Manual Sync using CLI
 
 You can also run the python script directly if you have the environment set up.
 
@@ -197,13 +242,17 @@ python kinetiqo.py sync --fast-sync --enable-strava-cache
 
 # Check database availability
 python kinetiqo.py flightcheck
+```
 
+## Run the web server
 # Start the web interface
+```
 python kinetiqo.py web --port 8000
 ```
 
 ### CLI Commands
 
+*   `--database` / `-d`: Database backend to use (overrides config). Choices: `mysql`, `postgresql`.
 *   `sync`: Synchronize activities with database.
     *   `--full-sync` / `-f`: Perform a full sync.
     *   `--fast-sync` / `-q`: Perform a fast sync.
