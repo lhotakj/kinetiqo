@@ -63,7 +63,7 @@ Kinetiqo is written in Python and requires a database backend of your choice (My
    [Direnv](https://direnv.net/) installation is shipped in the `development` folder
    ```bash
    cd development
-   ./setup_direnv.sh
+   ./setup-direnv.sh
    ```
    This command installs [Direnv](https://direnv.net/docs/installation.html) together with all required packages.
    Once you enter the folder `kinetiqo` it activates the venv, it deactivates when leaving the folder
@@ -125,6 +125,7 @@ Set `DATABASE_TYPE` to either `postgresql` (default) or `mysql`.
 | `MYSQL_USER` | Database username | - |
 | `MYSQL_PASSWORD` | Database password | - |
 | `MYSQL_DATABASE` | Database name | - |
+| `MYSQL_SSL_MODE` | SSL mode for the connection. | `disable` |
 
 Note that you need to explicitly grant permission to the `MYSQL_USER` on that DB to create database for you.
 Run this query to grant the permission before you run the tool, replace `$MYSQL_USER` with your username.
@@ -246,7 +247,7 @@ services:
     container_name: kinetiqo
     restart: always
     ports:
-      - "80:4444"    
+      - "80:4444"   
     environment:
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}

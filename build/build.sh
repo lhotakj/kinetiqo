@@ -41,6 +41,7 @@ docker build \
   --build-arg VERSION=${SHORT_VERSION} \
   -t kinetiqo:latest \
   -t kinetiqo:${SHORT_VERSION} \
+  -t kinetiqo:${VERSION} \
   -f ../build/Dockerfile \
   ..
 

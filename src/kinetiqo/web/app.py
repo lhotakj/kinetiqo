@@ -174,6 +174,10 @@ def get_activities_api():
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
+        
+        # Commit the transaction to ensure we see the latest data
+        if hasattr(repo, 'conn') and repo.conn:
+            repo.conn.commit()
 
         # Fetch activities directly from database
         activities = repo.get_activities_web(
