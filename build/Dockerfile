@@ -45,4 +45,4 @@ COPY build/entrypoint.sh ./
 EXPOSE 8000
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "kinetiqo.web.app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:4444", "--workers", "4", "kinetiqo.web.app:app"]

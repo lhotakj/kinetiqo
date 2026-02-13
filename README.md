@@ -4,6 +4,22 @@ Kinetiqo liberates your Strava activities, syncing them into a high-performance 
 
 Visualize your progress with our **built-in Web UI** or dive deep with the included **Grafana dashboards**. Whether you're a data nerd or just want to see your stats without limits, Kinetiqo is your personal fitness data warehouse.
 
+## Table of Contents
+
+- [Features](#features)
+- [Running Kinetiqo as python script](#running-kinetiqo-as-python-script)
+  - [Dependencies](#dependencies)
+  - [Setup local environment](#setup-local-environment)
+  - [Configuration](#configuration)
+- [Kinetiqo CLI explained](#kinetiqo-cli-explained)
+  - [CLI Commands](#cli-commands)
+  - [Manual sync (command `sync`)](#manual-sync-command-sync)
+  - [Run the web server (command `web`)](#run-the-web-server-command-web)
+- [Deployment](#deployment)
+  - [Docker Run](#docker-run)
+  - [Docker Compose](#docker-compose)
+- [License](#license)
+
 ## Features
 
 - 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
@@ -20,12 +36,15 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 
 ---
 
-## Requirements
+## Running Kinetiqo as python script
 
-- Python 3.8+
-- Dependencies listed in `requirements.txt` (e.g., `click`, `requests`, `Flask`).
+### Dependencies
 
-## Installation
+Kinetiqo is written in Python and requires a database backend of your choice (MySQL/MariaDB or PostgreSQL).
+- Python 3.12+
+- Dependencies listed in `requirements.txt`.
+
+### Setup local environment
 
 1.  **Clone the repository:**
     ```bash
@@ -33,21 +52,34 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
     cd kinetiqo
     ```
 
-2.  **Create and activate a virtual environment:**
+2.  **Setup your virtual environment using venv**
     ```bash
     python -m venv venv
     source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-    ```
-
-3.  **Install the required packages:**
-    ```bash
     pip install -r requirements.txt
-    ```
+    ``` 
+
+3. **Alternatively use direnv to handle your environment**
+   [Direnv](https://direnv.net/) installation is shipped in the `development` folder
+   ```bash
+   cd development
+   ./setup_direnv.sh
+   ```
+   This command installs [Direnv](https://direnv.net/docs/installation.html) together with all required packages.
+   Once you enter the folder `kinetiqo` it activates the venv, it deactivates when leaving the folder
+   ```shell
+    $ cd kinetiqo/
+    direnv: loading ~/WORKING/kinetiqo/.envrc
+    [INFO] Activating Python Python 3.12.3 venv...
+    [INFO] Installing dependencies from requirements.txt ...
+    [INFO] Loading environment variables from .env.development...
+    direnv: export +CACHE_DIR +MYSQL_DATABASE +MYSQL_HOST +MYSQL_PASSWORD +MYSQL_SSL_MODE +MYSQL_USER +POSTGRESQL_DATABASE +POSTGRESQL_HOST +POSTGRESQL_PASSWORD +POSTGRESQL_PORT +POSTGRESQL_USER +STRAVA_CLIENT_ID +STRAVA_CLIENT_SECRET +STRAVA_REFRESH_TOKEN +VIRTUAL_ENV +VIRTUAL_ENV_PROMPT +WEB_LOGIN +WEB_PASSWORD ~PATH
+   ```
 
 4.  **Configure your environment variables.**
-    You can create a `.env` file in the project root to store your secrets. This file is ignored by Git.
+    Create a `.env` file in the project root to store your secrets. This file is ignored by Git.
     
-    **.env example:**
+    **kinetiqo.env example:**
     ```env
     STRAVA_CLIENT_ID=12345
     STRAVA_CLIENT_SECRET=your_secret_here
@@ -58,9 +90,7 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
     POSTGRESQL_PASSWORD=password
     ```
 
----
-
-## Configuration
+### Configuration
 
 Kinetiqo is configured entirely via environment variables.
 
@@ -120,7 +150,61 @@ The container has a built-in cron scheduler. You can define schedules using stan
 
 > **Note:** Sync failures are logged in logs, your can review them using `docker logs` command.  
 
----
+
+## Kinetiqo CLI explained
+
+The source code sits in `src`.
+```shell
+cd src
+```
+
+### CLI Commands
+
+*   `--database` / `-d`: Database backend to use (overrides config). Choices: `mysql`, `postgresql`.
+*   `sync`: Synchronize activities with database.
+    *   `--full-sync` / `-f`: Perform a full sync.
+    *   `--fast-sync` / `-q`: Perform a fast sync.
+    *   `--enable-strava-cache`: Enable caching of Strava API responses.
+    *   `--cache-ttl`: Cache time-to-live in minutes.
+    *   `--clear-cache`: Clear the cache before syncing.
+*   `web`: Start the web interface.
+    *   `--port`: Port to run the web server on (default: 4444).
+    *   `--host`: Host to bind to (default: 0.0.0.0).
+*   `flightcheck`: Check database availability and schema.
+*   `version`: Show the version and exit.
+
+
+### Manual sync (command `sync`)
+
+You can also run the python script directly if you have the environment set up.
+
+```bash
+# Show help
+python kinetiqo.py --help
+
+# Show version
+python kinetiqo.py version
+
+# Run a full sync
+python kinetiqo.py sync --full-sync
+
+# Run a fast sync with caching enabled
+python kinetiqo.py sync --fast-sync --enable-strava-cache
+
+# Check database availability
+python kinetiqo.py flightcheck
+```
+
+### Run the web server (command `web`)
+
+Default port for the web interface is `4444`, with default `postgres` database. It expects PostgreSQL environments loaded, see above.
+```bash
+python kinetiqo.py web
+```
+You can define own port by `--port <number>`, the example below defines database type `mysql` and port `8000`. It expects MySQL environments loaded, see above. 
+```bash
+python kinetiqo.py --database mysql web --port 8000
+```
 
 ## Deployment
 
@@ -154,13 +238,15 @@ Here is a complete example stack with PostgreSQL and Grafana.
 `docker-compose.yml`:
 
 ```yaml
-version: '3.8'
+---
 
 services:
   kinetiqo:
-    image: kinetiqo:latest
+    image: lhotakj/kinetiqo:latest
     container_name: kinetiqo
     restart: always
+    ports:
+      - "80:4444"    
     environment:
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
@@ -220,50 +306,6 @@ Then run:
 ```bash
 docker-compose up -d
 ```
-
----
-
-## Manual Sync using CLI
-
-You can also run the python script directly if you have the environment set up.
-
-```bash
-# Show help
-python kinetiqo.py --help
-
-# Show version
-python kinetiqo.py version
-
-# Run a full sync
-python kinetiqo.py sync --full-sync
-
-# Run a fast sync with caching enabled
-python kinetiqo.py sync --fast-sync --enable-strava-cache
-
-# Check database availability
-python kinetiqo.py flightcheck
-```
-
-## Run the web server
-# Start the web interface
-```
-python kinetiqo.py web --port 8000
-```
-
-### CLI Commands
-
-*   `--database` / `-d`: Database backend to use (overrides config). Choices: `mysql`, `postgresql`.
-*   `sync`: Synchronize activities with database.
-    *   `--full-sync` / `-f`: Perform a full sync.
-    *   `--fast-sync` / `-q`: Perform a fast sync.
-    *   `--enable-strava-cache`: Enable caching of Strava API responses.
-    *   `--cache-ttl`: Cache time-to-live in minutes.
-    *   `--clear-cache`: Clear the cache before syncing.
-*   `web`: Start the web interface.
-    *   `--port`: Port to run the web server on (default: 4444).
-    *   `--host`: Host to bind to (default: 0.0.0.0).
-*   `flightcheck`: Check database availability and schema.
-*   `version`: Show the version and exit.
 
 ## License
 
