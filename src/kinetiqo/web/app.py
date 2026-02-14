@@ -118,6 +118,48 @@ def activities():
         
     return render_template('activities.html', title="Activities", activities=data)
 
+@app.route('/logs')
+@login_required
+def logs():
+    try:
+        # Ensure db_repo is initialized
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+            
+        # Commit to ensure fresh data
+        if hasattr(repo, 'conn') and repo.conn:
+            repo.conn.commit()
+            
+        logs_data = repo.get_logs(limit=50)
+        
+        # Format logs as text
+        log_text = f"{'DATETIME':<25} {'ACTION':<12} {'ADDED':<8} {'REMOVED':<8} {'TRIGGER':<10} {'USER':<10} {'RESULT':<10}\n"
+        log_text += "-" * 95 + "\n"
+        
+        for log in logs_data:
+            ts = log['timestamp']
+            # Try to format timestamp nicely if it's a string
+            try:
+                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                ts_str = dt.strftime("%b %d, %Y %H:%M")
+            except:
+                ts_str = str(ts)[:20]
+                
+            status = "success" if log['success'] else "failed"
+            action = log.get('action', 'unknown') or 'unknown'
+            user = log.get('user', '-') or '-'
+            
+            log_text += f"{ts_str:<25} {action:<12} {log['added']:<8} {log['removed']:<8} {log['trigger_source']:<10} {user:<10} {status:<10}\n"
+            
+    except Exception as e:
+        logger.error(f"Error fetching logs: {e}")
+        log_text = f"Error fetching logs: {e}"
+        if "doesn't exist" in str(e) or "does not exist" in str(e):
+             log_text = "Table logs doesn't exist or is inaccessible"
+        
+    return render_template('logs.html', title="Sync Logs", log_text=log_text)
+
 @app.route('/settings')
 @login_required
 def settings():
@@ -254,6 +296,13 @@ def delete_activity_api(activity_id):
             repo = create_repository(config)
             
         repo.delete_activity(activity_id)
+        
+        # Log the deletion
+        try:
+            repo.log_sync(added=0, removed=1, trigger="web", success=True, action="delete", user=current_user.id)
+        except Exception as log_err:
+            logger.error(f"Failed to log deletion: {log_err}")
+            
         return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
     except Exception as e:
         logger.error(f"Error deleting activity {activity_id}: {e}")
@@ -306,11 +355,12 @@ def sync_stream(type):
     This endpoint uses Server-Sent Events (SSE) to stream sync progress.
     """
     is_full_sync = (type == 'full')
+    user_id = current_user.id
     
     def generate():
         sync_service = SyncService(config)
         try:
-            for progress in sync_service.sync(full_sync=is_full_sync):
+            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id):
                 yield progress
         except Exception as e:
             logger.error(f"Sync failed: {e}")

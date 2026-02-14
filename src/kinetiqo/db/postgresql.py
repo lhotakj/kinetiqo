@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
+from kinetiqo.db.schema import SchemaManager
 
 logger = logging.getLogger("kinetiqo")
 
@@ -64,81 +65,9 @@ class PostgresqlRepository(DatabaseRepository):
             return result[0] if result else "Unknown"
 
     def initialize_schema(self):
-        """Create or update the activities and streams tables in PostgreSQL."""
-        logger.info("PostgreSQL: Initializing schema...")
-
-        with self.conn.cursor() as cur:
-            # Create activities metadata table
-            cur.execute("""
-                        SELECT table_name
-                        FROM information_schema.tables
-                        WHERE table_name = 'activities'
-                        """)
-            activities_exists = cur.fetchone() is not None
-
-            if not activities_exists:
-                logger.info("PostgreSQL: Creating 'activities' table...")
-                cur.execute("""
-                            CREATE TABLE activities
-                            (
-                                timestamp         TIMESTAMP WITH TIME ZONE,
-                                activity_id       BIGINT PRIMARY KEY,
-                                name              TEXT,
-                                sport             TEXT,
-                                athlete_id        BIGINT,
-                                distance          DOUBLE PRECISION,
-                                moving_time       INTEGER,
-                                elapsed_time      INTEGER,
-                                total_elevation_gain DOUBLE PRECISION,
-                                average_speed     DOUBLE PRECISION,
-                                max_speed         DOUBLE PRECISION,
-                                average_heartrate INTEGER,
-                                max_heartrate     INTEGER,
-                                average_cadence   DOUBLE PRECISION
-                            )
-                            """)
-                # Create index on timestamp for faster queries
-                cur.execute("CREATE INDEX idx_activities_timestamp ON activities (timestamp DESC);")
-                logger.info("PostgreSQL: Table 'activities' created successfully.")
-            else:
-                logger.info("PostgreSQL: Table 'activities' already exists.")
-
-            # Create streams data table
-            cur.execute("""
-                        SELECT table_name
-                        FROM information_schema.tables
-                        WHERE table_name = 'streams'
-                        """)
-            streams_exists = cur.fetchone() is not None
-
-            if not streams_exists:
-                logger.info("PostgreSQL: Creating 'streams' table...")
-                cur.execute("""
-                            CREATE TABLE streams
-                            (
-                                timestamp   TIMESTAMP WITH TIME ZONE,
-                                activity_id BIGINT,
-                                sport       TEXT,
-                                athlete_id  BIGINT,
-                                lat         DOUBLE PRECISION,
-                                lng         DOUBLE PRECISION,
-                                altitude    DOUBLE PRECISION,
-                                heartrate   INTEGER,
-                                cadence     INTEGER,
-                                speed       DOUBLE PRECISION,
-                                distance    DOUBLE PRECISION,
-                                CONSTRAINT fk_activity
-                                    FOREIGN KEY(activity_id) 
-                                    REFERENCES activities(activity_id)
-                                    ON DELETE CASCADE
-                            )
-                            """)
-                # Create index on activity_id and timestamp
-                cur.execute("CREATE INDEX idx_streams_activity_id ON streams (activity_id);")
-                cur.execute("CREATE INDEX idx_streams_timestamp ON streams (timestamp);")
-                logger.info("PostgreSQL: Table 'streams' created successfully.")
-            else:
-                logger.info("PostgreSQL: Table 'streams' already exists.")
+        """Create or update the database schema using SchemaManager."""
+        schema_manager = SchemaManager(self.conn, 'postgresql')
+        schema_manager.ensure_schema()
 
     def flightcheck(self) -> bool:
         """Perform a health check on the database."""
@@ -150,7 +79,7 @@ class PostgresqlRepository(DatabaseRepository):
                 cur.execute("""
                     SELECT table_name
                     FROM information_schema.tables
-                    WHERE table_name IN ('activities', 'streams')
+                    WHERE table_name IN ('activities', 'streams', 'logs')
                 """)
                 tables = {row[0] for row in cur.fetchall()}
                 
@@ -159,6 +88,9 @@ class PostgresqlRepository(DatabaseRepository):
                     return False
                 if 'streams' not in tables:
                     logger.error("Table 'streams' is missing.")
+                    return False
+                if 'logs' not in tables:
+                    logger.error("Table 'logs' is missing.")
                     return False
                 
                 return True
@@ -446,6 +378,32 @@ class PostgresqlRepository(DatabaseRepository):
             # Because of ON DELETE CASCADE on streams, a delete on activities is enough
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
+
+    def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
+        """Log the result of a sync operation."""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO logs (added, removed, trigger_source, success, action, "user")
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (added, removed, trigger, success, action, user))
+
+    def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get the latest sync logs."""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT timestamp, added, removed, trigger_source, success, action, "user"
+                FROM logs
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (limit,))
+            
+            logs = []
+            for row in cur.fetchall():
+                log = dict(row)
+                if isinstance(log['timestamp'], datetime):
+                    log['timestamp'] = log['timestamp'].isoformat()
+                logs.append(log)
+            return logs
 
     def close(self):
         self.conn.close()

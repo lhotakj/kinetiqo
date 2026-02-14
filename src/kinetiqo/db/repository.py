@@ -59,6 +59,16 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
+        """Log the result of a sync operation."""
+        pass
+
+    @abstractmethod
+    def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get the latest sync logs."""
+        pass
+
+    @abstractmethod
     def close(self):
         """Close database connection."""
         pass

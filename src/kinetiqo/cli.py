@@ -142,7 +142,7 @@ def web(ctx, port, host):
     
     # Pass the config from CLI to the web app
     set_config(ctx.obj.config)
-
+    
     app.run(debug=True, port=port, host=host, use_reloader=False)
 
 @cli.command(help="Check database availability and schema")
@@ -216,7 +216,7 @@ def sync(ctx, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache)
 
     try:
         # Consume the generator to execute the sync process
-        for _ in sync_service.sync(full_sync=is_full_sync):
+        for _ in sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-"):
             pass
     finally:
         sync_service.close()

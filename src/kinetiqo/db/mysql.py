@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
+from kinetiqo.db.schema import SchemaManager
 
 logger = logging.getLogger("kinetiqo")
 
@@ -89,74 +90,9 @@ class MySQLRepository(DatabaseRepository):
             return result[0] if result else "Unknown"
 
     def initialize_schema(self):
-        """Create or update the activities and streams tables in MySQL."""
-        logger.info("MySQL: Initializing schema...")
-
-        with self.conn.cursor() as cur:
-            cur.execute("USE information_schema;")
-            cur.execute("SELECT table_name FROM tables WHERE table_schema = %s AND table_name = 'activities'", (self.config.mysql_database,))
-            activities_exists = cur.fetchone() is not None
-            cur.execute(f"USE {self.config.mysql_database};")
-
-            if not activities_exists:
-                logger.info("MySQL: Creating 'activities' table...")
-                cur.execute("""
-                            CREATE TABLE activities
-                            (
-                                timestamp         TIMESTAMP,
-                                activity_id       BIGINT PRIMARY KEY,
-                                name              TEXT,
-                                sport             VARCHAR(255),
-                                athlete_id        BIGINT,
-                                distance          DOUBLE PRECISION,
-                                moving_time       INTEGER,
-                                elapsed_time      INTEGER,
-                                total_elevation_gain DOUBLE PRECISION,
-                                average_speed     DOUBLE PRECISION,
-                                max_speed         DOUBLE PRECISION,
-                                average_heartrate INTEGER,
-                                max_heartrate     INTEGER,
-                                average_cadence   DOUBLE PRECISION
-                            ) ENGINE=InnoDB;
-                            """)
-                cur.execute("CREATE INDEX idx_activities_timestamp ON activities (timestamp DESC);")
-                logger.info("MySQL: Table 'activities' created successfully.")
-            else:
-                logger.info("MySQL: Table 'activities' already exists.")
-
-            cur.execute("USE information_schema;")
-            cur.execute("SELECT table_name FROM tables WHERE table_schema = %s AND table_name = 'streams'", (self.config.mysql_database,))
-            streams_exists = cur.fetchone() is not None
-            cur.execute(f"USE {self.config.mysql_database};")
-
-            if not streams_exists:
-                logger.info("MySQL: Creating 'streams' table...")
-                cur.execute("""
-                            CREATE TABLE streams
-                            (
-                                timestamp   TIMESTAMP,
-                                activity_id BIGINT,
-                                sport       VARCHAR(255),
-                                athlete_id  BIGINT,
-                                lat         DOUBLE PRECISION,
-                                lng         DOUBLE PRECISION,
-                                altitude    DOUBLE PRECISION,
-                                heartrate   INTEGER,
-                                cadence     INTEGER,
-                                speed       DOUBLE PRECISION,
-                                distance    DOUBLE PRECISION,
-                                CONSTRAINT fk_activity
-                                    FOREIGN KEY(activity_id) 
-                                    REFERENCES activities(activity_id)
-                                    ON DELETE CASCADE
-                            ) ENGINE=InnoDB;
-                            """)
-                cur.execute("CREATE INDEX idx_streams_activity_id ON streams (activity_id);")
-                cur.execute("CREATE INDEX idx_streams_timestamp ON streams (timestamp);")
-                logger.info("MySQL: Table 'streams' created successfully.")
-            else:
-                logger.info("MySQL: Table 'streams' already exists.")
-        self.conn.commit()
+        """Create or update the database schema using SchemaManager."""
+        schema_manager = SchemaManager(self.conn, 'mysql')
+        schema_manager.ensure_schema()
 
     def flightcheck(self) -> bool:
         """Perform a health check on the database."""
@@ -165,7 +101,7 @@ class MySQLRepository(DatabaseRepository):
                 cur.execute("SELECT 1")
                 
                 cur.execute("USE information_schema;")
-                cur.execute("SELECT table_name FROM tables WHERE table_schema = %s AND table_name IN ('activities', 'streams')", (self.config.mysql_database,))
+                cur.execute("SELECT table_name FROM tables WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')", (self.config.mysql_database,))
                 tables = {row[0] for row in cur.fetchall()}
                 cur.execute(f"USE {self.config.mysql_database};")
                 
@@ -174,6 +110,9 @@ class MySQLRepository(DatabaseRepository):
                     return False
                 if 'streams' not in tables:
                     logger.error("Table 'streams' is missing.")
+                    return False
+                if 'logs' not in tables:
+                    logger.error("Table 'logs' is missing.")
                     return False
                 
                 return True
@@ -459,6 +398,33 @@ class MySQLRepository(DatabaseRepository):
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
         self.conn.commit()
+
+    def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
+        """Log the result of a sync operation."""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO logs (added, removed, trigger_source, success, action, user)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (added, removed, trigger, success, action, user))
+        self.conn.commit()
+
+    def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get the latest sync logs."""
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT timestamp, added, removed, trigger_source, success, action, user
+                FROM logs
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (limit,))
+            
+            logs = []
+            for row in cur.fetchall():
+                log = dict(row)
+                if isinstance(log['timestamp'], datetime):
+                    log['timestamp'] = log['timestamp'].isoformat()
+                logs.append(log)
+            return logs
 
     def close(self):
         if self.conn.is_connected():

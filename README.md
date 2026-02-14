@@ -23,6 +23,7 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 ## Features
 
 - 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
+- 📝 **Activity Logging**: Tracks all sync operations (manual or scheduled) and deletions, providing a detailed history in the Web UI.
 - 🔄 **Smart Sync**:
   - **Full Sync**: Complete library audit—fetches everything, fills gaps, and prunes deleted activities.
   - **Fast Sync**: Lightning-fast updates for your latest workouts.
