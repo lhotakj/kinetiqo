@@ -153,7 +153,34 @@ TILE_PROVIDERS = {
 @app.route('/map')
 @login_required
 def map_view():
-    """Render activities on a Folium map."""
+    """Render the map page shell - data is loaded asynchronously."""
+    # Get filter parameters to pass to template for the async request
+    types = request.args.getlist('types[]')
+    start_date = request.args.get('startDate', '')
+    end_date = request.args.get('endDate', '')
+
+    # Map customization parameters
+    color = request.args.get('color', '#FC4C02')  # Strava orange default
+    width = request.args.get('width', '2')
+    opacity = request.args.get('opacity', '100')
+    basemap = request.args.get('basemap', 'openstreetmap')
+
+    return render_template('map.html',
+                           title="Activity Map",
+                           types=types,
+                           start_date=start_date,
+                           end_date=end_date,
+                           current_color=color,
+                           current_width=width,
+                           current_opacity=opacity,
+                           current_basemap=basemap,
+                           tile_providers=TILE_PROVIDERS)
+
+
+@app.route('/api/map/generate')
+@login_required
+def generate_map_api():
+    """API endpoint to generate map HTML asynchronously."""
     try:
         repo = db_repo
         if repo is None:
@@ -165,7 +192,7 @@ def map_view():
         end_date = request.args.get('endDate')
 
         # Map customization parameters
-        color = request.args.get('color', '#FC4C02')  # Strava orange default
+        color = request.args.get('color', '#FC4C02')
         width = request.args.get('width', '2')
         try:
             width = int(width)
@@ -203,14 +230,10 @@ def map_view():
         )
 
         if not activities_data:
-            return render_template('map.html',
-                                   title="Activity Map",
-                                   map_html="<p class='text-center text-gray-500 p-8'>No activities found matching the filter criteria.</p>",
-                                   current_color=color,
-                                   current_width=width,
-                                   current_opacity=opacity,
-                                   current_basemap=basemap,
-                                   tile_providers=TILE_PROVIDERS)
+            return jsonify({
+                'success': False,
+                'error': 'No activities found matching the filter criteria.'
+            })
 
         # Get activity IDs
         activity_ids = [str(a['id']) for a in activities_data]
@@ -219,14 +242,10 @@ def map_view():
         streams_data = repo.get_streams_for_activities(activity_ids)
 
         if not streams_data:
-            return render_template('map.html',
-                                   title="Activity Map",
-                                   map_html="<p class='text-center text-gray-500 p-8'>No GPS data found for the selected activities.</p>",
-                                   current_color=color,
-                                   current_width=width,
-                                   current_opacity=opacity,
-                                   current_basemap=basemap,
-                                   tile_providers=TILE_PROVIDERS)
+            return jsonify({
+                'success': False,
+                'error': 'No GPS data found for the selected activities.'
+            })
 
         # Create a map of activity_id -> name
         activity_names = {str(a['id']): a['name'] for a in activities_data}
@@ -240,14 +259,10 @@ def map_view():
                 all_lngs.append(p['lng'])
 
         if not all_lats or not all_lngs:
-            return render_template('map.html',
-                                   title="Activity Map",
-                                   map_html="<p class='text-center text-gray-500 p-8'>No valid GPS coordinates found.</p>",
-                                   current_color=color,
-                                   current_width=width,
-                                   current_opacity=opacity,
-                                   current_basemap=basemap,
-                                   tile_providers=TILE_PROVIDERS)
+            return jsonify({
+                'success': False,
+                'error': 'No valid GPS coordinates found.'
+            })
 
         # Create Folium map
         center_lat = sum(all_lats) / len(all_lats)
@@ -267,6 +282,7 @@ def map_view():
             m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=tile_config['tiles'])
 
         # Add polylines for each activity
+        activity_count = 0
         for aid, points in streams_data.items():
             if len(points) < 2:
                 continue
@@ -281,6 +297,7 @@ def map_view():
                 opacity=opacity_float,
                 tooltip=name
             ).add_to(m)
+            activity_count += 1
 
         # Fit bounds to show all activities
         m.fit_bounds([[min(all_lats), min(all_lngs)], [max(all_lats), max(all_lngs)]])
@@ -288,25 +305,19 @@ def map_view():
         # Get the HTML representation
         map_html = m._repr_html_()
 
-        return render_template('map.html',
-                               title="Activity Map",
-                               map_html=map_html,
-                               current_color=color,
-                               current_width=width,
-                               current_opacity=opacity,
-                               current_basemap=basemap,
-                               tile_providers=TILE_PROVIDERS)
+        return jsonify({
+            'success': True,
+            'html': map_html,
+            'activity_count': activity_count,
+            'point_count': len(all_lats)
+        })
 
     except Exception as e:
-        logger.error(f"Error rendering map: {e}")
-        return render_template('map.html',
-                               title="Activity Map",
-                               map_html=f"<p class='text-center text-red-500 p-8'>Error loading map: {e}</p>",
-                               current_color='#FC4C02',
-                               current_width=2,
-                               current_opacity=100,
-                               current_basemap='openstreetmap',
-                               tile_providers=TILE_PROVIDERS)
+        logger.error(f"Error generating map: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/logs')
 @login_required

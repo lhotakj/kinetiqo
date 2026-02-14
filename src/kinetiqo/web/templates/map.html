@@ -29,6 +29,36 @@
     body.dark label {
         color: #d4d4d4;
     }
+
+    /* Loading animation */
+    .loading-spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #FC4C02;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        animation: spin 1s linear infinite;
+    }
+
+    body.dark .loading-spinner {
+        border-color: #404040;
+        border-top-color: #FC4C02;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Pulse animation for the loading text */
+    .loading-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
 </style>
 {% endblock %}
 
@@ -38,7 +68,7 @@
     <div class="mb-4 flex flex-wrap justify-between items-center gap-4">
         <div>
             <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{{ title }}</h1>
-            <p class="text-gray-500 dark:text-gray-400 text-sm">Visualizing selected activities on the map.</p>
+            <p id="map-subtitle" class="text-gray-500 dark:text-gray-400 text-sm">Visualizing selected activities on the map.</p>
         </div>
         <div class="flex flex-wrap items-center gap-4">
             <!-- Base Map Selector -->
@@ -72,7 +102,7 @@
             </div>
 
             <!-- Export Button -->
-            <button id="exportBtn" class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 transition shadow-sm flex items-center">
+            <button id="exportBtn" disabled class="px-4 py-2 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed transition shadow-sm flex items-center">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Export PNG
             </button>
@@ -86,12 +116,71 @@
 
     <!-- Map Container -->
     <div id="map-container" class="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden relative z-0" style="min-height: 500px;">
-        {{ map_html|safe }}
+        <!-- Loading State -->
+        <div id="loading-state" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800">
+            <div class="loading-spinner mb-6"></div>
+            <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Generating your map...</h3>
+            <p class="text-gray-500 dark:text-gray-400 text-center max-w-md loading-pulse">
+                This may take a minute depending on the number of activities and GPS points.
+            </p>
+            <p id="loading-status" class="text-sm text-gray-400 dark:text-gray-500 mt-4"></p>
+        </div>
+
+        <!-- Map Content (injected after load) -->
+        <div id="map-content" class="w-full h-full" style="display: none;"></div>
+
+        <!-- Error State -->
+        <div id="error-state" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800" style="display: none;">
+            <svg class="w-16 h-16 text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Unable to generate map</h3>
+            <p id="error-message" class="text-gray-500 dark:text-gray-400 text-center max-w-md"></p>
+            <a href="{{ url_for('activities') }}" class="mt-6 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+                Back to Activities
+            </a>
+        </div>
     </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+    // Store filter parameters for API request
+    const filterParams = {
+        types: {{ types | tojson | safe }},
+        startDate: "{{ start_date }}",
+        endDate: "{{ end_date }}",
+        color: "{{ current_color }}",
+        width: "{{ current_width }}",
+        opacity: "{{ current_opacity }}",
+        basemap: "{{ current_basemap }}"
+    };
+
+    // Build API URL with parameters
+    function buildApiUrl() {
+        const params = new URLSearchParams();
+
+        if (filterParams.types && filterParams.types.length > 0) {
+            filterParams.types.forEach(type => {
+                params.append('types[]', type);
+            });
+        }
+
+        if (filterParams.startDate) {
+            params.append('startDate', filterParams.startDate);
+        }
+        if (filterParams.endDate) {
+            params.append('endDate', filterParams.endDate);
+        }
+
+        params.append('color', filterParams.color);
+        params.append('width', filterParams.width);
+        params.append('opacity', filterParams.opacity);
+        params.append('basemap', filterParams.basemap);
+
+        return '/api/map/generate?' + params.toString();
+    }
+
     // Update URL helper - preserves existing params and updates/adds specified key
     function updateUrl(key, value) {
         const url = new URL(window.location.href);
@@ -99,63 +188,144 @@
         window.location.href = url.toString();
     }
 
-    // Base Map Picker Logic
-    const basemapPicker = document.getElementById('basemapPicker');
-    if (basemapPicker) {
-        basemapPicker.addEventListener('change', (e) => {
-            updateUrl('basemap', e.target.value);
-        });
+    // Show error state
+    function showError(message) {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('map-content').style.display = 'none';
+        document.getElementById('error-state').style.display = 'flex';
+        document.getElementById('error-message').textContent = message;
     }
 
-    // Color Picker Logic
-    const colorPicker = document.getElementById('colorPicker');
-    if (colorPicker) {
-        colorPicker.addEventListener('change', (e) => {
-            updateUrl('color', e.target.value);
-        });
+    // Show map content
+    function showMap(html, activityCount, pointCount) {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('error-state').style.display = 'none';
+
+        const mapContent = document.getElementById('map-content');
+        mapContent.innerHTML = html;
+        mapContent.style.display = 'block';
+
+        // Enable export button
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.disabled = false;
+        exportBtn.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-500', 'dark:text-gray-400', 'cursor-not-allowed');
+        exportBtn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-50', 'dark:hover:bg-gray-600', 'cursor-pointer');
+
+        // Update subtitle with stats
+        const subtitle = document.getElementById('map-subtitle');
+        if (subtitle && activityCount && pointCount) {
+            subtitle.textContent = `Showing ${activityCount} activities with ${pointCount.toLocaleString()} GPS points.`;
+        }
     }
 
-    // Width Picker Logic
-    const widthPicker = document.getElementById('widthPicker');
-    const widthValue = document.getElementById('widthValue');
-    if (widthPicker && widthValue) {
-        widthPicker.addEventListener('input', (e) => {
-            widthValue.textContent = e.target.value;
-        });
+    // Load map data asynchronously
+    async function loadMap() {
+        const statusEl = document.getElementById('loading-status');
+        statusEl.textContent = 'Fetching activity data...';
 
-        widthPicker.addEventListener('change', (e) => {
-            updateUrl('width', e.target.value);
-        });
+        try {
+            const startTime = Date.now();
+            const response = await fetch(buildApiUrl());
+            const data = await response.json();
+
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            if (data.success) {
+                statusEl.textContent = `Map generated in ${elapsed}s`;
+                setTimeout(() => {
+                    showMap(data.html, data.activity_count, data.point_count);
+                }, 300);
+            } else {
+                showError(data.error || 'Unknown error occurred');
+            }
+        } catch (error) {
+            console.error('Error loading map:', error);
+            showError('Failed to load map data. Please try again.');
+        }
     }
 
-    // Opacity Picker Logic
-    const opacityPicker = document.getElementById('opacityPicker');
-    const opacityValue = document.getElementById('opacityValue');
-    if (opacityPicker && opacityValue) {
-        opacityPicker.addEventListener('input', (e) => {
-            opacityValue.textContent = e.target.value + '%';
-        });
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        // Start loading the map
+        loadMap();
 
-        opacityPicker.addEventListener('change', (e) => {
-            updateUrl('opacity', e.target.value);
-        });
-    }
+        // Base Map Picker Logic
+        const basemapPicker = document.getElementById('basemapPicker');
+        if (basemapPicker) {
+            basemapPicker.addEventListener('change', (e) => {
+                updateUrl('basemap', e.target.value);
+            });
+        }
 
-    // Export Logic
-    const exportBtn = document.getElementById('exportBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            const mapContainer = document.getElementById('map-container');
+        // Color Picker Logic
+        const colorPicker = document.getElementById('colorPicker');
+        if (colorPicker) {
+            colorPicker.addEventListener('change', (e) => {
+                updateUrl('color', e.target.value);
+            });
+        }
 
-            // Try to find the iframe containing the Folium map
-            const iframe = mapContainer.querySelector('iframe');
-            if (iframe) {
-                try {
-                    // Access iframe content
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    const mapElement = iframeDoc.querySelector('.folium-map') || iframeDoc.body;
+        // Width Picker Logic
+        const widthPicker = document.getElementById('widthPicker');
+        const widthValue = document.getElementById('widthValue');
+        if (widthPicker && widthValue) {
+            widthPicker.addEventListener('input', (e) => {
+                widthValue.textContent = e.target.value;
+            });
 
-                    html2canvas(mapElement, {
+            widthPicker.addEventListener('change', (e) => {
+                updateUrl('width', e.target.value);
+            });
+        }
+
+        // Opacity Picker Logic
+        const opacityPicker = document.getElementById('opacityPicker');
+        const opacityValue = document.getElementById('opacityValue');
+        if (opacityPicker && opacityValue) {
+            opacityPicker.addEventListener('input', (e) => {
+                opacityValue.textContent = e.target.value + '%';
+            });
+
+            opacityPicker.addEventListener('change', (e) => {
+                updateUrl('opacity', e.target.value);
+            });
+        }
+
+        // Export Logic
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                if (exportBtn.disabled) return;
+
+                const mapContainer = document.getElementById('map-container');
+
+                // Try to find the iframe containing the Folium map
+                const iframe = mapContainer.querySelector('iframe');
+                if (iframe) {
+                    try {
+                        // Access iframe content
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        const mapElement = iframeDoc.querySelector('.folium-map') || iframeDoc.body;
+
+                        html2canvas(mapElement, {
+                            useCORS: true,
+                            allowTaint: true
+                        }).then(canvas => {
+                            const link = document.createElement('a');
+                            link.download = 'kinetiqo-map.png';
+                            link.href = canvas.toDataURL();
+                            link.click();
+                        }).catch(err => {
+                            console.error("Export failed:", err);
+                            alert("Could not export map to image. This is often due to browser security restrictions with map tiles. Try taking a screenshot instead.");
+                        });
+                    } catch (err) {
+                        console.error("Cannot access iframe content:", err);
+                        alert("Could not export map to image due to cross-origin restrictions. Try taking a screenshot instead.");
+                    }
+                } else {
+                    // Direct map rendering (not in iframe)
+                    html2canvas(mapContainer, {
                         useCORS: true,
                         allowTaint: true
                     }).then(canvas => {
@@ -165,29 +335,12 @@
                         link.click();
                     }).catch(err => {
                         console.error("Export failed:", err);
-                        alert("Could not export map to image. This is often due to browser security restrictions with map tiles. Try taking a screenshot instead.");
+                        alert("Could not export map to image. This is often due to browser security restrictions with map tiles.");
                     });
-                } catch (err) {
-                    console.error("Cannot access iframe content:", err);
-                    alert("Could not export map to image due to cross-origin restrictions. Try taking a screenshot instead.");
                 }
-            } else {
-                // Direct map rendering (not in iframe)
-                html2canvas(mapContainer, {
-                    useCORS: true,
-                    allowTaint: true
-                }).then(canvas => {
-                    const link = document.createElement('a');
-                    link.download = 'kinetiqo-map.png';
-                    link.href = canvas.toDataURL();
-                    link.click();
-                }).catch(err => {
-                    console.error("Export failed:", err);
-                    alert("Could not export map to image. This is often due to browser security restrictions with map tiles.");
-                });
-            }
-        });
-    }
+            });
+        }
+    });
 </script>
 {% endblock %}
 
