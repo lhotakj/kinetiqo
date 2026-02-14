@@ -379,6 +379,46 @@ class PostgresqlRepository(DatabaseRepository):
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
 
+    def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """Get GPS streams (lat, lng) for a list of activity IDs."""
+        if not activity_ids:
+            return {}
+
+        result = {}
+        # Convert to integers for PostgreSQL
+        int_ids = [int(aid) for aid in activity_ids]
+
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Use ANY for list of IDs
+            cur.execute("""
+                SELECT activity_id, lat, lng
+                FROM streams
+                WHERE activity_id = ANY(%s)
+                  AND lat IS NOT NULL
+                  AND lng IS NOT NULL
+                ORDER BY activity_id, timestamp
+            """, (int_ids,))
+
+            for row in cur.fetchall():
+                aid = str(row['activity_id'])
+                if aid not in result:
+                    result[aid] = []
+                result[aid].append({
+                    'lat': float(row['lat']),
+                    'lng': float(row['lng'])
+                })
+
+        return result
+
+    def get_activity_name(self, activity_id: str) -> Optional[str]:
+        """Get the name of an activity by its ID."""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT name FROM activities WHERE activity_id = %s
+            """, (int(activity_id),))
+            row = cur.fetchone()
+            return row[0] if row else None
+
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
         with self.conn.cursor() as cur:

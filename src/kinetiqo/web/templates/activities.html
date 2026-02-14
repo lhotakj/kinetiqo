@@ -374,6 +374,10 @@
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
             <button id="selectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Select All</button>
             <button id="deselectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Deselect All</button>
+            <button id="displayOnMapBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition h-[42px] flex items-center">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                Display on Map
+            </button>
             <div class="h-6 w-px bg-gray-300 mx-1"></div>
         </div>
     </div>
@@ -594,6 +598,32 @@
         $('#deselectAllBtn').click(function() {
             $('#activityTypeFilter > optgroup > option').prop('selected', false);
             $('#activityTypeFilter').trigger('change');
+        });
+
+        // Display on Map button - opens map page with current filters
+        $('#displayOnMapBtn').click(function() {
+            var params = new URLSearchParams();
+
+            // Add selected activity types
+            var selectedTypes = $('#activityTypeFilter').val();
+            if (selectedTypes && selectedTypes.length > 0) {
+                selectedTypes.forEach(function(type) {
+                    params.append('types[]', type);
+                });
+            }
+
+            // Add date filters
+            var startDate = $('#startDate').val();
+            var endDate = $('#endDate').val();
+            if (startDate) {
+                params.append('startDate', startDate);
+            }
+            if (endDate) {
+                params.append('endDate', endDate);
+            }
+
+            // Navigate to map page with filters
+            window.location.href = '/map?' + params.toString();
         });
 
         // Helper to get icon for activity type

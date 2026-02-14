@@ -69,6 +69,19 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """Get GPS streams (lat, lng) for a list of activity IDs.
+
+        Returns a dictionary mapping activity_id to a list of {lat, lng} points.
+        """
+        pass
+
+    @abstractmethod
+    def get_activity_name(self, activity_id: str) -> Optional[str]:
+        """Get the name of an activity by its ID."""
+        pass
+
+    @abstractmethod
     def close(self):
         """Close database connection."""
         pass
