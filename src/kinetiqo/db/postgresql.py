@@ -405,5 +405,33 @@ class PostgresqlRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+    def get_activity_streams(self, activity_ids: List[str]) -> Dict[str, List[tuple]]:
+        """Get lat/lng streams for the specified activity IDs."""
+        if not activity_ids:
+            return {}
+
+        placeholders = ', '.join(['%s'] * len(activity_ids))
+        query = f"""
+            SELECT activity_id, lat, lng
+            FROM streams
+            WHERE activity_id IN ({placeholders})
+            AND lat IS NOT NULL AND lng IS NOT NULL
+            ORDER BY activity_id, timestamp
+        """
+
+        streams_data = {}
+        with self.conn.cursor() as cur:
+            cur.execute(query, tuple(activity_ids))
+            for row in cur.fetchall():
+                activity_id = str(row[0])
+                lat = row[1]
+                lng = row[2]
+                
+                if activity_id not in streams_data:
+                    streams_data[activity_id] = []
+                streams_data[activity_id].append((lat, lng))
+        
+        return streams_data
+
     def close(self):
         self.conn.close()

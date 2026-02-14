@@ -10,6 +10,8 @@ import logging
 import threading
 from datetime import datetime
 import os
+import folium
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -159,6 +161,85 @@ def logs():
              log_text = "Table logs doesn't exist or is inaccessible"
         
     return render_template('logs.html', title="Sync Logs", log_text=log_text)
+
+@app.route('/map')
+@login_required
+def map_view():
+    try:
+        # Ensure db_repo is initialized
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+            
+        # Get filters
+        types = request.args.getlist('types[]')
+        if not types:
+            types = None
+        start_date = request.args.get('startDate')
+        end_date = request.args.get('endDate')
+        route_color = request.args.get('color', '#ff7800')
+        
+        try:
+            line_width = float(request.args.get('width', 2.5))
+        except ValueError:
+            line_width = 2.5
+
+        # Fetch activities matching filters
+        # Use a large limit to get all matching activities
+        activities = repo.get_activities_web(
+            limit=1000, 
+            offset=0, 
+            types=types, 
+            start_date=start_date, 
+            end_date=end_date
+        )
+        
+        activity_ids = [str(a['id']) for a in activities]
+        
+        # Fetch streams
+        streams_data = repo.get_activity_streams(activity_ids)
+        
+        # Create map
+        # Default center (will be updated by fit_bounds)
+        m = folium.Map(location=[0, 0], zoom_start=2)
+        
+        all_points = []
+        
+        for activity in activities:
+            aid = str(activity['id'])
+            if aid in streams_data:
+                points = streams_data[aid]
+                if points:
+                    all_points.extend(points)
+                    folium.PolyLine(
+                        points, 
+                        color=route_color, 
+                        weight=line_width, 
+                        opacity=0.8,
+                        tooltip=f"{activity['name']} ({activity['type']})"
+                    ).add_to(m)
+        
+        if all_points:
+            m.fit_bounds(all_points)
+            
+        # Render map components
+        m.get_root().render()
+        map_header = m.get_root().header.render()
+        map_body = m.get_root().html.render()
+        map_script = m.get_root().script.render()
+        
+        return render_template('map.html', 
+                               title="Activity Map", 
+                               map_header=map_header,
+                               map_body=map_body,
+                               map_script=map_script,
+                               current_color=route_color,
+                               current_width=line_width)
+        
+    except Exception as e:
+        logger.error(f"Error generating map: {e}")
+        flash(f"Error generating map: {e}")
+        return redirect(url_for('activities'))
 
 @app.route('/settings')
 @login_required

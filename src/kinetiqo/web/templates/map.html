@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {{ map_header|safe }}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full">
+    <div class="mb-4 flex justify-between items-center">
+        <div>
+            <h1 class="font-serif text-3xl font-bold text-gray-900 mb-1">{{ title }}</h1>
+            <p class="text-gray-500 text-sm">Visualizing selected activities.</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <label for="widthPicker" class="text-sm font-medium text-gray-700">Width:</label>
+                <input type="range" id="widthPicker" min="1" max="20" value="{{ current_width }}" class="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="widthValue" class="text-sm text-gray-500 w-6">{{ current_width }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <label for="colorPicker" class="text-sm font-medium text-gray-700">Color:</label>
+                <input type="color" id="colorPicker" value="{{ current_color }}" class="h-9 w-16 p-1 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <button id="exportBtn" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition shadow-sm flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Export PNG
+            </button>
+            <a href="{{ url_for('activities') }}" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition">
+                Back to List
+            </a>
+        </div>
+    </div>
+
+    <div id="map-container" class="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden relative z-0">
+        {{ map_body|safe }}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Check if Leaflet library is loaded
+        if (typeof L === 'undefined') {
+            console.error('Leaflet library is not loaded. Please check the script inclusion.');
+            alert('Error: Leaflet library failed to load. Please refresh the page or check your network connection.');
+            return;
+        }
+
+        // Initialize Leaflet Map
+        const map = L.map('map-container').setView([51.505, -0.09], 13); // Default center and zoom level
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Update URL helper
+        function updateUrl(key, value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set(key, value);
+            window.location.href = url.toString();
+        }
+
+        // Color Picker Logic
+        const colorPicker = document.getElementById('colorPicker');
+        colorPicker.addEventListener('change', (e) => {
+            updateUrl('color', e.target.value);
+        });
+
+        // Width Picker Logic
+        const widthPicker = document.getElementById('widthPicker');
+        const widthValue = document.getElementById('widthValue');
+
+        widthPicker.addEventListener('input', (e) => {
+            widthValue.textContent = e.target.value;
+        });
+
+        widthPicker.addEventListener('change', (e) => {
+            updateUrl('width', e.target.value);
+        });
+
+        // Export Logic
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            const mapContainer = document.getElementById('map-container');
+
+            // Use html2canvas to capture the map
+            html2canvas(mapContainer, {
+                useCORS: true,
+                allowTaint: true,
+                ignoreElements: (element) => {
+                    return false;
+                }
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'kinetiqo-map.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            }).catch(err => {
+                console.error("Export failed:", err);
+                alert("Could not export map to image. This is often due to browser security restrictions with map tiles.");
+            });
+        });
+    });
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+{% endblock %}

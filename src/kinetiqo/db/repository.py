@@ -69,6 +69,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activity_streams(self, activity_ids: List[str]) -> Dict[str, List[tuple]]:
+        """Get lat/lng streams for the specified activity IDs."""
+        pass
+
+    @abstractmethod
     def close(self):
         """Close database connection."""
         pass
