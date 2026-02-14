@@ -120,9 +120,22 @@
         <div id="loading-state" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800">
             <div class="loading-spinner mb-6"></div>
             <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Generating your map...</h3>
-            <p class="text-gray-500 dark:text-gray-400 text-center max-w-md loading-pulse">
+            <p class="text-gray-500 dark:text-gray-400 text-center max-w-md loading-pulse mb-4">
                 This may take a minute depending on the number of activities and GPS points.
             </p>
+
+            <!-- Progress Bar Container -->
+            <div id="progress-container" class="w-full max-w-md px-4" style="display: none;">
+                <div class="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
+                    <span id="progress-label">Loading...</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-orange-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="progress-detail" class="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center"></p>
+            </div>
+
             <p id="loading-status" class="text-sm text-gray-400 dark:text-gray-500 mt-4"></p>
         </div>
 
@@ -196,6 +209,31 @@
         document.getElementById('error-message').textContent = message;
     }
 
+    // Update progress bar
+    function updateProgress(current, total, label, detail) {
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressLabel = document.getElementById('progress-label');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressDetail = document.getElementById('progress-detail');
+
+        progressContainer.style.display = 'block';
+
+        if (total && total > 0) {
+            const percent = Math.round((current / total) * 100);
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+        }
+
+        if (label) {
+            progressLabel.textContent = label;
+        }
+
+        if (detail) {
+            progressDetail.textContent = detail;
+        }
+    }
+
     // Show map content
     function showMap(html, activityCount, pointCount) {
         document.getElementById('loading-state').style.display = 'none';
@@ -218,30 +256,70 @@
         }
     }
 
-    // Load map data asynchronously
-    async function loadMap() {
+    // Load map data using Server-Sent Events for progress
+    function loadMap() {
         const statusEl = document.getElementById('loading-status');
-        statusEl.textContent = 'Fetching activity data...';
+        statusEl.textContent = 'Connecting...';
 
-        try {
-            const startTime = Date.now();
-            const response = await fetch(buildApiUrl());
-            const data = await response.json();
+        const startTime = Date.now();
+        const eventSource = new EventSource(buildApiUrl());
 
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        eventSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
 
-            if (data.success) {
-                statusEl.textContent = `Map generated in ${elapsed}s`;
-                setTimeout(() => {
-                    showMap(data.html, data.activity_count, data.point_count);
-                }, 300);
-            } else {
-                showError(data.error || 'Unknown error occurred');
+                if (data.type === 'progress') {
+                    // Update progress display
+                    const current = data.current || 0;
+                    const total = data.total || 0;
+
+                    let label = 'Processing...';
+                    switch(data.step) {
+                        case 'activities':
+                            label = 'Finding activities';
+                            break;
+                        case 'streams':
+                            label = 'Loading GPS data';
+                            break;
+                        case 'processing':
+                            label = 'Processing coordinates';
+                            break;
+                        case 'rendering':
+                            label = 'Rendering routes';
+                            break;
+                        case 'finalizing':
+                            label = 'Finalizing';
+                            updateProgress(100, 100, label, data.message);
+                            return;
+                    }
+
+                    updateProgress(current, total, label, data.message);
+                    statusEl.textContent = data.message;
+
+                } else if (data.type === 'complete') {
+                    eventSource.close();
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    statusEl.textContent = `Map generated in ${elapsed}s`;
+
+                    // Small delay for smooth transition
+                    setTimeout(() => {
+                        showMap(data.html, data.activity_count, data.point_count);
+                    }, 300);
+
+                } else if (data.type === 'error') {
+                    eventSource.close();
+                    showError(data.error || 'Unknown error occurred');
+                }
+            } catch (e) {
+                console.error('Error parsing SSE data:', e);
             }
-        } catch (error) {
-            console.error('Error loading map:', error);
-            showError('Failed to load map data. Please try again.');
-        }
+        };
+
+        eventSource.onerror = function(error) {
+            console.error('SSE error:', error);
+            eventSource.close();
+            showError('Connection lost. Please try again.');
+        };
     }
 
     // Initialize when DOM is ready
