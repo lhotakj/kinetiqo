@@ -584,6 +584,22 @@ def sync_stream(type):
 
     return Response(generate(), mimetype='text/event-stream')
 
+# Context processor to inject version into all templates
+@app.context_processor
+def inject_version():
+    version = "dev"
+    try:
+        # Look for version.txt in the package root or project root
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        # Check current dir (kinetiqo/web/) -> ../../version.txt
+        version_path = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "version.txt")
+        
+        if os.path.exists(version_path):
+            with open(version_path, "r") as vf:
+                version = vf.read().strip()
+    except:
+        pass
+    return dict(app_version=version)
 
 def run_app():
     app.run(debug=True, port=4444, host='0.0.0.0')
