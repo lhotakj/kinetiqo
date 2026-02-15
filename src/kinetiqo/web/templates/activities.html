@@ -566,30 +566,6 @@
                     init: function(api, node, config) {
                         $(node).removeClass('dt-button buttons-csv buttons-html5');
                     }
-                },
-                {
-                    text: 'Show on Map',
-                    className: 'px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px] flex items-center ml-2',
-                    action: function ( e, dt, node, config ) {
-                        var params = new URLSearchParams();
-
-                        // Get current filters
-                        var selectedTypes = $('#activityTypeFilter').val();
-                        if (selectedTypes && selectedTypes.length > 0) {
-                            selectedTypes.forEach(type => params.append('types[]', type));
-                        }
-
-                        var startDate = $('#startDate').val();
-                        if (startDate) params.append('startDate', startDate);
-
-                        var endDate = $('#endDate').val();
-                        if (endDate) params.append('endDate', endDate);
-
-                        window.location.href = '/map?' + params.toString();
-                    },
-                    init: function(api, node, config) {
-                        $(node).removeClass('dt-button');
-                    }
                 }
             ],
             "ajax": {
