@@ -423,14 +423,141 @@
 
 <script>
     $(document).ready(function() {
+        const FILTER_STORAGE_KEY = 'kinetiqoActivityFilters';
+        let currentDatePreset = 'custom'; // Track current preset in memory
+
+        // 1. Load Filters immediately
+        function loadFilters() {
+            try {
+                const filters = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || '{}');
+                if (filters.types) $('#activityTypeFilter').val(filters.types);
+                if (filters.startDate) $('#startDate').val(filters.startDate);
+                if (filters.endDate) $('#endDate').val(filters.endDate);
+                if (filters.search) $('#customSearch').val(filters.search);
+                if (filters.datePreset) currentDatePreset = filters.datePreset;
+                return filters;
+            } catch (e) { return {}; }
+        }
+        const savedFilters = loadFilters();
+
+        // 2. Initialize Select2
+        var $select = $('#activityTypeFilter').select2({
+            placeholder: "Select activity types",
+            width: '100%',
+            closeOnSelect: false,
+            templateSelection: function(data, container) {
+                if (data.id) $(container).addClass('choice-' + data.id);
+                return data.text;
+            }
+        });
+
+        // Add summary element to the selection container
+        var $container = $select.next('.select2-container').find('.select2-selection--multiple');
+        $container.prepend('<div class="select2-selection__summary"></div>');
+
+        function updateSummary() {
+            var count = $('#activityTypeFilter').select2('data').length;
+            var total = $('#activityTypeFilter option').length;
+            var text = "";
+
+            if (count === 0) {
+                text = "No activities selected";
+            } else if (count === total) {
+                text = "All activities selected (" + count + ")";
+            } else {
+                text = count + " Activities selected";
+            }
+
+            $('.select2-selection__summary').text(text);
+        }
+
+        // Initial update of summary based on loaded values
+        updateSummary();
+
+        // 3. Date Logic Helpers
+        function updateDateFilterDisplay(presetName) {
+            if (presetName && presetName !== 'custom') {
+                $('#dateFilter span').text(presetName);
+                return;
+            }
+
+            var startDate = $('#startDate').val();
+            var endDate = $('#endDate').val();
+            if (startDate && endDate) {
+                var start = moment(startDate).format('MMM D, YYYY');
+                var end = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text(start + ' - ' + end);
+            } else if (startDate) {
+                var start = moment(startDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('From ' + start);
+            } else if (endDate) {
+                var end = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('To ' + end);
+            } else {
+                $('#dateFilter span').text('All time');
+            }
+        }
+
+        function saveFilters(presetName) {
+            // Update current preset if provided
+            if (presetName !== undefined) {
+                currentDatePreset = presetName;
+            }
+
+            const filters = {
+                types: $('#activityTypeFilter').val(),
+                startDate: $('#startDate').val(),
+                endDate: $('#endDate').val(),
+                search: $('#customSearch').val(),
+                datePreset: currentDatePreset
+            };
+            localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+        }
+
+        function initDatePicker(element) {
+            var currentVal = $(element).val();
+            var options = {
+                singleDatePicker: true,
+                showDropdowns: true,
+                autoUpdateInput: false,
+                locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
+            };
+
+            if (currentVal) {
+                options.startDate = currentVal;
+            }
+
+            $(element).daterangepicker(options).on('apply.daterangepicker', function(ev, picker) {
+                $(this).val(picker.startDate.format('YYYY-MM-DD'));
+                updateDateFilterDisplay('custom');
+                saveFilters('custom');
+                table.ajax.reload();
+            }).on('cancel.daterangepicker', function(ev, picker) {
+                $(this).val('');
+                updateDateFilterDisplay('custom');
+                saveFilters('custom');
+                table.ajax.reload();
+            });
+        }
+
+        initDatePicker('#startDate');
+        initDatePicker('#endDate');
+
+        // Restore preset display
+        updateDateFilterDisplay(currentDatePreset);
+
+        // 4. Initialize DataTable
         var table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": false, // Client-side processing
-            "pageLength": 25, 
+            "pageLength": 25,
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
             "order": [[3, "desc"]],
             "autoWidth": false, // Disable auto width calculation to use our custom widths
             "dom": 'Brt<"flex justify-between items-center mt-4"ilp>',
+            "search": {
+                "search": savedFilters.search || "" // Initialize with saved search
+            },
             "buttons": [
                 {
                     extend: 'csv',
@@ -438,6 +565,30 @@
                     className: 'activity-export-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px] flex items-center',
                     init: function(api, node, config) {
                         $(node).removeClass('dt-button buttons-csv buttons-html5');
+                    }
+                },
+                {
+                    text: 'Show on Map',
+                    className: 'px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px] flex items-center ml-2',
+                    action: function ( e, dt, node, config ) {
+                        var params = new URLSearchParams();
+
+                        // Get current filters
+                        var selectedTypes = $('#activityTypeFilter').val();
+                        if (selectedTypes && selectedTypes.length > 0) {
+                            selectedTypes.forEach(type => params.append('types[]', type));
+                        }
+
+                        var startDate = $('#startDate').val();
+                        if (startDate) params.append('startDate', startDate);
+
+                        var endDate = $('#endDate').val();
+                        if (endDate) params.append('endDate', endDate);
+
+                        window.location.href = '/map?' + params.toString();
+                    },
+                    init: function(api, node, config) {
+                        $(node).removeClass('dt-button');
                     }
                 }
             ],
@@ -556,184 +707,33 @@
         // Move buttons to the container
         table.buttons().container().appendTo('#custom-buttons-wrapper');
 
-        // Initialize Select2
-        var $select = $('#activityTypeFilter').select2({
-            placeholder: "Select activity types",
-            width: '100%',
-            closeOnSelect: false,
-            templateSelection: function(data, container) {
-                // Add custom class to selection container based on value
-                if (data.id) {
-                    $(container).addClass('choice-' + data.id);
-                }
-                return data.text;
-            }
+        // 5. Bind Events for Persistence & Interaction
+        $('#activityTypeFilter').on('change', function() {
+            updateSummary();
+            saveFilters(); // Uses current currentDatePreset
+            table.ajax.reload();
         });
 
-        // Add summary element to the selection container
-        var $container = $select.next('.select2-container').find('.select2-selection--multiple');
-        $container.prepend('<div class="select2-selection__summary"></div>');
-
-        function updateSummary() {
-            var count = $('#activityTypeFilter').select2('data').length;
-            var total = $('#activityTypeFilter option').length;
-            var text = "";
-
-            if (count === 0) {
-                text = "No activities selected";
-            } else if (count === total) {
-                text = "All activities selected (" + count + ")";
-            } else {
-                text = count + " Activities selected";
-            }
-
-            $('.select2-selection__summary').text(text);
-        }
-
-        // Update summary on change
-        $('#activityTypeFilter').on('change', updateSummary);
-
-        // Initial update
-        updateSummary();
-
-        // Select All / Deselect All buttons
-        $('#selectAllBtn').click(function() {
-            $('#activityTypeFilter > optgroup > option').prop('selected', true);
-            $('#activityTypeFilter').trigger('change');
+        $('#customSearch').on('keyup', function() {
+            table.search(this.value).draw();
+            saveFilters(); // Uses current currentDatePreset
         });
-
-        $('#deselectAllBtn').click(function() {
-            $('#activityTypeFilter > optgroup > option').prop('selected', false);
-            $('#activityTypeFilter').trigger('change');
-        });
-
-        // Display on Map button - opens map page with current filters
-        $('#displayOnMapBtn').click(function() {
-            var params = new URLSearchParams();
-
-            // Add selected activity types
-            var selectedTypes = $('#activityTypeFilter').val();
-            if (selectedTypes && selectedTypes.length > 0) {
-                selectedTypes.forEach(function(type) {
-                    params.append('types[]', type);
-                });
-            }
-
-            // Add date filters
-            var startDate = $('#startDate').val();
-            var endDate = $('#endDate').val();
-            if (startDate) {
-                params.append('startDate', startDate);
-            }
-            if (endDate) {
-                params.append('endDate', endDate);
-            }
-
-            // Navigate to map page with filters
-            window.location.href = '/map?' + params.toString();
-        });
-
-        // Helper to get icon for activity type
-        function getActivityIcon(type) {
-            return `<span class="activity-icon icon-${type}">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd"></path></svg>
-            </span>`;
-        }
-
-        // Helper to format seconds into HH:MM:SS
-        function formatDuration(seconds) {
-            if (isNaN(seconds) || seconds < 0) {
-                return "00:00:00";
-            }
-            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
-            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
-            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-            return `${h}:${m}:${s}`;
-        }
-
-        // Helper to format distance
-        function formatDistance(meters) {
-            if (isNaN(meters) || meters < 0) {
-                return "0.0";
-            }
-            const km = meters / 1000;
-            return km.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        // Helper to format elevation
-        function formatElevation(meters) {
-            if (isNaN(meters) || meters < 0) {
-                return "0.00";
-            }
-            return meters.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        // --- Date Filter Logic ---
-
-        function updateDateFilterDisplay() {
-            var startDate = $('#startDate').val();
-            var endDate = $('#endDate').val();
-
-            if (startDate && endDate) {
-                var start = moment(startDate).format('MMM D, YYYY');
-                var end = moment(endDate).format('MMM D, YYYY');
-                $('#dateFilter span').text(start + ' - ' + end);
-            } else if (startDate) {
-                var start = moment(startDate).format('MMM D, YYYY');
-                $('#dateFilter span').text('From ' + start);
-            } else if (endDate) {
-                var end = moment(endDate).format('MMM D, YYYY');
-                $('#dateFilter span').text('To ' + end);
-            } else {
-                $('#dateFilter span').text('All time');
-            }
-        }
 
         $('#dateFilter').on('click', function(e) {
             e.stopPropagation();
             $('#dateFilterDropdown').toggleClass('hidden');
         });
 
-        // Close dropdown when clicking outside
         $(document).on('click', function(e) {
             if (!$(e.target).closest('#dateFilterDropdown').length &&
                 !$(e.target).closest('#dateFilter').length &&
                 !$(e.target).closest('.daterangepicker').length) {
 
                 $('#dateFilterDropdown').addClass('hidden');
-                // Force hide pickers
                 $('#startDate').data('daterangepicker').hide();
                 $('#endDate').data('daterangepicker').hide();
             }
         });
-
-        // Helper to initialize date picker with current value
-        function initDatePicker(element) {
-            var currentVal = $(element).val();
-            var options = {
-                singleDatePicker: true,
-                showDropdowns: true,
-                autoUpdateInput: false,
-                locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
-            };
-
-            if (currentVal) {
-                options.startDate = currentVal;
-            }
-
-            $(element).daterangepicker(options).on('apply.daterangepicker', function(ev, picker) {
-                $(this).val(picker.startDate.format('YYYY-MM-DD'));
-                updateDateFilterDisplay();
-                table.ajax.reload();
-            }).on('cancel.daterangepicker', function(ev, picker) {
-                $(this).val('');
-                updateDateFilterDisplay();
-                table.ajax.reload();
-            });
-        }
-
-        initDatePicker('#startDate');
-        initDatePicker('#endDate');
 
         $('.date-preset-btn').on('click', function() {
             var preset = $(this).data('preset');
@@ -787,20 +787,55 @@
             initDatePicker('#endDate');
 
             $('#dateFilter span').text(presetText);
+            saveFilters(presetText); // Save the preset name
             table.ajax.reload();
         });
 
-        // --- General Table Logic ---
-
-        // Bind custom search input to DataTable (Client-side search)
-        $('#customSearch').on('keyup', function() {
-            table.search(this.value).draw();
+        // Select All / Deselect All buttons
+        $('#selectAllBtn').click(function() {
+            $('#activityTypeFilter > optgroup > option').prop('selected', true);
+            $('#activityTypeFilter').trigger('change');
         });
 
-        // Reload table when filter changes (fetches new dataset from server based on types)
-        $('#activityTypeFilter').on('change', function() {
-            table.ajax.reload();
+        $('#deselectAllBtn').click(function() {
+            $('#activityTypeFilter > optgroup > option').prop('selected', false);
+            $('#activityTypeFilter').trigger('change');
         });
+
+        // Helper to get icon for activity type
+        function getActivityIcon(type) {
+            return `<span class="activity-icon icon-${type}">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd"></path></svg>
+            </span>`;
+        }
+
+        // Helper to format seconds into HH:MM:SS
+        function formatDuration(seconds) {
+            if (isNaN(seconds) || seconds < 0) {
+                return "00:00:00";
+            }
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+        // Helper to format distance
+        function formatDistance(meters) {
+            if (isNaN(meters) || meters < 0) {
+                return "0.0";
+            }
+            const km = meters / 1000;
+            return km.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Helper to format elevation
+        function formatElevation(meters) {
+            if (isNaN(meters) || meters < 0) {
+                return "0.00";
+            }
+            return meters.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
 
         // Global delete function
         window.deleteActivity = function(activityId) {
@@ -820,9 +855,10 @@
         };
 
         // Set initial state
-        $('#startDate').val('');
-        $('#endDate').val('');
-        updateDateFilterDisplay();
+        // Only clear if not loaded from storage (checked by value)
+        if (!$('#startDate').val()) $('#startDate').val('');
+        if (!$('#endDate').val()) $('#endDate').val('');
+        // updateDateFilterDisplay is called after initDatePicker
     });
 </script>
 
