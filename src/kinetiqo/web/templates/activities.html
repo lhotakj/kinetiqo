@@ -390,6 +390,7 @@
             <button id="clearSelectionBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Clear selection</button>
             <button id="deleteSelectedBtn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Delete selected</button>
             <button id="displayOnMapBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Display on map</button>
+            <button id="exportCsvBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Export to CSV</button>
         </div>
     </div>
 </div>
@@ -577,16 +578,7 @@
             "search": {
                 "search": savedFilters.search || "" // Initialize with saved search
             },
-            "buttons": [
-                {
-                    extend: 'csv',
-                    text: 'Export to CSV',
-                    className: 'activity-export-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px] flex items-center',
-                    init: function(api, node, config) {
-                        $(node).removeClass('dt-button buttons-csv buttons-html5');
-                    }
-                }
-            ],
+            "buttons": [],
             "ajax": {
                 "url": "/api/activities",
                 "data": function(d) {
@@ -821,9 +813,11 @@
             if (count > 0) {
                 $('#deleteSelectedBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-red-500');
                 $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
+                $('#exportCsvBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-blue-600');
             } else {
                 $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
                 $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
+                $('#exportCsvBtn').prop('disabled', true).removeClass('bg-blue-600').addClass('bg-gray-400');
             }
         }
 
@@ -945,6 +939,58 @@
             // Append form to body and submit
             form.appendTo('body').submit();
             form.remove();
+        });
+
+        // Export to CSV
+        $('#exportCsvBtn').on('click', function() {
+            if (selectedActivities.size === 0) return;
+
+            const allData = table.data().toArray();
+            const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
+
+            if (selectedData.length === 0) return;
+
+            // Define CSV headers and data mapping
+            const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg HR (bpm)'];
+
+            const csvContent = [
+                headers.join(','),
+                ...selectedData.map(row => {
+                    const dateStr = row.date && row.date.display ? row.date.display : row.date;
+                    const distanceKm = (row.distance / 1000).toFixed(2);
+                    const elevationM = row.elevation.toFixed(2); // Assuming elevation is in meters
+                    const movingTime = formatDuration(row.moving_time);
+                    const avgSpeed = (row.average_speed * 3.6).toFixed(1);
+                    const avgHr = row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '';
+
+                    // Escape quotes in name
+                    const name = `"${(row.name || '').replace(/"/g, '""')}"`;
+
+                    return [
+                        row.id,
+                        name,
+                        row.type,
+                        dateStr,
+                        distanceKm,
+                        elevationM,
+                        movingTime,
+                        avgSpeed,
+                        avgHr
+                    ].join(',');
+                })
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "selected_activities.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
         });
 
 
