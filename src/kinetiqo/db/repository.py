@@ -35,6 +35,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activities_by_ids(self, activity_ids: List[str]) -> List[Dict[str, Any]]:
+        """Get a list of activities by their IDs."""
+        pass
+
+    @abstractmethod
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
         pass
@@ -56,6 +61,11 @@ class DatabaseRepository(ABC):
     @abstractmethod
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from the database."""
+        pass
+
+    @abstractmethod
+    def delete_activities(self, activity_ids: List[str]):
+        """Delete multiple activities and their streams from the database."""
         pass
 
     @abstractmethod

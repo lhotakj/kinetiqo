@@ -381,11 +381,15 @@
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
             <button id="selectAllBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Select All</button>
             <button id="deselectAllBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Deselect All</button>
-            <button id="displayOnMapBtn" class="activity-action-btn px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                Display on Map
-            </button>
             <div class="h-6 w-px bg-gray-300 mx-1"></div>
+        </div>
+    </div>
+    <div class="w-full mt-4">
+        <div class="flex gap-2 items-center">
+            <button id="selectAllOnAllPagesBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Select all activities on all pages</button>
+            <button id="clearSelectionBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Clear selection</button>
+            <button id="deleteSelectedBtn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Delete selected</button>
+            <button id="displayOnMapBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Display on map</button>
         </div>
     </div>
 </div>
@@ -394,6 +398,7 @@
     <table id="activitiesTable" class="w-full text-left border-collapse">
         <thead>
             <tr class="text-sm font-semibold text-gray-600 border-b border-gray-200">
+                <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="selectAllOnPage"></th>
                 <th class="py-3 px-4 w-20">ID</th>
                 <th class="py-3 px-4">Activity Name</th>
                 <th class="py-3 px-4 w-32">Type</th>
@@ -411,7 +416,7 @@
         </tbody>
         <tfoot class="text-gray-700 text-sm font-semibold bg-gray-50 border-t border-gray-200">
             <tr>
-                <td colspan="4" class="py-3 px-4 text-right">Totals:</td>
+                <td colspan="5" class="py-3 px-4 text-right">Totals:</td>
                 <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
                 <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
                 <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
@@ -424,7 +429,9 @@
 <script>
     $(document).ready(function() {
         const FILTER_STORAGE_KEY = 'kinetiqoActivityFilters';
+        const SELECTION_STORAGE_KEY = 'kinetiqoSelectedActivities';
         let currentDatePreset = 'custom'; // Track current preset in memory
+        let selectedActivities = new Set();
 
         // 1. Load Filters immediately
         function loadFilters() {
@@ -439,6 +446,14 @@
             } catch (e) { return {}; }
         }
         const savedFilters = loadFilters();
+
+        // Load selection
+        try {
+            const savedSelection = JSON.parse(localStorage.getItem(SELECTION_STORAGE_KEY) || '[]');
+            if (Array.isArray(savedSelection)) {
+                savedSelection.forEach(id => selectedActivities.add(String(id)));
+            }
+        } catch (e) { console.error("Failed to load selection", e); }
 
         // 2. Initialize Select2
         var $select = $('#activityTypeFilter').select2({
@@ -514,6 +529,10 @@
             localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
         }
 
+        function saveSelection() {
+            localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(Array.from(selectedActivities)));
+        }
+
         function initDatePicker(element) {
             var currentVal = $(element).val();
             var options = {
@@ -552,7 +571,7 @@
             "serverSide": false, // Client-side processing
             "pageLength": 25,
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
-            "order": [[3, "desc"]],
+            "order": [[4, "desc"]],
             "autoWidth": false, // Disable auto width calculation to use our custom widths
             "dom": 'Brt<"flex justify-between items-center mt-4"ilp>',
             "search": {
@@ -580,9 +599,23 @@
 
                     d.startDate = $('#startDate').val();
                     d.endDate = $('#endDate').val();
+                },
+                "dataSrc": function(json) {
+                    // Note: We do NOT clear selection here anymore to persist it across reloads/filters
+                    // But we might want to remove IDs that are no longer in the DB?
+                    // For now, let's keep them.
+                    return json.data;
                 }
             },
             "columns": [
+                {
+                    "data": "id",
+                    "orderable": false,
+                    "className": "text-center",
+                    "render": function(data, type, row) {
+                        return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
+                    }
+                },
                 { "data": "id", "visible": false, "render": function(data) { return '#' + data; } },
                 { "data": "name" },
                 { "data": "type", "render": function(data) {
@@ -677,6 +710,10 @@
                 "search": "",
                 "searchPlaceholder": "Filter activities...",
                 "lengthMenu": "Show _MENU_ entries"
+            },
+            "drawCallback": function(settings) {
+                // Update checkboxes on each draw
+                updateCheckboxes();
             }
         });
 
@@ -778,6 +815,139 @@
             $('#activityTypeFilter').trigger('change');
         });
 
+        // --- Selection Logic ---
+        function updateSelectionButtons() {
+            const count = selectedActivities.size;
+            if (count > 0) {
+                $('#deleteSelectedBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-red-500');
+                $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
+            } else {
+                $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
+                $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
+            }
+        }
+
+        function updateCheckboxes() {
+            let allOnPageSelected = true;
+            let onPageCount = 0;
+            $('#activitiesTable tbody .activity-checkbox').each(function() {
+                onPageCount++;
+                const id = $(this).val();
+                if (selectedActivities.has(id)) {
+                    $(this).prop('checked', true);
+                } else {
+                    $(this).prop('checked', false);
+                    allOnPageSelected = false;
+                }
+            });
+            $('#selectAllOnPage').prop('checked', onPageCount > 0 && allOnPageSelected);
+        }
+
+        function clearSelection() {
+            selectedActivities.clear();
+            saveSelection();
+            updateSelectionButtons();
+            updateCheckboxes();
+        }
+
+        // Header checkbox
+        $('#selectAllOnPage').on('click', function() {
+            const isChecked = $(this).prop('checked');
+            $('#activitiesTable tbody .activity-checkbox').each(function() {
+                const id = $(this).val();
+                if (isChecked) {
+                    selectedActivities.add(id);
+                } else {
+                    selectedActivities.delete(id);
+                }
+            });
+            saveSelection();
+            updateSelectionButtons();
+            updateCheckboxes();
+        });
+
+        // Row checkbox
+        $('#activitiesTable tbody').on('click', '.activity-checkbox', function() {
+            const id = $(this).val();
+            if ($(this).prop('checked')) {
+                selectedActivities.add(id);
+            } else {
+                selectedActivities.delete(id);
+            }
+            saveSelection();
+            updateSelectionButtons();
+            updateCheckboxes();
+        });
+
+        // Select all on all pages
+        $('#selectAllOnAllPagesBtn').on('click', function() {
+            const allData = table.rows({ search: 'applied' }).data();
+            allData.each(function(d) {
+                selectedActivities.add(String(d.id));
+            });
+            saveSelection();
+            updateSelectionButtons();
+            updateCheckboxes();
+        });
+
+        // Clear selection
+        $('#clearSelectionBtn').on('click', function() {
+            clearSelection();
+        });
+
+        // Delete selected
+        $('#deleteSelectedBtn').on('click', function() {
+            const count = selectedActivities.size;
+            if (count === 0) return;
+
+            if (confirm(`Are you sure you want to delete ${count} selected activities? This action cannot be undone.`)) {
+                $.ajax({
+                    url: '/api/activities',
+                    type: 'DELETE',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ activity_ids: Array.from(selectedActivities) }),
+                    success: function(result) {
+                        // Remove deleted IDs from selection
+                        selectedActivities.clear();
+                        saveSelection();
+                        updateSelectionButtons();
+
+                        table.ajax.reload(null, false); // Reload and keep paging
+                    },
+                    error: function(xhr, status, error) {
+                        alert('An error occurred while deleting activities: ' + error);
+                        table.ajax.reload(null, false);
+                    }
+                });
+            }
+        });
+
+        // Display on map
+        $('#displayOnMapBtn').on('click', function() {
+            if (selectedActivities.size === 0) return;
+
+            // Create a hidden form
+            const form = $('<form>', {
+                method: 'POST',
+                action: '/map',
+                target: '_blank' // Open in new tab
+            }).hide();
+
+            // Add selected IDs as hidden inputs
+            selectedActivities.forEach(id => {
+                $('<input>').attr({
+                    type: 'hidden',
+                    name: 'activity_ids[]',
+                    value: id
+                }).appendTo(form);
+            });
+
+            // Append form to body and submit
+            form.appendTo('body').submit();
+            form.remove();
+        });
+
+
         // Helper to get icon for activity type
         function getActivityIcon(type) {
             return `<span class="activity-icon icon-${type}">
@@ -820,6 +990,13 @@
                     url: '/api/activities/' + activityId,
                     type: 'DELETE',
                     success: function(result) {
+                        // Remove from selection if present
+                        if (selectedActivities.has(String(activityId))) {
+                            selectedActivities.delete(String(activityId));
+                            saveSelection();
+                            updateSelectionButtons();
+                        }
+
                         // Reload the table to reflect changes
                         table.ajax.reload(null, false); // false to keep current paging
                     },
@@ -834,7 +1011,9 @@
         // Only clear if not loaded from storage (checked by value)
         if (!$('#startDate').val()) $('#startDate').val('');
         if (!$('#endDate').val()) $('#endDate').val('');
-        // updateDateFilterDisplay is called after initDatePicker
+
+        // Initial update of buttons based on loaded selection
+        updateSelectionButtons();
     });
 </script>
 

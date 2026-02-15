@@ -145,14 +145,15 @@ TILE_PROVIDERS = {
 }
 
 
-@app.route('/map')
+@app.route('/map', methods=['GET', 'POST'])
 @login_required
 def map_view():
     """Render the map page shell - data is loaded asynchronously."""
+    if request.method == 'GET':
+        return redirect(url_for('activities'))
+
     # Get filter parameters to pass to template for the async request
-    types = request.args.getlist('types[]')
-    start_date = request.args.get('startDate', '')
-    end_date = request.args.get('endDate', '')
+    activity_ids = request.form.getlist('activity_ids[]')
 
     # Map customization parameters
     color = request.args.get('color', '#FC4C02')  # Strava orange default
@@ -162,9 +163,7 @@ def map_view():
 
     return render_template('map.html',
                            title="Activity Map",
-                           types=types,
-                           start_date=start_date,
-                           end_date=end_date,
+                           activity_ids=activity_ids,
                            current_color=color,
                            current_width=width,
                            current_opacity=opacity,
@@ -178,9 +177,7 @@ def generate_map_api():
     """API endpoint to generate map HTML with SSE progress updates."""
 
     # Get filter parameters
-    types = request.args.getlist('types[]')
-    start_date = request.args.get('startDate')
-    end_date = request.args.get('endDate')
+    activity_ids = request.args.getlist('activity_ids[]')
 
     # Map customization parameters
     color = request.args.get('color', '#FC4C02')
@@ -220,15 +217,7 @@ def generate_map_api():
             # Step 1: Get activities
             yield f"data: {json.dumps({'type': 'progress', 'step': 'activities', 'message': 'Fetching activities...'})}\n\n"
 
-            activities_data = repo.get_activities_web(
-                limit=100000,
-                offset=0,
-                sort_by='start_date',
-                sort_order='DESC',
-                types=types if types else None,
-                start_date=start_date,
-                end_date=end_date
-            )
+            activities_data = repo.get_activities_by_ids(activity_ids)
 
             if not activities_data:
                 yield f"data: {json.dumps({'type': 'error', 'error': 'No activities found matching the filter criteria.'})}\n\n"
@@ -240,7 +229,6 @@ def generate_map_api():
             # Step 2: Get stream data
             yield f"data: {json.dumps({'type': 'progress', 'step': 'streams', 'message': 'Loading GPS data...', 'total': total_activities, 'current': 0})}\n\n"
 
-            activity_ids = [str(a['id']) for a in activities_data]
             streams_data = repo.get_streams_for_activities(activity_ids)
 
             if not streams_data:
@@ -346,7 +334,7 @@ def logs():
         log_text = f"{'DATETIME':<25} {'ACTION':<12} {'ADDED':<8} {'REMOVED':<8} {'TRIGGER':<10} {'USER':<10} {'RESULT':<10}\n"
         log_text += "-" * 95 + "\n"
         
-        for log in logs_data:
+        for log in logs_.data:
             ts = log['timestamp']
             # Try to format timestamp nicely if it's a string
             try:
@@ -391,8 +379,11 @@ def get_settings():
         }
     })
 
-@app.route('/api/activities', methods=['GET'])
+@app.route('/api/activities', methods=['GET', 'DELETE'])
 def get_activities_api():
+    if request.method == 'DELETE':
+        return delete_activities_api()
+
     # Check if pagination parameters are provided
     page = request.args.get('page', type=int)
     per_page = request.args.get('per_page', type=int)
@@ -515,6 +506,29 @@ def delete_activity_api(activity_id):
         return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
     except Exception as e:
         logger.error(f"Error deleting activity {activity_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@login_required
+def delete_activities_api():
+    activity_ids = request.json.get('activity_ids', [])
+    if not activity_ids:
+        return jsonify({'success': False, 'error': 'No activity IDs provided'}), 400
+
+    try:
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+        
+        repo.delete_activities(activity_ids)
+        
+        try:
+            repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk", user=current_user.id)
+        except Exception as log_err:
+            logger.error(f"Failed to log bulk deletion: {log_err}")
+
+        return jsonify({'success': True, 'message': f'{len(activity_ids)} activities deleted successfully'})
+    except Exception as e:
+        logger.error(f"Error deleting activities: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

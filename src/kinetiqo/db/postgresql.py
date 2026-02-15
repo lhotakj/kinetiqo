@@ -219,6 +219,38 @@ class PostgresqlRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_activities_by_ids(self, activity_ids: List[str]) -> List[Dict[str, Any]]:
+        """Get a list of activities by their IDs."""
+        if not activity_ids:
+            return []
+
+        int_ids = [int(aid) for aid in activity_ids]
+
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT 
+                    activity_id as id,
+                    name,
+                    sport as type,
+                    distance,
+                    moving_time,
+                    total_elevation_gain,
+                    timestamp as start_date,
+                    average_speed,
+                    average_heartrate
+                FROM activities 
+                WHERE activity_id = ANY(%s)
+                ORDER BY timestamp DESC
+            """, (int_ids,))
+
+            activities = []
+            for row in cur.fetchall():
+                activity = dict(row)
+                if isinstance(activity['start_date'], datetime):
+                    activity['start_date'] = activity['start_date'].isoformat()
+                activities.append(activity)
+            return activities
+
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
         where_conditions = []
@@ -378,6 +410,18 @@ class PostgresqlRepository(DatabaseRepository):
             # Because of ON DELETE CASCADE on streams, a delete on activities is enough
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
+
+    def delete_activities(self, activity_ids: List[str]):
+        """Delete multiple activities and their streams from PostgreSQL."""
+        if not activity_ids:
+            return
+
+        logger.debug(f"Deleting {len(activity_ids)} activities from PostgreSQL...")
+        int_ids = [int(aid) for aid in activity_ids]
+
+        with self.conn.cursor() as cur:
+            cur.execute("DELETE FROM activities WHERE activity_id = ANY(%s)", (int_ids,))
+            logger.info(f"Deleted {len(activity_ids)} activities and their streams.")
 
     def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """Get GPS streams (lat, lng) for a list of activity IDs."""

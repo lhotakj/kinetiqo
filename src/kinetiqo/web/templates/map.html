@@ -159,9 +159,7 @@
 <script>
     // Store filter parameters for API request
     const filterParams = {
-        types: {{ types | tojson | safe }},
-        startDate: "{{ start_date }}",
-        endDate: "{{ end_date }}",
+        activity_ids: {{ activity_ids | tojson | safe }},
         color: "{{ current_color }}",
         width: "{{ current_width }}",
         opacity: "{{ current_opacity }}",
@@ -172,17 +170,10 @@
     function buildApiUrl() {
         const params = new URLSearchParams();
 
-        if (filterParams.types && filterParams.types.length > 0) {
-            filterParams.types.forEach(type => {
-                params.append('types[]', type);
+        if (filterParams.activity_ids && filterParams.activity_ids.length > 0) {
+            filterParams.activity_ids.forEach(id => {
+                params.append('activity_ids[]', id);
             });
-        }
-
-        if (filterParams.startDate) {
-            params.append('startDate', filterParams.startDate);
-        }
-        if (filterParams.endDate) {
-            params.append('endDate', filterParams.endDate);
         }
 
         params.append('color', filterParams.color);
@@ -197,7 +188,24 @@
     function updateUrl(key, value) {
         const url = new URL(window.location.href);
         url.searchParams.set(key, value);
-        window.location.href = url.toString();
+        // Since we are using POST, we can't easily update the URL and reload.
+        // But for these parameters, we can just reload the page with the new parameters appended to the form data?
+        // No, that's complicated.
+        // Actually, the user is already on the page. We can just reload the map via AJAX/SSE with new params.
+        // But the current implementation reloads the page.
+        // Let's just update the filterParams and call loadMap() again?
+        // But loadMap() uses buildApiUrl() which uses filterParams.
+        // So if we update filterParams and call loadMap(), it should work without reloading the page.
+
+        filterParams[key] = value;
+
+        // Reset UI
+        document.getElementById('loading-state').style.display = 'flex';
+        document.getElementById('map-content').style.display = 'none';
+        document.getElementById('error-state').style.display = 'none';
+
+        // Reload map
+        loadMap();
     }
 
     // Show error state

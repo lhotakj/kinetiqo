@@ -235,6 +235,39 @@ class MySQLRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_activities_by_ids(self, activity_ids: List[str]) -> List[Dict[str, Any]]:
+        """Get a list of activities by their IDs."""
+        if not activity_ids:
+            return []
+
+        int_ids = [int(aid) for aid in activity_ids]
+        placeholders = ', '.join(['%s'] * len(int_ids))
+
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute(f"""
+                SELECT 
+                    activity_id as id,
+                    name,
+                    sport as type,
+                    distance,
+                    moving_time,
+                    total_elevation_gain,
+                    timestamp as start_date,
+                    average_speed,
+                    average_heartrate
+                FROM activities 
+                WHERE activity_id IN ({placeholders})
+                ORDER BY timestamp DESC
+            """, int_ids)
+
+            activities = []
+            for row in cur.fetchall():
+                activity = dict(row)
+                if isinstance(activity['start_date'], datetime):
+                    activity['start_date'] = activity['start_date'].isoformat()
+                activities.append(activity)
+            return activities
+
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
         where_conditions = []
@@ -397,6 +430,20 @@ class MySQLRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
+        self.conn.commit()
+
+    def delete_activities(self, activity_ids: List[str]):
+        """Delete multiple activities and their streams from MySQL."""
+        if not activity_ids:
+            return
+
+        logger.debug(f"Deleting {len(activity_ids)} activities from MySQL...")
+        int_ids = [int(aid) for aid in activity_ids]
+        placeholders = ', '.join(['%s'] * len(int_ids))
+
+        with self.conn.cursor() as cur:
+            cur.execute(f"DELETE FROM activities WHERE activity_id IN ({placeholders})", int_ids)
+            logger.info(f"Deleted {len(activity_ids)} activities and their streams.")
         self.conn.commit()
 
     def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
