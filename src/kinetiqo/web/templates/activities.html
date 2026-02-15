@@ -426,7 +426,7 @@
         var table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": false, // Client-side processing
-            "pageLength": 50, // Increased page length to show more activities by default
+            "pageLength": 25, 
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
             "order": [[3, "desc"]],
             "autoWidth": false, // Disable auto width calculation to use our custom widths
