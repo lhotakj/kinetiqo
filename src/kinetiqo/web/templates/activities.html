@@ -384,14 +384,15 @@
             <div class="h-6 w-px bg-gray-300 mx-1"></div>
         </div>
     </div>
-    <div class="w-full mt-4">
-        <div class="flex gap-2 items-center">
+    <div class="w-full mt-4 flex justify-between items-center flex-wrap gap-4">
+        <div class="flex gap-2 items-center flex-wrap">
             <button id="selectAllOnAllPagesBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Select all activities on all pages</button>
             <button id="clearSelectionBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Clear selection</button>
             <button id="deleteSelectedBtn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Delete selected</button>
             <button id="displayOnMapBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Display on map</button>
             <button id="exportCsvBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Export to CSV</button>
         </div>
+        <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
     </div>
 </div>
 
@@ -593,9 +594,6 @@
                     d.endDate = $('#endDate').val();
                 },
                 "dataSrc": function(json) {
-                    // Note: We do NOT clear selection here anymore to persist it across reloads/filters
-                    // But we might want to remove IDs that are no longer in the DB?
-                    // For now, let's keep them.
                     return json.data;
                 }
             },
@@ -703,8 +701,10 @@
                 "searchPlaceholder": "Filter activities...",
                 "lengthMenu": "Show _MENU_ entries"
             },
+            "initComplete": function(settings, json) {
+                updateSelectionSummary();
+            },
             "drawCallback": function(settings) {
-                // Update checkboxes on each draw
                 updateCheckboxes();
             }
         });
@@ -837,11 +837,38 @@
             $('#selectAllOnPage').prop('checked', onPageCount > 0 && allOnPageSelected);
         }
 
+        function updateSelectionSummary() {
+            const summaryDiv = $('#selectionSummary');
+            const count = selectedActivities.size;
+
+            if (count === 0) {
+                summaryDiv.html(''); // Clear the summary if nothing is selected
+                return;
+            }
+
+            const allData = table.data().toArray();
+            const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
+
+            let totalDistance = 0;
+            let totalElevation = 0;
+            let totalMovingTime = 0;
+
+            selectedData.forEach(row => {
+                totalDistance += row.distance;
+                totalElevation += row.elevation;
+                totalMovingTime += row.moving_time;
+            });
+
+            const summaryText = `Total distance of selected activities: <strong>${formatDistance(totalDistance)}</strong> km, total elevation: <strong>${formatElevation(totalElevation)}</strong> (m), and total moving time: <strong>${formatDuration(totalMovingTime)}</strong>.`;
+            summaryDiv.html(summaryText);
+        }
+
         function clearSelection() {
             selectedActivities.clear();
             saveSelection();
             updateSelectionButtons();
             updateCheckboxes();
+            updateSelectionSummary();
         }
 
         // Header checkbox
@@ -858,6 +885,7 @@
             saveSelection();
             updateSelectionButtons();
             updateCheckboxes();
+            updateSelectionSummary();
         });
 
         // Row checkbox
@@ -871,6 +899,7 @@
             saveSelection();
             updateSelectionButtons();
             updateCheckboxes();
+            updateSelectionSummary();
         });
 
         // Select all on all pages
@@ -882,6 +911,7 @@
             saveSelection();
             updateSelectionButtons();
             updateCheckboxes();
+            updateSelectionSummary();
         });
 
         // Clear selection
@@ -905,6 +935,7 @@
                         selectedActivities.clear();
                         saveSelection();
                         updateSelectionButtons();
+                        updateSelectionSummary();
 
                         table.ajax.reload(null, false); // Reload and keep paging
                     },
@@ -1041,6 +1072,7 @@
                             selectedActivities.delete(String(activityId));
                             saveSelection();
                             updateSelectionButtons();
+                            updateSelectionSummary();
                         }
 
                         // Reload the table to reflect changes
