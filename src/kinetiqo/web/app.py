@@ -137,11 +137,6 @@ TILE_PROVIDERS = {
         'tiles': 'CartoDB dark_matter',
         'attr': '© OpenStreetMap contributors, © CartoDB'
     },
-    'stamenterrain': {
-        'name': 'Stadia Terrain',
-        'tiles': 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png',
-        'attr': '© Stadia Maps, © Stamen Design, © OpenStreetMap contributors'
-    },
     'esriworldimagery': {
         'name': 'Esri World Imagery',
         'tiles': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',

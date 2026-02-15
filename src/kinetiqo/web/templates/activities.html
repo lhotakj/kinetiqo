@@ -247,11 +247,18 @@
     body.dark .daterangepicker .ranges li.active {
         background-color: #EA580C;
     }
+
+    /* Prevent text wrapping and set minimum width for action/filter buttons */
+    .activity-action-btn, .activity-filter-btn, .activity-export-btn {
+        white-space: nowrap;
+        min-width: 110px; /* Adjust as needed for your longest label */
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
 </style>
 
 <div class="mb-8">
     <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
-    <p class="text-gray-500">Your recent Strava activities cached in your database.</p>
 </div>
 
 <div class="bg-white rounded-lg p-4 mb-4 border border-gray-200">
@@ -372,9 +379,9 @@
         <!-- Buttons -->
         <div class="flex-grow"></div>
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
-            <button id="selectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Select All</button>
-            <button id="deselectAllBtn" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px]">Deselect All</button>
-            <button id="displayOnMapBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition h-[42px] flex items-center">
+            <button id="selectAllBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Select All</button>
+            <button id="deselectAllBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Deselect All</button>
+            <button id="displayOnMapBtn" class="activity-action-btn px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                 Display on Map
             </button>
@@ -428,7 +435,7 @@
                 {
                     extend: 'csv',
                     text: 'Export to CSV',
-                    className: 'px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px] flex items-center',
+                    className: 'activity-export-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-medium transition h-[42px] flex items-center',
                     init: function(api, node, config) {
                         $(node).removeClass('dt-button buttons-csv buttons-html5');
                     }
