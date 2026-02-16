@@ -166,6 +166,7 @@ cd src
 *   `sync`: Synchronize activities with database.
     *   `--full-sync` / `-f`: Perform a full sync.
     *   `--fast-sync` / `-q`: Perform a fast sync.
+    *   `--period` / `-p`: Limit sync scope to a specific period (e.g., '7d', '2w', '1m', '1y'). Only applies to full sync.
     *   `--enable-strava-cache`: Enable caching of Strava API responses.
     *   `--cache-ttl`: Cache time-to-live in minutes.
     *   `--clear-cache`: Clear the cache before syncing.
@@ -189,6 +190,9 @@ python kinetiqo.py version
 
 # Run a full sync
 python kinetiqo.py sync --full-sync
+
+# Run a full sync limited to the last 30 days
+python kinetiqo.py sync --full-sync --period 30d
 
 # Run a fast sync with caching enabled
 python kinetiqo.py sync --fast-sync --enable-strava-cache

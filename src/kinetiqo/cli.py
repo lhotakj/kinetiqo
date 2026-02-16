@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import click
+import re
 from kinetiqo.config import Config
 from kinetiqo.cache import CacheManager
 from kinetiqo.db.factory import create_repository
@@ -85,6 +86,29 @@ def validate_config(config):
         if missing:
             logger.error(f"Missing required MySQL environment variables: {', '.join(missing)}")
             sys.exit(1)
+
+def parse_period(period_str):
+    """Parses a period string like '7d', '1m', '1y' into days."""
+    if not period_str:
+        return 0
+    
+    match = re.match(r'^(\d+)([dDwWmMyY])$', period_str)
+    if not match:
+        raise click.BadParameter(f"Invalid period format: {period_str}. Use format like '7d', '2w', '1m', '1y'.")
+    
+    value = int(match.group(1))
+    unit = match.group(2).lower()
+    
+    if unit == 'd':
+        return value
+    elif unit == 'w':
+        return value * 7
+    elif unit == 'm':
+        return value * 30
+    elif unit == 'y':
+        return value * 365
+    
+    return 0
 
 class State:
     """A simple state object to pass config to subcommands."""
@@ -171,6 +195,8 @@ def flightcheck(ctx):
 @click.option('--fast-sync', '-q',
               is_flag=True,
               help='Perform a fast sync. Only checks for new activities since the last sync.')
+@click.option('--period', '-p',
+              help="Limit sync scope to a specific period (e.g., '7d', '2w', '1m', '1y'). Only applies to full sync.")
 @click.option('--enable-strava-cache',
               is_flag=True,
               help='Enable caching of Strava API responses.')
@@ -182,7 +208,7 @@ def flightcheck(ctx):
               is_flag=True,
               help='Clear the cache before syncing.')
 @click.pass_context
-def sync(ctx, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache):
+def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache):
     """
     Synchronize activities with database.
     """
@@ -200,6 +226,14 @@ def sync(ctx, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache)
         logger.warning("No mode specified, defaulting to Full Sync.")
         is_full_sync = True
 
+    limit_days = 0
+    if period:
+        if not is_full_sync:
+             logger.warning("Period limit is ignored for fast sync.")
+        else:
+            limit_days = parse_period(period)
+            logger.info(f"Sync limited to last {limit_days} days.")
+
     config = ctx.obj.config
     
     # Config validation is now handled in cli() via validate_config()
@@ -216,7 +250,7 @@ def sync(ctx, full_sync, fast_sync, enable_strava_cache, cache_ttl, clear_cache)
 
     try:
         # Consume the generator to execute the sync process
-        for _ in sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-"):
+        for _ in sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days):
             pass
     finally:
         sync_service.close()
