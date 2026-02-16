@@ -1,8 +1,8 @@
 # Kinetiqo
 
-Kinetiqo is a self-hosted data warehouse for your Strava activities. It syncs your data into a high-performance SQL database (**PostgreSQL** or **MySQL/MariaDB**), giving you full ownership and control over your fitness history.
+Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL** or **MySQL/MariaDB**), providing full ownership and control over your fitness history.
 
-Visualize your progress with the **built-in Web UI** or connect your favorite business intelligence tools. For advanced analytics, Kinetiqo includes pre-built **Grafana dashboards**, turning your workout data into actionable insights.
+Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
 ## Table of Contents
 
@@ -22,18 +22,18 @@ Visualize your progress with the **built-in Web UI** or connect your favorite bu
 
 ## Features
 
-- 📊 **Rich Visualization**: A clean web interface for daily use and powerful Grafana dashboards for deep analysis.
-- 📝 **Comprehensive Logging**: Tracks all sync operations and deletions, providing a detailed audit trail in the Web UI.
-- 🔄 **Smart Synchronization**:
-  - **Full Sync**: Performs a complete audit of your Strava history, fetching all activities and removing any that have been deleted from Strava.
-  - **Fast Sync**: Efficiently fetches only the most recent activities, ideal for daily updates.
-- 🐳 **Docker-Native**: Designed for containerized deployments, making it easy to integrate into your existing stack.
-- ⏱️ **Automated Scheduling**: A built-in cron scheduler keeps your data fresh automatically, so it's always ready for analysis.
-- 💾 **Database Support**:
+- 📊 **Advanced Visualization**: A streamlined web interface for daily monitoring and comprehensive Grafana dashboards for in-depth analysis.
+- 📝 **Audit Logging**: Records all synchronization operations and data modifications, providing a complete audit trail within the Web UI.
+- 🔄 **Intelligent Synchronization**:
+  - **Full Synchronization**: Conducts a comprehensive audit of your Strava history, retrieving all activities and reconciling any deletions.
+  - **Incremental Synchronization**: Efficiently retrieves only the most recent activities, optimized for frequent updates.
+- 🐳 **Container-Native**: Architected for Docker environments, facilitating seamless integration into existing infrastructure.
+- ⏱️ **Automated Scheduling**: Includes a built-in cron scheduler to ensure data currency without manual intervention.
+- 💾 **Database Compatibility**:
   - **PostgreSQL** (version 18+)
   - **MySQL 8 / MariaDB 12**
-- 🚀 **Optimized Performance**: Intelligent caching minimizes Strava API usage and maximizes data retrieval speed.
-- 🔒 **Secure Authentication**: Uses the standard OAuth 2.0 protocol to protect your Strava account credentials.
+- 🚀 **Performance Optimization**: Utilizes intelligent caching strategies to minimize API consumption and accelerate data retrieval.
+- 🔒 **Security**: Implements standard OAuth 2.0 protocols to safeguard user credentials.
 
 ---
 
@@ -53,23 +53,23 @@ Visualize your progress with the **built-in Web UI** or connect your favorite bu
     cd kinetiqo
     ```
 
-2.  **Set Up a Virtual Environment:**
+2.  **Initialize Virtual Environment:**
     ```bash
     python -m venv .venv
     source .venv/bin/activate  # On Windows, use `venv\Scripts\activate`
     pip install -r requirements.txt
     ```
 
-3.  **Use `direnv` for Automatic Environment Management (Optional):**
-    The `development` directory includes a script to set up `direnv`, which automatically manages your virtual environment and variables.
+3.  **Environment Management with `direnv` (Optional):**
+    The `development` directory contains a script to configure `direnv` for automated environment management.
     ```bash
     cd development
     ./setup-direnv.sh
     ```
-    Once configured, `direnv` will automatically activate the environment when you enter the project directory.
+    Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
 4.  **Configure Environment Variables:**
-    Create a `.env` file in the project root to store your configuration. This file is kept private and is ignored by Git.
+    Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
     
     **Example `.env` file:**
     ```env
@@ -82,123 +82,123 @@ Visualize your progress with the **built-in Web UI** or connect your favorite bu
     POSTGRESQL_PASSWORD=password
     ```
 
-5.  **Store Secrets Securely with GPG (Optional):**
-    For enhanced security, you can encrypt your environment files using GPG. The included `.envrc` script will automatically decrypt them.
+5.  **Secure Secret Storage with GPG (Optional):**
+    For enhanced security, environment files can be encrypted using GPG. The included `.envrc` script supports automatic decryption.
     
-    1. **Import Your GPG Key:**
+    1. **Import GPG Key:**
        ```shell
        gpg --import ~/.ssh/id_rsa
        gpg --list-secret-keys
        ```
 
-    2. **Encrypt Your Environment File:**
-       This example encrypts a file named `.env.development`.
+    2. **Encrypt Environment File:**
+       The following command encrypts `.env.development`.
        ```shell
        mkdir -p secrets
        gpg -r <your-key-id> -o secrets/development.gpg -e .env.development
        ```
-       Ensure the unencrypted file (`.env.development`) is listed in your `.gitignore`.
+       Ensure the unencrypted source file (`.env.development`) is included in `.gitignore`.
 
 ### Configuration
 
-Kinetiqo is configured entirely through environment variables.
+Configuration is managed exclusively via environment variables.
 
-#### 1. Strava API Configuration
-Register an application at [Strava's API settings page](https://www.strava.com/settings/api) to obtain these credentials.
+#### 1. Strava API Credentials
+Register an application in the [Strava API Settings](https://www.strava.com/settings/api) to obtain the necessary credentials.
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `STRAVA_CLIENT_ID` | Your Strava application's Client ID. | ✅ |
-| `STRAVA_CLIENT_SECRET` | Your Strava application's Client Secret. | ✅ |
-| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` scope. | ✅ |
+| `STRAVA_CLIENT_ID` | Strava Application Client ID. | ✅ |
+| `STRAVA_CLIENT_SECRET` | Strava Application Client Secret. | ✅ |
+| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` scope. | ✅ |
 
 #### 2. Database Configuration
-Set `DATABASE_TYPE` to either `postgresql` (default) or `mysql`.
+Define `DATABASE_TYPE` as either `postgresql` (default) or `mysql`.
 
 **PostgreSQL (Default):**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `POSTGRESQL_HOST` | Hostname of the PostgreSQL server. | `localhost` |
-| `POSTGRESQL_PORT` | Port for the PostgreSQL server. | `5432` |
+| `POSTGRESQL_HOST` | Database server hostname. | `localhost` |
+| `POSTGRESQL_PORT` | Database server port. | `5432` |
 | `POSTGRESQL_USER` | Database username. | `postgres` |
 | `POSTGRESQL_PASSWORD` | Database password. | `postgres` |
-| `POSTGRESQL_DATABASE` | Name of the database to use. | `kinetiqo` |
-| `POSTGRESQL_SSL_MODE` | SSL mode for the connection (`disable`, `require`, etc.). | `disable` |
+| `POSTGRESQL_DATABASE` | Database name. | `kinetiqo` |
+| `POSTGRESQL_SSL_MODE` | SSL connection mode (`disable`, `require`, etc.). | `disable` |
 
 **MySQL / MariaDB:**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MYSQL_HOST` | Hostname of the MySQL server. | `localhost` |
-| `MYSQL_PORT` | Port for the MySQL server. | `3306` |
+| `MYSQL_HOST` | Database server hostname. | `localhost` |
+| `MYSQL_PORT` | Database server port. | `3306` |
 | `MYSQL_USER` | Database username. | `root` |
 | `MYSQL_PASSWORD` | Database password. | - |
-| `MYSQL_DATABASE` | Name of the database to use. | `kinetiqo` |
-| `MYSQL_SSL_MODE` | SSL mode for the connection. | `disable` |
+| `MYSQL_DATABASE` | Database name. | `kinetiqo` |
+| `MYSQL_SSL_MODE` | SSL connection mode. | `disable` |
 
-> **Note:** For MySQL, the specified user must have `CREATE` and `ALL PRIVILEGES` grants to allow Kinetiqo to manage the database schema.
+> **Note:** For MySQL, ensure the user has `CREATE` and `ALL PRIVILEGES` on the target database to allow for schema management.
 
 #### 3. Scheduling (Cron)
-The Docker container includes a built-in cron scheduler. Define schedules using standard cron syntax.
+The Docker image includes a cron scheduler. Define schedules using standard cron syntax.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `FULL_SYNC` | Cron schedule for a full sync. | `0 3 * * *` (Daily at 3 AM) |
-| `FAST_SYNC` | Cron schedule for a fast sync. | `*/15 * * * *` (Every 15 minutes) |
+| `FULL_SYNC` | Schedule for full synchronization. | `0 3 * * *` (Daily at 3 AM) |
+| `FAST_SYNC` | Schedule for incremental synchronization. | `*/15 * * * *` (Every 15 minutes) |
 
 #### 4. Web Interface Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `WEB_LOGIN` | Username for the web interface. | `admin` |
-| `WEB_PASSWORD` | Password for the web interface. | `admin123` |
+| `WEB_LOGIN` | Username for web access. | `admin` |
+| `WEB_PASSWORD` | Password for web access. | `admin123` |
 
-> **Note:** Sync failures are logged to the `logs` table in the database and can be viewed in the Web UI or by running `docker logs <container_id>`.
+> **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
 ## Command-Line Interface (CLI)
 
-The CLI is available in the `src` directory.
+The CLI tool is located in the `src` directory.
 
 ### CLI Commands
 
--   `--database` / `-d`: Specifies the database backend (`mysql` or `postgresql`), overriding the environment variable.
--   `sync`: Synchronizes activities with the database.
-    -   `--full-sync` / `-f`: Performs a full sync, auditing all activities.
-    -   `--fast-sync` / `-q`: Performs a fast sync, fetching only new activities.
-    -   `--period` / `-p`: Limits the full sync to a specific period (e.g., '7d', '2w', '1m', '1y').
-    -   `--enable-strava-cache`: Enables caching of Strava API responses to speed up development.
-    -   `--cache-ttl`: Sets the cache time-to-live in minutes (default: 60).
-    -   `--clear-cache`: Clears the cache before syncing.
--   `web`: Starts the web interface.
-    -   `--port`: Port to run the web server on (default: 4444).
-    -   `--host`: Host to bind to (default: 0.0.0.0).
--   `flightcheck`: Checks the database connection and schema integrity.
--   `version`: Displays the application version.
+-   `--database` / `-d`: Selects the database backend (`mysql` or `postgresql`), overriding environment variables.
+-   `sync`: Initiates data synchronization.
+    -   `--full-sync` / `-f`: Executes a full synchronization audit.
+    -   `--fast-sync` / `-q`: Executes an incremental synchronization.
+    -   `--period` / `-p`: Restricts full synchronization to a specific timeframe (e.g., '7d', '2w', '1m', '1y').
+    -   `--enable-strava-cache`: Activates API response caching.
+    -   `--cache-ttl`: Defines cache time-to-live in minutes (default: 60).
+    -   `--clear-cache`: Purges the cache prior to synchronization.
+-   `web`: Launches the web server.
+    -   `--port`: Specifies the listening port (default: 4444).
+    -   `--host`: Specifies the bind address (default: 0.0.0.0).
+-   `flightcheck`: Validates database connectivity and schema integrity.
+-   `version`: Outputs the current version information.
 
 ### Manual Sync
 
-To run a sync manually, execute the `sync` command from the `src` directory:
+Execute the `sync` command from the `src` directory:
 
 ```bash
-# Run a full sync of all activities
+# Execute full synchronization
 python kinetiqo.py sync --full-sync
 
-# Run a full sync limited to the last 30 days
+# Execute full synchronization limited to the last 30 days
 python kinetiqo.py sync --full-sync --period 30d
 
-# Run a fast sync to fetch only new activities
+# Execute incremental synchronization
 python kinetiqo.py sync --fast-sync
 ```
 
 ### Web Interface
 
-To start the web server, use the `web` command:
+Launch the web server using the `web` command:
 
 ```bash
-# Start the web server on the default port (4444)
+# Start server on default port (4444)
 python kinetiqo.py web
 
-# Start with a specific port and database
+# Start server on custom port with specific database backend
 python kinetiqo.py --database mysql web --port 8000
 ```
 
@@ -206,7 +206,7 @@ python kinetiqo.py --database mysql web --port 8000
 
 ### Docker Run
 
-The following is an example of running Kinetiqo as a standalone Docker container.
+Example command to deploy Kinetiqo as a standalone container:
 
 ```bash
 docker run -d \
@@ -228,7 +228,7 @@ docker run -d \
 
 ### Docker Compose
 
-For a complete, production-ready stack, use Docker Compose. This example includes PostgreSQL and Grafana.
+For a production-grade deployment, use Docker Compose. The following configuration includes PostgreSQL and Grafana.
 
 **`docker-compose.yml`:**
 ```yaml
@@ -292,7 +292,7 @@ STRAVA_REFRESH_TOKEN=your_strava_refresh_token
 POSTGRESQL_PASSWORD=your_secure_password
 ```
 
-Launch the stack with:
+Deploy the stack:
 ```bash
 docker-compose up -d
 ```
