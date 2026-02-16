@@ -34,6 +34,7 @@ fi
 SHORT_VERSION=$(echo $VERSION | cut -d. -f1,2)
 
 echo "$VERSION" > ./version.txt
+echo "$SHORT_VERSION" > ./short_version.txt
 
 info "Building version ${VERSION} (Short: ${SHORT_VERSION}) ..."
 docker build \

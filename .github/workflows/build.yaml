@@ -29,16 +29,21 @@ jobs:
           cd build
           ./build.sh
 
-      - name: Get version from build
+      - name: Get versions from build
         id: get_version
         run: |
           VERSION=$(cat ./src/version.txt)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHORT_VERSION=$(cat ./src/short_version.txt)
+          echo "short_version=$SHORT_VERSION" >> $GITHUB_OUTPUT
 
       - name: Tag and push image
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
+          SHORT_VERSION=${{ steps.get_version.outputs.short_version }}
           docker tag kinetiqo lhotakj/kinetiqo:$VERSION
+          docker tag kinetiqo lhotakj/kinetiqo:$SHORT_VERSION
           docker tag kinetiqo lhotakj/kinetiqo:latest
           docker push lhotakj/kinetiqo:$VERSION
+          docker push lhotakj/kinetiqo:$SHORT_VERSION
           docker push lhotakj/kinetiqo:latest
