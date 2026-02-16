@@ -83,15 +83,19 @@ class StravaClient:
             r.raise_for_status()
             batch = r.json()
 
-            if not batch:
-                logger.debug(f"Page {page} is empty. Reached end of activities.")
-                break
-
             msg = f"Page {page}: Found {len(batch)} activities."
             logger.debug(msg)
             yield msg
             
-            activities.extend(batch)
+            if batch:
+                activities.extend(batch)
+            
+            # If the batch is empty or we received fewer activities than we asked for,
+            # it means we have reached the end.
+            if not batch or len(batch) < per_page:
+                logger.debug(f"Reached end of activities on page {page}.")
+                break
+
             page += 1
 
         # Cache the results

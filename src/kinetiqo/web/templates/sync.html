@@ -9,6 +9,11 @@
     body.dark .border-gray-100 {
         background-color: #333333;
     }
+    body.dark #syncLimit {
+        background-color: #262626;
+        border-color: #404040;
+        color: #e5e5e5;
+    }
 </style>
 {% endblock %}
 
@@ -25,8 +30,27 @@
 </div>
 
 <div class="bg-white rounded-lg p-6 border border-gray-200" hx-ext="sse">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
         <h3 class="font-medium text-gray-900">Sync Status</h3>
+
+        {% if sync_type == 'full' %}
+        <div class="flex items-center gap-4">
+            <div>
+                <label for="syncLimit" class="block text-sm font-medium text-gray-700 mb-1">Limit the scope for sync period</label>
+                <select id="syncLimit" class="h-10 px-3 border border-gray-200 rounded-lg text-sm">
+                    <option value="7">This Week</option>
+                    <option value="30">This Month</option>
+                    <option value="60">Last 2 Months</option>
+                    <option value="90">Last 3 Months</option>
+                    <option value="180">Last Half a Year</option>
+                    <option value="365">Last Year</option>
+                    <option value="730">Last Two Years</option>
+                    <option value="0" selected>No Limit</option>
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
         <button id="start-sync-btn"
                 hx-get="/sync/start/{{ sync_type }}"
                 hx-target="#sync-log-area"
@@ -36,6 +60,12 @@
             Start Sync
         </button>
     </div>
+
+    {% if sync_type == 'full' %}
+    <div id="noLimitWarning" class="hidden mb-4 p-4 bg-red-100 border border-red-200 text-red-700 rounded-lg text-sm">
+        <strong>Warning:</strong> This approach may impose a heavy load on the Strava API, increasing the risk of exceeding API limits.
+    </div>
+    {% endif %}
 
     <div id="sync-log-area">
         <div class="bg-gray-50 rounded-lg p-8 border border-gray-100 text-center min-h-[200px] flex items-center justify-center">
@@ -48,4 +78,35 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const syncLimitDropdown = document.getElementById('syncLimit');
+    const noLimitWarning = document.getElementById('noLimitWarning');
+    const startSyncBtn = document.getElementById('start-sync-btn');
+
+    if (syncLimitDropdown) {
+        // Function to show/hide warning
+        const toggleWarning = () => {
+            if (syncLimitDropdown.value === '0') {
+                noLimitWarning.classList.remove('hidden');
+            } else {
+                noLimitWarning.classList.add('hidden');
+            }
+        };
+
+        // Initial check
+        toggleWarning();
+
+        // Add change event listener
+        syncLimitDropdown.addEventListener('change', toggleWarning);
+
+        // Update hx-get attribute before making the request
+        startSyncBtn.addEventListener('htmx:configRequest', function(evt) {
+            const limit = syncLimitDropdown.value;
+            evt.detail.path = `/sync/start/{{ sync_type }}?limit_days=${limit}`;
+        });
+    }
+});
+</script>
 {% endblock %}

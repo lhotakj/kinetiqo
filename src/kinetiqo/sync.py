@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from kinetiqo.config import Config
 from kinetiqo.strava import StravaClient
 from kinetiqo.db.factory import create_repository
@@ -12,7 +12,7 @@ class SyncService:
         self.strava = StravaClient(config)
         self.db = create_repository(config)
 
-    def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-"):
+    def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0):
         """
         Perform sync of Strava activities, yielding progress updates.
 
@@ -20,6 +20,7 @@ class SyncService:
                           If False, fetches only activities newer than the latest one in the database.
         :param trigger: Source of the sync trigger (e.g., "cli", "web").
         :param user: User who initiated the sync.
+        :param limit_days: If > 0, limits the sync to the last N days.
         """
         log_buffer = []
         sync_type_str = 'full' if full_sync else 'fast'
@@ -87,7 +88,10 @@ class SyncService:
 
             # 2. Determine fetch strategy
             after = None
-            if not full_sync:
+            if limit_days > 0:
+                after = int((datetime.now(timezone.utc) - timedelta(days=limit_days)).timestamp())
+                yield yield_log(f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
+            elif not full_sync:
                 latest_ts = self.db.get_latest_activity_time()
                 if latest_ts:
                     after = latest_ts - 86400  # Go back 1 day
@@ -106,9 +110,9 @@ class SyncService:
             new_activities = [a for a in activities if str(a["id"]) not in synced_ids]
             yield yield_log(f"Identified {len(new_activities)} new activities to sync.")
 
-            # 5. Identify deleted activities (ONLY in Full Sync mode)
+            # 5. Identify deleted activities (ONLY in unlimited Full Sync mode)
             ids_to_delete = set()
-            if full_sync:
+            if full_sync and limit_days == 0:
                 strava_ids = set(str(a["id"]) for a in activities)
                 ids_to_delete = synced_ids - strava_ids
                 if ids_to_delete:
@@ -116,7 +120,7 @@ class SyncService:
                 else:
                     yield yield_log("No activities to delete.")
             else:
-                yield yield_log("Fast sync: Skipping deletion check.")
+                yield yield_log("Skipping deletion check (not in unlimited full sync mode).")
 
             # 6. Sync new activities
             total_new = len(new_activities)
@@ -124,7 +128,7 @@ class SyncService:
                 activity_id = activity["id"]
                 sport = activity["sport_type"]
                 name = activity.get("name", "Unknown Activity")
-                percent = (i / total_new) * 100
+                percent = (i / total_new) * 100 if total_new > 0 else 0
 
                 yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Syncing: {name} ({sport})")
 

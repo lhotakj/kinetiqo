@@ -552,9 +552,12 @@ def start_sync_ui(type):
     """
     Returns the HTML snippet to connect to the SSE stream.
     """
+    limit_days = request.args.get('limit_days', '0')
+    sse_url = f"/api/sync/stream/{type}?limit_days={limit_days}"
+
     return f'''
     <div id="sync-log-area">
-        <div sse-connect="/api/sync/stream/{type}">
+        <div sse-connect="{sse_url}">
             <div id="sync-result" sse-swap="message" class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
                 <p class="text-sm text-gray-500 italic">Initializing sync...</p>
             </div>
@@ -579,11 +582,12 @@ def sync_stream(type):
     """
     is_full_sync = (type == 'full')
     user_id = current_user.id
+    limit_days = request.args.get('limit_days', default=0, type=int)
     
     def generate():
         sync_service = SyncService(config)
         try:
-            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id):
+            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id, limit_days=limit_days):
                 yield progress
         except Exception as e:
             logger.error(f"Sync failed: {e}")
