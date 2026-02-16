@@ -90,6 +90,27 @@ Kinetiqo is written in Python and requires a database backend of your choice (My
     POSTGRESQL_USER=postgres
     POSTGRESQL_PASSWORD=password
     ```
+5. **Storing your secrets in GitHub**
+    This repository contains file `secrets\lhotakj.development.gpg` which is encrypted file of my `.env.development`. See below a short how-to create your own encrypted file
+    
+5.1. Import your SSH key into GPG (one‑time)
+    ```shell
+    gpg --import ~/.ssh/id_rsa
+    ```
+    Find your key 
+    ```shell
+    gpg --list-secret-keys
+    
+    ```
+    You only do this once on each machine.
+
+5.2. Encrypt your file (one‑time)
+   My file is `.env.development`, so the command to enctypt would be
+   ```shell
+   mkdir -p secrets
+   gpg -r <your-key-id> -o secrets\lhotakj.development.gpg -e .env.development  
+   ```
+   Of course the file `.env.development` has to be present in the `.gitignore` file
 
 ### Configuration
 

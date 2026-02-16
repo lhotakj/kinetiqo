@@ -328,13 +328,13 @@ def logs():
         if hasattr(repo, 'conn') and repo.conn:
             repo.conn.commit()
             
-        logs_data = repo.get_logs(limit=50)
+        logs_data = repo.get_logs(limit=25)
         
         # Format logs as text
         log_text = f"{'DATETIME':<25} {'ACTION':<12} {'ADDED':<8} {'REMOVED':<8} {'TRIGGER':<10} {'USER':<10} {'RESULT':<10}\n"
         log_text += "-" * 95 + "\n"
         
-        for log in logs_.data:
+        for log in logs_data:
             ts = log['timestamp']
             # Try to format timestamp nicely if it's a string
             try:
