@@ -32,7 +32,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 💾 **Database Compatibility**:
   - **PostgreSQL** (version 18+)
   - **MySQL 8 / MariaDB 12**
-  - **Firebird** (version 3.0+)
+  - **Firebird** (versions 3.0, 4.0, 5.0)
 - 🚀 **Performance Optimization**: Utilizes intelligent caching strategies to minimize API consumption and accelerate data retrieval.
 - 🔒 **Security**: Implements standard OAuth 2.0 protocols to safeguard user credentials.
 
@@ -151,6 +151,8 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 | `FIREBIRD_DATABASE` | Database file path or alias. | Required |
 
 > **Note:** Kinetiqo will automatically create the Firebird database and schema if they don't exist. 
+> 
+> **Version Compatibility:** Tested and fully compatible with Firebird 3.0, 4.0, and 5.0. Uses only standard SQL features available in all these versions (SEQUENCE, TRIGGER, UPDATE OR INSERT, FIRST/SKIP pagination).
 > 
 > **Permissions Required:**
 > - The user must have rights to **create databases** on the Firebird server (typically `SYSDBA` or a user with equivalent privileges)
