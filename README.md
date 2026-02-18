@@ -1,6 +1,6 @@
 # Kinetiqo
 
-Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL** or **MySQL/MariaDB**), providing full ownership and control over your fitness history.
+Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**), providing full ownership and control over your fitness history.
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
@@ -32,6 +32,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 💾 **Database Compatibility**:
   - **PostgreSQL** (version 18+)
   - **MySQL 8 / MariaDB 12**
+  - **Firebird** (versions 3.0, 4.0, 5.0)
 - 🚀 **Performance Optimization**: Utilizes intelligent caching strategies to minimize API consumption and accelerate data retrieval.
 - 🔒 **Security**: Implements standard OAuth 2.0 protocols to safeguard user credentials.
 
@@ -113,7 +114,7 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 | `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` scope. | ✅ |
 
 #### 2. Database Configuration
-Define `DATABASE_TYPE` as either `postgresql` (default) or `mysql`.
+Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 
 **PostgreSQL (Default):**
 
@@ -139,6 +140,33 @@ Define `DATABASE_TYPE` as either `postgresql` (default) or `mysql`.
 
 > **Note:** For MySQL, ensure the user has `CREATE` and `ALL PRIVILEGES` on the target database to allow for schema management.
 
+**Firebird:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `FIREBIRD_HOST` | Database server hostname. | Required |
+| `FIREBIRD_PORT` | Database server port. | `3050` |
+| `FIREBIRD_USER` | Database username. | Required |
+| `FIREBIRD_PASSWORD` | Database password. | Required |
+| `FIREBIRD_DATABASE` | Database file path or alias. | Required |
+
+> **Note:** Kinetiqo will automatically create the Firebird database and schema if they don't exist. 
+> 
+> **Version Compatibility:** Tested and fully compatible with Firebird 3.0, 4.0, and 5.0. Uses only standard SQL features available in all these versions (SEQUENCE, TRIGGER, UPDATE OR INSERT, FIRST/SKIP pagination).
+> 
+> **Permissions Required:**
+> - The user must have rights to **create databases** on the Firebird server (typically `SYSDBA` or a user with equivalent privileges)
+> - Once the database exists, the user needs rights to **create tables, sequences, triggers, and indexes**
+> - For embedded Firebird, ensure the application has **write access** to the database file directory
+> 
+> **Empty Database Setup:**
+> 1. Simply provide a non-existent database path (e.g., `/var/lib/firebird/data/kinetiqo.fdb`)
+> 2. Kinetiqo will automatically create the database on first run
+> 3. All tables (`activities`, `streams`, `logs`), sequences, triggers, and indexes will be created automatically
+> 4. No manual schema setup is required
+> 
+> **Default User:** The `SYSDBA` user is the Firebird superuser (equivalent to MySQL's `root` or PostgreSQL's `postgres`) and has all necessary permissions for database creation and schema management.
+
 #### 3. Scheduling (Cron)
 The Docker image includes a cron scheduler. Define schedules using standard cron syntax.
 
@@ -161,7 +189,7 @@ The CLI tool is located in the `src` directory.
 
 ### CLI Commands
 
--   `--database` / `-d`: Selects the database backend (`mysql` or `postgresql`), overriding environment variables.
+-   `--database` / `-d`: Selects the database backend (`mysql`, `postgresql`, or `firebird`), overriding environment variables.
 -   `sync`: Initiates data synchronization.
     -   `--full-sync` / `-f`: Executes a full synchronization audit.
     -   `--fast-sync` / `-q`: Executes an incremental synchronization.
