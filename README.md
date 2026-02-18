@@ -150,7 +150,20 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 | `FIREBIRD_PASSWORD` | Database password. | Required |
 | `FIREBIRD_DATABASE` | Database file path or alias. | Required |
 
-> **Note:** For Firebird, ensure the database file path is accessible and the user has appropriate permissions. The database will be created automatically if it doesn't exist.
+> **Note:** Kinetiqo will automatically create the Firebird database and schema if they don't exist. 
+> 
+> **Permissions Required:**
+> - The user must have rights to **create databases** on the Firebird server (typically `SYSDBA` or a user with equivalent privileges)
+> - Once the database exists, the user needs rights to **create tables, sequences, triggers, and indexes**
+> - For embedded Firebird, ensure the application has **write access** to the database file directory
+> 
+> **Empty Database Setup:**
+> 1. Simply provide a non-existent database path (e.g., `/var/lib/firebird/data/kinetiqo.fdb`)
+> 2. Kinetiqo will automatically create the database on first run
+> 3. All tables (`activities`, `streams`, `logs`), sequences, triggers, and indexes will be created automatically
+> 4. No manual schema setup is required
+> 
+> **Default User:** The `SYSDBA` user is the Firebird superuser (equivalent to MySQL's `root` or PostgreSQL's `postgres`) and has all necessary permissions for database creation and schema management.
 
 #### 3. Scheduling (Cron)
 The Docker image includes a cron scheduler. Define schedules using standard cron syntax.
