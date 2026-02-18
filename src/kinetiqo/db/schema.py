@@ -77,6 +77,15 @@ class SchemaManager:
     def __init__(self, conn, db_type):
         self.conn = conn
         self.db_type = db_type  # 'mysql', 'postgresql', or 'firebird'
+    
+    def _get_type_suffix(self):
+        """Get the suffix for type keys based on database type."""
+        if self.db_type == 'firebird':
+            return 'firebird'
+        elif self.db_type == 'mysql':
+            return 'mysql'
+        else:
+            return 'pg'
 
     def ensure_schema(self):
         """Ensures the database schema matches the definition."""
@@ -113,16 +122,17 @@ class SchemaManager:
     def _create_table(self, table_name, definition):
         logger.info(f"{self.db_type.upper()}: Creating table '{table_name}'...")
         
+        type_suffix = self._get_type_suffix()
         columns_def = []
         for col in definition["columns"]:
-            col_type_key = f"type_{self.db_type if self.db_type == 'firebird' else ('mysql' if self.db_type == 'mysql' else 'pg')}"
+            col_type_key = f"type_{type_suffix}"
             col_type = col[col_type_key]
             quoted_name = self._quote_identifier(col['name'])
             columns_def.append(f"{quoted_name} {col_type}")
 
         if "constraints" in definition:
             for const in definition["constraints"]:
-                const_key = f"def_{self.db_type if self.db_type == 'firebird' else ('mysql' if self.db_type == 'mysql' else 'pg')}"
+                const_key = f"def_{type_suffix}"
                 const_def = const[const_key]
                 columns_def.append(const_def)
 
@@ -146,10 +156,11 @@ class SchemaManager:
         # Check for missing columns
         existing_columns = self._get_existing_columns(table_name)
         
+        type_suffix = self._get_type_suffix()
         for col in definition["columns"]:
             if col["name"] not in existing_columns:
                 logger.info(f"{self.db_type.upper()}: Adding missing column '{col['name']}' to table '{table_name}'...")
-                col_type_key = f"type_{self.db_type if self.db_type == 'firebird' else ('mysql' if self.db_type == 'mysql' else 'pg')}"
+                col_type_key = f"type_{type_suffix}"
                 col_type = col[col_type_key]
                 
                 quoted_table = self._quote_identifier(table_name)
