@@ -183,11 +183,7 @@ class SchemaManager:
                 # MySQL returns (Field, Type, Null, Key, Default, Extra)
                 return {row[0] for row in cur.fetchall()}
             elif self.db_type == 'firebird':
-                cur.execute("""
-                    SELECT TRIM(RDB$FIELD_NAME) 
-                    FROM RDB$RELATION_FIELDS 
-                    WHERE RDB$RELATION_NAME = UPPER(?)
-                """, (table_name,))
+                cur.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = UPPER(?)", (table_name,))
                 return {row[0].lower() for row in cur.fetchall()}
             else:
                 # PostgreSQL
