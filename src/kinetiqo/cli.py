@@ -90,8 +90,6 @@ def validate_config(config):
         missing = []
         if not config.firebird_host:
             missing.append("FIREBIRD_HOST")
-        if not config.firebird_port:
-            missing.append("FIREBIRD_PORT")
         if not config.firebird_user:
             missing.append("FIREBIRD_USER")
         if not config.firebird_password:

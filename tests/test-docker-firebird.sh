@@ -19,6 +19,7 @@ trap cleanup EXIT INT TERM
 FIREBIRD_HOST='10.0.0.100'
 
 docker run --rm \
+   --name "$CONTAINER_NAME" \
    -e FAST_SYNC="${FAST_SYNC}" \
    -e STRAVA_CLIENT_ID="${STRAVA_CLIENT_ID}" \
    -e STRAVA_CLIENT_SECRET="${STRAVA_CLIENT_SECRET}" \

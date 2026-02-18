@@ -38,7 +38,7 @@ class FirebirdRepository(DatabaseRepository):
                 password=self.config.firebird_password,
                 charset='UTF8'
             )
-            conn.default_tpb = fdb.ISOLATION_LEVEL_READ_COMMITED
+            conn.default_tpb = fdb.ISOLATION_LEVEL_READ_COMMITTED
             return conn
         except Exception as e:
             logger.error(f"Failed to connect to Firebird: {e}")
