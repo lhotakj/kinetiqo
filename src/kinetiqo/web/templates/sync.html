@@ -38,13 +38,15 @@
             <div>
                 <label for="syncLimit" class="block text-sm font-medium text-gray-700 mb-1">Limit the scope for sync period</label>
                 <select id="syncLimit" name="limit_days" class="h-10 px-3 border border-gray-200 rounded-lg text-sm">
-                    <option value="7">This Week</option>
-                    <option value="30">This Month</option>
-                    <option value="60">Last 2 Months</option>
-                    <option value="90">Last 3 Months</option>
-                    <option value="180">Last Half a Year</option>
-                    <option value="365">Last Year</option>
-                    <option value="730">Last Two Years</option>
+                    <option value="{{ limits.this_week }}">This week</option>
+                    <option value="{{ limits.this_month }}">This month</option>
+                    <option value="{{ limits.last_month }}">Last month</option>
+                    <option value="{{ limits.last_2_months }}">Last 2 months</option>
+                    <option value="{{ limits.last_3_months }}">Last 3 months</option>
+                    <option value="{{ limits.last_6_months }}">Last half a year</option>
+                    <option value="{{ limits.this_year }}">This year </option>
+                    <option value="{{ limits.last_year }}">Last year</option>
+                    <option value="{{ limits.last_2_years }}">Last two years</option>
                     <option value="0" selected>No Limit</option>
                 </select>
             </div>
@@ -64,7 +66,7 @@
 
     {% if sync_type == 'full' %}
     <div id="noLimitWarning" class="hidden mb-4 p-4 bg-red-100 border border-red-200 text-red-700 rounded-lg text-sm">
-        <strong>Warning:</strong> This approach may impose a heavy load on the Strava API, increasing the risk of exceeding API limits.
+        <strong>Warning:</strong> Syncing all activities with no limit may impose a heavy load on the Strava API, increasing the risk of exceeding API limits. Consider limiting the scope.
     </div>
     {% endif %}
 

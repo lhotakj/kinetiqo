@@ -8,7 +8,7 @@ import time
 import random
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import folium
 import atexit
@@ -69,6 +69,61 @@ def describe_cron(expression):
         pass
         
     return expression
+
+def get_dynamic_limit_days():
+    """Calculates dynamic limit days based on current date."""
+    today = datetime.now()
+    
+    # This Week: Days since Monday (0 = Mon)
+    # If today is Mon (0), we want 1 day (today). If Tue (1), 2 days.
+    this_week = today.weekday() + 1
+    
+    # This Month: Days since 1st of month
+    this_month = today.day
+    
+    # Helper to get days since start of X months ago
+    def days_since_start_of_months_ago(n_months):
+        year = today.year
+        month = today.month
+        
+        target_month = month - n_months
+        target_year = year
+        
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+            
+        first_of_target = today.replace(year=target_year, month=target_month, day=1)
+        return (today - first_of_target).days + 1
+
+    last_month = days_since_start_of_months_ago(1)
+    last_2_months = days_since_start_of_months_ago(2)
+    last_3_months = days_since_start_of_months_ago(3)
+    last_6_months = days_since_start_of_months_ago(6)
+    
+    # This Year: Days since Jan 1st
+    first_of_year = today.replace(month=1, day=1)
+    this_year = (today - first_of_year).days + 1
+    
+    # Last Year: This year + Previous year
+    first_of_last_year = first_of_year.replace(year=first_of_year.year - 1)
+    last_year = (today - first_of_last_year).days + 1
+    
+    # Last Two Years: This year + Previous 2 years
+    first_of_2_years_ago = first_of_year.replace(year=first_of_year.year - 2)
+    last_2_years = (today - first_of_2_years_ago).days + 1
+    
+    return {
+        'this_week': this_week,
+        'this_month': this_month,
+        'last_month': last_month,
+        'last_2_months': last_2_months,
+        'last_3_months': last_3_months,
+        'last_6_months': last_6_months,
+        'this_year': this_year,
+        'last_year': last_year,
+        'last_2_years': last_2_years
+    }
 
 # --- Routes ---
 
@@ -483,9 +538,6 @@ def get_activities_api():
                                        # If per_page is set, we are doing server-side pagination.
                                        # recordsTotal should be total in DB.
                                        # recordsFiltered should be total matching filters.
-            'recordsFiltered': repo.count_activities(types=types), # This is approximate as it doesn't count date filter
-            # Actually, count_activities needs to support date filter too if we want accurate pagination.
-            # But for now, let's just return the totals.
             'totals': totals
         })
     except Exception as e:
@@ -542,7 +594,7 @@ def delete_activities_api():
 @app.route('/fullsync')
 @login_required
 def fullsync():
-    return render_template('sync.html', title="Full Sync", sync_type="full")
+    return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days())
 
 
 @app.route('/fastsync')
