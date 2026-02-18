@@ -1,6 +1,6 @@
 # Kinetiqo
 
-Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL** or **MySQL/MariaDB**), providing full ownership and control over your fitness history.
+Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**), providing full ownership and control over your fitness history.
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
@@ -32,6 +32,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 💾 **Database Compatibility**:
   - **PostgreSQL** (version 18+)
   - **MySQL 8 / MariaDB 12**
+  - **Firebird** (version 3.0+)
 - 🚀 **Performance Optimization**: Utilizes intelligent caching strategies to minimize API consumption and accelerate data retrieval.
 - 🔒 **Security**: Implements standard OAuth 2.0 protocols to safeguard user credentials.
 
@@ -113,7 +114,7 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 | `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` scope. | ✅ |
 
 #### 2. Database Configuration
-Define `DATABASE_TYPE` as either `postgresql` (default) or `mysql`.
+Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 
 **PostgreSQL (Default):**
 
@@ -139,6 +140,18 @@ Define `DATABASE_TYPE` as either `postgresql` (default) or `mysql`.
 
 > **Note:** For MySQL, ensure the user has `CREATE` and `ALL PRIVILEGES` on the target database to allow for schema management.
 
+**Firebird:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `FIREBIRD_HOST` | Database server hostname. | `localhost` |
+| `FIREBIRD_PORT` | Database server port. | `3050` |
+| `FIREBIRD_USER` | Database username. | `SYSDBA` |
+| `FIREBIRD_PASSWORD` | Database password. | - |
+| `FIREBIRD_DATABASE` | Database file path or alias. | `/path/to/kinetiqo.fdb` |
+
+> **Note:** For Firebird, ensure the database file path is accessible and the user has appropriate permissions. The database will be created automatically if it doesn't exist.
+
 #### 3. Scheduling (Cron)
 The Docker image includes a cron scheduler. Define schedules using standard cron syntax.
 
@@ -161,7 +174,7 @@ The CLI tool is located in the `src` directory.
 
 ### CLI Commands
 
--   `--database` / `-d`: Selects the database backend (`mysql` or `postgresql`), overriding environment variables.
+-   `--database` / `-d`: Selects the database backend (`mysql`, `postgresql`, or `firebird`), overriding environment variables.
 -   `sync`: Initiates data synchronization.
     -   `--full-sync` / `-f`: Executes a full synchronization audit.
     -   `--fast-sync` / `-q`: Executes an incremental synchronization.

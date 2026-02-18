@@ -86,6 +86,21 @@ def validate_config(config):
         if missing:
             logger.error(f"Missing required MySQL environment variables: {', '.join(missing)}")
             sys.exit(1)
+    elif config.database_type == "firebird":
+        missing = []
+        if not config.firebird_host:
+            missing.append("FIREBIRD_HOST")
+        if not config.firebird_port:
+            missing.append("FIREBIRD_PORT")
+        if not config.firebird_user:
+            missing.append("FIREBIRD_USER")
+        if not config.firebird_password:
+            missing.append("FIREBIRD_PASSWORD")
+        if not config.firebird_database:
+            missing.append("FIREBIRD_DATABASE")
+        if missing:
+            logger.error(f"Missing required Firebird environment variables: {', '.join(missing)}")
+            sys.exit(1)
 
 def parse_period(period_str):
     """Parses a period string like '7d', '1m', '1y' into days."""
@@ -120,7 +135,7 @@ class State:
 # -----------------------------
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--database', '-d',
-              type=click.Choice(['mysql', 'postgresql'], case_sensitive=False),
+              type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
               default=None,
               help='Database backend to use (overrides config).')
 @click.pass_context

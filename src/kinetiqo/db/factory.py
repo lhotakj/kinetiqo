@@ -14,5 +14,9 @@ def create_repository(config: Config) -> DatabaseRepository:
         logger.info("Using PostgreSQL as the database backend.")
         from kinetiqo.db.postgresql import PostgresqlRepository
         return PostgresqlRepository(config)
+    elif config.database_type == "firebird":
+        logger.info("Using Firebird as the database backend.")
+        from kinetiqo.db.firebird import FirebirdRepository
+        return FirebirdRepository(config)
     else:
         raise ValueError(f"Unsupported database type: {config.database_type}")
