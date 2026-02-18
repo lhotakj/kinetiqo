@@ -1,6 +1,6 @@
 import sys
 import logging
-import fdb
+import firebird.driver
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any
 from kinetiqo.config import Config
@@ -38,35 +38,36 @@ class FirebirdRepository(DatabaseRepository):
             # Firebird connection string format: host:port/path_to_database or host/port:path_to_database
             dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
             
-            conn = fdb.connect(
-                dsn=dsn,
+            conn = firebird.driver.connect(
+                database=dsn,
                 user=self.config.firebird_user,
                 password=self.config.firebird_password,
                 charset='UTF8'
             )
-            conn.default_tpb = fdb.ISOLATION_LEVEL_READ_COMMITTED
             return conn
         except Exception as e:
             logger.error(f"Failed to connect to Firebird: {e}")
             raise
 
     def _ensure_database(self):
-        """Ensures the target database exists. If it doesn't, try to create it."""
+        """Ensures the target database exists."""
         try:
-            # Try to check if database is accessible
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM RDB$DATABASE")
                 cur.fetchone()
         except Exception as e:
             logger.warning(f"Database check failed: {e}")
-            # Try to create database if it doesn't exist
             try:
+                if self.conn:
+                    try:
+                        self.conn.close()
+                    except:
+                        pass
                 dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
-                fdb.create_database(
+                firebird.driver.create_database(
                     f"CREATE DATABASE '{dsn}' USER '{self.config.firebird_user}' PASSWORD '{self.config.firebird_password}'"
                 )
                 logger.info(f"Database '{self.config.firebird_database}' created successfully.")
-                # Reconnect to the newly created database
                 self.conn = self._connect()
             except Exception as create_err:
                 logger.error(f"Could not create database: {create_err}")
@@ -80,7 +81,7 @@ class FirebirdRepository(DatabaseRepository):
             return result[0] if result else "Unknown"
 
     def initialize_schema(self):
-        """Create or update the database schema using SchemaManager."""
+        """Create or update the database schema."""
         schema_manager = SchemaManager(self.conn, 'firebird')
         
         # For Firebird, we need to create a sequence/generator for the auto-increment logs.id
@@ -89,7 +90,6 @@ class FirebirdRepository(DatabaseRepository):
                 cur.execute("CREATE SEQUENCE logs_id_seq")
                 self.conn.commit()
             except Exception:
-                # Sequence already exists
                 pass
         
         schema_manager.ensure_schema()
@@ -98,94 +98,69 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             try:
                 cur.execute("""
-                    CREATE TRIGGER logs_bi FOR logs
+                    CREATE TRIGGER logs_bi FOR "logs"
                     ACTIVE BEFORE INSERT POSITION 0
                     AS
                     BEGIN
-                        IF (NEW.id IS NULL) THEN
-                            NEW.id = NEXT VALUE FOR logs_id_seq;
+                        IF (NEW."id" IS NULL) THEN
+                            NEW."id" = NEXT VALUE FOR logs_id_seq;
                     END
                 """)
                 self.conn.commit()
             except Exception:
-                # Trigger already exists
                 pass
 
     def flightcheck(self) -> bool:
         """Perform a health check on the database."""
-        try:
-            with self.conn.cursor() as cur:
+        with self.conn.cursor() as cur:
+            try:
                 cur.execute("SELECT 1 FROM RDB$DATABASE")
-                
-                # Check if tables exist
-                cur.execute("""
-                    SELECT TRIM(RDB$RELATION_NAME)
-                    FROM RDB$RELATIONS
-                    WHERE RDB$RELATION_NAME IN (UPPER('activities'), UPPER('streams'), UPPER('logs'))
-                    AND RDB$SYSTEM_FLAG = 0
-                """)
-                tables = {row[0].lower() for row in cur.fetchall()}
-                
-                if 'activities' not in tables:
-                    logger.error("Table 'activities' is missing.")
+                # Check for exact table name 'activities' (lowercase)
+                cur.execute("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = 'activities'")
+                if cur.fetchone()[0] == 0:
                     return False
-                if 'streams' not in tables:
-                    logger.error("Table 'streams' is missing.")
-                    return False
-                if 'logs' not in tables:
-                    logger.error("Table 'logs' is missing.")
-                    return False
-                
                 return True
-        except Exception as e:
-            logger.error(f"Flight check failed: {e}")
-            return False
+            except Exception:
+                return False
 
     def get_latest_activity_time(self) -> Optional[int]:
         """Get the start timestamp of the activity with the highest ID."""
         with self.conn.cursor() as cur:
-            cur.execute("SELECT MAX(activity_id) FROM activities")
+            cur.execute('SELECT MAX("activity_id") FROM "activities"')
             result = cur.fetchone()
             if not result or result[0] is None:
                 return None
-
             max_activity_id = result[0]
-
-            cur.execute("SELECT timestamp FROM activities WHERE activity_id = ?", (max_activity_id,))
-
+            cur.execute('SELECT "start_date" FROM "activities" WHERE "activity_id" = ?', (max_activity_id,))
             result = cur.fetchone()
             if result and result[0]:
                 ts = int(result[0].replace(tzinfo=timezone.utc).timestamp())
-                logger.debug(f"Latest activity {max_activity_id} start time: {ts}")
                 return ts
             return None
 
     def get_synced_activity_ids(self) -> Set[str]:
         """Get all activity IDs already in the database."""
-        logger.debug("Querying Firebird for all synced activity IDs...")
         with self.conn.cursor() as cur:
-            cur.execute("SELECT activity_id FROM activities")
-            synced_ids = {str(row[0]) for row in cur.fetchall()}
-            logger.debug(f"Retrieved {len(synced_ids)} synced IDs from Firebird.")
-        return synced_ids
+            cur.execute('SELECT "activity_id" FROM "activities"')
+            return {str(row[0]) for row in cur.fetchall()}
 
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         with self.conn.cursor() as cur:
-            cur.execute("""
-                SELECT FIRST ?
-                    activity_id as id,
-                    name,
-                    sport as type,
-                    distance,
-                    moving_time,
-                    total_elevation_gain,
-                    timestamp as start_date,
-                    average_speed,
-                    average_heartrate
-                FROM activities 
-                ORDER BY timestamp DESC
-            """, (limit,))
+            cur.execute(f"""
+                SELECT FIRST {limit}
+                    "activity_id" as id,
+                    "name",
+                    "sport" as type,
+                    "distance",
+                    "moving_time",
+                    "total_elevation_gain",
+                    "start_date",
+                    "average_speed",
+                    "average_heartrate"
+                FROM "activities" 
+                ORDER BY "start_date" DESC
+            """)
 
             activities = []
             for row in cur.fetchall():
@@ -203,12 +178,15 @@ class FirebirdRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from Firebird"""
-        allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
+        allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate']
         if sort_by not in allowed_columns:
-            sort_by = 'timestamp'
+            sort_by = 'start_date'
+
+        # Quote sort column
+        sort_by = f'"{sort_by}"'
 
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
@@ -217,17 +195,17 @@ class FirebirdRepository(DatabaseRepository):
 
         if types:
             placeholders = ', '.join(['?'] * len(types))
-            where_conditions.append(f"sport IN ({placeholders})")
+            where_conditions.append(f'"sport" IN ({placeholders})')
             params.extend(types)
 
         if start_date:
-            where_conditions.append("timestamp >= ?")
+            where_conditions.append('"start_date" >= ?')
             params.append(start_date)
 
         if end_date:
             if len(end_date) == 10:
                 end_date += " 23:59:59.999999"
-            where_conditions.append("timestamp <= ?")
+            where_conditions.append('"start_date" <= ?')
             params.append(end_date)
 
         where_clause = ""
@@ -235,26 +213,25 @@ class FirebirdRepository(DatabaseRepository):
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
         # Firebird uses FIRST/SKIP for pagination
+        # Inject limit/offset directly to avoid parameter binding issues with FIRST/SKIP
         query = f"""
-            SELECT FIRST ? SKIP ?
-                activity_id as id,
-                name,
-                sport as type,
-                distance,
-                moving_time,
-                total_elevation_gain,
-                timestamp as start_date,
-                average_speed,
-                average_heartrate
-            FROM activities
+            SELECT FIRST {limit} SKIP {offset}
+                "activity_id" as id,
+                "name",
+                "sport" as type,
+                "distance",
+                "moving_time",
+                "total_elevation_gain",
+                "start_date",
+                "average_speed",
+                "average_heartrate"
+            FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
         """
-        # FIRST and SKIP come before other params
-        all_params = [limit, offset] + params
 
         with self.conn.cursor() as cur:
-            cur.execute(query, tuple(all_params))
+            cur.execute(query, tuple(params))
 
             activities = []
             for row in cur.fetchall():
@@ -283,18 +260,18 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute(f"""
                 SELECT 
-                    activity_id as id,
-                    name,
-                    sport as type,
-                    distance,
-                    moving_time,
-                    total_elevation_gain,
-                    timestamp as start_date,
-                    average_speed,
-                    average_heartrate
-                FROM activities 
-                WHERE activity_id IN ({placeholders})
-                ORDER BY timestamp DESC
+                    "activity_id" as id,
+                    "name",
+                    "sport" as type,
+                    "distance",
+                    "moving_time",
+                    "total_elevation_gain",
+                    "start_date",
+                    "average_speed",
+                    "average_heartrate"
+                FROM "activities" 
+                WHERE "activity_id" IN ({placeholders})
+                ORDER BY "start_date" DESC
             """, int_ids)
 
             activities = []
@@ -320,17 +297,17 @@ class FirebirdRepository(DatabaseRepository):
 
         if types:
             placeholders = ', '.join(['?'] * len(types))
-            where_conditions.append(f"sport IN ({placeholders})")
+            where_conditions.append(f'"sport" IN ({placeholders})')
             params.extend(types)
 
         if start_date:
-            where_conditions.append("timestamp >= ?")
+            where_conditions.append('"start_date" >= ?')
             params.append(start_date)
 
         if end_date:
             if len(end_date) == 10:
                 end_date += " 23:59:59.999999"
-            where_conditions.append("timestamp <= ?")
+            where_conditions.append('"start_date" <= ?')
             params.append(end_date)
 
         where_clause = ""
@@ -339,10 +316,10 @@ class FirebirdRepository(DatabaseRepository):
 
         query = f"""
             SELECT
-                COALESCE(SUM(distance), 0) as total_distance,
-                COALESCE(SUM(total_elevation_gain), 0) as total_elevation,
-                COALESCE(SUM(moving_time), 0) as total_moving_time
-            FROM activities
+                COALESCE(SUM("distance"), 0) as total_distance,
+                COALESCE(SUM("total_elevation_gain"), 0) as total_elevation,
+                COALESCE(SUM("moving_time"), 0) as total_moving_time
+            FROM "activities"
             {where_clause}
         """
 
@@ -361,124 +338,97 @@ class FirebirdRepository(DatabaseRepository):
         params = []
         if types:
             placeholders = ', '.join(['?'] * len(types))
-            where_clause = f"WHERE sport IN ({placeholders})"
+            where_clause = f'WHERE "sport" IN ({placeholders})'
             params.extend(types)
 
         with self.conn.cursor() as cur:
-            cur.execute(f"SELECT COUNT(*) FROM activities {where_clause}", tuple(params))
+            cur.execute(f'SELECT COUNT(*) FROM "activities" {where_clause}', tuple(params))
             result = cur.fetchone()
             return result[0] if result else 0
 
     def write_activity(self, activity: dict):
         """Write activity metadata to Firebird."""
-        activity_id = activity["id"]
-        start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
-        start_date = self._validate_timestamp(start_date)
-
-        row = (
-            start_date,
-            activity_id,
-            activity.get("name", "Unnamed Activity"),
-            activity.get("sport_type", "Unknown"),
-            activity["athlete"]["id"],
-            activity.get("distance", 0.0),
-            activity.get("moving_time", 0),
-            activity.get("elapsed_time", 0),
-            activity.get("total_elevation_gain", 0.0),
-            activity.get("average_speed", 0.0),
-            activity.get("max_speed", 0.0),
-            activity.get("average_heartrate"),
-            activity.get("max_heartrate"),
-            activity.get("average_cadence")
-        )
-
-        logger.debug(f"Writing activity metadata for {activity_id} to Firebird...")
-
         with self.conn.cursor() as cur:
-            # Firebird uses UPDATE OR INSERT (MERGE in later versions)
-            cur.execute("""
-                UPDATE OR INSERT INTO activities (timestamp, activity_id, name, sport, athlete_id, distance,
-                                        moving_time, elapsed_time, total_elevation_gain, average_speed,
-                                        max_speed, average_heartrate, max_heartrate, average_cadence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                MATCHING (activity_id)
-            """, row)
-        self.conn.commit()
+            # Helper to safely cast to int or return None
+            def to_int(val):
+                if val is None: return None
+                return int(val)
+
+            cur.execute(
+                'UPDATE OR INSERT INTO "activities" ("start_date", "activity_id", "name", "sport", "athlete_id", "distance", "moving_time", "elapsed_time", "total_elevation_gain", "average_speed", "max_speed", "average_heartrate", "max_heartrate", "average_cadence") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) MATCHING ("activity_id")',
+                (
+                    self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))),
+                    int(activity["id"]), 
+                    activity.get("name"), 
+                    activity.get("sport_type"), 
+                    int(activity["athlete"]["id"]),
+                    float(activity.get("distance", 0.0)), 
+                    int(activity.get("moving_time", 0)), 
+                    int(activity.get("elapsed_time", 0)),
+                    float(activity.get("total_elevation_gain", 0.0)), 
+                    float(activity.get("average_speed", 0.0)), 
+                    float(activity.get("max_speed", 0.0)),
+                    to_int(activity.get("average_heartrate")), 
+                    to_int(activity.get("max_heartrate")), 
+                    activity.get("average_cadence") # float or None
+                )
+            )
+            self.conn.commit()
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to Firebird."""
-        activity_id = activity["id"]
-        sport = activity["sport_type"]
-        athlete_id = activity["athlete"]["id"]
-
-        time_stream = streams.get("time", {}).get("data", [])
-        latlng_stream = streams.get("latlng", {}).get("data", [])
-        altitude_stream = streams.get("altitude", {}).get("data", [])
-        hr_stream = streams.get("heartrate", {}).get("data", [])
-        cadence_stream = streams.get("cadence", {}).get("data", [])
-        speed_stream = streams.get("velocity_smooth", {}).get("data", [])
-        distance_stream = streams.get("distance", {}).get("data", [])
-
-        start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
-        start_date = self._validate_timestamp(start_date)
-
-        rows = []
-        for i, t in enumerate(time_stream):
-            ts = start_date + timedelta(seconds=t)
-            lat, lng = latlng_stream[i] if i < len(latlng_stream) else (None, None)
-
-            row = (
-                ts,
-                activity_id,
-                sport,
-                athlete_id,
-                float(lat) if lat else None,
-                float(lng) if lng else None,
-                altitude_stream[i] if i < len(altitude_stream) else None,
-                hr_stream[i] if i < len(hr_stream) else None,
-                cadence_stream[i] if i < len(cadence_stream) else None,
-                speed_stream[i] if i < len(speed_stream) else None,
-                distance_stream[i] if i < len(distance_stream) else None
-            )
-            rows.append(row)
-
-        logger.debug(f"Writing {len(rows)} stream rows to Firebird for activity {activity_id}...")
-
         with self.conn.cursor() as cur:
-            cur.execute("DELETE FROM streams WHERE activity_id = ?", (activity_id,))
+            cur.execute('DELETE FROM "streams" WHERE "activity_id" = ?', (int(activity["id"]),))
+            start_date = self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00")))
             
-            for row in rows:
-                cur.execute("""
-                    INSERT INTO streams (timestamp, activity_id, sport, athlete_id, lat, lng, altitude,
-                                        heartrate, cadence, speed, distance)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, row)
-        self.conn.commit()
+            rows = []
+            for i, t in enumerate(streams.get("time", {}).get("data", [])):
+                lat, lng = streams.get("latlng", {}).get("data", [])[i] if i < len(streams.get("latlng", {}).get("data", [])) else (None, None)
+                
+                # Helper to get value safely
+                def get_val(key, type_func=lambda x: x):
+                    data = streams.get(key, {}).get("data", [])
+                    if i < len(data):
+                        val = data[i]
+                        return type_func(val) if val is not None else None
+                    return None
+
+                rows.append((
+                    start_date + timedelta(seconds=t), 
+                    int(activity["id"]), 
+                    activity["sport_type"], 
+                    int(activity["athlete"]["id"]),
+                    float(lat) if lat is not None else None, 
+                    float(lng) if lng is not None else None,
+                    get_val("altitude", float),
+                    get_val("heartrate", int),
+                    get_val("cadence", int),
+                    get_val("velocity_smooth", float),
+                    get_val("distance", float)
+                ))
+
+            cur.executemany(
+                'INSERT INTO "streams" ("ts", "activity_id", "sport", "athlete_id", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                rows
+            )
+            self.conn.commit()
 
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from Firebird."""
-        logger.debug(f"Deleting activity {activity_id} from Firebird...")
-
         aid = int(activity_id)
-
         with self.conn.cursor() as cur:
-            cur.execute("DELETE FROM activities WHERE activity_id = ?", (aid,))
+            cur.execute('DELETE FROM "activities" WHERE "activity_id" = ?', (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
-        self.conn.commit()
+            self.conn.commit()
 
     def delete_activities(self, activity_ids: List[str]):
         """Delete multiple activities and their streams from Firebird."""
         if not activity_ids:
             return
-
-        logger.debug(f"Deleting {len(activity_ids)} activities from Firebird...")
-        int_ids = [int(aid) for aid in activity_ids]
-        placeholders = ', '.join(['?'] * len(int_ids))
-
         with self.conn.cursor() as cur:
-            cur.execute(f"DELETE FROM activities WHERE activity_id IN ({placeholders})", int_ids)
-            logger.info(f"Deleted {len(activity_ids)} activities and their streams.")
-        self.conn.commit()
+            placeholders = ','.join(['?'] * len(activity_ids))
+            cur.execute(f'DELETE FROM "activities" WHERE "activity_id" IN ({placeholders})', [int(aid) for aid in activity_ids])
+            self.conn.commit()
 
     def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """Get GPS streams (lat, lng) for a list of activity IDs."""
@@ -491,12 +441,12 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             placeholders = ', '.join(['?'] * len(int_ids))
             cur.execute(f"""
-                SELECT activity_id, lat, lng
-                FROM streams
-                WHERE activity_id IN ({placeholders})
-                  AND lat IS NOT NULL
-                  AND lng IS NOT NULL
-                ORDER BY activity_id, timestamp
+                SELECT "activity_id", "lat", "lng"
+                FROM "streams"
+                WHERE "activity_id" IN ({placeholders})
+                  AND "lat" IS NOT NULL
+                  AND "lng" IS NOT NULL
+                ORDER BY "activity_id", "ts"
             """, int_ids)
 
             for row in cur.fetchall():
@@ -508,35 +458,33 @@ class FirebirdRepository(DatabaseRepository):
                     'lng': float(row[2])
                 })
 
-        return result
+            return result
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
         with self.conn.cursor() as cur:
-            cur.execute("SELECT name FROM activities WHERE activity_id = ?", (int(activity_id),))
+            cur.execute('SELECT "name" FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
         with self.conn.cursor() as cur:
-            # Convert boolean to smallint for Firebird
-            success_int = 1 if success else 0
-            cur.execute("""
-                INSERT INTO logs (added, removed, trigger_source, success, action, "user")
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (added, removed, trigger, success_int, action, user))
-        self.conn.commit()
+            cur.execute(
+                'INSERT INTO "logs" ("added", "removed", "trigger_source", "success", "action", "user") VALUES (?, ?, ?, ?, ?, ?)',
+                (added, removed, trigger, 1 if success else 0, action, user)
+            )
+            self.conn.commit()
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get the latest sync logs."""
         with self.conn.cursor() as cur:
-            cur.execute("""
-                SELECT FIRST ?
-                    timestamp, added, removed, trigger_source, success, action, "user"
-                FROM logs
-                ORDER BY timestamp DESC
-            """, (limit,))
+            cur.execute(f"""
+                SELECT FIRST {limit}
+                    "created_at", "added", "removed", "trigger_source", "success", "action", "user"
+                FROM "logs"
+                ORDER BY "created_at" DESC
+            """)
             
             logs = []
             for row in cur.fetchall():

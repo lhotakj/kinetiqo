@@ -130,7 +130,7 @@ class MySQLRepository(DatabaseRepository):
 
             max_activity_id = result[0]
 
-            cur.execute("SELECT timestamp FROM activities WHERE activity_id = %s", (max_activity_id,))
+            cur.execute("SELECT start_date FROM activities WHERE activity_id = %s", (max_activity_id,))
 
             result = cur.fetchone()
             if result and result[0]:
@@ -159,11 +159,11 @@ class MySQLRepository(DatabaseRepository):
                     distance,
                     moving_time,
                     total_elevation_gain,
-                    timestamp as start_date,
+                    start_date,
                     average_speed,
                     average_heartrate
                 FROM activities 
-                ORDER BY timestamp DESC 
+                ORDER BY start_date DESC 
                 LIMIT %s
             """, (limit,))
 
@@ -175,12 +175,12 @@ class MySQLRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from MySQL"""
-        allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
+        allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate']
         if sort_by not in allowed_columns:
-            sort_by = 'timestamp'
+            sort_by = 'start_date'
 
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
@@ -193,13 +193,13 @@ class MySQLRepository(DatabaseRepository):
             params.extend(types)
 
         if start_date:
-            where_conditions.append("timestamp >= %s")
+            where_conditions.append("start_date >= %s")
             params.append(start_date)
 
         if end_date:
             if len(end_date) == 10:
                 end_date += " 23:59:59.999999"
-            where_conditions.append("timestamp <= %s")
+            where_conditions.append("start_date <= %s")
             params.append(end_date)
 
         where_clause = ""
@@ -214,7 +214,7 @@ class MySQLRepository(DatabaseRepository):
                 distance,
                 moving_time,
                 total_elevation_gain,
-                timestamp as start_date,
+                start_date,
                 average_speed,
                 average_heartrate
             FROM activities
@@ -252,12 +252,12 @@ class MySQLRepository(DatabaseRepository):
                     distance,
                     moving_time,
                     total_elevation_gain,
-                    timestamp as start_date,
+                    start_date,
                     average_speed,
                     average_heartrate
                 FROM activities 
                 WHERE activity_id IN ({placeholders})
-                ORDER BY timestamp DESC
+                ORDER BY start_date DESC
             """, int_ids)
 
             activities = []
@@ -279,13 +279,13 @@ class MySQLRepository(DatabaseRepository):
             params.extend(types)
 
         if start_date:
-            where_conditions.append("timestamp >= %s")
+            where_conditions.append("start_date >= %s")
             params.append(start_date)
 
         if end_date:
             if len(end_date) == 10:
                 end_date += " 23:59:59.999999"
-            where_conditions.append("timestamp <= %s")
+            where_conditions.append("start_date <= %s")
             params.append(end_date)
 
         where_clause = ""
@@ -349,12 +349,12 @@ class MySQLRepository(DatabaseRepository):
 
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO activities (timestamp, activity_id, name, sport, athlete_id, distance,
+                INSERT INTO activities (start_date, activity_id, name, sport, athlete_id, distance,
                                         moving_time, elapsed_time, total_elevation_gain, average_speed,
                                         max_speed, average_heartrate, max_heartrate, average_cadence)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                    timestamp = VALUES(timestamp),
+                    start_date = VALUES(start_date),
                     name = VALUES(name),
                     sport = VALUES(sport),
                     athlete_id = VALUES(athlete_id),
@@ -415,7 +415,7 @@ class MySQLRepository(DatabaseRepository):
             cur.execute("DELETE FROM streams WHERE activity_id = %s", (activity_id,))
             
             cur.executemany("""
-                               INSERT INTO streams (timestamp, activity_id, sport, athlete_id, lat, lng, altitude,
+                               INSERT INTO streams (ts, activity_id, sport, athlete_id, lat, lng, altitude,
                                                     heartrate, cadence, speed, distance)
                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                """, rows)
@@ -464,7 +464,7 @@ class MySQLRepository(DatabaseRepository):
                 WHERE activity_id IN ({placeholders})
                   AND lat IS NOT NULL
                   AND lng IS NOT NULL
-                ORDER BY activity_id, timestamp
+                ORDER BY activity_id, ts
             """, int_ids)
 
             for row in cur.fetchall():
@@ -500,9 +500,9 @@ class MySQLRepository(DatabaseRepository):
         """Get the latest sync logs."""
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute("""
-                SELECT timestamp, added, removed, trigger_source, success, action, user
+                SELECT created_at as timestamp, added, removed, trigger_source, success, action, user
                 FROM logs
-                ORDER BY timestamp DESC
+                ORDER BY created_at DESC
                 LIMIT %s
             """, (limit,))
             

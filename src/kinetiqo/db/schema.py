@@ -7,7 +7,7 @@ logger = logging.getLogger("kinetiqo")
 SCHEMA_DEFINITION = {
     "activities": {
         "columns": [
-            {"name": "timestamp", "type_mysql": "TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE", "type_firebird": "TIMESTAMP"},
+            {"name": "start_date", "type_mysql": "TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE", "type_firebird": "TIMESTAMP"},
             {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"},
             {"name": "name", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
             {"name": "sport", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
@@ -23,13 +23,18 @@ SCHEMA_DEFINITION = {
             {"name": "average_cadence", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"}
         ],
         "indexes": [
-            "CREATE INDEX idx_activities_timestamp ON activities (timestamp DESC)"
+            {
+                "name": "idx_activities_start_date",
+                "def_mysql": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_date ON "activities" ("start_date")'
+            }
         ],
         "engine_mysql": "ENGINE=InnoDB"
     },
     "streams": {
         "columns": [
-            {"name": "timestamp", "type_mysql": "TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE", "type_firebird": "TIMESTAMP"},
+            {"name": "ts", "type_mysql": "TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE", "type_firebird": "TIMESTAMP"},
             {"name": "activity_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
             {"name": "sport", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
             {"name": "athlete_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
@@ -46,19 +51,29 @@ SCHEMA_DEFINITION = {
                 "name": "fk_activity",
                 "def_mysql": "CONSTRAINT fk_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
                 "def_pg": "CONSTRAINT fk_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
-                "def_firebird": "CONSTRAINT fk_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE"
+                "def_firebird": 'CONSTRAINT fk_activity FOREIGN KEY("activity_id") REFERENCES "activities"("activity_id") ON DELETE CASCADE'
             }
         ],
         "indexes": [
-            "CREATE INDEX idx_streams_activity_id ON streams (activity_id)",
-            "CREATE INDEX idx_streams_timestamp ON streams (timestamp)"
+            {
+                "name": "idx_streams_activity_id",
+                "def_mysql": "CREATE INDEX idx_streams_activity_id ON streams (activity_id)",
+                "def_pg": "CREATE INDEX idx_streams_activity_id ON streams (activity_id)",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_id ON "streams" ("activity_id")'
+            },
+            {
+                "name": "idx_streams_ts",
+                "def_mysql": "CREATE INDEX idx_streams_ts ON streams (ts)",
+                "def_pg": "CREATE INDEX idx_streams_ts ON streams (ts)",
+                "def_firebird": 'CREATE INDEX idx_streams_ts ON "streams" ("ts")'
+            }
         ],
         "engine_mysql": "ENGINE=InnoDB"
     },
     "logs": {
         "columns": [
             {"name": "id", "type_mysql": "BIGINT AUTO_INCREMENT PRIMARY KEY", "type_pg": "SERIAL PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"},
-            {"name": "timestamp", "type_mysql": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP", "type_firebird": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP", "type_firebird": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
             {"name": "added", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
             {"name": "removed", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
             {"name": "trigger_source", "type_mysql": "VARCHAR(50)", "type_pg": "TEXT", "type_firebird": "VARCHAR(50)"},
@@ -67,7 +82,12 @@ SCHEMA_DEFINITION = {
             {"name": "success", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN", "type_firebird": "SMALLINT"}
         ],
         "indexes": [
-            "CREATE INDEX idx_logs_timestamp ON logs (timestamp DESC)"
+            {
+                "name": "idx_logs_created_at",
+                "def_mysql": "CREATE INDEX idx_logs_created_at ON logs (created_at DESC)",
+                "def_pg": "CREATE INDEX idx_logs_created_at ON logs (created_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_logs_created_at ON "logs" ("created_at")'
+            }
         ],
         "engine_mysql": "ENGINE=InnoDB"
     }
@@ -110,14 +130,18 @@ class SchemaManager:
             self._update_table(table_name, definition)
 
     def _table_exists(self, table_name):
-        with self.conn.cursor() as cur:
+        cur = self.conn.cursor()
+        try:
             if self.db_type == 'mysql':
                 cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s", (table_name,))
             elif self.db_type == 'firebird':
-                cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = UPPER(?)", (table_name,))
+                # Check for exact table name (case sensitive if quoted)
+                cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = ?", (table_name,))
             else:
                 cur.execute("SELECT table_name FROM information_schema.tables WHERE table_name = %s", (table_name,))
             return cur.fetchone() is not None
+        finally:
+            cur.close()
 
     def _create_table(self, table_name, definition):
         logger.info(f"{self.db_type.upper()}: Creating table '{table_name}'...")
@@ -141,16 +165,22 @@ class SchemaManager:
         if self.db_type == 'mysql' and "engine_mysql" in definition:
             create_sql += f" {definition['engine_mysql']}"
 
-        with self.conn.cursor() as cur:
+        cur = self.conn.cursor()
+        try:
             cur.execute(create_sql)
+            self.conn.commit() # Commit table creation before creating indexes
             
             # Create indexes
             if "indexes" in definition:
-                for idx_sql in definition["indexes"]:
+                for idx_def in definition["indexes"]:
+                    idx_key = f"def_{type_suffix}"
+                    idx_sql = idx_def[idx_key]
                     cur.execute(idx_sql)
-        
-        self.conn.commit()
-        logger.info(f"{self.db_type.upper()}: Table '{table_name}' created.")
+            
+            self.conn.commit()
+            logger.info(f"{self.db_type.upper()}: Table '{table_name}' created.")
+        finally:
+            cur.close()
 
     def _update_table(self, table_name, definition):
         # Check for missing columns
@@ -172,20 +202,27 @@ class SchemaManager:
                 else:
                     alter_sql = f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_col} {col_type}"
                 
-                with self.conn.cursor() as cur:
+                cur = self.conn.cursor()
+                try:
                     cur.execute(alter_sql)
-                self.conn.commit()
+                    self.conn.commit()
+                finally:
+                    cur.close()
 
     def _get_existing_columns(self, table_name):
-        with self.conn.cursor() as cur:
+        cur = self.conn.cursor()
+        try:
             if self.db_type == 'mysql':
                 cur.execute(f"SHOW COLUMNS FROM {table_name}")
                 # MySQL returns (Field, Type, Null, Key, Default, Extra)
                 return {row[0] for row in cur.fetchall()}
             elif self.db_type == 'firebird':
-                cur.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = UPPER(?)", (table_name,))
+                # Check for exact column name
+                cur.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = ?", (table_name,))
                 return {row[0].lower() for row in cur.fetchall()}
             else:
                 # PostgreSQL
                 cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'")
                 return {row[0] for row in cur.fetchall()}
+        finally:
+            cur.close()

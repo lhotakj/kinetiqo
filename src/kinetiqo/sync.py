@@ -59,11 +59,16 @@ class SyncService:
                 </div>"""
 
                 # 2. Re-enable the button
+                # We need to conditionally add hx-include only for full sync, but since we are in sync() method,
+                # we know if it's full sync.
+                hx_include = 'hx-include="#syncLimit"' if full_sync else ''
+                
                 button_html = f"""<button id="start-sync-btn" 
                         hx-get="/sync/start/{sync_type_str}" 
                         hx-target="#sync-log-area" 
                         hx-swap="outerHTML"
                         hx-swap-oob="true"
+                        {hx_include}
                         class="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Start Sync
@@ -77,7 +82,7 @@ class SyncService:
                 return f"data: {log_content}\n\n"
 
         try:
-            yield yield_log(f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'})...")
+            yield yield_log(f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'}, Limit: {limit_days} days)...")
 
             # 0. Initialize database schema
             self.db.initialize_schema()
@@ -90,7 +95,7 @@ class SyncService:
             after = None
             if limit_days > 0:
                 after = int((datetime.now(timezone.utc) - timedelta(days=limit_days)).timestamp())
-                yield yield_log(f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
+                yield yield_log(f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)} (timestamp: {after})")
             elif not full_sync:
                 latest_ts = self.db.get_latest_activity_time()
                 if latest_ts:
@@ -110,7 +115,7 @@ class SyncService:
             new_activities = [a for a in activities if str(a["id"]) not in synced_ids]
             yield yield_log(f"Identified {len(new_activities)} new activities to sync.")
 
-            # 5. Identify deleted activities (ONLY in unlimited Full Sync mode)
+            # 5. Identify deleted activities (ONLY in Full Sync mode)
             ids_to_delete = set()
             if full_sync and limit_days == 0:
                 strava_ids = set(str(a["id"]) for a in activities)

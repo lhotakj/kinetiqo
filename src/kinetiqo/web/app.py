@@ -11,6 +11,7 @@ import threading
 from datetime import datetime
 import os
 import folium
+import atexit
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -326,7 +327,10 @@ def logs():
             
         # Commit to ensure fresh data
         if hasattr(repo, 'conn') and repo.conn:
-            repo.conn.commit()
+            try:
+                repo.conn.commit()
+            except Exception as e:
+                logger.warning(f"Failed to commit transaction in logs: {e}")
             
         logs_data = repo.get_logs(limit=25)
         
@@ -419,7 +423,10 @@ def get_activities_api():
         
         # Commit the transaction to ensure we see the latest data
         if hasattr(repo, 'conn') and repo.conn:
-            repo.conn.commit()
+            try:
+                repo.conn.commit()
+            except Exception as e:
+                logger.warning(f"Failed to commit transaction in get_activities_api: {e}")
 
         # Fetch activities directly from database
         activities = repo.get_activities_web(
@@ -584,6 +591,8 @@ def sync_stream(type):
     user_id = current_user.id
     limit_days = request.args.get('limit_days', default=0, type=int)
     
+    logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}")
+    
     def generate():
         sync_service = SyncService(config)
         try:
@@ -613,6 +622,18 @@ def inject_version():
     except:
         pass
     return dict(app_version=version)
+
+def close_db_connection():
+    """Closes the database connection if it's open."""
+    global db_repo
+    if db_repo:
+        try:
+            db_repo.close()
+            logger.info("Database connection closed.")
+        except Exception:
+            pass
+
+atexit.register(close_db_connection)
 
 def run_app():
     app.run(debug=True, port=4444, host='0.0.0.0')

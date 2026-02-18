@@ -109,7 +109,7 @@ class PostgresqlRepository(DatabaseRepository):
             max_activity_id = result[0]
 
             cur.execute("""
-                        SELECT timestamp
+                        SELECT start_date
                         FROM activities
                         WHERE activity_id = %s
                         """, (max_activity_id,))
@@ -141,11 +141,11 @@ class PostgresqlRepository(DatabaseRepository):
                     distance,
                     moving_time,
                     total_elevation_gain,
-                    timestamp as start_date,
+                    start_date,
                     average_speed,
                     average_heartrate
                 FROM activities 
-                ORDER BY timestamp DESC 
+                ORDER BY start_date DESC 
                 LIMIT %s
             """, (limit,))
 
@@ -157,12 +157,12 @@ class PostgresqlRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='timestamp', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from PostgreSQL"""
-        allowed_columns = ['timestamp', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
+        allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate']
         if sort_by not in allowed_columns:
-            sort_by = 'timestamp'
+            sort_by = 'start_date'
 
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
@@ -175,14 +175,14 @@ class PostgresqlRepository(DatabaseRepository):
             params.extend(types)
 
         if start_date:
-            where_conditions.append("timestamp >= %s")
+            where_conditions.append("start_date >= %s")
             params.append(start_date)
 
         if end_date:
             # Ensure end_date covers the full day
             if len(end_date) == 10:  # YYYY-MM-DD
                 end_date += " 23:59:59.999999"
-            where_conditions.append("timestamp <= %s")
+            where_conditions.append("start_date <= %s")
             params.append(end_date)
 
         where_clause = ""
@@ -198,7 +198,7 @@ class PostgresqlRepository(DatabaseRepository):
                 distance,
                 moving_time,
                 total_elevation_gain,
-                timestamp as start_date,
+                start_date,
                 average_speed,
                 average_heartrate
             FROM activities
@@ -235,12 +235,12 @@ class PostgresqlRepository(DatabaseRepository):
                     distance,
                     moving_time,
                     total_elevation_gain,
-                    timestamp as start_date,
+                    start_date,
                     average_speed,
                     average_heartrate
                 FROM activities 
                 WHERE activity_id = ANY(%s)
-                ORDER BY timestamp DESC
+                ORDER BY start_date DESC
             """, (int_ids,))
 
             activities = []
@@ -262,14 +262,14 @@ class PostgresqlRepository(DatabaseRepository):
             params.extend(types)
 
         if start_date:
-            where_conditions.append("timestamp >= %s")
+            where_conditions.append("start_date >= %s")
             params.append(start_date)
 
         if end_date:
             # Ensure end_date covers the full day
             if len(end_date) == 10:  # YYYY-MM-DD
                 end_date += " 23:59:59.999999"
-            where_conditions.append("timestamp <= %s")
+            where_conditions.append("start_date <= %s")
             params.append(end_date)
 
         where_clause = ""
@@ -330,13 +330,13 @@ class PostgresqlRepository(DatabaseRepository):
 
         with self.conn.cursor() as cur:
             cur.execute("""
-                        INSERT INTO activities (timestamp, activity_id, name, sport, athlete_id, distance,
+                        INSERT INTO activities (start_date, activity_id, name, sport, athlete_id, distance,
                                                 moving_time, elapsed_time, total_elevation_gain, average_speed,
                                                 max_speed, average_heartrate, max_heartrate, average_cadence)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                 %s, %s, %s)
                         ON CONFLICT (activity_id) DO UPDATE SET
-                            timestamp = EXCLUDED.timestamp,
+                            start_date = EXCLUDED.start_date,
                             name = EXCLUDED.name,
                             sport = EXCLUDED.sport,
                             athlete_id = EXCLUDED.athlete_id,
@@ -394,7 +394,7 @@ class PostgresqlRepository(DatabaseRepository):
             cur.execute("DELETE FROM streams WHERE activity_id = %s", (activity_id,))
 
             execute_batch(cur, """
-                               INSERT INTO streams (timestamp, activity_id, sport, athlete_id, lat, lng, altitude,
+                               INSERT INTO streams (ts, activity_id, sport, athlete_id, lat, lng, altitude,
                                                     heartrate, cadence, speed, distance)
                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
                                        %s, %s)
@@ -440,7 +440,7 @@ class PostgresqlRepository(DatabaseRepository):
                 WHERE activity_id = ANY(%s)
                   AND lat IS NOT NULL
                   AND lng IS NOT NULL
-                ORDER BY activity_id, timestamp
+                ORDER BY activity_id, ts
             """, (int_ids,))
 
             for row in cur.fetchall():
@@ -475,9 +475,9 @@ class PostgresqlRepository(DatabaseRepository):
         """Get the latest sync logs."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT timestamp, added, removed, trigger_source, success, action, "user"
+                SELECT created_at as timestamp, added, removed, trigger_source, success, action, "user"
                 FROM logs
-                ORDER BY timestamp DESC
+                ORDER BY created_at DESC
                 LIMIT %s
             """, (limit,))
             
