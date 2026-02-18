@@ -39,7 +39,7 @@ class Config:
     
     # Firebird
     firebird_host: str = os.getenv("FIREBIRD_HOST")
-    firebird_port: int = 3050
+    firebird_port: int = int(os.getenv("FIREBIRD_PORT", "3050"))
     firebird_user: str = os.getenv("FIREBIRD_USER")
     firebird_password: str = os.getenv("FIREBIRD_PASSWORD")
     firebird_database: str = os.getenv("FIREBIRD_DATABASE")
@@ -64,13 +64,6 @@ class Config:
                 self.mysql_port = int(os.getenv("MYSQL_PORT"))
             except ValueError:
                 logger.error(f"Environment variable MYSQL_PORT should be a number")
-                sys.exit(1)
-        
-        if os.getenv("FIREBIRD_PORT"):
-            try:
-                self.firebird_port = int(os.getenv("FIREBIRD_PORT"))
-            except ValueError:
-                logger.error(f"Environment variable FIREBIRD_PORT should be a number")
                 sys.exit(1)
 
     database_connect_verbose: bool = True  # Show verbose output in init

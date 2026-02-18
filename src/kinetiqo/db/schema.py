@@ -155,7 +155,11 @@ class SchemaManager:
                 quoted_table = self._quote_identifier(table_name)
                 quoted_col = self._quote_identifier(col['name'])
                 
-                alter_sql = f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_col} {col_type}" if self.db_type != 'firebird' else f"ALTER TABLE {quoted_table} ADD {quoted_col} {col_type}"
+                # Firebird uses ADD without COLUMN keyword
+                if self.db_type == 'firebird':
+                    alter_sql = f"ALTER TABLE {quoted_table} ADD {quoted_col} {col_type}"
+                else:
+                    alter_sql = f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_col} {col_type}"
                 
                 with self.conn.cursor() as cur:
                     cur.execute(alter_sql)
