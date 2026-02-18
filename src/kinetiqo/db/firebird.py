@@ -25,6 +25,12 @@ class FirebirdRepository(DatabaseRepository):
         except Exception as err:
             logger.warning(f"Cannot ensure database: {err}")
             sys.exit(1)
+    
+    def _validate_timestamp(self, timestamp: datetime) -> datetime:
+        """Validate and fix timestamps that are before Unix epoch."""
+        if timestamp.timestamp() <= 0:
+            return datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+        return timestamp
 
     def _connect(self):
         """Helper to connect to the Firebird database."""
@@ -367,9 +373,7 @@ class FirebirdRepository(DatabaseRepository):
         """Write activity metadata to Firebird."""
         activity_id = activity["id"]
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
-
-        if start_date.timestamp() <= 0:
-            start_date = datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+        start_date = self._validate_timestamp(start_date)
 
         row = (
             start_date,
@@ -416,9 +420,7 @@ class FirebirdRepository(DatabaseRepository):
         distance_stream = streams.get("distance", {}).get("data", [])
 
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
-
-        if start_date.timestamp() <= 0:
-            start_date = datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+        start_date = self._validate_timestamp(start_date)
 
         rows = []
         for i, t in enumerate(time_stream):

@@ -144,11 +144,11 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `FIREBIRD_HOST` | Database server hostname. | `localhost` |
+| `FIREBIRD_HOST` | Database server hostname. | Required |
 | `FIREBIRD_PORT` | Database server port. | `3050` |
-| `FIREBIRD_USER` | Database username. | `SYSDBA` |
-| `FIREBIRD_PASSWORD` | Database password. | - |
-| `FIREBIRD_DATABASE` | Database file path or alias. | `/path/to/kinetiqo.fdb` |
+| `FIREBIRD_USER` | Database username. | Required |
+| `FIREBIRD_PASSWORD` | Database password. | Required |
+| `FIREBIRD_DATABASE` | Database file path or alias. | Required |
 
 > **Note:** For Firebird, ensure the database file path is accessible and the user has appropriate permissions. The database will be created automatically if it doesn't exist.
 
