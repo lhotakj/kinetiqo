@@ -97,15 +97,13 @@ jobs:
 
       - name: Create GitHub Release (on /release or /publish)
         if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
-        uses: actions/create-release@v1.5.3
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
           body: ${{ steps.changelog.outputs.result }}
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag and push image (on /publish)
         if: contains(github.event.head_commit.message, '/publish')
