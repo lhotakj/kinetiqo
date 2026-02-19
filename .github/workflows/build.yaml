@@ -82,11 +82,12 @@ jobs:
               ? `\n\n[View Docker image on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${version})`
               : '';
 
-            // Write changelog to file for artifact upload
-            require('fs').writeFileSync('CHANGELOG.md', changelog + dockerLink);
+            const fullChangelog = changelog + dockerLink;
 
-            // Output for use in release body
-            return changelog + dockerLink;
+            require('fs').writeFileSync('CHANGELOG.md', fullChangelog);
+
+            // Write multiline output for changelog
+            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `changelog<<EOF\n${fullChangelog}\nEOF\n`);
 
       - name: Upload changelog as artifact
         uses: actions/upload-artifact@v4
@@ -101,7 +102,7 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
           name: Release ${{ steps.get_version.outputs.version }}
-          body: ${{ steps.changelog.outputs.result }}
+          body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: false
 
