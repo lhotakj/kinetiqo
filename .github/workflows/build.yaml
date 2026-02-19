@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3.12.0
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -82,6 +82,10 @@ jobs:
               ? `\n\n[View Docker image on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${version})`
               : '';
 
+            // Write changelog to file for artifact upload
+            require('fs').writeFileSync('CHANGELOG.md', changelog + dockerLink);
+
+            // Output for use in release body
             return changelog + dockerLink;
 
       - name: Upload changelog as artifact
@@ -93,7 +97,7 @@ jobs:
 
       - name: Create GitHub Release (on /release or /publish)
         if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
-        uses: actions/create-release@v1
+        uses: actions/create-release@v1.5.3
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
           release_name: Release ${{ steps.get_version.outputs.version }}
