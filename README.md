@@ -4,6 +4,8 @@ Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchron
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
+> Full project documentation is available at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net) 
+
 ## Table of Contents
 
 - [Features](#features)
@@ -43,7 +45,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 ### Dependencies
 
 - Python 3.12+
-- A running instance of PostgreSQL or MySQL/MariaDB.
+- A running instance of PostgreSQL, MySQL/MariaDB, or Firebird.
 - Python package dependencies as listed in `requirements.txt`.
 
 ### Local Setup
@@ -57,7 +59,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 2.  **Initialize Virtual Environment:**
     ```bash
     python -m venv .venv
-    source .venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
     pip install -r requirements.txt
     ```
 
@@ -77,11 +79,30 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     STRAVA_CLIENT_ID=12345
     STRAVA_CLIENT_SECRET=your_secret_here
     STRAVA_REFRESH_TOKEN=your_refresh_token_here
-    DATABASE_TYPE=postgresql
+    DATABASE_TYPE=firebird  # or postgresql or mysql
+    # PostgreSQL
     POSTGRESQL_HOST=localhost
+    POSTGRESQL_PORT=5432
     POSTGRESQL_USER=postgres
     POSTGRESQL_PASSWORD=password
+    POSTGRESQL_DATABASE=kinetiqo
+    POSTGRESQL_SSL_MODE=disable
+    # MySQL
+    MYSQL_HOST=localhost
+    MYSQL_PORT=3306
+    MYSQL_USER=root
+    MYSQL_PASSWORD=password
+    MYSQL_DATABASE=kinetiqo
+    MYSQL_SSL_MODE=disable
+    # Firebird
+    FIREBIRD_HOST=localhost
+    FIREBIRD_PORT=3050
+    FIREBIRD_USER=firebird
+    FIREBIRD_PASSWORD=firebird
+    FIREBIRD_DATABASE=/db/data/kinetiqo.fdb
     ```
+    - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
+    - Only the relevant database section is required for your selected type.
 
 5.  **Secure Secret Storage with GPG (Optional):**
     For enhanced security, environment files can be encrypted using GPG. The included `.envrc` script supports automatic decryption.
@@ -158,7 +179,6 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 > - The user must have rights to **create databases** on the Firebird server (typically `SYSDBA` or a user with equivalent privileges)
 > - Once the database exists, the user needs rights to **create tables, sequences, triggers, and indexes**
 > - For embedded Firebird, ensure the application has **write access** to the database file directory
-> 
 
 #### 3. Scheduling (Cron)
 The Docker image includes a cron scheduler. Define schedules using standard cron syntax.
@@ -227,7 +247,7 @@ python kinetiqo.py --database mysql web --port 8000
 
 ### Docker Run
 
-Example command to deploy Kinetiqo as a standalone container:
+Example command to deploy Kinetiqo as a standalone container (supports PostgreSQL, MySQL/MariaDB, and Firebird):
 
 ```bash
 docker run -d \
@@ -236,10 +256,25 @@ docker run -d \
   -e STRAVA_CLIENT_ID="your_id" \
   -e STRAVA_CLIENT_SECRET="your_secret" \
   -e STRAVA_REFRESH_TOKEN="your_token" \
-  -e DATABASE_TYPE="postgresql" \
+  -e DATABASE_TYPE="firebird" \  # or postgresql or mysql
+  # Firebird example
+  -e FIREBIRD_HOST="host.docker.internal" \
+  -e FIREBIRD_PORT=3050 \
+  -e FIREBIRD_USER="firebird" \
+  -e FIREBIRD_PASSWORD="firebird" \
+  -e FIREBIRD_DATABASE="/db/data/kinetiqo.fdb" \
+  # PostgreSQL example
   -e POSTGRESQL_HOST="host.docker.internal" \
+  -e POSTGRESQL_PORT=5432 \
   -e POSTGRESQL_USER="postgres" \
   -e POSTGRESQL_PASSWORD="password" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
+  # MySQL example
+  -e MYSQL_HOST="host.docker.internal" \
+  -e MYSQL_PORT=3306 \
+  -e MYSQL_USER="root" \
+  -e MYSQL_PASSWORD="password" \
+  -e MYSQL_DATABASE="kinetiqo" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -e WEB_LOGIN="admin" \
@@ -247,25 +282,29 @@ docker run -d \
   lhotakj/kinetiqo:latest
 ```
 
+- Set only the relevant database variables for your selected `DATABASE_TYPE`.
+- The web UI will be available at http://localhost:8080
+
 ### Docker Compose
 
-For a production-grade deployment, use Docker Compose. The following configuration includes PostgreSQL and Grafana.
+For a production-grade deployment, use Docker Compose. The following configuration includes PostgreSQL and Grafana. You can adapt for MySQL or Firebird as needed.
 
 **`docker-compose.yml`:**
+
 ```yaml
----
+version: '3.8'
 services:
   kinetiqo:
     image: lhotakj/kinetiqo:latest
     container_name: kinetiqo
     restart: always
     ports:
-      - "80:4444"   
+      - "80:4444"
     environment:
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
-      - DATABASE_TYPE=postgresql
+      - DATABASE_TYPE=postgresql  # or mysql or firebird
       - POSTGRESQL_HOST=postgresql
       - POSTGRESQL_PORT=5432
       - POSTGRESQL_USER=postgres
@@ -277,7 +316,6 @@ services:
       - WEB_PASSWORD=securepassword13
     depends_on:
       - postgresql
-
   postgresql:
     image: postgres:latest
     container_name: postgresql
@@ -288,7 +326,6 @@ services:
       - POSTGRES_DB=kinetiqo
     volumes:
       - postgresql_data:/var/lib/postgresql/data
-
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -299,10 +336,11 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
       - postgresql
-
 volumes:
   postgresql_data:
 ```
+
+For MySQL or Firebird, replace the `postgresql` service and environment variables accordingly.
 
 Create a `.env` file in the same directory:
 
@@ -314,9 +352,12 @@ POSTGRESQL_PASSWORD=your_secure_password
 ```
 
 Deploy the stack:
+
 ```bash
 docker-compose up -d
 ```
+
+- For more details and advanced configuration, see the [README.md](../README.md) and [local-dev.md](docs/local-dev.md).
 
 ## License
 
