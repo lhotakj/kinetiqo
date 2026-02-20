@@ -1,4 +1,5 @@
 import os
+
 from flask_login import UserMixin
 
 # User Database from Environment Variables

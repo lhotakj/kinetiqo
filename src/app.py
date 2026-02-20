@@ -1,11 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from flask import render_template
-from auth import User, users
-from datetime import datetime
-from mock_data import get_mock_activities
-import time
 import random
+import time
+from datetime import datetime
+
+from auth import User, users
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from mock_data import get_mock_activities
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_demo_only'

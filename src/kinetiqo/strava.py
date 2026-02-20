@@ -1,7 +1,9 @@
-import requests
 import logging
-from .config import Config
+
+import requests
+
 from .cache import CacheManager
+from .config import Config
 
 logger = logging.getLogger("kinetiqo")
 

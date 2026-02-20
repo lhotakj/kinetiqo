@@ -1,17 +1,15 @@
+import atexit
+import logging
+import os
+from datetime import datetime
+
+import folium
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
 from kinetiqo.sync import SyncService
 from kinetiqo.web.auth import User, users
-import time
-import random
-import logging
-import threading
-from datetime import datetime, timedelta
-import os
-import folium
-import atexit
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

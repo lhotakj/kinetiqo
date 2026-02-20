@@ -1,9 +1,10 @@
 import logging
 import time
 from datetime import datetime, timezone, timedelta
+
 from kinetiqo.config import Config
-from kinetiqo.strava import StravaClient
 from kinetiqo.db.factory import create_repository
+from kinetiqo.strava import StravaClient
 
 logger = logging.getLogger("kinetiqo")
 

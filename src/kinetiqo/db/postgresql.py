@@ -1,12 +1,13 @@
-import sys
 import logging
-import psycopg2
-from psycopg2.extras import execute_batch, RealDictCursor
+import sys
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any
+
+import psycopg2
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
+from psycopg2.extras import execute_batch, RealDictCursor
 
 logger = logging.getLogger("kinetiqo")
 

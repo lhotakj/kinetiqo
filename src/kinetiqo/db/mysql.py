@@ -1,12 +1,13 @@
-import sys
 import logging
-import mysql.connector
-from mysql.connector import errorcode
+import sys
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any
+
+import mysql.connector
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
+from mysql.connector import errorcode
 
 logger = logging.getLogger("kinetiqo")
 

@@ -1,10 +1,11 @@
-import os
-import sys
 import logging
-import click
+import os
 import re
-from kinetiqo.config import Config
+import sys
+
+import click
 from kinetiqo.cache import CacheManager
+from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
 from kinetiqo.sync import SyncService
 
@@ -35,13 +36,14 @@ def print_version():
         if not os.path.exists(version_path):
             # Check parent dir (src/)
             version_path = os.path.join(os.path.dirname(base_dir), version_file)
-        
+
         if os.path.exists(version_path):
             with open(version_path, "r") as vf:
                 version = vf.read().strip()
     except:
         pass
     print(f"Kinetiqo {version}")
+
 
 def validate_config(config):
     logger.debug("Configuration validation started...")
@@ -100,18 +102,19 @@ def validate_config(config):
             logger.error(f"Missing required Firebird environment variables: {', '.join(missing)}")
             sys.exit(1)
 
+
 def parse_period(period_str):
     """Parses a period string like '7d', '1m', '1y' into days."""
     if not period_str:
         return 0
-    
+
     match = re.match(r'^(\d+)([dDwWmMyY])$', period_str)
     if not match:
         raise click.BadParameter(f"Invalid period format: {period_str}. Use format like '7d', '2w', '1m', '1y'.")
-    
+
     value = int(match.group(1))
     unit = match.group(2).lower()
-    
+
     if unit == 'd':
         return value
     elif unit == 'w':
@@ -120,13 +123,16 @@ def parse_period(period_str):
         return value * 30
     elif unit == 'y':
         return value * 365
-    
+
     return 0
+
 
 class State:
     """A simple state object to pass config to subcommands."""
+
     def __init__(self):
         self.config = None
+
 
 # -----------------------------
 # CLI
@@ -140,7 +146,7 @@ class State:
 def cli(ctx, database):
     """Main CLI entry point."""
     ctx.obj = State()
-    
+
     config = Config()
     if database:
         config.database_type = database.lower()
@@ -160,10 +166,12 @@ def cli(ctx, database):
             logger.error(f"Failed to initialize database: {e}")
             sys.exit(1)
 
+
 @cli.command(help="Show the version and exit")
 def version():
     """Show the version and exit."""
     print_version()
+
 
 @cli.command(help="Start the web interface")
 @click.option('--port', default=4444, help='Port to run the web server on')
@@ -172,15 +180,16 @@ def version():
 def web(ctx, port, host):
     """Start the web interface."""
     logger.info(f"Starting web server on {host}:{port}")
-    
+
     # Import here to avoid circular imports or unnecessary loading.
     # The web app will create its own repository using the global config.
     from kinetiqo.web.app import app, set_config
-    
+
     # Pass the config from CLI to the web app
     set_config(ctx.obj.config)
-    
+
     app.run(debug=True, port=port, host=host, use_reloader=False)
+
 
 @cli.command(help="Check database availability and schema")
 @click.pass_context
@@ -200,6 +209,7 @@ def flightcheck(ctx):
     except Exception as e:
         logger.error(f"An error occurred during flight check: {e}")
         sys.exit(1)
+
 
 @cli.command(help="Synchronize activities with database")
 @click.option('--full-sync', '-f',
@@ -242,13 +252,13 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
     limit_days = 0
     if period:
         if not is_full_sync:
-             logger.warning("Period limit is ignored for fast sync.")
+            logger.warning("Period limit is ignored for fast sync.")
         else:
             limit_days = parse_period(period)
             logger.info(f"Sync limited to last {limit_days} days.")
 
     config = ctx.obj.config
-    
+
     # Config validation is now handled in cli() via validate_config()
 
     config.enable_strava_cache = enable_strava_cache
@@ -267,6 +277,7 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
             pass
     finally:
         sync_service.close()
+
 
 if __name__ == "__main__":
     cli()

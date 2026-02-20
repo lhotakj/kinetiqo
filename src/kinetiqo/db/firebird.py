@@ -1,8 +1,9 @@
-import sys
 import logging
-import firebird.driver
+import sys
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any
+
+import firebird.driver
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager

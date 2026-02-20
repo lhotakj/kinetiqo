@@ -1,4 +1,5 @@
 import logging
+
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 
