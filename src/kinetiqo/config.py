@@ -6,6 +6,7 @@ from pathlib import Path
 
 logger = logging.getLogger("kinetiqo")
 
+
 @dataclass
 class Config:
     # Strava
@@ -35,20 +36,21 @@ class Config:
     postgresql_user: str = os.getenv("POSTGRESQL_USER")
     postgresql_password: str = os.getenv("POSTGRESQL_PASSWORD")
     postgresql_database: str = os.getenv("POSTGRESQL_DATABASE")
-    postgresql_ssl_mode: str = os.getenv("POSTGRESQL_SSL_MODE", "disable")  # e.g., disable, allow, prefer, require, verify-ca, verify-full
-    
+    postgresql_ssl_mode: str = os.getenv("POSTGRESQL_SSL_MODE",
+                                         "disable")  # e.g., disable, allow, prefer, require, verify-ca, verify-full
+
     # Firebird
     firebird_host: str = os.getenv("FIREBIRD_HOST")
     firebird_user: str = os.getenv("FIREBIRD_USER")
     firebird_password: str = os.getenv("FIREBIRD_PASSWORD")
     firebird_database: str = os.getenv("FIREBIRD_DATABASE")
-    
+
     # Firebird port needs to be parsed in __post_init__ to handle errors properly
     firebird_port: int = 3050
-    
+
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
-    
+
     def __post_init__(self):
         if os.getenv("POSTGRESQL_PORT"):
             try:
@@ -56,10 +58,11 @@ class Config:
             except ValueError:
                 logger.error(f"Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
-        
-        if os.path.exists(os.getenv("MYSQL_PORT", "")): # Check if env var exists before converting, though getenv returns string or None.
-             # Wait, os.getenv returns string.
-             pass
+
+        if os.path.exists(os.getenv("MYSQL_PORT",
+                                    "")):  # Check if env var exists before converting, though getenv returns string or None.
+            # Wait, os.getenv returns string.
+            pass
 
         if os.getenv("MYSQL_PORT"):
             try:
@@ -67,7 +70,7 @@ class Config:
             except ValueError:
                 logger.error(f"Environment variable MYSQL_PORT should be a number")
                 sys.exit(1)
-        
+
         if os.getenv("FIREBIRD_PORT"):
             try:
                 self.firebird_port = int(os.getenv("FIREBIRD_PORT"))

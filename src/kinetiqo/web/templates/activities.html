@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
-<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
 
 <!-- DataTables Buttons -->
 <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
@@ -15,8 +15,9 @@
 
 <style>
     .select2-selection__choice__display {
-        padding-left:15px !important;
+        padding-left: 15px !important;
     }
+
     /* Select2 Customization to match theme */
     .select2-container--default .select2-selection--multiple {
         border-color: #E5E7EB;
@@ -72,15 +73,18 @@
         padding: 0 0.4rem;
         margin-top: 0.25rem;
     }
+
     .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
         color: #6B7280;
         margin-right: 0.25rem;
         border-right: none;
     }
+
     .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
         background-color: #E5E7EB;
         color: #111827;
     }
+
     .select2-dropdown {
         border-color: #E5E7EB;
         border-radius: 0.5rem;
@@ -91,38 +95,48 @@
     body.dark .select2-selection__summary {
         color: #d4d4d4;
     }
+
     body.dark .select2-container--default .select2-selection--multiple {
         background-color: #262626;
         border-color: #404040;
     }
+
     body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice {
         background-color: #333333;
         border-color: #525252;
         color: #e5e5e5;
     }
+
     body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
         color: #a3a3a3;
     }
+
     body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
         color: #e5e5e5;
     }
+
     body.dark .select2-dropdown {
         background-color: #262626;
         border-color: #404040;
     }
+
     body.dark .select2-results__option {
         color: #e5e5e5;
     }
+
     body.dark .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
         background-color: #333333;
         color: #f5f5f5;
     }
+
     body.dark .select2-results__option--selected {
         background-color: #404040;
     }
+
     body.dark .select2-container--default .select2-results__group {
         color: #a3a3a3;
     }
+
     body.dark .select2-search__field {
         background-color: #1a1a1a;
         border-color: #525252;
@@ -144,22 +158,91 @@
     }
 
     /* Specific colors for common activities */
-    .icon-Ride, .icon-GravelRide, .icon-MountainBikeRide, .icon-VirtualRide, .icon-EBikeRide, .icon-EMountainBikeRide, .icon-Velomobile, .icon-Handcycle { color: #EA580C; background-color: #FFEDD5; } /* Orange */
-    .icon-Run, .icon-TrailRun, .icon-VirtualRun, .icon-Walk, .icon-Hike, .icon-Snowshoe, .icon-Wheelchair { color: #059669; background-color: #D1FAE5; } /* Emerald/Green */
-    .icon-Swim, .icon-Surfing, .icon-Windsurf, .icon-Kitesurf, .icon-Kayaking, .icon-Rowing, .icon-Canoeing, .icon-StandUpPaddling, .icon-Sail { color: #0284C7; background-color: #E0F2FE; } /* Sky Blue */
-    .icon-AlpineSki, .icon-BackcountrySki, .icon-NordicSki, .icon-Snowboard, .icon-IceSkate, .icon-RollerSki, .icon-InlineSkate { color: #2563EB; background-color: #DBEAFE; } /* Blue */
-    .icon-Workout, .icon-WeightTraining, .icon-Crossfit, .icon-Yoga, .icon-Pilates, .icon-HighIntensityIntervalTraining, .icon-RockClimbing { color: #7C3AED; background-color: #EDE9FE; } /* Violet */
-    .icon-Golf, .icon-Soccer, .icon-Tennis, .icon-Squash, .icon-Badminton, .icon-Pickleball, .icon-Racquetball, .icon-TableTennis { color: #DB2777; background-color: #FCE7F3; } /* Pink */
-    .icon-StairStepper, .icon-Skateboard, .icon-Elliptical, .icon-VirtualRow { color: #9a16a1; background-color: #fde3ff; } /* Purple */
+    .icon-Ride, .icon-GravelRide, .icon-MountainBikeRide, .icon-VirtualRide, .icon-EBikeRide, .icon-EMountainBikeRide, .icon-Velomobile, .icon-Handcycle {
+        color: #EA580C;
+        background-color: #FFEDD5;
+    }
+
+    /* Orange */
+    .icon-Run, .icon-TrailRun, .icon-VirtualRun, .icon-Walk, .icon-Hike, .icon-Snowshoe, .icon-Wheelchair {
+        color: #059669;
+        background-color: #D1FAE5;
+    }
+
+    /* Emerald/Green */
+    .icon-Swim, .icon-Surfing, .icon-Windsurf, .icon-Kitesurf, .icon-Kayaking, .icon-Rowing, .icon-Canoeing, .icon-StandUpPaddling, .icon-Sail {
+        color: #0284C7;
+        background-color: #E0F2FE;
+    }
+
+    /* Sky Blue */
+    .icon-AlpineSki, .icon-BackcountrySki, .icon-NordicSki, .icon-Snowboard, .icon-IceSkate, .icon-RollerSki, .icon-InlineSkate {
+        color: #2563EB;
+        background-color: #DBEAFE;
+    }
+
+    /* Blue */
+    .icon-Workout, .icon-WeightTraining, .icon-Crossfit, .icon-Yoga, .icon-Pilates, .icon-HighIntensityIntervalTraining, .icon-RockClimbing {
+        color: #7C3AED;
+        background-color: #EDE9FE;
+    }
+
+    /* Violet */
+    .icon-Golf, .icon-Soccer, .icon-Tennis, .icon-Squash, .icon-Badminton, .icon-Pickleball, .icon-Racquetball, .icon-TableTennis {
+        color: #DB2777;
+        background-color: #FCE7F3;
+    }
+
+    /* Pink */
+    .icon-StairStepper, .icon-Skateboard, .icon-Elliptical, .icon-VirtualRow {
+        color: #9a16a1;
+        background-color: #fde3ff;
+    }
+
+    /* Purple */
 
     /* Dynamic Select2 Choice Colors */
-    .select2-selection__choice.choice-Ride, .select2-selection__choice.choice-GravelRide, .select2-selection__choice.choice-MountainBikeRide, .select2-selection__choice.choice-VirtualRide, .select2-selection__choice.choice-EBikeRide, .select2-selection__choice.choice-EMountainBikeRide, .select2-selection__choice.choice-Velomobile, .select2-selection__choice.choice-Handcycle { background-color: #FFEDD5 !important; color: #EA580C !important; border-color: #FDBA74 !important; }
-    .select2-selection__choice.choice-Run, .select2-selection__choice.choice-TrailRun, .select2-selection__choice.choice-VirtualRun, .select2-selection__choice.choice-Walk, .select2-selection__choice.choice-Hike, .select2-selection__choice.choice-Snowshoe, .select2-selection__choice.choice-Wheelchair { background-color: #D1FAE5 !important; color: #059669 !important; border-color: #6EE7B7 !important; }
-    .select2-selection__choice.choice-Swim, .select2-selection__choice.choice-Surfing, .select2-selection__choice.choice-Windsurf, .select2-selection__choice.choice-Kitesurf, .select2-selection__choice.choice-Kayaking, .select2-selection__choice.choice-Rowing, .select2-selection__choice.choice-Canoeing, .select2-selection__choice.choice-StandUpPaddling, .select2-selection__choice.choice-Sail { background-color: #E0F2FE !important; color: #0284C7 !important; border-color: #7DD3FC !important; }
-    .select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate { background-color: #DBEAFE !important; color: #2563EB !important; border-color: #93C5FD !important; }
-    .select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing { background-color: #EDE9FE !important; color: #7C3AED !important; border-color: #C4B5FD !important; }
-    .select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis { background-color: #FCE7F3 !important; color: #DB2777 !important; border-color: #F9A8D4 !important; }
-    .select2-selection__choice.choice-StairStepper, .select2-selection__choice.choice-Skateboard, .select2-selection__choice.choice-Elliptical, .select2-selection__choice.choice-VirtualRow { background-color: #fde3ff !important; color: #9a16a1 !important; border-color: #c9c1c9 !important; }
+    .select2-selection__choice.choice-Ride, .select2-selection__choice.choice-GravelRide, .select2-selection__choice.choice-MountainBikeRide, .select2-selection__choice.choice-VirtualRide, .select2-selection__choice.choice-EBikeRide, .select2-selection__choice.choice-EMountainBikeRide, .select2-selection__choice.choice-Velomobile, .select2-selection__choice.choice-Handcycle {
+        background-color: #FFEDD5 !important;
+        color: #EA580C !important;
+        border-color: #FDBA74 !important;
+    }
+
+    .select2-selection__choice.choice-Run, .select2-selection__choice.choice-TrailRun, .select2-selection__choice.choice-VirtualRun, .select2-selection__choice.choice-Walk, .select2-selection__choice.choice-Hike, .select2-selection__choice.choice-Snowshoe, .select2-selection__choice.choice-Wheelchair {
+        background-color: #D1FAE5 !important;
+        color: #059669 !important;
+        border-color: #6EE7B7 !important;
+    }
+
+    .select2-selection__choice.choice-Swim, .select2-selection__choice.choice-Surfing, .select2-selection__choice.choice-Windsurf, .select2-selection__choice.choice-Kitesurf, .select2-selection__choice.choice-Kayaking, .select2-selection__choice.choice-Rowing, .select2-selection__choice.choice-Canoeing, .select2-selection__choice.choice-StandUpPaddling, .select2-selection__choice.choice-Sail {
+        background-color: #E0F2FE !important;
+        color: #0284C7 !important;
+        border-color: #7DD3FC !important;
+    }
+
+    .select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate {
+        background-color: #DBEAFE !important;
+        color: #2563EB !important;
+        border-color: #93C5FD !important;
+    }
+
+    .select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing {
+        background-color: #EDE9FE !important;
+        color: #7C3AED !important;
+        border-color: #C4B5FD !important;
+    }
+
+    .select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis {
+        background-color: #FCE7F3 !important;
+        color: #DB2777 !important;
+        border-color: #F9A8D4 !important;
+    }
+
+    .select2-selection__choice.choice-StairStepper, .select2-selection__choice.choice-Skateboard, .select2-selection__choice.choice-Elliptical, .select2-selection__choice.choice-VirtualRow {
+        background-color: #fde3ff !important;
+        color: #9a16a1 !important;
+        border-color: #c9c1c9 !important;
+    }
 
     /* DataTables Customization */
     .dt-buttons .dt-button {
@@ -173,6 +256,7 @@
         height: 42px;
         transition: background-color 0.2s;
     }
+
     .dt-buttons .dt-button:hover {
         background-color: #f3f4f6; /* hover:bg-gray-100 */
     }
@@ -183,6 +267,7 @@
         border-color: #404040;
         color: #d4d4d4;
     }
+
     body.dark .dt-buttons .dt-button:hover {
         background-color: #333333;
     }
@@ -193,13 +278,16 @@
         border-color: #404040;
         color: #e5e5e5;
     }
+
     body.dark #dateFilterDropdown {
         background-color: #262626;
         border-color: #404040;
     }
+
     body.dark .date-preset-btn {
         color: #e5e5e5;
     }
+
     body.dark .date-preset-btn:hover {
         background-color: #333333;
     }
@@ -214,36 +302,46 @@
         background-color: #262626;
         border-color: #404040;
     }
+
     body.dark .daterangepicker .calendar-table {
         background-color: #262626;
         border-color: #404040;
     }
+
     body.dark .daterangepicker td, body.dark .daterangepicker th {
         color: #e5e5e5;
     }
+
     body.dark .daterangepicker td.off, body.dark .daterangepicker td.off.in-range, body.dark .daterangepicker td.off.start-date, body.dark .daterangepicker td.off.end-date {
         color: #737373;
     }
+
     body.dark .daterangepicker td.available:hover, body.dark .daterangepicker th.available:hover {
         background-color: #333333;
     }
+
     body.dark .daterangepicker td.active, body.dark .daterangepicker td.active:hover {
         background-color: #EA580C;
     }
+
     body.dark .daterangepicker .calendar-table thead tr {
         background-color: #1a1a1a;
     }
+
     body.dark .daterangepicker select {
         background-color: #1a1a1a;
         border-color: #525252;
         color: #e5e5e5;
     }
+
     body.dark .daterangepicker .ranges li {
         color: #e5e5e5;
     }
+
     body.dark .daterangepicker .ranges li:hover {
         background-color: #333333;
     }
+
     body.dark .daterangepicker .ranges li.active {
         background-color: #EA580C;
     }
@@ -266,42 +364,69 @@
         <!-- Custom Search Input -->
         <div class="w-full md:w-64">
             <label for="customSearch" class="block text-sm font-medium text-gray-700 mb-1">Filter activities</label>
-            <input type="text" id="customSearch" placeholder="Search by name..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm" style="min-height: 42px;">
+            <input type="text" id="customSearch" placeholder="Search by name..."
+                   class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
+                   style="min-height: 42px;">
         </div>
 
         <!-- Date Filter Dropdown -->
         <div class="w-full md:w-64">
             <label for="dateFilter" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
             <div class="relative">
-                <button id="dateFilter" class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-left focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm" style="min-height: 42px;">
+                <button id="dateFilter"
+                        class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-left focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
+                        style="min-height: 42px;">
                     <span>All time</span>
                 </button>
-                <div id="dateFilterDropdown" class="hidden absolute z-10 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+                <div id="dateFilterDropdown"
+                     class="hidden absolute z-10 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
                     <!-- Presets -->
                     <div class="mb-4">
                         <h4 class="font-semibold text-sm mb-2">Presets</h4>
                         <div class="grid grid-cols-1 gap-2">
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="all_time">All time</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="today">Today</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="yesterday">Yesterday</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="last_week">Last Week</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="this_month">This Month</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="this_year">This Year</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="7_days">7 Days</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="14_days">14 Days</button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm" data-preset="year">Year</button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="all_time">All time
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="today">Today
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="yesterday">Yesterday
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="last_week">Last Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_month">This Month
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_year">This Year
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="7_days">7 Days
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="14_days">14 Days
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="year">Year
+                            </button>
                         </div>
                     </div>
                     <!-- Date Pickers -->
                     <div>
                         <div class="flex flex-col gap-2">
                             <div>
-                                <label for="startDate" class="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-                                <input type="text" id="startDate" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <label for="startDate" class="block text-xs font-medium text-gray-700 mb-1">Start
+                                    Date</label>
+                                <input type="text" id="startDate"
+                                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
                             </div>
                             <div>
-                                <label for="endDate" class="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-                                <input type="text" id="endDate" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                                <label for="endDate" class="block text-xs font-medium text-gray-700 mb-1">End
+                                    Date</label>
+                                <input type="text" id="endDate"
+                                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
                             </div>
                         </div>
                     </div>
@@ -311,7 +436,8 @@
 
         <!-- Activities Types Dropdown -->
         <div class="w-full md:w-1/2">
-            <label for="activityTypeFilter" class="block text-sm font-medium text-gray-700 mb-1">Activities Types</label>
+            <label for="activityTypeFilter" class="block text-sm font-medium text-gray-700 mb-1">Activities
+                Types</label>
             <select id="activityTypeFilter" class="w-full" multiple="multiple">
                 <optgroup label="Cycling activities">
                     <option value="GravelRide" selected>GravelRide</option>
@@ -379,18 +505,39 @@
         <!-- Buttons -->
         <div class="flex-grow"></div>
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
-            <button id="selectAllBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Select All</button>
-            <button id="deselectAllBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Deselect All</button>
+            <button id="selectAllBtn"
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                Select All
+            </button>
+            <button id="deselectAllBtn"
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                Deselect All
+            </button>
             <div class="h-6 w-px bg-gray-300 mx-1"></div>
         </div>
     </div>
     <div class="w-full mt-4 flex justify-between items-center flex-wrap gap-4">
         <div class="flex gap-2 items-center flex-wrap">
-            <button id="selectAllOnAllPagesBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Select all activities on all pages</button>
-            <button id="clearSelectionBtn" class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">Clear selection</button>
-            <button id="deleteSelectedBtn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Delete selected</button>
-            <button id="displayOnMapBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Display on map</button>
-            <button id="exportCsvBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled>Export to CSV</button>
+            <button id="selectAllOnAllPagesBtn"
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                Select all activities on all pages
+            </button>
+            <button id="clearSelectionBtn"
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                Clear selection
+            </button>
+            <button id="deleteSelectedBtn"
+                    class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled>Delete selected
+            </button>
+            <button id="displayOnMapBtn"
+                    class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled>Display on map
+            </button>
+            <button id="exportCsvBtn"
+                    class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled>Export to CSV
+            </button>
         </div>
         <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
     </div>
@@ -399,37 +546,37 @@
 <div class="bg-white rounded-lg">
     <table id="activitiesTable" class="w-full text-left border-collapse">
         <thead>
-            <tr class="text-sm font-semibold text-gray-600 border-b border-gray-200">
-                <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="selectAllOnPage"></th>
-                <th class="py-3 px-4 w-20">ID</th>
-                <th class="py-3 px-4">Activity Name</th>
-                <th class="py-3 px-4 w-32">Type</th>
-                <th class="py-3 px-4 w-32">Date</th>
-                <th class="py-3 px-4 w-32 text-right">Distance (km)</th>
-                <th class="py-3 px-4 w-32 text-right">Elevation (m)</th>
-                <th class="py-3 px-4 w-32">Moving Time</th>
-                <th class="py-3 px-4 w-32">Avg Speed (km/h)</th>
-                <th class="py-3 px-4 w-32">Avg HR (bpm)</th>
-                <th class="py-3 px-4 w-32">Link to Strava</th>
-                <th class="py-3 px-4 w-20 text-center">Delete</th>
-            </tr>
+        <tr class="text-sm font-semibold text-gray-600 border-b border-gray-200">
+            <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="selectAllOnPage"></th>
+            <th class="py-3 px-4 w-20">ID</th>
+            <th class="py-3 px-4">Activity Name</th>
+            <th class="py-3 px-4 w-32">Type</th>
+            <th class="py-3 px-4 w-32">Date</th>
+            <th class="py-3 px-4 w-32 text-right">Distance (km)</th>
+            <th class="py-3 px-4 w-32 text-right">Elevation (m)</th>
+            <th class="py-3 px-4 w-32">Moving Time</th>
+            <th class="py-3 px-4 w-32">Avg Speed (km/h)</th>
+            <th class="py-3 px-4 w-32">Avg HR (bpm)</th>
+            <th class="py-3 px-4 w-32">Link to Strava</th>
+            <th class="py-3 px-4 w-20 text-center">Delete</th>
+        </tr>
         </thead>
         <tbody class="text-gray-700 text-sm">
         </tbody>
         <tfoot class="text-gray-700 text-sm font-semibold bg-gray-50 border-t border-gray-200">
-            <tr>
-                <td colspan="5" class="py-3 px-4 text-right">Totals:</td>
-                <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
-                <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
-                <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
-                <td colspan="4"></td>
-            </tr>
+        <tr>
+            <td colspan="5" class="py-3 px-4 text-right">Totals:</td>
+            <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
+            <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
+            <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
+            <td colspan="4"></td>
+        </tr>
         </tfoot>
     </table>
 </div>
 
 <script>
-    $(document).ready(function() {
+    $(document).ready(function () {
         const FILTER_STORAGE_KEY = 'kinetiqoActivityFilters';
         const SELECTION_STORAGE_KEY = 'kinetiqoSelectedActivities';
         let currentDatePreset = 'custom'; // Track current preset in memory
@@ -445,8 +592,11 @@
                 if (filters.search) $('#customSearch').val(filters.search);
                 if (filters.datePreset) currentDatePreset = filters.datePreset;
                 return filters;
-            } catch (e) { return {}; }
+            } catch (e) {
+                return {};
+            }
         }
+
         const savedFilters = loadFilters();
 
         // Load selection
@@ -455,14 +605,16 @@
             if (Array.isArray(savedSelection)) {
                 savedSelection.forEach(id => selectedActivities.add(String(id)));
             }
-        } catch (e) { console.error("Failed to load selection", e); }
+        } catch (e) {
+            console.error("Failed to load selection", e);
+        }
 
         // 2. Initialize Select2
         var $select = $('#activityTypeFilter').select2({
             placeholder: "",
             width: '100%',
             closeOnSelect: false,
-            templateSelection: function(data, container) {
+            templateSelection: function (data, container) {
                 if (data.id) $(container).addClass('choice-' + data.id);
                 return data.text;
             }
@@ -541,19 +693,19 @@
                 singleDatePicker: true,
                 showDropdowns: true,
                 autoUpdateInput: false,
-                locale: { format: 'YYYY-MM-DD', cancelLabel: 'Clear' }
+                locale: {format: 'YYYY-MM-DD', cancelLabel: 'Clear'}
             };
 
             if (currentVal) {
                 options.startDate = currentVal;
             }
 
-            $(element).daterangepicker(options).on('apply.daterangepicker', function(ev, picker) {
+            $(element).daterangepicker(options).on('apply.daterangepicker', function (ev, picker) {
                 $(this).val(picker.startDate.format('YYYY-MM-DD'));
                 updateDateFilterDisplay('custom');
                 saveFilters('custom');
                 table.ajax.reload();
-            }).on('cancel.daterangepicker', function(ev, picker) {
+            }).on('cancel.daterangepicker', function (ev, picker) {
                 $(this).val('');
                 updateDateFilterDisplay('custom');
                 saveFilters('custom');
@@ -582,7 +734,7 @@
             "buttons": [],
             "ajax": {
                 "url": "/api/activities",
-                "data": function(d) {
+                "data": function (d) {
                     var selectedTypes = $('#activityTypeFilter').val();
                     if (selectedTypes === null || selectedTypes.length === 0) {
                         d.types = ["_NO_MATCH_"];
@@ -593,7 +745,7 @@
                     d.startDate = $('#startDate').val();
                     d.endDate = $('#endDate').val();
                 },
-                "dataSrc": function(json) {
+                "dataSrc": function (json) {
                     return json.data;
                 }
             },
@@ -602,15 +754,21 @@
                     "data": "id",
                     "orderable": false,
                     "className": "text-center",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
                     }
                 },
-                { "data": "id", "visible": false, "render": function(data) { return '#' + data; } },
-                { "data": "name" },
-                { "data": "type", "render": function(data) {
-                    return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
-                }},
+                {
+                    "data": "id", "visible": false, "render": function (data) {
+                        return '#' + data;
+                    }
+                },
+                {"data": "name"},
+                {
+                    "data": "type", "render": function (data) {
+                        return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
+                    }
+                },
                 {
                     "data": "date",
                     "render": {
@@ -621,7 +779,7 @@
                 {
                     "data": "distance",
                     "className": "text-right",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         if (type === 'display') {
                             return formatDistance(data);
                         }
@@ -631,7 +789,7 @@
                 {
                     "data": "elevation",
                     "className": "text-right",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         if (type === 'display') {
                             return formatElevation(data);
                         }
@@ -640,7 +798,7 @@
                 },
                 {
                     "data": "moving_time",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         if (type === 'display') {
                             return formatDuration(data);
                         }
@@ -650,7 +808,7 @@
                 {
                     "data": "average_speed",
                     "className": "text-right",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         if (type === 'display') {
                             // Convert m/s to km/h
                             return (data * 3.6).toFixed(1);
@@ -661,7 +819,7 @@
                 {
                     "data": "average_heartrate",
                     "className": "text-right",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         if (type === 'display') {
                             return data > 0 ? Math.round(data) : '-';
                         }
@@ -671,7 +829,7 @@
                 {
                     "data": null,
                     "orderable": false,
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         return `<a href="https://www.strava.com/activities/${row.id}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 hover:underline">View on Strava</a>`;
                     }
                 },
@@ -679,14 +837,14 @@
                     "data": null,
                     "orderable": false,
                     "className": "text-center",
-                    "render": function(data, type, row) {
+                    "render": function (data, type, row) {
                         return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
                             <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>`;
                     }
                 }
             ],
-            "footerCallback": function(row, data, start, end, display) {
+            "footerCallback": function (row, data, start, end, display) {
                 var api = this.api();
                 var json = api.ajax.json();
 
@@ -701,10 +859,10 @@
                 "searchPlaceholder": "Filter activities...",
                 "lengthMenu": "Show _MENU_ entries"
             },
-            "initComplete": function(settings, json) {
+            "initComplete": function (settings, json) {
                 updateSelectionSummary();
             },
-            "drawCallback": function(settings) {
+            "drawCallback": function (settings) {
                 updateCheckboxes();
             }
         });
@@ -713,23 +871,23 @@
         table.buttons().container().appendTo('#custom-buttons-wrapper');
 
         // 5. Bind Events for Persistence & Interaction
-        $('#activityTypeFilter').on('change', function() {
+        $('#activityTypeFilter').on('change', function () {
             updateSummary();
             saveFilters(); // Uses current currentDatePreset
             table.ajax.reload();
         });
 
-        $('#customSearch').on('keyup', function() {
+        $('#customSearch').on('keyup', function () {
             table.search(this.value).draw();
             saveFilters(); // Uses current currentDatePreset
         });
 
-        $('#dateFilter').on('click', function(e) {
+        $('#dateFilter').on('click', function (e) {
             e.stopPropagation();
             $('#dateFilterDropdown').toggleClass('hidden');
         });
 
-        $(document).on('click', function(e) {
+        $(document).on('click', function (e) {
             if (!$(e.target).closest('#dateFilterDropdown').length &&
                 !$(e.target).closest('#dateFilter').length &&
                 !$(e.target).closest('.daterangepicker').length) {
@@ -740,7 +898,7 @@
             }
         });
 
-        $('.date-preset-btn').on('click', function() {
+        $('.date-preset-btn').on('click', function () {
             var preset = $(this).data('preset');
             var presetText = $(this).text();
             var startDate, endDate;
@@ -797,12 +955,12 @@
         });
 
         // Select All / Deselect All buttons
-        $('#selectAllBtn').click(function() {
+        $('#selectAllBtn').click(function () {
             $('#activityTypeFilter > optgroup > option').prop('selected', true);
             $('#activityTypeFilter').trigger('change');
         });
 
-        $('#deselectAllBtn').click(function() {
+        $('#deselectAllBtn').click(function () {
             $('#activityTypeFilter > optgroup > option').prop('selected', false);
             $('#activityTypeFilter').trigger('change');
         });
@@ -824,7 +982,7 @@
         function updateCheckboxes() {
             let allOnPageSelected = true;
             let onPageCount = 0;
-            $('#activitiesTable tbody .activity-checkbox').each(function() {
+            $('#activitiesTable tbody .activity-checkbox').each(function () {
                 onPageCount++;
                 const id = $(this).val();
                 if (selectedActivities.has(id)) {
@@ -872,9 +1030,9 @@
         }
 
         // Header checkbox
-        $('#selectAllOnPage').on('click', function() {
+        $('#selectAllOnPage').on('click', function () {
             const isChecked = $(this).prop('checked');
-            $('#activitiesTable tbody .activity-checkbox').each(function() {
+            $('#activitiesTable tbody .activity-checkbox').each(function () {
                 const id = $(this).val();
                 if (isChecked) {
                     selectedActivities.add(id);
@@ -889,7 +1047,7 @@
         });
 
         // Row checkbox
-        $('#activitiesTable tbody').on('click', '.activity-checkbox', function() {
+        $('#activitiesTable tbody').on('click', '.activity-checkbox', function () {
             const id = $(this).val();
             if ($(this).prop('checked')) {
                 selectedActivities.add(id);
@@ -903,9 +1061,9 @@
         });
 
         // Select all on all pages
-        $('#selectAllOnAllPagesBtn').on('click', function() {
-            const allData = table.rows({ search: 'applied' }).data();
-            allData.each(function(d) {
+        $('#selectAllOnAllPagesBtn').on('click', function () {
+            const allData = table.rows({search: 'applied'}).data();
+            allData.each(function (d) {
                 selectedActivities.add(String(d.id));
             });
             saveSelection();
@@ -915,12 +1073,12 @@
         });
 
         // Clear selection
-        $('#clearSelectionBtn').on('click', function() {
+        $('#clearSelectionBtn').on('click', function () {
             clearSelection();
         });
 
         // Delete selected
-        $('#deleteSelectedBtn').on('click', function() {
+        $('#deleteSelectedBtn').on('click', function () {
             const count = selectedActivities.size;
             if (count === 0) return;
 
@@ -929,8 +1087,8 @@
                     url: '/api/activities',
                     type: 'DELETE',
                     contentType: 'application/json',
-                    data: JSON.stringify({ activity_ids: Array.from(selectedActivities) }),
-                    success: function(result) {
+                    data: JSON.stringify({activity_ids: Array.from(selectedActivities)}),
+                    success: function (result) {
                         // Remove deleted IDs from selection
                         selectedActivities.clear();
                         saveSelection();
@@ -939,7 +1097,7 @@
 
                         table.ajax.reload(null, false); // Reload and keep paging
                     },
-                    error: function(xhr, status, error) {
+                    error: function (xhr, status, error) {
                         alert('An error occurred while deleting activities: ' + error);
                         table.ajax.reload(null, false);
                     }
@@ -948,7 +1106,7 @@
         });
 
         // Display on map
-        $('#displayOnMapBtn').on('click', function() {
+        $('#displayOnMapBtn').on('click', function () {
             if (selectedActivities.size === 0) return;
 
             // Create a hidden form
@@ -973,7 +1131,7 @@
         });
 
         // Export to CSV
-        $('#exportCsvBtn').on('click', function() {
+        $('#exportCsvBtn').on('click', function () {
             if (selectedActivities.size === 0) return;
 
             const allData = table.data().toArray();
@@ -1011,7 +1169,7 @@
                 })
             ].join('\n');
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
             const link = document.createElement("a");
             if (link.download !== undefined) {
                 const url = URL.createObjectURL(blob);
@@ -1049,7 +1207,7 @@
                 return "0.0";
             }
             const km = meters / 1000;
-            return km.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return km.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         // Helper to format elevation
@@ -1057,16 +1215,16 @@
             if (isNaN(meters) || meters < 0) {
                 return "0.00";
             }
-            return meters.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return meters.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         // Global delete function
-        window.deleteActivity = function(activityId) {
+        window.deleteActivity = function (activityId) {
             if (confirm('Are you sure you want to delete this activity? This action cannot be undone.')) {
                 $.ajax({
                     url: '/api/activities/' + activityId,
                     type: 'DELETE',
-                    success: function(result) {
+                    success: function (result) {
                         // Remove from selection if present
                         if (selectedActivities.has(String(activityId))) {
                             selectedActivities.delete(String(activityId));
@@ -1078,7 +1236,7 @@
                         // Reload the table to reflect changes
                         table.ajax.reload(null, false); // false to keep current paging
                     },
-                    error: function(xhr, status, error) {
+                    error: function (xhr, status, error) {
                         alert('Error deleting activity: ' + error);
                     }
                 });

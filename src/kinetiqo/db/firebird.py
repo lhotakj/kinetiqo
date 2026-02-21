@@ -10,13 +10,15 @@ from kinetiqo.db.schema import SchemaManager
 
 logger = logging.getLogger("kinetiqo")
 
+
 class FirebirdRepository(DatabaseRepository):
     def __init__(self, config: Config):
         self.config = config
         try:
             self.conn = self._connect()
             if config.database_connect_verbose:
-                logger.info(f"Connected to Firebird at {config.firebird_host}:{config.firebird_port} - {self.get_firebird_version()}")
+                logger.info(
+                    f"Connected to Firebird at {config.firebird_host}:{config.firebird_port} - {self.get_firebird_version()}")
         except Exception as err:
             logger.warning(f"Cannot connect to Firebird: {err}")
             sys.exit(1)
@@ -26,7 +28,7 @@ class FirebirdRepository(DatabaseRepository):
         except Exception as err:
             logger.warning(f"Cannot ensure database: {err}")
             sys.exit(1)
-    
+
     def _validate_timestamp(self, timestamp: datetime) -> datetime:
         """Validate and fix timestamps that are before Unix epoch."""
         if timestamp.timestamp() <= 0:
@@ -38,7 +40,7 @@ class FirebirdRepository(DatabaseRepository):
         try:
             # Firebird connection string format: host:port/path_to_database or host/port:path_to_database
             dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
-            
+
             conn = firebird.driver.connect(
                 database=dsn,
                 user=self.config.firebird_user,
@@ -84,7 +86,7 @@ class FirebirdRepository(DatabaseRepository):
     def initialize_schema(self):
         """Create or update the database schema."""
         schema_manager = SchemaManager(self.conn, 'firebird')
-        
+
         # For Firebird, we need to create a sequence/generator for the auto-increment logs.id
         with self.conn.cursor() as cur:
             try:
@@ -92,9 +94,9 @@ class FirebirdRepository(DatabaseRepository):
                 self.conn.commit()
             except Exception:
                 pass
-        
+
         schema_manager.ensure_schema()
-        
+
         # Create trigger for auto-increment on logs.id
         with self.conn.cursor() as cur:
             try:
@@ -179,7 +181,8 @@ class FirebirdRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
+                           start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from Firebird"""
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate']
@@ -359,19 +362,19 @@ class FirebirdRepository(DatabaseRepository):
                 'UPDATE OR INSERT INTO "activities" ("start_date", "activity_id", "name", "sport", "athlete_id", "distance", "moving_time", "elapsed_time", "total_elevation_gain", "average_speed", "max_speed", "average_heartrate", "max_heartrate", "average_cadence") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) MATCHING ("activity_id")',
                 (
                     self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))),
-                    int(activity["id"]), 
-                    activity.get("name"), 
-                    activity.get("sport_type"), 
+                    int(activity["id"]),
+                    activity.get("name"),
+                    activity.get("sport_type"),
                     int(activity["athlete"]["id"]),
-                    float(activity.get("distance", 0.0)), 
-                    int(activity.get("moving_time", 0)), 
+                    float(activity.get("distance", 0.0)),
+                    int(activity.get("moving_time", 0)),
                     int(activity.get("elapsed_time", 0)),
-                    float(activity.get("total_elevation_gain", 0.0)), 
-                    float(activity.get("average_speed", 0.0)), 
+                    float(activity.get("total_elevation_gain", 0.0)),
+                    float(activity.get("average_speed", 0.0)),
                     float(activity.get("max_speed", 0.0)),
-                    to_int(activity.get("average_heartrate")), 
-                    to_int(activity.get("max_heartrate")), 
-                    activity.get("average_cadence") # float or None
+                    to_int(activity.get("average_heartrate")),
+                    to_int(activity.get("max_heartrate")),
+                    activity.get("average_cadence")  # float or None
                 )
             )
             self.conn.commit()
@@ -381,11 +384,12 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute('DELETE FROM "streams" WHERE "activity_id" = ?', (int(activity["id"]),))
             start_date = self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00")))
-            
+
             rows = []
             for i, t in enumerate(streams.get("time", {}).get("data", [])):
-                lat, lng = streams.get("latlng", {}).get("data", [])[i] if i < len(streams.get("latlng", {}).get("data", [])) else (None, None)
-                
+                lat, lng = streams.get("latlng", {}).get("data", [])[i] if i < len(
+                    streams.get("latlng", {}).get("data", [])) else (None, None)
+
                 # Helper to get value safely
                 def get_val(key, type_func=lambda x: x):
                     data = streams.get(key, {}).get("data", [])
@@ -395,11 +399,11 @@ class FirebirdRepository(DatabaseRepository):
                     return None
 
                 rows.append((
-                    start_date + timedelta(seconds=t), 
-                    int(activity["id"]), 
-                    activity["sport_type"], 
+                    start_date + timedelta(seconds=t),
+                    int(activity["id"]),
+                    activity["sport_type"],
                     int(activity["athlete"]["id"]),
-                    float(lat) if lat is not None else None, 
+                    float(lat) if lat is not None else None,
                     float(lng) if lng is not None else None,
                     get_val("altitude", float),
                     get_val("heartrate", int),
@@ -428,7 +432,8 @@ class FirebirdRepository(DatabaseRepository):
             return
         with self.conn.cursor() as cur:
             placeholders = ','.join(['?'] * len(activity_ids))
-            cur.execute(f'DELETE FROM "activities" WHERE "activity_id" IN ({placeholders})', [int(aid) for aid in activity_ids])
+            cur.execute(f'DELETE FROM "activities" WHERE "activity_id" IN ({placeholders})',
+                        [int(aid) for aid in activity_ids])
             self.conn.commit()
 
     def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
@@ -486,7 +491,7 @@ class FirebirdRepository(DatabaseRepository):
                 FROM "logs"
                 ORDER BY "created_at" DESC
             """)
-            
+
             logs = []
             for row in cur.fetchall():
                 log = {

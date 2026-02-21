@@ -5,6 +5,7 @@ from kinetiqo.db.repository import DatabaseRepository
 
 logger = logging.getLogger("kinetiqo")
 
+
 def create_repository(config: Config) -> DatabaseRepository:
     """Factory function to create the appropriate database repository."""
     if config.database_type == "mysql":

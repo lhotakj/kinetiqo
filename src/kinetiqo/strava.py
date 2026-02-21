@@ -7,6 +7,7 @@ from .config import Config
 
 logger = logging.getLogger("kinetiqo")
 
+
 class StravaClient:
     BASE_URL = "https://www.strava.com/api/v3"
 
@@ -88,10 +89,10 @@ class StravaClient:
             msg = f"Page {page}: Found {len(batch)} activities."
             logger.debug(msg)
             yield msg
-            
+
             if batch:
                 activities.extend(batch)
-            
+
             # If the batch is empty or we received fewer activities than we asked for,
             # it means we have reached the end.
             if not batch or len(batch) < per_page:
@@ -102,7 +103,7 @@ class StravaClient:
 
         # Cache the results
         self.cache.set("activities", activities, cache_params)
-        
+
         result_container.extend(activities)
 
     def get_streams(self, activity_id: int) -> dict:

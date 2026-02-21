@@ -11,13 +11,15 @@ from mysql.connector import errorcode
 
 logger = logging.getLogger("kinetiqo")
 
+
 class MySQLRepository(DatabaseRepository):
     def __init__(self, config: Config):
         self.config = config
         try:
             self.conn = self._connect()
             if config.database_connect_verbose:
-                logger.info(f"Connected to MySQL at {config.mysql_host}:{config.mysql_port} - {self.get_mysql_version()}")
+                logger.info(
+                    f"Connected to MySQL at {config.mysql_host}:{config.mysql_port} - {self.get_mysql_version()}")
         except Exception as err:
             logger.warning(f"Cannot connect to MySQL: {err}")
             sys.exit(1)
@@ -28,7 +30,6 @@ class MySQLRepository(DatabaseRepository):
             logger.warning(f"Cannot create database: {err}")
             sys.exit(1)
 
-
     def _connect(self):
         """Helper to connect to a specific database."""
         connect_args = {
@@ -36,7 +37,7 @@ class MySQLRepository(DatabaseRepository):
             "port": self.config.mysql_port,
             "user": self.config.mysql_user,
             "password": self.config.mysql_password,
-            "database": self.config.mysql_database # Ensure database is selected
+            "database": self.config.mysql_database  # Ensure database is selected
         }
 
         try:
@@ -56,7 +57,7 @@ class MySQLRepository(DatabaseRepository):
         except (ValueError, TypeError) as err:
             logger.error(str(err))
             raise
-            
+
         return conn
 
     def _create_database(self):
@@ -69,16 +70,17 @@ class MySQLRepository(DatabaseRepository):
 
             # If not connected to the target database (because it didn't exist), create it.
             with self.conn.cursor() as cur:
-                cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.config.mysql_database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            
+                cur.execute(
+                    f"CREATE DATABASE IF NOT EXISTS {self.config.mysql_database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+
             # Now connect to the newly created database
             self.conn.database = self.config.mysql_database
-            
+
         except Exception as err:
             # If we fail here, it might be because we are already connected or something else.
             # Let's try to ensure we are using the correct database.
             try:
-                 self.conn.database = self.config.mysql_database
+                self.conn.database = self.config.mysql_database
             except:
                 logger.warning(f"Cannot create/select database: {err}")
                 sys.exit(1)
@@ -100,12 +102,14 @@ class MySQLRepository(DatabaseRepository):
         try:
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
-                
+
                 cur.execute("USE information_schema;")
-                cur.execute("SELECT table_name FROM tables WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')", (self.config.mysql_database,))
+                cur.execute(
+                    "SELECT table_name FROM tables WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')",
+                    (self.config.mysql_database,))
                 tables = {row[0] for row in cur.fetchall()}
                 cur.execute(f"USE {self.config.mysql_database};")
-                
+
                 if 'activities' not in tables:
                     logger.error("Table 'activities' is missing.")
                     return False
@@ -115,7 +119,7 @@ class MySQLRepository(DatabaseRepository):
                 if 'logs' not in tables:
                     logger.error("Table 'logs' is missing.")
                     return False
-                
+
                 return True
         except Exception as e:
             logger.error(f"Flight check failed: {e}")
@@ -153,20 +157,19 @@ class MySQLRepository(DatabaseRepository):
         """Get a list of activities for display."""
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute("""
-                SELECT 
-                    activity_id as id,
-                    name,
-                    sport as type,
-                    distance,
-                    moving_time,
-                    total_elevation_gain,
-                    start_date,
-                    average_speed,
-                    average_heartrate
-                FROM activities 
-                ORDER BY start_date DESC 
-                LIMIT %s
-            """, (limit,))
+                        SELECT activity_id as id,
+                               name,
+                               sport       as type,
+                               distance,
+                               moving_time,
+                               total_elevation_gain,
+                               start_date,
+                               average_speed,
+                               average_heartrate
+                        FROM activities
+                        ORDER BY start_date DESC
+                            LIMIT %s
+                        """, (limit,))
 
             activities = []
             for row in cur.fetchall():
@@ -176,7 +179,8 @@ class MySQLRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
+                           start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from MySQL"""
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate']
@@ -350,25 +354,26 @@ class MySQLRepository(DatabaseRepository):
 
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO activities (start_date, activity_id, name, sport, athlete_id, distance,
-                                        moving_time, elapsed_time, total_elevation_gain, average_speed,
-                                        max_speed, average_heartrate, max_heartrate, average_cadence)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    start_date = VALUES(start_date),
-                    name = VALUES(name),
-                    sport = VALUES(sport),
-                    athlete_id = VALUES(athlete_id),
-                    distance = VALUES(distance),
-                    moving_time = VALUES(moving_time),
-                    elapsed_time = VALUES(elapsed_time),
-                    total_elevation_gain = VALUES(total_elevation_gain),
-                    average_speed = VALUES(average_speed),
-                    max_speed = VALUES(max_speed),
-                    average_heartrate = VALUES(average_heartrate),
-                    max_heartrate = VALUES(max_heartrate),
-                    average_cadence = VALUES(average_cadence)
-                """, row)
+                        INSERT INTO activities (start_date, activity_id, name, sport, athlete_id, distance,
+                                                moving_time, elapsed_time, total_elevation_gain, average_speed,
+                                                max_speed, average_heartrate, max_heartrate, average_cadence)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
+                        UPDATE
+                            start_date =
+                        VALUES (start_date), name =
+                        VALUES (name), sport =
+                        VALUES (sport), athlete_id =
+                        VALUES (athlete_id), distance =
+                        VALUES (distance), moving_time =
+                        VALUES (moving_time), elapsed_time =
+                        VALUES (elapsed_time), total_elevation_gain =
+                        VALUES (total_elevation_gain), average_speed =
+                        VALUES (average_speed), max_speed =
+                        VALUES (max_speed), average_heartrate =
+                        VALUES (average_heartrate), max_heartrate =
+                        VALUES (max_heartrate), average_cadence =
+                        VALUES (average_cadence)
+                        """, row)
         self.conn.commit()
 
     def write_activity_streams(self, activity: dict, streams: dict):
@@ -414,12 +419,12 @@ class MySQLRepository(DatabaseRepository):
 
         with self.conn.cursor() as cur:
             cur.execute("DELETE FROM streams WHERE activity_id = %s", (activity_id,))
-            
+
             cur.executemany("""
-                               INSERT INTO streams (ts, activity_id, sport, athlete_id, lat, lng, altitude,
-                                                    heartrate, cadence, speed, distance)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                               """, rows)
+                            INSERT INTO streams (ts, activity_id, sport, athlete_id, lat, lng, altitude,
+                                                 heartrate, cadence, speed, distance)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, rows)
         self.conn.commit()
 
     def delete_activity(self, activity_id: str):
@@ -483,8 +488,10 @@ class MySQLRepository(DatabaseRepository):
         """Get the name of an activity by its ID."""
         with self.conn.cursor() as cur:
             cur.execute("""
-                SELECT name FROM activities WHERE activity_id = %s
-            """, (int(activity_id),))
+                        SELECT name
+                        FROM activities
+                        WHERE activity_id = %s
+                        """, (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
 
@@ -492,21 +499,21 @@ class MySQLRepository(DatabaseRepository):
         """Log the result of a sync operation."""
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO logs (added, removed, trigger_source, success, action, user)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (added, removed, trigger, success, action, user))
+                        INSERT INTO logs (added, removed, trigger_source, success, action, user)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (added, removed, trigger, success, action, user))
         self.conn.commit()
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get the latest sync logs."""
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute("""
-                SELECT created_at as timestamp, added, removed, trigger_source, success, action, user
-                FROM logs
-                ORDER BY created_at DESC
-                LIMIT %s
-            """, (limit,))
-            
+                        SELECT created_at as timestamp, added, removed, trigger_source, success, action, user
+                        FROM logs
+                        ORDER BY created_at DESC
+                            LIMIT %s
+                        """, (limit,))
+
             logs = []
             for row in cur.fetchall():
                 log = dict(row)

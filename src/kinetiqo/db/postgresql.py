@@ -11,13 +11,15 @@ from psycopg2.extras import execute_batch, RealDictCursor
 
 logger = logging.getLogger("kinetiqo")
 
+
 class PostgresqlRepository(DatabaseRepository):
     def __init__(self, config: Config):
         self.config = config
         try:
             self.conn = self._connect()
             if config.database_connect_verbose:
-                logger.info(f"Connected to PostgreSQL at {config.postgresql_host}:{config.postgresql_port} - {self.get_pg_version()}")
+                logger.info(
+                    f"Connected to PostgreSQL at {config.postgresql_host}:{config.postgresql_port} - {self.get_pg_version()}")
         except psycopg2.OperationalError as e:
             # Check if the error is "database does not exist"
             if f'database "{config.postgresql_database}" does not exist' in str(e):
@@ -25,7 +27,8 @@ class PostgresqlRepository(DatabaseRepository):
                 self._create_database()
                 self.conn = self._connect()
             else:
-                logger.error(f"Failed to connect to PostgreSQL at {config.postgresql_host}:{config.postgresql_port}: {e}")
+                logger.error(
+                    f"Failed to connect to PostgreSQL at {config.postgresql_host}:{config.postgresql_port}: {e}")
                 sys.exit(1)
 
     def _connect(self, dbname=None):
@@ -75,15 +78,15 @@ class PostgresqlRepository(DatabaseRepository):
         try:
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
-                
+
                 # Check if tables exist
                 cur.execute("""
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_name IN ('activities', 'streams', 'logs')
-                """)
+                            SELECT table_name
+                            FROM information_schema.tables
+                            WHERE table_name IN ('activities', 'streams', 'logs')
+                            """)
                 tables = {row[0] for row in cur.fetchall()}
-                
+
                 if 'activities' not in tables:
                     logger.error("Table 'activities' is missing.")
                     return False
@@ -93,7 +96,7 @@ class PostgresqlRepository(DatabaseRepository):
                 if 'logs' not in tables:
                     logger.error("Table 'logs' is missing.")
                     return False
-                
+
                 return True
         except Exception as e:
             logger.error(f"Flight check failed: {e}")
@@ -135,20 +138,19 @@ class PostgresqlRepository(DatabaseRepository):
         """Get a list of activities for display."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT 
-                    activity_id as id,
-                    name,
-                    sport as type,
-                    distance,
-                    moving_time,
-                    total_elevation_gain,
-                    start_date,
-                    average_speed,
-                    average_heartrate
-                FROM activities 
-                ORDER BY start_date DESC 
-                LIMIT %s
-            """, (limit,))
+                        SELECT activity_id as id,
+                               name,
+                               sport       as type,
+                               distance,
+                               moving_time,
+                               total_elevation_gain,
+                               start_date,
+                               average_speed,
+                               average_heartrate
+                        FROM activities
+                        ORDER BY start_date DESC
+                            LIMIT %s
+                        """, (limit,))
 
             activities = []
             for row in cur.fetchall():
@@ -158,7 +160,8 @@ class PostgresqlRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
-    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
+                           start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from PostgreSQL"""
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate']
@@ -229,20 +232,19 @@ class PostgresqlRepository(DatabaseRepository):
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT 
-                    activity_id as id,
-                    name,
-                    sport as type,
-                    distance,
-                    moving_time,
-                    total_elevation_gain,
-                    start_date,
-                    average_speed,
-                    average_heartrate
-                FROM activities 
-                WHERE activity_id = ANY(%s)
-                ORDER BY start_date DESC
-            """, (int_ids,))
+                        SELECT activity_id as id,
+                               name,
+                               sport       as type,
+                               distance,
+                               moving_time,
+                               total_elevation_gain,
+                               start_date,
+                               average_speed,
+                               average_heartrate
+                        FROM activities
+                        WHERE activity_id = ANY (%s)
+                        ORDER BY start_date DESC
+                        """, (int_ids,))
 
             activities = []
             for row in cur.fetchall():
@@ -335,8 +337,8 @@ class PostgresqlRepository(DatabaseRepository):
                                                 moving_time, elapsed_time, total_elevation_gain, average_speed,
                                                 max_speed, average_heartrate, max_heartrate, average_cadence)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s)
-                        ON CONFLICT (activity_id) DO UPDATE SET
+                                %s, %s, %s) ON CONFLICT (activity_id) DO
+                        UPDATE SET
                             start_date = EXCLUDED.start_date,
                             name = EXCLUDED.name,
                             sport = EXCLUDED.sport,
@@ -436,13 +438,13 @@ class PostgresqlRepository(DatabaseRepository):
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Use ANY for list of IDs
             cur.execute("""
-                SELECT activity_id, lat, lng
-                FROM streams
-                WHERE activity_id = ANY(%s)
-                  AND lat IS NOT NULL
-                  AND lng IS NOT NULL
-                ORDER BY activity_id, ts
-            """, (int_ids,))
+                        SELECT activity_id, lat, lng
+                        FROM streams
+                        WHERE activity_id = ANY (%s)
+                          AND lat IS NOT NULL
+                          AND lng IS NOT NULL
+                        ORDER BY activity_id, ts
+                        """, (int_ids,))
 
             for row in cur.fetchall():
                 aid = str(row['activity_id'])
@@ -459,8 +461,10 @@ class PostgresqlRepository(DatabaseRepository):
         """Get the name of an activity by its ID."""
         with self.conn.cursor() as cur:
             cur.execute("""
-                SELECT name FROM activities WHERE activity_id = %s
-            """, (int(activity_id),))
+                        SELECT name
+                        FROM activities
+                        WHERE activity_id = %s
+                        """, (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
 
@@ -468,20 +472,20 @@ class PostgresqlRepository(DatabaseRepository):
         """Log the result of a sync operation."""
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO logs (added, removed, trigger_source, success, action, "user")
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (added, removed, trigger, success, action, user))
+                        INSERT INTO logs (added, removed, trigger_source, success, action, "user")
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (added, removed, trigger, success, action, user))
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get the latest sync logs."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT created_at as timestamp, added, removed, trigger_source, success, action, "user"
-                FROM logs
-                ORDER BY created_at DESC
-                LIMIT %s
-            """, (limit,))
-            
+                        SELECT created_at as timestamp, added, removed, trigger_source, success, action, "user"
+                        FROM logs
+                        ORDER BY created_at DESC
+                            LIMIT %s
+                        """, (limit,))
+
             logs = []
             for row in cur.fetchall():
                 log = dict(row)

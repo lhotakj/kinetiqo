@@ -46,8 +46,12 @@
     }
 
     @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
     }
 
     /* Pulse animation for the loading text */
@@ -56,8 +60,12 @@
     }
 
     @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
     }
 </style>
 {% endblock %}
@@ -68,15 +76,19 @@
     <div class="mb-4 flex flex-wrap justify-between items-center gap-4">
         <div>
             <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{{ title }}</h1>
-            <p id="map-subtitle" class="text-gray-500 dark:text-gray-400 text-sm">Visualizing selected activities on the map.</p>
+            <p id="map-subtitle" class="text-gray-500 dark:text-gray-400 text-sm">Visualizing selected activities on the
+                map.</p>
         </div>
         <div class="flex flex-wrap items-center gap-4">
             <!-- Base Map Selector -->
             <div class="flex items-center gap-2">
-                <label for="basemapPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Base Map:</label>
-                <select id="basemapPicker" class="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                <label for="basemapPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Base
+                    Map:</label>
+                <select id="basemapPicker"
+                        class="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
                     {% for key, provider in tile_providers.items() %}
-                    <option value="{{ key }}" {% if key == current_basemap %}selected{% endif %}>{{ provider.name }}</option>
+                    <option value="{{ key }}" {% if key== current_basemap %}selected{% endif %}>{{ provider.name }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -84,40 +96,52 @@
             <!-- Color Picker -->
             <div class="flex items-center gap-2">
                 <label for="colorPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Color:</label>
-                <input type="color" id="colorPicker" value="{{ current_color }}" class="h-9 w-16 p-1 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
+                <input type="color" id="colorPicker" value="{{ current_color }}"
+                       class="h-9 w-16 p-1 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
             </div>
 
             <!-- Width Slider -->
             <div class="flex items-center gap-2">
                 <label for="widthPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Width:</label>
-                <input type="range" id="widthPicker" min="1" max="20" value="{{ current_width }}" class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="widthPicker" min="1" max="20" value="{{ current_width }}"
+                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
                 <span id="widthValue" class="text-sm text-gray-500 dark:text-gray-400 w-6">{{ current_width }}</span>
             </div>
 
             <!-- Opacity Slider -->
             <div class="flex items-center gap-2">
                 <label for="opacityPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Opacity:</label>
-                <input type="range" id="opacityPicker" min="0" max="100" value="{{ current_opacity }}" class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
-                <span id="opacityValue" class="text-sm text-gray-500 dark:text-gray-400 w-8">{{ current_opacity }}%</span>
+                <input type="range" id="opacityPicker" min="0" max="100" value="{{ current_opacity }}"
+                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                <span id="opacityValue"
+                      class="text-sm text-gray-500 dark:text-gray-400 w-8">{{ current_opacity }}%</span>
             </div>
 
             <!-- Export Button -->
-            <button id="exportBtn" disabled class="px-4 py-2 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed transition shadow-sm flex items-center">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <button id="exportBtn" disabled
+                    class="px-4 py-2 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed transition shadow-sm flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
                 Export PNG
             </button>
 
             <!-- Back to List -->
-            <a href="{{ url_for('activities') }}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+            <a href="{{ url_for('activities') }}"
+               class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
                 Back to List
             </a>
         </div>
     </div>
 
     <!-- Map Container -->
-    <div id="map-container" class="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden relative z-0" style="min-height: 500px;">
+    <div id="map-container"
+         class="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden relative z-0"
+         style="min-height: 500px;">
         <!-- Loading State -->
-        <div id="loading-state" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800">
+        <div id="loading-state"
+             class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800">
             <div class="loading-spinner mb-6"></div>
             <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Generating your map...</h3>
             <p class="text-gray-500 dark:text-gray-400 text-center max-w-md loading-pulse mb-4">
@@ -131,7 +155,8 @@
                     <span id="progress-percent">0%</span>
                 </div>
                 <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                    <div id="progress-bar" class="bg-orange-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    <div id="progress-bar" class="bg-orange-500 h-2.5 rounded-full transition-all duration-300"
+                         style="width: 0%"></div>
                 </div>
                 <p id="progress-detail" class="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center"></p>
             </div>
@@ -143,13 +168,17 @@
         <div id="map-content" class="w-full h-full" style="display: none;"></div>
 
         <!-- Error State -->
-        <div id="error-state" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800" style="display: none;">
+        <div id="error-state"
+             class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800"
+             style="display: none;">
             <svg class="w-16 h-16 text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Unable to generate map</h3>
             <p id="error-message" class="text-gray-500 dark:text-gray-400 text-center max-w-md"></p>
-            <a href="{{ url_for('activities') }}" class="mt-6 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+            <a href="{{ url_for('activities') }}"
+               class="mt-6 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
                 Back to Activities
             </a>
         </div>
@@ -159,12 +188,23 @@
 <script>
     // Store filter parameters for API request
     const filterParams = {
-        activity_ids: {{ activity_ids | tojson | safe }},
-        color: "{{ current_color }}",
-        width: "{{ current_width }}",
-        opacity: "{{ current_opacity }}",
-        basemap: "{{ current_basemap }}"
-    };
+        activity_ids: {
+    {
+        activity_ids | tojson | safe
+    }
+    },
+    color: "{{ current_color }}",
+        width
+    :
+    "{{ current_width }}",
+        opacity
+    :
+    "{{ current_opacity }}",
+        basemap
+    :
+    "{{ current_basemap }}"
+    }
+    ;
 
     // Build API URL with parameters
     function buildApiUrl() {
@@ -271,7 +311,7 @@
         const startTime = Date.now();
         const eventSource = new EventSource(buildApiUrl());
 
-        eventSource.onmessage = function(event) {
+        eventSource.onmessage = function (event) {
             try {
                 const data = JSON.parse(event.data);
 
@@ -281,7 +321,7 @@
                     const total = data.total || 0;
 
                     let label = 'Processing...';
-                    switch(data.step) {
+                    switch (data.step) {
                         case 'activities':
                             label = 'Finding activities';
                             break;
@@ -322,7 +362,7 @@
             }
         };
 
-        eventSource.onerror = function(error) {
+        eventSource.onerror = function (error) {
             console.error('SSE error:', error);
             eventSource.close();
             showError('Connection lost. Please try again.');

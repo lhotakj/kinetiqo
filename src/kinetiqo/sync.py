@@ -8,6 +8,7 @@ from kinetiqo.strava import StravaClient
 
 logger = logging.getLogger("kinetiqo")
 
+
 class SyncService:
     def __init__(self, config: Config):
         self.strava = StravaClient(config)
@@ -34,11 +35,11 @@ class SyncService:
             # Sanitize message to ensure it doesn't break SSE format (no newlines)
             msg = str(msg).replace('\n', ' ').replace('\r', '')
             logger.info(msg)
-            
+
             log_buffer.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
             if len(log_buffer) > 20:
                 log_buffer.pop(0)
-            
+
             log_content = '<div class="font-mono text-xs text-gray-600 overflow-y-auto max-h-64 flex flex-col-reverse">'
             for line in log_buffer:
                 log_content += f'<div class="truncate">{line}</div>'
@@ -46,7 +47,7 @@ class SyncService:
 
             if final:
                 # OOB Swap to replace the log area (stopping SSE) and re-enable the button
-                
+
                 # 1. Replace wrapper to remove sse-connect but keep log
                 wrapper_html = f"""<div id="sync-log-area" hx-swap-oob="true">
                     <div class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
@@ -63,7 +64,7 @@ class SyncService:
                 # We need to conditionally add hx-include only for full sync, but since we are in sync() method,
                 # we know if it's full sync.
                 hx_include = 'hx-include="#syncLimit"' if full_sync else ''
-                
+
                 button_html = f"""<button id="start-sync-btn" 
                         hx-get="/sync/start/{sync_type_str}" 
                         hx-target="#sync-log-area" 
@@ -83,7 +84,8 @@ class SyncService:
                 return f"data: {log_content}\n\n"
 
         try:
-            yield yield_log(f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'}, Limit: {limit_days} days)...")
+            yield yield_log(
+                f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'}, Limit: {limit_days} days)...")
 
             # 0. Initialize database schema
             self.db.initialize_schema()
@@ -96,12 +98,14 @@ class SyncService:
             after = None
             if limit_days > 0:
                 after = int((datetime.now(timezone.utc) - timedelta(days=limit_days)).timestamp())
-                yield yield_log(f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)} (timestamp: {after})")
+                yield yield_log(
+                    f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)} (timestamp: {after})")
             elif not full_sync:
                 latest_ts = self.db.get_latest_activity_time()
                 if latest_ts:
                     after = latest_ts - 86400  # Go back 1 day
-                    yield yield_log(f"Fast sync: Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
+                    yield yield_log(
+                        f"Fast sync: Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
                 else:
                     yield yield_log("Fast sync: No previous data found, falling back to full fetch.")
 
@@ -109,7 +113,7 @@ class SyncService:
             activities = []
             for progress_msg in self.strava.get_activities(activities, after=after):
                 yield yield_log(progress_msg)
-                
+
             yield yield_log(f"Found {len(activities)} activities from Strava.")
 
             # 4. Identify new activities to sync

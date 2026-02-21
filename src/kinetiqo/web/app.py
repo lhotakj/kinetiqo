@@ -23,12 +23,14 @@ app.secret_key = 'super_secret_key_for_demo_only'
 config = Config()
 db_repo = None
 
+
 def set_config(new_config: Config):
     """Sets the configuration and initializes the repository."""
     global config, db_repo
     config = new_config
     # Initialize the repository immediately with the provided config
     db_repo = create_repository(config)
+
 
 # --- Login Configuration ---
 login_manager = LoginManager()
@@ -42,10 +44,11 @@ def load_user(user_id):
         return User(user_id)
     return None
 
+
 def describe_cron(expression):
     if not expression:
         return "Not scheduled"
-    
+
     parts = expression.strip().split()
     if len(parts) != 5:
         return expression
@@ -56,41 +59,42 @@ def describe_cron(expression):
         if minute.startswith("*/") and hour == "*" and day == "*" and month == "*" and dow == "*":
             interval = minute.split("/")[1]
             return f"Every {interval} minutes"
-        
+
         if minute == "0" and hour != "*" and day == "*" and month == "*" and dow == "*":
             return f"Daily at {hour}:00"
-            
+
         if minute != "*" and hour != "*" and day == "*" and month == "*" and dow == "*":
-             return f"Daily at {hour}:{minute.zfill(2)}"
+            return f"Daily at {hour}:{minute.zfill(2)}"
 
     except:
         pass
-        
+
     return expression
+
 
 def get_dynamic_limit_days():
     """Calculates dynamic limit days based on current date."""
     today = datetime.now()
-    
+
     # This Week: Days since Monday (0 = Mon)
     # If today is Mon (0), we want 1 day (today). If Tue (1), 2 days.
     this_week = today.weekday() + 1
-    
+
     # This Month: Days since 1st of month
     this_month = today.day
-    
+
     # Helper to get days since start of X months ago
     def days_since_start_of_months_ago(n_months):
         year = today.year
         month = today.month
-        
+
         target_month = month - n_months
         target_year = year
-        
+
         while target_month <= 0:
             target_month += 12
             target_year -= 1
-            
+
         first_of_target = today.replace(year=target_year, month=target_month, day=1)
         return (today - first_of_target).days + 1
 
@@ -98,19 +102,19 @@ def get_dynamic_limit_days():
     last_2_months = days_since_start_of_months_ago(2)
     last_3_months = days_since_start_of_months_ago(3)
     last_6_months = days_since_start_of_months_ago(6)
-    
+
     # This Year: Days since Jan 1st
     first_of_year = today.replace(month=1, day=1)
     this_year = (today - first_of_year).days + 1
-    
+
     # Last Year: This year + Previous year
     first_of_last_year = first_of_year.replace(year=first_of_year.year - 1)
     last_year = (today - first_of_last_year).days + 1
-    
+
     # Last Two Years: This year + Previous 2 years
     first_of_2_years_ago = first_of_year.replace(year=first_of_year.year - 2)
     last_2_years = (today - first_of_2_years_ago).days + 1
-    
+
     return {
         'this_week': this_week,
         'this_month': this_month,
@@ -122,6 +126,7 @@ def get_dynamic_limit_days():
         'last_year': last_year,
         'last_2_years': last_2_years
     }
+
 
 # --- Routes ---
 
@@ -164,13 +169,13 @@ def activities():
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
-            
+
         data = repo.get_activities(limit=50)
     except Exception as e:
         logger.error(f"Error fetching activities: {e}")
         flash(f"Error fetching activities: {e}")
         data = []
-        
+
     return render_template('activities.html', title="Activities", activities=data)
 
 
@@ -377,20 +382,20 @@ def logs():
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
-            
+
         # Commit to ensure fresh data
         if hasattr(repo, 'conn') and repo.conn:
             try:
                 repo.conn.commit()
             except Exception as e:
                 logger.warning(f"Failed to commit transaction in logs: {e}")
-            
+
         logs_data = repo.get_logs(limit=25)
-        
+
         # Format logs as text
         log_text = f"{'DATETIME':<25} {'ACTION':<12} {'ADDED':<8} {'REMOVED':<8} {'TRIGGER':<10} {'USER':<10} {'RESULT':<10}\n"
         log_text += "-" * 95 + "\n"
-        
+
         for log in logs_data:
             ts = log['timestamp']
             # Try to format timestamp nicely if it's a string
@@ -399,32 +404,34 @@ def logs():
                 ts_str = dt.strftime("%b %d, %Y %H:%M")
             except:
                 ts_str = str(ts)[:20]
-                
+
             status = "success" if log['success'] else "failed"
             action = log.get('action', 'unknown') or 'unknown'
             user = log.get('user', '-') or '-'
-            
+
             log_text += f"{ts_str:<25} {action:<12} {log['added']:<8} {log['removed']:<8} {log['trigger_source']:<10} {user:<10} {status:<10}\n"
-            
+
     except Exception as e:
         logger.error(f"Error fetching logs: {e}")
         log_text = f"Error fetching logs: {e}"
         if "doesn't exist" in str(e) or "does not exist" in str(e):
-             log_text = "Table logs doesn't exist or is inaccessible"
-        
+            log_text = "Table logs doesn't exist or is inaccessible"
+
     return render_template('logs.html', title="Sync Logs", log_text=log_text)
+
 
 @app.route('/settings')
 @login_required
 def settings():
     return render_template('settings.html', title="Settings")
 
+
 @app.route('/api/settings')
 @login_required
 def get_settings():
     full_sync = os.environ.get('FULL_SYNC', '')
     fast_sync = os.environ.get('FAST_SYNC', '')
-    
+
     return jsonify({
         'full_sync': {
             'expression': full_sync,
@@ -436,6 +443,7 @@ def get_settings():
         }
     })
 
+
 @app.route('/api/activities', methods=['GET', 'DELETE'])
 def get_activities_api():
     if request.method == 'DELETE':
@@ -444,10 +452,10 @@ def get_activities_api():
     # Check if pagination parameters are provided
     page = request.args.get('page', type=int)
     per_page = request.args.get('per_page', type=int)
-    
+
     sort_column = request.args.get('sortColumn', 'start_date')
     sort_dir = request.args.get('sortDir', 'DESC')
-    
+
     # Handle types filtering
     types = request.args.getlist('types[]')
     if not types:
@@ -460,7 +468,7 @@ def get_activities_api():
     if per_page is None:
         # Client-side processing mode: return all data
         # We use a very high limit to effectively fetch "all"
-        limit = 100000 
+        limit = 100000
         offset = 0
     else:
         # Server-side processing mode
@@ -473,7 +481,7 @@ def get_activities_api():
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
-        
+
         # Commit the transaction to ensure we see the latest data
         if hasattr(repo, 'conn') and repo.conn:
             try:
@@ -530,12 +538,12 @@ def get_activities_api():
 
         return jsonify({
             'data': data,
-            'recordsTotal': len(data), # This might be inaccurate if paginated, but for client-side it's fine. 
-                                       # For server-side, we should use count_activities.
-                                       # But here we are mixing modes. 
-                                       # If per_page is set, we are doing server-side pagination.
-                                       # recordsTotal should be total in DB.
-                                       # recordsFiltered should be total matching filters.
+            'recordsTotal': len(data),  # This might be inaccurate if paginated, but for client-side it's fine.
+            # For server-side, we should use count_activities.
+            # But here we are mixing modes.
+            # If per_page is set, we are doing server-side pagination.
+            # recordsTotal should be total in DB.
+            # recordsFiltered should be total matching filters.
             'totals': totals
         })
     except Exception as e:
@@ -551,19 +559,20 @@ def delete_activity_api(activity_id):
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
-            
+
         repo.delete_activity(activity_id)
-        
+
         # Log the deletion
         try:
             repo.log_sync(added=0, removed=1, trigger="web", success=True, action="delete", user=current_user.id)
         except Exception as log_err:
             logger.error(f"Failed to log deletion: {log_err}")
-            
+
         return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
     except Exception as e:
         logger.error(f"Error deleting activity {activity_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @login_required
 def delete_activities_api():
@@ -575,11 +584,12 @@ def delete_activities_api():
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
-        
+
         repo.delete_activities(activity_ids)
-        
+
         try:
-            repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk", user=current_user.id)
+            repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk",
+                          user=current_user.id)
         except Exception as log_err:
             logger.error(f"Failed to log bulk deletion: {log_err}")
 
@@ -631,6 +641,7 @@ def start_sync_ui(type):
     </button>
     '''
 
+
 @app.route('/api/sync/stream/<type>')
 @login_required
 def sync_stream(type):
@@ -640,13 +651,14 @@ def sync_stream(type):
     is_full_sync = (type == 'full')
     user_id = current_user.id
     limit_days = request.args.get('limit_days', default=0, type=int)
-    
+
     logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}")
-    
+
     def generate():
         sync_service = SyncService(config)
         try:
-            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id, limit_days=limit_days):
+            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id,
+                                              limit_days=limit_days):
                 yield progress
         except Exception as e:
             logger.error(f"Sync failed: {e}")
@@ -655,6 +667,7 @@ def sync_stream(type):
             sync_service.close()
 
     return Response(generate(), mimetype='text/event-stream')
+
 
 # Context processor to inject version into all templates
 @app.context_processor
@@ -665,13 +678,14 @@ def inject_version():
         base_dir = os.path.dirname(os.path.abspath(__file__))
         # Check current dir (kinetiqo/web/) -> ../../version.txt
         version_path = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "version.txt")
-        
+
         if os.path.exists(version_path):
             with open(version_path, "r") as vf:
                 version = vf.read().strip()
     except:
         pass
     return dict(app_version=version)
+
 
 def close_db_connection():
     """Closes the database connection if it's open."""
@@ -683,10 +697,13 @@ def close_db_connection():
         except Exception:
             pass
 
+
 atexit.register(close_db_connection)
+
 
 def run_app():
     app.run(debug=True, port=4444, host='0.0.0.0')
+
 
 if __name__ == '__main__':
     run_app()

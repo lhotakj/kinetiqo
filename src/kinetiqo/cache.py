@@ -9,6 +9,7 @@ from .config import Config
 
 logger = logging.getLogger("kinetiqo")
 
+
 class CacheManager:
     def __init__(self, config: Config):
         self.config = config

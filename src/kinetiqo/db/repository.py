@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Set, List, Dict, Any
 
+
 class DatabaseRepository(ABC):
     """Abstract base class for database operations."""
 
@@ -30,7 +31,8 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None, start_date=None, end_date=None):
+    def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
+                           start_date=None, end_date=None):
         """Get a list of activities for display."""
         pass
 
