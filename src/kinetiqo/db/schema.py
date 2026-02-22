@@ -27,7 +27,37 @@ SCHEMA_DEFINITION = {
             {"name": "average_heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "max_heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "average_cadence", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"}
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "average_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "max_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "achievement_count", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "average_temp", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "calories", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "device_watts", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
+             "type_firebird": "SMALLINT"},
+            {"name": "elev_high", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "elev_low", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "gear_id", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
+            {"name": "has_heartrate", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
+             "type_firebird": "SMALLINT"},
+            {"name": "kilojoules", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "pr_count", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "suffer_score", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "weighted_average_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "workout_type", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"}
         ],
         "indexes": [
             {
@@ -57,7 +87,14 @@ SCHEMA_DEFINITION = {
             {"name": "speed", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
              "type_firebird": "DOUBLE PRECISION"},
             {"name": "distance", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"}
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "temp", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "grade_smooth", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "moving", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN", "type_firebird": "SMALLINT"}
         ],
         "constraints": [
             {
@@ -226,6 +263,29 @@ class SchemaManager:
                 try:
                     cur.execute(alter_sql)
                     self.conn.commit()
+                finally:
+                    cur.close()
+
+        # Drop columns not in the schema definition
+        desired_columns = {col["name"] for col in definition["columns"]}
+        extra_columns = existing_columns - desired_columns
+        if extra_columns:
+            for col_name in sorted(extra_columns):
+                logger.info(f"{self.db_type.upper()}: Dropping extra column '{col_name}' from table '{table_name}'...")
+                quoted_table = self._quote_identifier(table_name)
+                quoted_col = self._quote_identifier(col_name)
+
+                if self.db_type == 'firebird':
+                    alter_sql = f"ALTER TABLE {quoted_table} DROP {quoted_col}"
+                else:
+                    alter_sql = f"ALTER TABLE {quoted_table} DROP COLUMN {quoted_col}"
+
+                cur = self.conn.cursor()
+                try:
+                    cur.execute(alter_sql)
+                    self.conn.commit()
+                except Exception as exc:
+                    logger.warning(f"{self.db_type.upper()}: Failed to drop column '{col_name}' on '{table_name}': {exc}")
                 finally:
                     cur.close()
 

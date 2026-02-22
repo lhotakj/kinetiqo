@@ -28,5 +28,5 @@ docker run --rm \
    -e POSTGRESQL_USER="${POSTGRESQL_USER}" \
    -e POSTGRESQL_PASSWORD="${POSTGRESQL_PASSWORD}" \
    -e POSTGRESQL_DATABASE="${POSTGRESQL_DATABASE}" \
-   -p "8180:8000" \
+   -p "8180:4444" \
    kinetiqo:latest

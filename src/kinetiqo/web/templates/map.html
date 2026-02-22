@@ -188,23 +188,12 @@
 <script>
     // Store filter parameters for API request
     const filterParams = {
-        activity_ids: {
-    {
-        activity_ids | tojson | safe
-    }
-    },
-    color: "{{ current_color }}",
-        width
-    :
-    "{{ current_width }}",
-        opacity
-    :
-    "{{ current_opacity }}",
-        basemap
-    :
-    "{{ current_basemap }}"
-    }
-    ;
+        activity_ids: {{ activity_ids | tojson | safe }},
+        color: "{{ current_color }}",
+        width: "{{ current_width }}",
+        opacity: "{{ current_opacity }}",
+        basemap: "{{ current_basemap }}"
+    };
 
     // Build API URL with parameters
     function buildApiUrl() {
@@ -303,6 +292,19 @@
         }
     }
 
+    function decodeMapHtml(data) {
+        if (data && data.html_b64) {
+            try {
+                const binary = atob(data.html_b64);
+                const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+                return new TextDecoder('utf-8').decode(bytes);
+            } catch (e) {
+                console.error('Failed to decode map HTML:', e);
+            }
+        }
+        return data && data.html ? data.html : '';
+    }
+
     // Load map data using Server-Sent Events for progress
     function loadMap() {
         const statusEl = document.getElementById('loading-status');
@@ -348,9 +350,11 @@
                     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                     statusEl.textContent = `Map generated in ${elapsed}s`;
 
+                    const html = decodeMapHtml(data);
+
                     // Small delay for smooth transition
                     setTimeout(() => {
-                        showMap(data.html, data.activity_count, data.point_count);
+                        showMap(html, data.activity_count, data.point_count);
                     }, 300);
 
                 } else if (data.type === 'error') {
@@ -468,4 +472,3 @@
     });
 </script>
 {% endblock %}
-

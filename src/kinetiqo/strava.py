@@ -116,7 +116,7 @@ class StravaClient:
 
         url = f"{self.BASE_URL}/activities/{activity_id}/streams"
         params = {
-            "keys": "time,latlng,altitude,heartrate,cadence,velocity_smooth,distance",
+            "keys": "time,latlng,altitude,heartrate,cadence,velocity_smooth,distance,watts,temp,grade_smooth,moving",
             "key_by_type": "true"
         }
         logger.debug(f"GET {url} | params={params}")

@@ -556,6 +556,8 @@
             <th class="py-3 px-4 w-32 text-right">Elevation (m)</th>
             <th class="py-3 px-4 w-32">Moving Time</th>
             <th class="py-3 px-4 w-32">Avg Speed (km/h)</th>
+            <th class="py-3 px-4 w-32 text-right">Avg Watts (W)</th>
+            <th class="py-3 px-4 w-32 text-right">Max Watts (W)</th>
             <th class="py-3 px-4 w-32">Avg HR (bpm)</th>
             <th class="py-3 px-4 w-32">Link to Strava</th>
             <th class="py-3 px-4 w-20 text-center">Delete</th>
@@ -812,6 +814,26 @@
                         if (type === 'display') {
                             // Convert m/s to km/h
                             return (data * 3.6).toFixed(1);
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": "average_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        if (type === 'display') {
+                            return data > 0 ? Math.round(data) : '-';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": "max_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        if (type === 'display') {
+                            return data > 0 ? Math.round(data) : '-';
                         }
                         return data;
                     }
@@ -1140,7 +1162,7 @@
             if (selectedData.length === 0) return;
 
             // Define CSV headers and data mapping
-            const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg HR (bpm)'];
+            const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg Watts (W)', 'Max Watts (W)', 'Avg HR (bpm)'];
 
             const csvContent = [
                 headers.join(','),
@@ -1150,6 +1172,8 @@
                     const elevationM = row.elevation.toFixed(2); // Assuming elevation is in meters
                     const movingTime = formatDuration(row.moving_time);
                     const avgSpeed = (row.average_speed * 3.6).toFixed(1);
+                    const avgWatts = row.average_watts > 0 ? Math.round(row.average_watts) : '';
+                    const maxWatts = row.max_watts > 0 ? Math.round(row.max_watts) : '';
                     const avgHr = row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '';
 
                     // Escape quotes in name
@@ -1164,6 +1188,8 @@
                         elevationM,
                         movingTime,
                         avgSpeed,
+                        avgWatts,
+                        maxWatts,
                         avgHr
                     ].join(',');
                 })

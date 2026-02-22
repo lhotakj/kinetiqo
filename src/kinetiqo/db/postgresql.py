@@ -146,7 +146,9 @@ class PostgresqlRepository(DatabaseRepository):
                                total_elevation_gain,
                                start_date,
                                average_speed,
-                               average_heartrate
+                               average_heartrate,
+                               average_watts,
+                               max_watts
                         FROM activities
                         ORDER BY start_date DESC
                             LIMIT %s
@@ -164,7 +166,7 @@ class PostgresqlRepository(DatabaseRepository):
                            start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from PostgreSQL"""
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -204,7 +206,9 @@ class PostgresqlRepository(DatabaseRepository):
                 total_elevation_gain,
                 start_date,
                 average_speed,
-                average_heartrate
+                average_heartrate,
+                average_watts,
+                max_watts
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -240,7 +244,9 @@ class PostgresqlRepository(DatabaseRepository):
                                total_elevation_gain,
                                start_date,
                                average_speed,
-                               average_heartrate
+                               average_heartrate,
+                               average_watts,
+                               max_watts
                         FROM activities
                         WHERE activity_id = ANY (%s)
                         ORDER BY start_date DESC
@@ -326,7 +332,22 @@ class PostgresqlRepository(DatabaseRepository):
             activity.get("max_speed", 0.0),
             activity.get("average_heartrate"),
             activity.get("max_heartrate"),
-            activity.get("average_cadence")
+            activity.get("average_cadence"),
+            activity.get("average_watts"),
+            activity.get("max_watts"),
+            activity.get("achievement_count"),
+            activity.get("average_temp"),
+            activity.get("calories"),
+            activity.get("device_watts"),
+            activity.get("elev_high"),
+            activity.get("elev_low"),
+            activity.get("gear_id"),
+            activity.get("has_heartrate"),
+            activity.get("kilojoules"),
+            activity.get("pr_count"),
+            activity.get("suffer_score"),
+            activity.get("weighted_average_watts"),
+            activity.get("workout_type")
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to PostgreSQL...")
@@ -335,9 +356,14 @@ class PostgresqlRepository(DatabaseRepository):
             cur.execute("""
                         INSERT INTO activities (start_date, activity_id, name, sport, athlete_id, distance,
                                                 moving_time, elapsed_time, total_elevation_gain, average_speed,
-                                                max_speed, average_heartrate, max_heartrate, average_cadence)
+                                                max_speed, average_heartrate, max_heartrate, average_cadence,
+                                                average_watts, max_watts, achievement_count, average_temp,
+                                                calories, device_watts, elev_high, elev_low, gear_id,
+                                                has_heartrate, kilojoules, pr_count, suffer_score,
+                                                weighted_average_watts, workout_type)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s) ON CONFLICT (activity_id) DO
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
                         UPDATE SET
                             start_date = EXCLUDED.start_date,
                             name = EXCLUDED.name,
@@ -351,7 +377,22 @@ class PostgresqlRepository(DatabaseRepository):
                             max_speed = EXCLUDED.max_speed,
                             average_heartrate = EXCLUDED.average_heartrate,
                             max_heartrate = EXCLUDED.max_heartrate,
-                            average_cadence = EXCLUDED.average_cadence
+                            average_cadence = EXCLUDED.average_cadence,
+                            average_watts = EXCLUDED.average_watts,
+                            max_watts = EXCLUDED.max_watts,
+                            achievement_count = EXCLUDED.achievement_count,
+                            average_temp = EXCLUDED.average_temp,
+                            calories = EXCLUDED.calories,
+                            device_watts = EXCLUDED.device_watts,
+                            elev_high = EXCLUDED.elev_high,
+                            elev_low = EXCLUDED.elev_low,
+                            gear_id = EXCLUDED.gear_id,
+                            has_heartrate = EXCLUDED.has_heartrate,
+                            kilojoules = EXCLUDED.kilojoules,
+                            pr_count = EXCLUDED.pr_count,
+                            suffer_score = EXCLUDED.suffer_score,
+                            weighted_average_watts = EXCLUDED.weighted_average_watts,
+                            workout_type = EXCLUDED.workout_type
                         """, row)
 
     def write_activity_streams(self, activity: dict, streams: dict):
@@ -367,6 +408,10 @@ class PostgresqlRepository(DatabaseRepository):
         cadence_stream = streams.get("cadence", {}).get("data", [])
         speed_stream = streams.get("velocity_smooth", {}).get("data", [])
         distance_stream = streams.get("distance", {}).get("data", [])
+        watts_stream = streams.get("watts", {}).get("data", [])
+        temp_stream = streams.get("temp", {}).get("data", [])
+        grade_stream = streams.get("grade_smooth", {}).get("data", [])
+        moving_stream = streams.get("moving", {}).get("data", [])
 
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
 
@@ -386,7 +431,11 @@ class PostgresqlRepository(DatabaseRepository):
                 hr_stream[i] if i < len(hr_stream) else None,
                 cadence_stream[i] if i < len(cadence_stream) else None,
                 speed_stream[i] if i < len(speed_stream) else None,
-                distance_stream[i] if i < len(distance_stream) else None
+                distance_stream[i] if i < len(distance_stream) else None,
+                watts_stream[i] if i < len(watts_stream) else None,
+                temp_stream[i] if i < len(temp_stream) else None,
+                grade_stream[i] if i < len(grade_stream) else None,
+                moving_stream[i] if i < len(moving_stream) else None
             )
             rows.append(row)
 
@@ -398,10 +447,12 @@ class PostgresqlRepository(DatabaseRepository):
 
             execute_batch(cur, """
                                INSERT INTO streams (ts, activity_id, sport, athlete_id, lat, lng, altitude,
-                                                    heartrate, cadence, speed, distance)
+                                                    heartrate, cadence, speed, distance, watts, temp,
+                                                    grade_smooth, moving)
                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                       %s, %s)
+                                       %s, %s, %s, %s, %s, %s)
                                """, rows, page_size=1000)
+
 
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from PostgreSQL."""
@@ -494,5 +545,15 @@ class PostgresqlRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def close(self):
-        self.conn.close()
+        try:
+            if self.conn:
+                self.conn.close()
+        except Exception as e:
+            logger.warning(f"Error closing PostgreSQL connection: {e}")

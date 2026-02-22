@@ -30,5 +30,7 @@ docker run --rm \
    -e FIREBIRD_USER="${FIREBIRD_USER}" \
    -e FIREBIRD_PASSWORD="${FIREBIRD_PASSWORD}" \
    -e FIREBIRD_DATABASE="${FIREBIRD_DATABASE}" \
-   -p "8180:8000" \
+   -e WEB_LOGIN="${WEB_LOGIN}" \
+   -e WEB_PASSWORD="${WEB_PASSWORD}" \
+   -p "4444:4444" \
    kinetiqo:latest

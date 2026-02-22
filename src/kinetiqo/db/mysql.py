@@ -165,7 +165,9 @@ class MySQLRepository(DatabaseRepository):
                                total_elevation_gain,
                                start_date,
                                average_speed,
-                               average_heartrate
+                               average_heartrate,
+                               average_watts,
+                               max_watts
                         FROM activities
                         ORDER BY start_date DESC
                             LIMIT %s
@@ -183,7 +185,7 @@ class MySQLRepository(DatabaseRepository):
                            start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from MySQL"""
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -221,7 +223,9 @@ class MySQLRepository(DatabaseRepository):
                 total_elevation_gain,
                 start_date,
                 average_speed,
-                average_heartrate
+                average_heartrate,
+                average_watts,
+                max_watts
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -259,7 +263,9 @@ class MySQLRepository(DatabaseRepository):
                     total_elevation_gain,
                     start_date,
                     average_speed,
-                    average_heartrate
+                    average_heartrate,
+                    average_watts,
+                    max_watts
                 FROM activities 
                 WHERE activity_id IN ({placeholders})
                 ORDER BY start_date DESC
@@ -347,7 +353,22 @@ class MySQLRepository(DatabaseRepository):
             activity.get("max_speed", 0.0),
             activity.get("average_heartrate"),
             activity.get("max_heartrate"),
-            activity.get("average_cadence")
+            activity.get("average_cadence"),
+            activity.get("average_watts"),
+            activity.get("max_watts"),
+            activity.get("achievement_count"),
+            activity.get("average_temp"),
+            activity.get("calories"),
+            activity.get("device_watts"),
+            activity.get("elev_high"),
+            activity.get("elev_low"),
+            activity.get("gear_id"),
+            activity.get("has_heartrate"),
+            activity.get("kilojoules"),
+            activity.get("pr_count"),
+            activity.get("suffer_score"),
+            activity.get("weighted_average_watts"),
+            activity.get("workout_type")
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to MySQL...")
@@ -356,23 +377,42 @@ class MySQLRepository(DatabaseRepository):
             cur.execute("""
                         INSERT INTO activities (start_date, activity_id, name, sport, athlete_id, distance,
                                                 moving_time, elapsed_time, total_elevation_gain, average_speed,
-                                                max_speed, average_heartrate, max_heartrate, average_cadence)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
+                                                max_speed, average_heartrate, max_heartrate, average_cadence,
+                                                average_watts, max_watts, achievement_count, average_temp,
+                                                calories, device_watts, elev_high, elev_low, gear_id,
+                                                has_heartrate, kilojoules, pr_count, suffer_score,
+                                                weighted_average_watts, workout_type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
                         UPDATE
-                            start_date =
-                        VALUES (start_date), name =
-                        VALUES (name), sport =
-                        VALUES (sport), athlete_id =
-                        VALUES (athlete_id), distance =
-                        VALUES (distance), moving_time =
-                        VALUES (moving_time), elapsed_time =
-                        VALUES (elapsed_time), total_elevation_gain =
-                        VALUES (total_elevation_gain), average_speed =
-                        VALUES (average_speed), max_speed =
-                        VALUES (max_speed), average_heartrate =
-                        VALUES (average_heartrate), max_heartrate =
-                        VALUES (max_heartrate), average_cadence =
-                        VALUES (average_cadence)
+                            start_date = VALUES (start_date),
+                            name = VALUES (name),
+                            sport = VALUES (sport),
+                            athlete_id = VALUES (athlete_id),
+                            distance = VALUES (distance),
+                            moving_time = VALUES (moving_time),
+                            elapsed_time = VALUES (elapsed_time),
+                            total_elevation_gain = VALUES (total_elevation_gain),
+                            average_speed = VALUES (average_speed),
+                            max_speed = VALUES (max_speed),
+                            average_heartrate = VALUES (average_heartrate),
+                            max_heartrate = VALUES (max_heartrate),
+                            average_cadence = VALUES (average_cadence),
+                            average_watts = VALUES (average_watts),
+                            max_watts = VALUES (max_watts),
+                            achievement_count = VALUES (achievement_count),
+                            average_temp = VALUES (average_temp),
+                            calories = VALUES (calories),
+                            device_watts = VALUES (device_watts),
+                            elev_high = VALUES (elev_high),
+                            elev_low = VALUES (elev_low),
+                            gear_id = VALUES (gear_id),
+                            has_heartrate = VALUES (has_heartrate),
+                            kilojoules = VALUES (kilojoules),
+                            pr_count = VALUES (pr_count),
+                            suffer_score = VALUES (suffer_score),
+                            weighted_average_watts = VALUES (weighted_average_watts),
+                            workout_type = VALUES (workout_type)
                         """, row)
         self.conn.commit()
 
@@ -389,6 +429,10 @@ class MySQLRepository(DatabaseRepository):
         cadence_stream = streams.get("cadence", {}).get("data", [])
         speed_stream = streams.get("velocity_smooth", {}).get("data", [])
         distance_stream = streams.get("distance", {}).get("data", [])
+        watts_stream = streams.get("watts", {}).get("data", [])
+        temp_stream = streams.get("temp", {}).get("data", [])
+        grade_stream = streams.get("grade_smooth", {}).get("data", [])
+        moving_stream = streams.get("moving", {}).get("data", [])
 
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
 
@@ -411,7 +455,11 @@ class MySQLRepository(DatabaseRepository):
                 hr_stream[i] if i < len(hr_stream) else None,
                 cadence_stream[i] if i < len(cadence_stream) else None,
                 speed_stream[i] if i < len(speed_stream) else None,
-                distance_stream[i] if i < len(distance_stream) else None
+                distance_stream[i] if i < len(distance_stream) else None,
+                watts_stream[i] if i < len(watts_stream) else None,
+                temp_stream[i] if i < len(temp_stream) else None,
+                grade_stream[i] if i < len(grade_stream) else None,
+                moving_stream[i] if i < len(moving_stream) else None
             )
             rows.append(row)
 
@@ -422,9 +470,12 @@ class MySQLRepository(DatabaseRepository):
 
             cur.executemany("""
                             INSERT INTO streams (ts, activity_id, sport, athlete_id, lat, lng, altitude,
-                                                 heartrate, cadence, speed, distance)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                                 heartrate, cadence, speed, distance, watts, temp,
+                                                 grade_smooth, moving)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             """, rows)
+
+
         self.conn.commit()
 
     def delete_activity(self, activity_id: str):
@@ -522,6 +573,15 @@ class MySQLRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def close(self):
-        if self.conn.is_connected():
-            self.conn.close()
+        try:
+            if self.conn and self.conn.is_connected():
+                self.conn.close()
+        except Exception as e:
+            logger.warning(f"Error closing MySQL connection: {e}")

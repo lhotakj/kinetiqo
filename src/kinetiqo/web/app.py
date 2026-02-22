@@ -267,6 +267,7 @@ def generate_map_api():
 
     def generate():
         import json
+        import base64
 
         try:
             repo = db_repo
@@ -364,9 +365,10 @@ def generate_map_api():
             yield f"data: {json.dumps({'type': 'progress', 'step': 'finalizing', 'message': 'Finalizing map...'})}\n\n"
 
             map_html = m._repr_html_()
+            map_html_b64 = base64.b64encode(map_html.encode("utf-8")).decode("ascii")
 
             # Send final result
-            yield f"data: {json.dumps({'type': 'complete', 'html': map_html, 'activity_count': activity_count, 'point_count': total_points})}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'html_b64': map_html_b64, 'activity_count': activity_count, 'point_count': total_points})}\n\n"
 
         except Exception as e:
             logger.error(f"Error generating map: {e}")
@@ -533,7 +535,9 @@ def get_activities_api():
                 'elevation': float(a['total_elevation_gain']),
                 'moving_time': a['moving_time'],
                 'average_speed': float(a['average_speed']) if a.get('average_speed') is not None else 0.0,
-                'average_heartrate': int(a['average_heartrate']) if a.get('average_heartrate') is not None else 0
+                'average_heartrate': int(a['average_heartrate']) if a.get('average_heartrate') is not None else 0,
+                'average_watts': float(a['average_watts']) if a.get('average_watts') is not None else 0.0,
+                'max_watts': float(a['max_watts']) if a.get('max_watts') is not None else 0.0
             })
 
         return jsonify({

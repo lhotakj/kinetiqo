@@ -47,6 +47,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - Python 3.12+
 - A running instance of PostgreSQL, MySQL/MariaDB, or Firebird.
 - Python package dependencies as listed in `requirements.txt`.
+- For firebird you need to install Firebird client
 
 ### Local Setup
 
@@ -55,15 +56,22 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     git clone https://github.com/lhotakj/kinetiqo.git
     cd kinetiqo
     ```
+    
+2. **Install Firebird client**
+   Install on Ubuntu 
+   ```bash
+    sudo apt update
+    sudo apt install -y libfbclient2 
+   ```
 
-2.  **Initialize Virtual Environment:**
+3.  **Initialize Virtual Environment:**
     ```bash
     python -m venv .venv
     source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
     pip install -r requirements.txt
     ```
 
-3.  **Environment Management with `direnv` (Optional):**
+4**Environment Management with `direnv` (Optional):**
     The `development` directory contains a script to configure `direnv` for automated environment management.
     ```bash
     cd development
