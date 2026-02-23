@@ -716,13 +716,19 @@ function clearSavedView() {
 }
 
 // ─── Column visibility (native DT 2.x API) ───────────────────────────────────
-// DT 2.x + ColReorder 2.x properly handles column().visible() without crashes.
+// IMPORTANT: ColReorder 2.x physically rearranges aoColumns, so table.column(i)
+// refers to the column at CURRENT position i, not original column i.
+// We must use the current order mapping to apply visibility correctly.
+// _currentVisibleCols always stores ORIGINAL column indices.
 
 function applyColumnVisibility(visibleCols) {
     if (!table) return;
     _currentVisibleCols = visibleCols;
-    for (var i = 0; i < columnDefs.length; i++) {
-        table.column(i).visible(visibleCols.includes(i), false); // false = don't redraw each time
+    // Get current order: order[currentPos] = originalIdx
+    var order = readColumnOrder();
+    for (var pos = 0; pos < order.length; pos++) {
+        var origIdx = order[pos];
+        table.column(pos).visible(visibleCols.includes(origIdx), false);
     }
 }
 
@@ -741,6 +747,8 @@ function applyColumnOrder(order) {
     if (!table) return;
     if (!Array.isArray(order) || order.length !== columnDefs.length) return;
     try {
+        // 2nd param = true means the array contains ORIGINAL column indices
+        // (colReorder.order's 2nd param is 'original', NOT 'redraw')
         table.colReorder.order(order, true);
     } catch (e) {
         console.warn('applyColumnOrder failed:', e);
@@ -750,6 +758,9 @@ function applyColumnOrder(order) {
 function persistGridState() {
     try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(readColumnOrder())); } catch (e) {}
     try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(table.order())); } catch (e) {}
+    if (_currentVisibleCols) {
+        try { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(_currentVisibleCols)); } catch (e) {}
+    }
 }
 
 var table = null;
@@ -1156,7 +1167,7 @@ var table = null;
         // ── Restore column visibility ──────────────────────────────────────────
         applyColumnVisibility(getSavedColumns() || getDefaultVisibleColumns());
 
-        // ── Restore sort ───────────────────────────────────────────────────────
+        // ── Restore sort and do a single draw ──────────────────────────────────
         (function restoreSort() {
             try {
                 var savedSort = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || 'null');
@@ -1164,7 +1175,7 @@ var table = null;
                     table.order(savedSort);
                 }
             } catch (e) { /* use default sort */ }
-            table.columns.adjust().draw(false);
+            table.columns.adjust().draw(false);  // single draw applies order + visibility + sort
         })();
 
         // ── Persist state on user interactions ─────────────────────────────────
@@ -1205,14 +1216,13 @@ var table = null;
             });
 
             // 3. Build a complete column order:
-            //    - col 0 (Select) is always first (fixedColumnsLeft)
+            //    - col 0 (Select) is always first
             //    - modal-ordered columns in the middle
-            //    - col N-1 (Actions) is always last (fixedColumnsRight)
+            //    - col N-1 (Actions) is always last
             var lastCol = columnDefs.length - 1;
             var middleFromModal = modalOrder.filter(function (idx) { return idx !== 0 && idx !== lastCol; });
 
-            // Columns not in the modal (col 0 and col lastCol) — already handled
-            // But verify: any column NOT in modalOrder and NOT 0 or lastCol should be appended
+            // Any column NOT in modalOrder and NOT 0 or lastCol should be appended
             var inModal = new Set(modalOrder);
             for (var i = 1; i < lastCol; i++) {
                 if (!inModal.has(i)) middleFromModal.push(i);
@@ -1220,20 +1230,29 @@ var table = null;
 
             var fullOrder = [0].concat(middleFromModal).concat([lastCol]);
 
-            // 4. Show all columns first so colReorder can work correctly
+            // 4. Temporarily unbind event handlers to prevent stale persistence
+            table.off('column-reorder.dt');
+
+            // 5. Make all columns visible so colReorder can rearrange DOM correctly
             for (var j = 0; j < columnDefs.length; j++) {
                 table.column(j).visible(true, false);
             }
 
-            // 5. Apply order (all columns visible — no conflicts)
+            // 6. Apply column order (uses original indices)
             applyColumnOrder(fullOrder);
 
-            // 6. Apply desired visibility
+            // 7. Apply desired visibility (uses order-aware mapping)
             applyColumnVisibility(checked);
+
+            // 8. Single draw to apply everything at once
             table.columns.adjust().draw(false);
 
+            // 9. Save state to localStorage
             localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(checked));
             persistGridState();
+
+            // 10. Re-bind event handlers
+            table.on('column-reorder.dt', function () { persistGridState(); });
 
             $('#columnSelectModal').addClass('hidden');
         });
@@ -1243,14 +1262,25 @@ var table = null;
             if (!confirm('Reset columns to default view? Your current column selection and order will be lost.')) return;
             clearSavedView();
 
-            // Apply default order
+            // Temporarily unbind to prevent stale persistence during reset
+            table.off('column-reorder.dt');
+
+            // Make all columns visible first so colReorder can work
+            for (var j = 0; j < columnDefs.length; j++) {
+                table.column(j).visible(true, false);
+            }
+
+            // Apply default order (uses original indices)
             applyColumnOrder(getDefaultColumnOrder());
 
-            // Apply default visibility
+            // Apply default visibility (uses order-aware mapping)
             applyColumnVisibility(getDefaultVisibleColumns());
 
-            // Apply default sort and draw
+            // Apply default sort and do single draw
             table.order(getDefaultSort()).columns.adjust().draw();
+
+            // Re-bind event handler
+            table.on('column-reorder.dt', function () { persistGridState(); });
         });
 
         // 5. Bind Events for Persistence & Interaction
