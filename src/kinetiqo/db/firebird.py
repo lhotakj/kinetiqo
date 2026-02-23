@@ -162,7 +162,20 @@ class FirebirdRepository(DatabaseRepository):
                     "average_speed",
                     "average_heartrate",
                     "average_watts",
-                    "max_watts"
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type"
                 FROM "activities" 
                 ORDER BY "start_date" DESC
             """)
@@ -180,7 +193,20 @@ class FirebirdRepository(DatabaseRepository):
                     'average_speed': row[7],
                     'average_heartrate': row[8],
                     'average_watts': row[9],
-                    'max_watts': row[10]
+                    'max_watts': row[10],
+                    'weighted_average_watts': row[11],
+                    'device_watts': row[12],
+                    'calories': row[13],
+                    'kilojoules': row[14],
+                    'achievement_count': row[15],
+                    'pr_count': row[16],
+                    'suffer_score': row[17],
+                    'average_temp': row[18],
+                    'elev_high': row[19],
+                    'elev_low': row[20],
+                    'gear_id': row[21],
+                    'has_heartrate': row[22],
+                    'workout_type': row[23]
                 }
                 activities.append(activity)
             return activities
@@ -234,7 +260,20 @@ class FirebirdRepository(DatabaseRepository):
                 "average_speed",
                 "average_heartrate",
                 "average_watts",
-                "max_watts"
+                "max_watts",
+                "weighted_average_watts",
+                "device_watts",
+                "calories",
+                "kilojoules",
+                "achievement_count",
+                "pr_count",
+                "suffer_score",
+                "average_temp",
+                "elev_high",
+                "elev_low",
+                "gear_id",
+                "has_heartrate",
+                "workout_type"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -256,7 +295,20 @@ class FirebirdRepository(DatabaseRepository):
                     'average_speed': row[7],
                     'average_heartrate': row[8],
                     'average_watts': row[9],
-                    'max_watts': row[10]
+                    'max_watts': row[10],
+                    'weighted_average_watts': row[11],
+                    'device_watts': row[12],
+                    'calories': row[13],
+                    'kilojoules': row[14],
+                    'achievement_count': row[15],
+                    'pr_count': row[16],
+                    'suffer_score': row[17],
+                    'average_temp': row[18],
+                    'elev_high': row[19],
+                    'elev_low': row[20],
+                    'gear_id': row[21],
+                    'has_heartrate': row[22],
+                    'workout_type': row[23]
                 }
                 activities.append(activity)
             return activities
@@ -282,7 +334,20 @@ class FirebirdRepository(DatabaseRepository):
                     "average_speed",
                     "average_heartrate",
                     "average_watts",
-                    "max_watts"
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type"
                 FROM "activities" 
                 WHERE "activity_id" IN ({placeholders})
                 ORDER BY "start_date" DESC
@@ -301,7 +366,20 @@ class FirebirdRepository(DatabaseRepository):
                     'average_speed': row[7],
                     'average_heartrate': row[8],
                     'average_watts': row[9],
-                    'max_watts': row[10]
+                    'max_watts': row[10],
+                    'weighted_average_watts': row[11],
+                    'device_watts': row[12],
+                    'calories': row[13],
+                    'kilojoules': row[14],
+                    'achievement_count': row[15],
+                    'pr_count': row[16],
+                    'suffer_score': row[17],
+                    'average_temp': row[18],
+                    'elev_high': row[19],
+                    'elev_low': row[20],
+                    'gear_id': row[21],
+                    'has_heartrate': row[22],
+                    'workout_type': row[23]
                 }
                 activities.append(activity)
             return activities

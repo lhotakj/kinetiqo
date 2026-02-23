@@ -358,6 +358,7 @@
 <div class="mb-8">
     <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
 </div>
+<div id="activitiesFooterNote" class="mt-2 text-xs text-gray-500">Columns selection is saved to your browser (localStorage).</div>
 
 <div class="bg-white rounded-lg p-4 mb-4 border border-gray-200">
     <div class="flex flex-col md:flex-row gap-4 items-end">
@@ -534,12 +535,32 @@
                     class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled>Display on map
             </button>
+            <button id="selectColumnsBtn"
+                    class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    >Select columns
+            </button>
             <button id="exportCsvBtn"
                     class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled>Export to CSV
             </button>
         </div>
         <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
+    </div>
+</div>
+
+<!-- Column selection modal -->
+<div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 w-96">
+        <h3 class="text-lg font-semibold mb-4">Select columns to display</h3>
+        <form id="columnSelectForm">
+            <div class="space-y-2">
+                <!-- Dynamically filled -->
+            </div>
+        </form>
+        <div class="flex justify-end mt-4">
+            <button id="closeColumnSelectModal" class="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded mr-2">Cancel</button>
+            <button id="saveColumnSelect" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">Save</button>
+        </div>
     </div>
 </div>
 
@@ -559,6 +580,20 @@
             <th class="py-3 px-4 w-32 text-right">Avg Watts (W)</th>
             <th class="py-3 px-4 w-32 text-right">Max Watts (W)</th>
             <th class="py-3 px-4 w-32">Avg HR (bpm)</th>
+            <!-- Additional DB fields -->
+            <th class="py-3 px-4 w-28 text-right">Weighted Avg Watts (W)</th>
+            <th class="py-3 px-4 w-24 text-right">Device Watts (W)</th>
+            <th class="py-3 px-4 w-24 text-right">Calories</th>
+            <th class="py-3 px-4 w-24 text-right">Kilojoules</th>
+            <th class="py-3 px-4 w-24 text-right">Achievement Count</th>
+            <th class="py-3 px-4 w-24 text-right">PR Count</th>
+            <th class="py-3 px-4 w-24 text-right">Suffer Score</th>
+            <th class="py-3 px-4 w-24 text-right">Avg Temp (°C)</th>
+            <th class="py-3 px-4 w-24 text-right">Elev High (m)</th>
+            <th class="py-3 px-4 w-24 text-right">Elev Low (m)</th>
+            <th class="py-3 px-4 w-28">Gear ID</th>
+            <th class="py-3 px-4 w-20">Has HR</th>
+            <th class="py-3 px-4 w-24">Workout Type</th>
             <th class="py-3 px-4 w-32">Link to Strava</th>
             <th class="py-3 px-4 w-20 text-center">Delete</th>
         </tr>
@@ -578,6 +613,58 @@
 </div>
 
 <script>
+// Global column configuration and storage helpers
+const COLUMN_STORAGE_KEY = 'activities_column_selection';
+// columnDefs indexes match the DataTable columns order
+var columnDefs = [
+    {label: 'Select', mandatory: true, selectable: false},       // 0 checkbox column (always visible)
+    {label: 'ID', mandatory: false, selectable: false, visible: false}, // 1 activity id (hidden, not selectable)
+    {label: 'Name', mandatory: true, selectable: false},         // 2 name (mandatory)
+    {label: 'Type', mandatory: false, selectable: true},         // 3
+    {label: 'Date', mandatory: false, selectable: true},         // 4
+    {label: 'Distance', mandatory: false, selectable: true},     // 5
+    {label: 'Elevation', mandatory: false, selectable: true},    // 6
+    {label: 'Moving Time', mandatory: false, selectable: true},  // 7
+    {label: 'Avg Speed', mandatory: false, selectable: true},    // 8
+    {label: 'Avg Watts', mandatory: false, selectable: true},    // 9
+    {label: 'Max Watts', mandatory: false, selectable: true},    //10
+    {label: 'Avg HR', mandatory: false, selectable: true},       //11
+    {label: 'Weighted Avg Watts', mandatory: false, selectable: true}, //12
+    {label: 'Device Watts', mandatory: false, selectable: true}, //13
+    {label: 'Calories', mandatory: false, selectable: true},     //14
+    {label: 'Kilojoules', mandatory: false, selectable: true},   //15
+    {label: 'Achievement Count', mandatory: false, selectable: true}, //16
+    {label: 'PR Count', mandatory: false, selectable: true},     //17
+    {label: 'Suffer Score', mandatory: false, selectable: true}, //18
+    {label: 'Avg Temp', mandatory: false, selectable: true},     //19
+    {label: 'Elev High', mandatory: false, selectable: true},    //20
+    {label: 'Elev Low', mandatory: false, selectable: true},     //21
+    {label: 'Gear ID', mandatory: false, selectable: true},      //22
+    {label: 'Has HR', mandatory: false, selectable: true},       //23
+    {label: 'Workout Type', mandatory: false, selectable: true}, //24
+    {label: 'View on Strava', mandatory: false, selectable: true}, //25
+    {label: 'Actions', mandatory: true, selectable: false}       //26 delete/action buttons (always visible)
+];
+
+function getSavedColumns() {
+    try {
+        const raw = localStorage.getItem(COLUMN_STORAGE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch (e) {
+        console.warn('Failed to read saved columns:', e);
+        return null;
+    }
+}
+
+function saveColumns(columnsArray) {
+    try {
+        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnsArray));
+    } catch (e) {
+        console.warn('Failed to save columns:', e);
+    }
+}
+
     $(document).ready(function () {
         const FILTER_STORAGE_KEY = 'kinetiqoActivityFilters';
         const SELECTION_STORAGE_KEY = 'kinetiqoSelectedActivities';
@@ -622,24 +709,25 @@
             }
         });
 
-        // Add summary element to the selection container
+        // Remove duplicate updateSummary function and variable declarations
+        // Only add select2-selection__summary if not already present
         var $container = $select.next('.select2-container').find('.select2-selection--multiple');
-        $container.prepend('<div class="select2-selection__summary"></div>');
+        if ($container.find('.select2-selection__summary').length === 0) {
+            $container.prepend('<div class="select2-selection__summary"></div>');
+        }
 
         function updateSummary() {
             var count = $('#activityTypeFilter').select2('data').length;
             var total = $('#activityTypeFilter option').length;
-            var text = "";
-
+            var summaryText = "";
             if (count === 0) {
-                text = "No activities selected";
+                summaryText = "No activities selected";
             } else if (count === total) {
-                text = "All activities selected (" + count + ")";
+                summaryText = "All activities selected (" + count + ")";
             } else {
-                text = count + " Activities selected";
+                summaryText = count + " Activities selected";
             }
-
-            $('.select2-selection__summary').text(text);
+            $('.select2-selection__summary').text(summaryText);
         }
 
         // Initial update of summary based on loaded values
@@ -651,19 +739,18 @@
                 $('#dateFilter span').text(presetName);
                 return;
             }
-
             var startDate = $('#startDate').val();
             var endDate = $('#endDate').val();
             if (startDate && endDate) {
-                var start = moment(startDate).format('MMM D, YYYY');
-                var end = moment(endDate).format('MMM D, YYYY');
-                $('#dateFilter span').text(start + ' - ' + end);
+                let startFmt = moment(startDate).format('MMM D, YYYY');
+                let endFmt = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text(startFmt + ' - ' + endFmt);
             } else if (startDate) {
-                var start = moment(startDate).format('MMM D, YYYY');
-                $('#dateFilter span').text('From ' + start);
+                let startFmt = moment(startDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('From ' + startFmt);
             } else if (endDate) {
-                var end = moment(endDate).format('MMM D, YYYY');
-                $('#dateFilter span').text('To ' + end);
+                let endFmt = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('To ' + endFmt);
             } else {
                 $('#dateFilter span').text('All time');
             }
@@ -847,6 +934,73 @@
                         }
                         return data;
                     }
+                },
+                // New DB fields
+                {
+                    "data": "weighted_average_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        return (type === 'display') ? (data ? Math.round(data) : '-') : data;
+                    }
+                },
+                {
+                    "data": "device_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        return (type === 'display') ? (data ? Math.round(data) : '-') : data;
+                    }
+                },
+                {
+                    "data": "calories",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? Math.round(data) : '-') : data; }
+                },
+                {
+                    "data": "kilojoules",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? Math.round(data) : '-') : data; }
+                },
+                {
+                    "data": "achievement_count",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data || 0) : data; }
+                },
+                {
+                    "data": "pr_count",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data || 0) : data; }
+                },
+                {
+                    "data": "suffer_score",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? Math.round(data) : '-') : data; }
+                },
+                {
+                    "data": "average_temp",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data !== null && data !== undefined ? Number(data).toFixed(1) : '-') : data; }
+                },
+                {
+                    "data": "elev_high",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? formatElevation(data) : '-') : data; }
+                },
+                {
+                    "data": "elev_low",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? formatElevation(data) : '-') : data; }
+                },
+                {
+                    "data": "gear_id",
+                    "render": function (data, type, row) { return data || '-'; }
+                },
+                {
+                    "data": "has_heartrate",
+                    "render": function (data, type, row) { return data ? 'Yes' : 'No'; }
+                },
+                {
+                    "data": "workout_type",
+                    "render": function (data, type, row) { return data || '-'; }
                 },
                 {
                     "data": null,
@@ -1276,6 +1430,79 @@
 
         // Initial update of buttons based on loaded selection
         updateSelectionButtons();
+
+        // Add event listeners
+        $('#selectColumnsBtn').on('click', showColumnSelectModal);
+        $('#closeColumnSelectModal').on('click', hideColumnSelectModal);
+        $('#saveColumnSelect').on('click', function(e) {
+            e.preventDefault();
+            const checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]:checked')).map(cb => parseInt(cb.value));
+            // Always show mandatory columns
+            columnDefs.forEach((col, idx) => {
+                if (col.mandatory && !checked.includes(idx)) checked.push(idx);
+            });
+            // Apply to DataTable
+            for (let i = 0; i < columnDefs.length; i++) {
+                $('#activitiesTable').DataTable().column(i).visible(checked.includes(i));
+            }
+            saveColumns(checked);
+            hideColumnSelectModal();
+        });
+
+        // Restore column selection on page load
+        $(document).ready(function() {
+            const saved = getSavedColumns();
+            if (saved) {
+                for (let i = 0; i < columnDefs.length; i++) {
+                    $('#activitiesTable').DataTable().column(i).visible(saved.includes(i));
+                }
+            }
+        });
+    });
+
+    function showColumnSelectModal() {
+        // Only show selectable or mandatory columns in modal
+        let saved = getSavedColumns();
+        let selected = saved || columnDefs.filter(c => c.mandatory).map((c, i) => i);
+        let formHtml = columnDefs.map((col, idx) => {
+            if (!col.selectable && !col.mandatory) return '';
+            let checked = col.mandatory || selected.includes(idx);
+            let disabled = col.mandatory ? 'disabled' : '';
+            return `<label class="block mb-1"><input type="checkbox" value="${idx}" ${checked ? 'checked' : ''} ${disabled}> ${col.label}${col.mandatory ? ' <span class="text-xs text-gray-400">(mandatory)</span>' : ''}</label>`;
+        }).join('');
+        $('#columnSelectForm .space-y-2').html(formHtml);
+        $('#columnSelectModal').removeClass('hidden');
+    }
+
+    function hideColumnSelectModal() {
+        $('#columnSelectModal').addClass('hidden');
+    }
+
+    $('#selectColumnsBtn').on('click', showColumnSelectModal);
+    $('#closeColumnSelectModal').on('click', hideColumnSelectModal);
+    $('#saveColumnSelect').on('click', function(e) {
+        e.preventDefault();
+        const checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]:checked')).map(cb => parseInt(cb.value));
+        // Always show mandatory columns
+        columnDefs.forEach((col, idx) => {
+            if (col.mandatory && !checked.includes(idx)) checked.push(idx);
+        });
+        // Apply to DataTable
+        for (let i = 0; i < columnDefs.length; i++) {
+            $('#activitiesTable').DataTable().column(i).visible(checked.includes(i));
+        }
+        saveColumns(checked);
+        hideColumnSelectModal();
+    });
+
+    // Restore column selection on page load
+    $(document).ready(function() {
+        const saved = getSavedColumns();
+        if (saved) {
+            for (let i = 0; i < columnDefs.length; i++) {
+                $('#activitiesTable').DataTable().column(i).visible(saved.includes(i));
+            }
+        }
     });
 </script>
 

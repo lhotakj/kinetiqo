@@ -167,7 +167,20 @@ class MySQLRepository(DatabaseRepository):
                                average_speed,
                                average_heartrate,
                                average_watts,
-                               max_watts
+                               max_watts,
+                               weighted_average_watts,
+                               device_watts,
+                               calories,
+                               kilojoules,
+                               achievement_count,
+                               pr_count,
+                               suffer_score,
+                               average_temp,
+                               elev_high,
+                               elev_low,
+                               gear_id,
+                               has_heartrate,
+                               workout_type
                         FROM activities
                         ORDER BY start_date DESC
                             LIMIT %s
@@ -225,7 +238,20 @@ class MySQLRepository(DatabaseRepository):
                 average_speed,
                 average_heartrate,
                 average_watts,
-                max_watts
+                max_watts,
+                weighted_average_watts,
+                device_watts,
+                calories,
+                kilojoules,
+                achievement_count,
+                pr_count,
+                suffer_score,
+                average_temp,
+                elev_high,
+                elev_low,
+                gear_id,
+                has_heartrate,
+                workout_type
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -265,7 +291,20 @@ class MySQLRepository(DatabaseRepository):
                     average_speed,
                     average_heartrate,
                     average_watts,
-                    max_watts
+                    max_watts,
+                    weighted_average_watts,
+                    device_watts,
+                    calories,
+                    kilojoules,
+                    achievement_count,
+                    pr_count,
+                    suffer_score,
+                    average_temp,
+                    elev_high,
+                    elev_low,
+                    gear_id,
+                    has_heartrate,
+                    workout_type
                 FROM activities 
                 WHERE activity_id IN ({placeholders})
                 ORDER BY start_date DESC

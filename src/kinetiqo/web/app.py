@@ -525,19 +525,32 @@ def get_activities_api():
 
             data.append({
                 'id': a['id'],
-                'name': a['name'],
-                'type': a['type'],
+                'name': a.get('name') or '',
+                'type': a.get('type') or '',
                 'date': {
                     'display': formatted_date,
                     'timestamp': timestamp
                 },
-                'distance': float(a['distance']),
-                'elevation': float(a['total_elevation_gain']),
-                'moving_time': a['moving_time'],
-                'average_speed': float(a['average_speed']) if a.get('average_speed') is not None else 0.0,
-                'average_heartrate': int(a['average_heartrate']) if a.get('average_heartrate') is not None else 0,
-                'average_watts': float(a['average_watts']) if a.get('average_watts') is not None else 0.0,
-                'max_watts': float(a['max_watts']) if a.get('max_watts') is not None else 0.0
+                'distance': float(a.get('distance') or 0.0),
+                'elevation': float(a.get('total_elevation_gain') or 0.0),
+                'moving_time': int(a.get('moving_time') or 0),
+                'average_speed': float(a.get('average_speed') or 0.0),
+                'average_heartrate': int(a.get('average_heartrate') or 0),
+                'average_watts': float(a.get('average_watts') or 0.0),
+                'max_watts': float(a.get('max_watts') or 0.0),
+                'weighted_average_watts': float(a.get('weighted_average_watts') or 0.0),
+                'device_watts': int(a.get('device_watts')) if a.get('device_watts') is not None else None,
+                'calories': float(a.get('calories')) if a.get('calories') is not None else None,
+                'kilojoules': float(a.get('kilojoules')) if a.get('kilojoules') is not None else None,
+                'achievement_count': int(a.get('achievement_count') or 0),
+                'pr_count': int(a.get('pr_count') or 0),
+                'suffer_score': int(a.get('suffer_score') or 0),
+                'average_temp': float(a.get('average_temp')) if a.get('average_temp') is not None else None,
+                'elev_high': float(a.get('elev_high')) if a.get('elev_high') is not None else None,
+                'elev_low': float(a.get('elev_low')) if a.get('elev_low') is not None else None,
+                'gear_id': a.get('gear_id') or None,
+                'has_heartrate': bool(a.get('has_heartrate')) if a.get('has_heartrate') is not None else False,
+                'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None
             })
 
         return jsonify({
