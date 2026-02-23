@@ -616,6 +616,20 @@ class FirebirdRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+    def get_table_record_counts(self) -> Dict[str, int]:
+        """Return a dict of table names and their record counts."""
+        tables = ['activities', 'streams', 'logs']
+        counts = {}
+        with self.conn.cursor() as cur:
+            for table in tables:
+                try:
+                    cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                    result = cur.fetchone()
+                    counts[table] = result[0] if result else 0
+                except Exception:
+                    counts[table] = None
+        return counts
+
     def __enter__(self):
         return self
 

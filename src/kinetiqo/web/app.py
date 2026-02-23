@@ -434,6 +434,29 @@ def get_settings():
     full_sync = os.environ.get('FULL_SYNC', '')
     fast_sync = os.environ.get('FAST_SYNC', '')
 
+    global db_repo
+    if db_repo is None:
+        db_repo = create_repository(config)
+
+    db_type = config.database_type or 'unknown'
+    db_host = None
+    db_port = None
+
+    if db_type == 'mysql':
+        db_host = config.mysql_host or getattr(db_repo, 'config', {}).get('mysql_host', 'unknown')
+        db_port = config.mysql_port or getattr(db_repo, 'config', {}).get('mysql_port', 'unknown')
+    elif db_type == 'postgresql':
+        db_host = config.postgresql_host or getattr(db_repo, 'config', {}).get('postgresql_host', 'unknown')
+        db_port = config.postgresql_port or getattr(db_repo, 'config', {}).get('postgresql_port', 'unknown')
+    elif db_type == 'firebird':
+        db_host = config.firebird_host or getattr(db_repo, 'config', {}).get('firebird_host', 'unknown')
+        db_port = config.firebird_port or getattr(db_repo, 'config', {}).get('firebird_port', 'unknown')
+    else:
+        db_host = 'unknown'
+        db_port = 'unknown'
+
+    table_counts = db_repo.get_table_record_counts() if db_repo else {}
+
     return jsonify({
         'full_sync': {
             'expression': full_sync,
@@ -442,6 +465,12 @@ def get_settings():
         'fast_sync': {
             'expression': fast_sync,
             'description': describe_cron(fast_sync)
+        },
+        'database': {
+            'type': db_type,
+            'host': db_host,
+            'port': db_port,
+            'table_counts': table_counts
         }
     })
 
