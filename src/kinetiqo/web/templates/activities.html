@@ -13,6 +13,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 
+<!-- ColReorder extension for DataTables (enables in-grid column drag & drop) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/colreorder/1.6.2/css/colReorder.dataTables.min.css">
+<script src="https://cdn.datatables.net/colreorder/1.6.2/js/dataTables.colReorder.min.js"></script>
+
+<!-- SortableJS for drag+drop inside the modal as fallback/control -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
 <style>
     .select2-selection__choice__display {
         padding-left: 15px !important;
@@ -353,6 +360,11 @@
         padding-left: 1rem;
         padding-right: 1rem;
     }
+
+    /* small handle styling for modal reorder */
+    .column-drag-handle { cursor: grab; display:inline-block; width: 18px; text-align:center; margin-right:8px; color:#6b7280 }
+    .column-item { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; display:flex; align-items:center; justify-content:space-between }
+    .column-list { display:flex; flex-direction:column; gap:6px }
 </style>
 
 <div class="mb-8">
@@ -665,6 +677,9 @@ function saveColumns(columnsArray) {
     }
 }
 
+// Make table variable accessible to modal/outside functions
+var table = null;
+
     $(document).ready(function () {
         const FILTER_STORAGE_KEY = 'kinetiqoActivityFilters';
         const SELECTION_STORAGE_KEY = 'kinetiqoSelectedActivities';
@@ -809,7 +824,7 @@ function saveColumns(columnsArray) {
         updateDateFilterDisplay(currentDatePreset);
 
         // 4. Initialize DataTable
-        var table = $('#activitiesTable').DataTable({
+        table = $('#activitiesTable').DataTable({
             "processing": true,
             "serverSide": false, // Client-side processing
             "pageLength": 25,
@@ -821,6 +836,8 @@ function saveColumns(columnsArray) {
                 "search": savedFilters.search || "" // Initialize with saved search
             },
             "buttons": [],
+            // Enable ColReorder so user can drag columns in the grid. Keep first (checkbox) and last (actions) columns fixed.
+            "colReorder": { "realtime": true, "fixedColumnsLeft": 1, "fixedColumnsRight": 1 },
             "ajax": {
                 "url": "/api/activities",
                 "data": function (d) {
@@ -1045,6 +1062,90 @@ function saveColumns(columnsArray) {
 
         // Move buttons to the container
         table.buttons().container().appendTo('#custom-buttons-wrapper');
+
+        // Restore saved column order (if user reordered previously)
+        try {
+            const savedOrder = JSON.parse(localStorage.getItem('activities_column_order') || 'null');
+            if (savedOrder && table.colReorder && table.colReorder.order) {
+                try { table.colReorder.order(savedOrder); } catch(err) { console.warn('Failed to apply saved column order:', err); }
+            }
+        } catch (e) {
+            console.warn('Error restoring column order:', e);
+        }
+
+        // initModalSortable defined globally so modal can call it
+        function initModalSortable() {
+            const el = document.querySelector('#columnSelectForm .column-list');
+            if (!el) return;
+            // destroy previous instance if exists
+            if (window._activitiesSortable && window._activitiesSortable.destroy) {
+                try { window._activitiesSortable.destroy(); } catch (_) {}
+            }
+            window._activitiesSortable = Sortable.create(el, {
+                handle: '.column-drag-handle',
+                animation: 150
+            });
+        }
+
+        // Override save handler in one place (ensures consistent behavior)
+        $('#saveColumnSelect').off('click').on('click', function (e) {
+            e.preventDefault();
+            // Ordered items as they appear in modal
+            const orderedElems = Array.from(document.querySelectorAll('#columnSelectForm .column-list .column-item'));
+            const orderedIdx = orderedElems.map(el => parseInt(el.getAttribute('data-idx')));
+
+            // Compute desired ColReorder order keeping checkbox (0) first and actions (last) last
+            const totalCols = columnDefs.length;
+            const fixedLeft = 1; // keep first col fixed
+            const fixedRight = 1; // keep last col fixed
+            const others = [];
+            for (let i = 0; i < totalCols; i++) {
+                if (i === 0 || i === totalCols - 1) continue;
+                if (!orderedIdx.includes(i)) others.push(i);
+            }
+            const desiredOrder = [0];
+            orderedIdx.forEach(i => { if (i !== 0 && i !== totalCols-1) desiredOrder.push(i); });
+            others.forEach(i => desiredOrder.push(i));
+            desiredOrder.push(totalCols - 1);
+
+            // Apply order via ColReorder API
+            try {
+                if (table.colReorder && table.colReorder.order) {
+                    table.colReorder.order(desiredOrder);
+                }
+            } catch (err) {
+                console.warn('Failed to apply column order:', err);
+            }
+
+            // Visibility: collect checked values
+            const checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]')).filter(cb => cb.checked).map(cb => parseInt(cb.value));
+            // ensure mandatory are visible
+            columnDefs.forEach((col, idx) => { if (col.mandatory && !checked.includes(idx)) checked.push(idx); });
+
+            for (let i = 0; i < columnDefs.length; i++) {
+                try { table.column(i).visible(checked.includes(i), false); } catch (e) {}
+            }
+            table.columns.adjust();
+
+            // Persist visibility and order
+            try { localStorage.setItem('activities_column_selection', JSON.stringify(checked)); } catch (e) { console.warn(e); }
+            try { localStorage.setItem('activities_column_order', JSON.stringify(table.colReorder ? table.colReorder.order() : null)); } catch (e) { /* ignore */ }
+
+            $('#columnSelectModal').addClass('hidden');
+        });
+
+        // Ensure a single restore of visibility after table init
+        try {
+            const saved = getSavedColumns();
+            if (saved) {
+                for (let i = 0; i < columnDefs.length; i++) {
+                    try { table.column(i).visible(saved.includes(i), false); } catch (e) {}
+                }
+                table.columns.adjust();
+            }
+        } catch (e) {
+            console.warn('Failed to restore saved column visibility:', e);
+        }
 
         // 5. Bind Events for Persistence & Interaction
         $('#activityTypeFilter').on('change', function () {
@@ -1461,17 +1562,42 @@ function saveColumns(columnsArray) {
     });
 
     function showColumnSelectModal() {
-        // Only show selectable or mandatory columns in modal
-        let saved = getSavedColumns();
-        let selected = saved || columnDefs.filter(c => c.mandatory).map((c, i) => i);
-        let formHtml = columnDefs.map((col, idx) => {
-            if (!col.selectable && !col.mandatory) return '';
-            let checked = col.mandatory || selected.includes(idx);
-            let disabled = col.mandatory ? 'disabled' : '';
-            return `<label class="block mb-1"><input type="checkbox" value="${idx}" ${checked ? 'checked' : ''} ${disabled}> ${col.label}${col.mandatory ? ' <span class="text-xs text-gray-400">(mandatory)</span>' : ''}</label>`;
+        // Build modal items in current visual order (respect colReorder if present)
+        let currentOrder = null;
+        try { currentOrder = table.colReorder ? table.colReorder.order() : null; } catch (e) { currentOrder = null; }
+
+        // Determine which columns should be displayed in the modal: selectable or mandatory
+        const items = [];
+        if (currentOrder && Array.isArray(currentOrder)) {
+            currentOrder.forEach(origIdx => {
+                const colMeta = columnDefs[origIdx];
+                if (!colMeta) return;
+                if (!colMeta.selectable && !colMeta.mandatory) return; // skip non-selectable non-mandatory
+                items.push({idx: origIdx, label: colMeta.label, mandatory: colMeta.mandatory});
+            });
+        } else {
+            // fallback: iterate in defined order
+            columnDefs.forEach((colMeta, idx) => {
+                if (!colMeta.selectable && !colMeta.mandatory) return;
+                items.push({idx: idx, label: colMeta.label, mandatory: colMeta.mandatory});
+            });
+        }
+
+        // Build HTML list with drag handles
+        let savedVisible = getSavedColumns();
+        if (!savedVisible) savedVisible = columnDefs.map((c, i) => i); // default all visible
+
+        let formHtml = items.map(it => {
+            const checked = it.mandatory || savedVisible.includes(it.idx);
+            const disabled = it.mandatory ? 'disabled' : '';
+            return `<div class="column-item" data-idx="${it.idx}"><span class="column-left"><span class="column-drag-handle" title="Drag to reorder">☰</span></span><label style="flex:1; margin-left:6px;"><input type="checkbox" value="${it.idx}" ${checked ? 'checked' : ''} ${disabled}> ${it.label}${it.mandatory ? ' <span class="text-xs text-gray-400">(mandatory)</span>' : ''}</label></div>`;
         }).join('');
-        $('#columnSelectForm .space-y-2').html(formHtml);
+
+        $('#columnSelectForm .space-y-2').html('<div class="column-list">' + formHtml + '</div>');
         $('#columnSelectModal').removeClass('hidden');
+
+        // init sortable on newly created list
+        initModalSortable();
     }
 
     function hideColumnSelectModal() {
