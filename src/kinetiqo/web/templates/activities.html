@@ -365,6 +365,46 @@
     .column-drag-handle { cursor: grab; display:inline-block; width: 18px; text-align:center; margin-right:8px; color:#6b7280 }
     .column-item { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; display:flex; align-items:center; justify-content:space-between }
     .column-list { display:flex; flex-direction:column; gap:6px }
+
+    /* DataTables sort indicators — ensure arrows are always visible despite Tailwind resets */
+    table.dataTable thead th {
+        position: relative;
+    }
+    table.dataTable thead th.sorting,
+    table.dataTable thead th.sorting_asc,
+    table.dataTable thead th.sorting_desc {
+        cursor: pointer;
+        padding-right: 28px !important;
+    }
+    /* Override any Tailwind reset that removes pseudo-element content */
+    table.dataTable thead th.sorting::before,
+    table.dataTable thead th.sorting::after,
+    table.dataTable thead th.sorting_asc::before,
+    table.dataTable thead th.sorting_asc::after,
+    table.dataTable thead th.sorting_desc::before,
+    table.dataTable thead th.sorting_desc::after {
+        position: absolute !important;
+        display: block !important;
+        right: 8px !important;
+        font-size: 0.7em !important;
+        line-height: 1 !important;
+    }
+    table.dataTable thead th.sorting::before       { content: "▲" !important; bottom: 57% !important; opacity: 0.25 !important; }
+    table.dataTable thead th.sorting::after        { content: "▼" !important; top: 57% !important; opacity: 0.25 !important; }
+    table.dataTable thead th.sorting_asc::before   { content: "▲" !important; bottom: 57% !important; opacity: 1 !important; }
+    table.dataTable thead th.sorting_asc::after    { content: "▼" !important; top: 57% !important; opacity: 0.1 !important; }
+    table.dataTable thead th.sorting_desc::before  { content: "▲" !important; bottom: 57% !important; opacity: 0.1 !important; }
+    table.dataTable thead th.sorting_desc::after   { content: "▼" !important; top: 57% !important; opacity: 1 !important; }
+
+    /* Dark mode sort indicators */
+    body.dark table.dataTable thead th.sorting::before,
+    body.dark table.dataTable thead th.sorting::after,
+    body.dark table.dataTable thead th.sorting_asc::before,
+    body.dark table.dataTable thead th.sorting_asc::after,
+    body.dark table.dataTable thead th.sorting_desc::before,
+    body.dark table.dataTable thead th.sorting_desc::after {
+        color: #e5e5e5 !important;
+    }
 </style>
 
 <div class="mb-8">
@@ -551,6 +591,10 @@
                     class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     >Select columns
             </button>
+            <button id="resetViewBtn"
+                    class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    title="Reset columns to default configuration">Reset View
+            </button>
             <button id="exportCsvBtn"
                     class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled>Export to CSV
@@ -581,7 +625,6 @@
         <thead>
         <tr class="text-sm font-semibold text-gray-600 border-b border-gray-200">
             <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="selectAllOnPage"></th>
-            <th class="py-3 px-4 w-20">ID</th>
             <th class="py-3 px-4">Activity Name</th>
             <th class="py-3 px-4 w-32">Type</th>
             <th class="py-3 px-4 w-32">Date</th>
@@ -614,7 +657,7 @@
         </tbody>
         <tfoot class="text-gray-700 text-sm font-semibold bg-gray-50 border-t border-gray-200">
         <tr>
-            <td colspan="5" class="py-3 px-4 text-right">Totals:</td>
+            <td colspan="4" class="py-3 px-4 text-right">Totals:</td>
             <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
             <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
             <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
@@ -625,59 +668,135 @@
 </div>
 
 <script>
-// Global column configuration and storage helpers
+// ─── Grid State Management ────────────────────────────────────────────────────
+// All grid state (visibility, column order, sort) is persisted to localStorage.
+// Column indices below correspond 1-to-1 with the DataTable "columns" array.
+// There are NO hidden columns — ColReorder works natively, no workarounds needed.
+
 const COLUMN_STORAGE_KEY = 'activities_column_selection';
-// columnDefs indexes match the DataTable columns order
+const COLUMN_ORDER_KEY   = 'activities_column_order';
+const SORT_STORAGE_KEY   = 'activities_sort_order';
+const SCHEMA_VERSION_KEY = 'activities_schema_v2';
+
 var columnDefs = [
-    {label: 'Select', mandatory: true, selectable: false},       // 0 checkbox column (always visible)
-    {label: 'ID', mandatory: false, selectable: false, visible: false}, // 1 activity id (hidden, not selectable)
-    {label: 'Name', mandatory: true, selectable: false},         // 2 name (mandatory)
-    {label: 'Type', mandatory: false, selectable: true},         // 3
-    {label: 'Date', mandatory: false, selectable: true},         // 4
-    {label: 'Distance', mandatory: false, selectable: true},     // 5
-    {label: 'Elevation', mandatory: false, selectable: true},    // 6
-    {label: 'Moving Time', mandatory: false, selectable: true},  // 7
-    {label: 'Avg Speed', mandatory: false, selectable: true},    // 8
-    {label: 'Avg Watts', mandatory: false, selectable: true},    // 9
-    {label: 'Max Watts', mandatory: false, selectable: true},    //10
-    {label: 'Avg HR', mandatory: false, selectable: true},       //11
-    {label: 'Weighted Avg Watts', mandatory: false, selectable: true}, //12
-    {label: 'Device Watts', mandatory: false, selectable: true}, //13
-    {label: 'Calories', mandatory: false, selectable: true},     //14
-    {label: 'Kilojoules', mandatory: false, selectable: true},   //15
-    {label: 'Achievement Count', mandatory: false, selectable: true}, //16
-    {label: 'PR Count', mandatory: false, selectable: true},     //17
-    {label: 'Suffer Score', mandatory: false, selectable: true}, //18
-    {label: 'Avg Temp', mandatory: false, selectable: true},     //19
-    {label: 'Elev High', mandatory: false, selectable: true},    //20
-    {label: 'Elev Low', mandatory: false, selectable: true},     //21
-    {label: 'Gear ID', mandatory: false, selectable: true},      //22
-    {label: 'Has HR', mandatory: false, selectable: true},       //23
-    {label: 'Workout Type', mandatory: false, selectable: true}, //24
-    {label: 'View on Strava', mandatory: false, selectable: true}, //25
-    {label: 'Actions', mandatory: true, selectable: false}       //26 delete/action buttons (always visible)
+    {label: 'Select',            mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  0, defaultSort: null  }, //  0
+    {label: 'Name',              mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  1, defaultSort: null  }, //  1
+    {label: 'Type',              mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  2, defaultSort: null  }, //  2
+    {label: 'Date',              mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  3, defaultSort: 'desc'}, //  3
+    {label: 'Distance',          mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  4, defaultSort: null  }, //  4
+    {label: 'Elevation',         mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  5, defaultSort: null  }, //  5
+    {label: 'Moving Time',       mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  6, defaultSort: null  }, //  6
+    {label: 'Avg Speed',         mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  7, defaultSort: null  }, //  7
+    {label: 'Avg Watts',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder:  8, defaultSort: null  }, //  8
+    {label: 'Max Watts',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder:  9, defaultSort: null  }, //  9
+    {label: 'Avg HR',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 10, defaultSort: null  }, // 10
+    {label: 'Weighted Avg Watts',mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 11, defaultSort: null  }, // 11
+    {label: 'Device Watts',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 12, defaultSort: null  }, // 12
+    {label: 'Calories',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 13, defaultSort: null  }, // 13
+    {label: 'Kilojoules',        mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 14, defaultSort: null  }, // 14
+    {label: 'Achievement Count', mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 15, defaultSort: null  }, // 15
+    {label: 'PR Count',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 16, defaultSort: null  }, // 16
+    {label: 'Suffer Score',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 17, defaultSort: null  }, // 17
+    {label: 'Avg Temp',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 18, defaultSort: null  }, // 18
+    {label: 'Elev High',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 19, defaultSort: null  }, // 19
+    {label: 'Elev Low',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 20, defaultSort: null  }, // 20
+    {label: 'Gear ID',           mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 21, defaultSort: null  }, // 21
+    {label: 'Has HR',            mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 22, defaultSort: null  }, // 22
+    {label: 'Workout Type',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 23, defaultSort: null  }, // 23
+    {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 24, defaultSort: null  }, // 24
+    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 25, defaultSort: null  }  // 25
 ];
 
+// ─── Defaults ─────────────────────────────────────────────────────────────────
+
+function getDefaultVisibleColumns() {
+    return columnDefs.reduce(function (acc, col, idx) {
+        if (col.mandatory || col.default) acc.push(idx);
+        return acc;
+    }, []);
+}
+
+function getDefaultColumnOrder() {
+    return columnDefs
+        .map(function (col, idx) { return { idx: idx, order: col.defaultOrder }; })
+        .sort(function (a, b) { return a.order - b.order; })
+        .map(function (item) { return item.idx; });
+}
+
+function getDefaultSort() {
+    var sortCols = [];
+    columnDefs.forEach(function (col, idx) {
+        if (col.defaultSort) sortCols.push([idx, col.defaultSort]);
+    });
+    return sortCols.length ? sortCols : [[3, 'desc']];
+}
+
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+
 function getSavedColumns() {
-    try {
-        const raw = localStorage.getItem(COLUMN_STORAGE_KEY);
-        if (!raw) return null;
-        return JSON.parse(raw);
-    } catch (e) {
-        console.warn('Failed to read saved columns:', e);
-        return null;
-    }
+    try { var raw = localStorage.getItem(COLUMN_STORAGE_KEY); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
 }
 
-function saveColumns(columnsArray) {
-    try {
-        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnsArray));
-    } catch (e) {
-        console.warn('Failed to save columns:', e);
-    }
+function clearSavedView() {
+    try { localStorage.removeItem(COLUMN_STORAGE_KEY); } catch (e) {}
+    try { localStorage.removeItem(COLUMN_ORDER_KEY); } catch (e) {}
+    try { localStorage.removeItem(SORT_STORAGE_KEY); } catch (e) {}
 }
 
-// Make table variable accessible to modal/outside functions
+// ─── Grid state read/write (clean ColReorder API — no hacks) ──────────────────
+
+/** Read the current visual column order from ColReorder (array of original indices). */
+function readColumnOrder() {
+    if (!table) return getDefaultColumnOrder();
+    try { return table.colReorder.order(); }
+    catch (e) { return getDefaultColumnOrder(); }
+}
+
+/**
+ * Apply a column order safely.
+ * ColReorder 1.6.2 crashes on any column with bVisible=false, so this function
+ * temporarily makes ALL columns visible before calling colReorder.order().
+ * After this function returns, ALL columns are visible — the caller must apply
+ * the desired visibility and call draw(false) to sync everything.
+ */
+function applyColumnOrder(order) {
+    if (!table) return;
+    if (!Array.isArray(order) || order.length !== columnDefs.length) return;
+
+    // Skip if order already matches
+    var current = readColumnOrder();
+    var same = true;
+    for (var k = 0; k < order.length; k++) {
+        if (order[k] !== current[k]) { same = false; break; }
+    }
+    if (same) return;
+
+    // Make ALL columns visible so ColReorder can safely reorder them
+    var anyShown = false;
+    for (var i = 0; i < columnDefs.length; i++) {
+        if (!table.column(i).visible()) {
+            table.column(i).visible(true, false);
+            anyShown = true;
+        }
+    }
+    if (anyShown) table.columns.adjust().draw(false);
+
+    // Apply the order — all columns are visible, so no insertBefore errors
+    try {
+        table.colReorder.order(order);
+    } catch (e) {
+        console.warn('applyColumnOrder failed:', e);
+    }
+    // Caller must now apply visibility and call draw(false)
+}
+
+/** Persist current grid state (order + sort) to localStorage. */
+function persistGridState() {
+    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(readColumnOrder())); } catch (e) {}
+    try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(table.order())); } catch (e) {}
+}
+
 var table = null;
 
     $(document).ready(function () {
@@ -829,7 +948,7 @@ var table = null;
             "serverSide": false, // Client-side processing
             "pageLength": 25,
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
-            "order": [[4, "desc"]],
+            "order": getDefaultSort(),
             "autoWidth": false, // Disable auto width calculation to use our custom widths
             "dom": 'Brt<"flex justify-between items-center mt-4"ilp>',
             "search": {
@@ -862,11 +981,6 @@ var table = null;
                     "className": "text-center",
                     "render": function (data, type, row) {
                         return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
-                    }
-                },
-                {
-                    "data": "id", "visible": false, "render": function (data) {
-                        return '#' + data;
                     }
                 },
                 {"data": "name"},
@@ -1063,21 +1177,51 @@ var table = null;
         // Move buttons to the container
         table.buttons().container().appendTo('#custom-buttons-wrapper');
 
-        // Restore saved column order (if user reordered previously)
-        try {
-            const savedOrder = JSON.parse(localStorage.getItem('activities_column_order') || 'null');
-            if (savedOrder && table.colReorder && table.colReorder.order) {
-                try { table.colReorder.order(savedOrder); } catch(err) { console.warn('Failed to apply saved column order:', err); }
-            }
-        } catch (e) {
-            console.warn('Error restoring column order:', e);
+        // ── Schema migration: wipe old localStorage if schema changed ──────────
+        if (!localStorage.getItem(SCHEMA_VERSION_KEY)) {
+            clearSavedView();
+            localStorage.setItem(SCHEMA_VERSION_KEY, '1');
         }
 
-        // initModalSortable defined globally so modal can call it
-        function initModalSortable() {
-            const el = document.querySelector('#columnSelectForm .column-list');
+        // ── Restore column order (BEFORE visibility — colReorder needs all cols visible) ──
+        (function restoreOrder() {
+            try {
+                var savedOrder = JSON.parse(localStorage.getItem(COLUMN_ORDER_KEY) || 'null');
+                if (Array.isArray(savedOrder) && savedOrder.length === columnDefs.length) {
+                    applyColumnOrder(savedOrder);
+                }
+            } catch (e) { /* use default order */ }
+        })();
+
+        // ── Restore column visibility ──────────────────────────────────────────
+        (function restoreVisibility() {
+            var saved = getSavedColumns();
+            var effectiveVisible = saved || getDefaultVisibleColumns();
+            for (var i = 0; i < columnDefs.length; i++) {
+                table.column(i).visible(effectiveVisible.includes(i), false);
+            }
+        })();
+
+        // ── Restore sort and sync everything ───────────────────────────────────
+        (function restoreSort() {
+            try {
+                var savedSort = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || 'null');
+                if (Array.isArray(savedSort) && savedSort.length > 0) {
+                    table.order(savedSort);
+                }
+            } catch (e) { /* use default sort */ }
+            // Always draw to sync sort indicators and ColReorder column index mappings
+            table.columns.adjust().draw(false);
+        })();
+
+        // ── Persist state on user interactions ─────────────────────────────────
+        table.on('order.dt', function () { persistGridState(); });
+        table.on('column-reorder.dt', function () { persistGridState(); });
+
+        // ── SortableJS for the modal list ──────────────────────────────────────
+        window.initModalSortable = function () {
+            var el = document.querySelector('#columnSelectForm .column-list');
             if (!el) return;
-            // destroy previous instance if exists
             if (window._activitiesSortable && window._activitiesSortable.destroy) {
                 try { window._activitiesSortable.destroy(); } catch (_) {}
             }
@@ -1085,67 +1229,77 @@ var table = null;
                 handle: '.column-drag-handle',
                 animation: 150
             });
-        }
+        };
 
-        // Override save handler in one place (ensures consistent behavior)
+        // ── Modal "Save" handler ───────────────────────────────────────────────
         $('#saveColumnSelect').off('click').on('click', function (e) {
             e.preventDefault();
-            // Ordered items as they appear in modal
-            const orderedElems = Array.from(document.querySelectorAll('#columnSelectForm .column-list .column-item'));
-            const orderedIdx = orderedElems.map(el => parseInt(el.getAttribute('data-idx')));
 
-            // Compute desired ColReorder order keeping checkbox (0) first and actions (last) last
-            const totalCols = columnDefs.length;
-            const fixedLeft = 1; // keep first col fixed
-            const fixedRight = 1; // keep last col fixed
-            const others = [];
-            for (let i = 0; i < totalCols; i++) {
-                if (i === 0 || i === totalCols - 1) continue;
-                if (!orderedIdx.includes(i)) others.push(i);
+            // 1. Read the desired order from the modal's draggable list
+            var orderedElems = document.querySelectorAll('#columnSelectForm .column-list .column-item');
+            var modalOrder = Array.from(orderedElems).map(function (el) {
+                return parseInt(el.getAttribute('data-idx'));
+            });
+
+            // 2. Read which columns are checked
+            var checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]'))
+                .filter(function (cb) { return cb.checked; })
+                .map(function (cb) { return parseInt(cb.value); });
+
+            // Always include mandatory columns
+            columnDefs.forEach(function (col, idx) {
+                if (col.mandatory && !checked.includes(idx)) checked.push(idx);
+            });
+
+            // 3. Build a complete column order:
+            //    - col 0 (Select) is always first (fixedColumnsLeft)
+            //    - modal-ordered columns in the middle
+            //    - col N-1 (Actions) is always last (fixedColumnsRight)
+            var lastCol = columnDefs.length - 1;
+            var middleFromModal = modalOrder.filter(function (idx) { return idx !== 0 && idx !== lastCol; });
+
+            // Columns not in the modal (col 0 and col lastCol) — already handled
+            // But verify: any column NOT in modalOrder and NOT 0 or lastCol should be appended
+            var inModal = new Set(modalOrder);
+            for (var i = 1; i < lastCol; i++) {
+                if (!inModal.has(i)) middleFromModal.push(i);
             }
-            const desiredOrder = [0];
-            orderedIdx.forEach(i => { if (i !== 0 && i !== totalCols-1) desiredOrder.push(i); });
-            others.forEach(i => desiredOrder.push(i));
-            desiredOrder.push(totalCols - 1);
 
-            // Apply order via ColReorder API
-            try {
-                if (table.colReorder && table.colReorder.order) {
-                    table.colReorder.order(desiredOrder);
-                }
-            } catch (err) {
-                console.warn('Failed to apply column order:', err);
+            var fullOrder = [0].concat(middleFromModal).concat([lastCol]);
+
+            // 4. Apply order first (applyColumnOrder shows all cols temporarily)
+            applyColumnOrder(fullOrder);
+
+            // 5. Then apply visibility from checkboxes
+            for (var j = 0; j < columnDefs.length; j++) {
+                table.column(j).visible(checked.includes(j), false);
             }
+            // Sync sort indicators and ColReorder index mappings
+            table.columns.adjust().draw(false);
 
-            // Visibility: collect checked values
-            const checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]')).filter(cb => cb.checked).map(cb => parseInt(cb.value));
-            // ensure mandatory are visible
-            columnDefs.forEach((col, idx) => { if (col.mandatory && !checked.includes(idx)) checked.push(idx); });
-
-            for (let i = 0; i < columnDefs.length; i++) {
-                try { table.column(i).visible(checked.includes(i), false); } catch (e) {}
-            }
-            table.columns.adjust();
-
-            // Persist visibility and order
-            try { localStorage.setItem('activities_column_selection', JSON.stringify(checked)); } catch (e) { console.warn(e); }
-            try { localStorage.setItem('activities_column_order', JSON.stringify(table.colReorder ? table.colReorder.order() : null)); } catch (e) { /* ignore */ }
+            localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(checked));
+            persistGridState();
 
             $('#columnSelectModal').addClass('hidden');
         });
 
-        // Ensure a single restore of visibility after table init
-        try {
-            const saved = getSavedColumns();
-            if (saved) {
-                for (let i = 0; i < columnDefs.length; i++) {
-                    try { table.column(i).visible(saved.includes(i), false); } catch (e) {}
-                }
-                table.columns.adjust();
+        // ── "Reset View" handler ───────────────────────────────────────────────
+        $('#resetViewBtn').on('click', function () {
+            if (!confirm('Reset columns to default view? Your current column selection and order will be lost.')) return;
+            clearSavedView();
+
+            // Apply default order first (applyColumnOrder temporarily shows all columns)
+            applyColumnOrder(getDefaultColumnOrder());
+
+            // Then apply default visibility
+            var defaultVisible = getDefaultVisibleColumns();
+            for (var i = 0; i < columnDefs.length; i++) {
+                table.column(i).visible(defaultVisible.includes(i), false);
             }
-        } catch (e) {
-            console.warn('Failed to restore saved column visibility:', e);
-        }
+
+            // Apply default sort, sync, and draw
+            table.order(getDefaultSort()).columns.adjust().draw();
+        });
 
         // 5. Bind Events for Persistence & Interaction
         $('#activityTypeFilter').on('change', function () {
@@ -1535,101 +1689,44 @@ var table = null;
         // Add event listeners
         $('#selectColumnsBtn').on('click', showColumnSelectModal);
         $('#closeColumnSelectModal').on('click', hideColumnSelectModal);
-        $('#saveColumnSelect').on('click', function(e) {
-            e.preventDefault();
-            const checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]:checked')).map(cb => parseInt(cb.value));
-            // Always show mandatory columns
-            columnDefs.forEach((col, idx) => {
-                if (col.mandatory && !checked.includes(idx)) checked.push(idx);
-            });
-            // Apply to DataTable
-            for (let i = 0; i < columnDefs.length; i++) {
-                $('#activitiesTable').DataTable().column(i).visible(checked.includes(i));
-            }
-            saveColumns(checked);
-            hideColumnSelectModal();
-        });
-
-        // Restore column selection on page load
-        $(document).ready(function() {
-            const saved = getSavedColumns();
-            if (saved) {
-                for (let i = 0; i < columnDefs.length; i++) {
-                    $('#activitiesTable').DataTable().column(i).visible(saved.includes(i));
-                }
-            }
-        });
+        // Note: #saveColumnSelect and #resetViewBtn are bound above
     });
 
     function showColumnSelectModal() {
-        // Build modal items in current visual order (respect colReorder if present)
-        let currentOrder = null;
-        try { currentOrder = table.colReorder ? table.colReorder.order() : null; } catch (e) { currentOrder = null; }
+        // Read current visual order
+        var currentOrder = readColumnOrder();
 
-        // Determine which columns should be displayed in the modal: selectable or mandatory
-        const items = [];
-        if (currentOrder && Array.isArray(currentOrder)) {
-            currentOrder.forEach(origIdx => {
-                const colMeta = columnDefs[origIdx];
-                if (!colMeta) return;
-                if (!colMeta.selectable && !colMeta.mandatory) return; // skip non-selectable non-mandatory
-                items.push({idx: origIdx, label: colMeta.label, mandatory: colMeta.mandatory});
-            });
-        } else {
-            // fallback: iterate in defined order
-            columnDefs.forEach((colMeta, idx) => {
-                if (!colMeta.selectable && !colMeta.mandatory) return;
-                items.push({idx: idx, label: colMeta.label, mandatory: colMeta.mandatory});
-            });
-        }
+        // Show only columns that are selectable or mandatory (skip Select/Actions which are pinned)
+        var items = [];
+        currentOrder.forEach(function (origIdx) {
+            var col = columnDefs[origIdx];
+            if (!col) return;
+            if (!col.selectable && !col.mandatory) return;
+            items.push({ idx: origIdx, label: col.label, mandatory: col.mandatory });
+        });
 
-        // Build HTML list with drag handles
-        let savedVisible = getSavedColumns();
-        if (!savedVisible) savedVisible = columnDefs.map((c, i) => i); // default all visible
+        // Determine which columns are currently visible
+        var savedVisible = getSavedColumns() || getDefaultVisibleColumns();
 
-        let formHtml = items.map(it => {
-            const checked = it.mandatory || savedVisible.includes(it.idx);
-            const disabled = it.mandatory ? 'disabled' : '';
-            return `<div class="column-item" data-idx="${it.idx}"><span class="column-left"><span class="column-drag-handle" title="Drag to reorder">☰</span></span><label style="flex:1; margin-left:6px;"><input type="checkbox" value="${it.idx}" ${checked ? 'checked' : ''} ${disabled}> ${it.label}${it.mandatory ? ' <span class="text-xs text-gray-400">(mandatory)</span>' : ''}</label></div>`;
+        var formHtml = items.map(function (it) {
+            var checked = it.mandatory || savedVisible.includes(it.idx);
+            var disabled = it.mandatory ? 'disabled' : '';
+            return '<div class="column-item" data-idx="' + it.idx + '">'
+                + '<span class="column-left"><span class="column-drag-handle" title="Drag to reorder">☰</span></span>'
+                + '<label style="flex:1; margin-left:6px;">'
+                + '<input type="checkbox" value="' + it.idx + '" ' + (checked ? 'checked' : '') + ' ' + disabled + '> '
+                + it.label + (it.mandatory ? ' <span class="text-xs text-gray-400">(mandatory)</span>' : '')
+                + '</label></div>';
         }).join('');
 
         $('#columnSelectForm .space-y-2').html('<div class="column-list">' + formHtml + '</div>');
         $('#columnSelectModal').removeClass('hidden');
-
-        // init sortable on newly created list
         initModalSortable();
     }
 
     function hideColumnSelectModal() {
         $('#columnSelectModal').addClass('hidden');
     }
-
-    $('#selectColumnsBtn').on('click', showColumnSelectModal);
-    $('#closeColumnSelectModal').on('click', hideColumnSelectModal);
-    $('#saveColumnSelect').on('click', function(e) {
-        e.preventDefault();
-        const checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]:checked')).map(cb => parseInt(cb.value));
-        // Always show mandatory columns
-        columnDefs.forEach((col, idx) => {
-            if (col.mandatory && !checked.includes(idx)) checked.push(idx);
-        });
-        // Apply to DataTable
-        for (let i = 0; i < columnDefs.length; i++) {
-            $('#activitiesTable').DataTable().column(i).visible(checked.includes(i));
-        }
-        saveColumns(checked);
-        hideColumnSelectModal();
-    });
-
-    // Restore column selection on page load
-    $(document).ready(function() {
-        const saved = getSavedColumns();
-        if (saved) {
-            for (let i = 0; i < columnDefs.length; i++) {
-                $('#activitiesTable').DataTable().column(i).visible(saved.includes(i));
-            }
-        }
-    });
 </script>
 
 {% endblock %}
