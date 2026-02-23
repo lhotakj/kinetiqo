@@ -21,6 +21,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
 <style>
+    /* Column visibility via CSS — used instead of DataTables visible(false) to avoid ColReorder crashes */
+    .col-hidden { display: none !important; }
+
     .select2-selection__choice__display {
         padding-left: 15px !important;
     }
@@ -676,7 +679,7 @@
 const COLUMN_STORAGE_KEY = 'activities_column_selection';
 const COLUMN_ORDER_KEY   = 'activities_column_order';
 const SORT_STORAGE_KEY   = 'activities_sort_order';
-const SCHEMA_VERSION_KEY = 'activities_schema_v2';
+const SCHEMA_VERSION_KEY = 'activities_schema_v3';
 
 var columnDefs = [
     {label: 'Select',            mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  0, defaultSort: null  }, //  0
@@ -744,54 +747,42 @@ function clearSavedView() {
     try { localStorage.removeItem(SORT_STORAGE_KEY); } catch (e) {}
 }
 
-// ─── Grid state read/write (clean ColReorder API — no hacks) ──────────────────
+// ─── CSS-based column visibility ──────────────────────────────────────────────
+// We NEVER call table.column().visible(false) because ColReorder 1.6.2 crashes
+// with insertBefore on ANY column with bVisible=false — both during programmatic
+// reorder AND during user drag-and-drop. Instead we toggle a CSS class.
 
-/** Read the current visual column order from ColReorder (array of original indices). */
+function applyColumnVisibility(visibleCols) {
+    if (!table) return;
+    _currentVisibleCols = visibleCols;  // remember for drawCallback
+    for (var i = 0; i < columnDefs.length; i++) {
+        var col = table.column(i);
+        var hide = !visibleCols.includes(i);
+        $(col.header()).toggleClass('col-hidden', hide);
+        var footer = $(col.footer());
+        if (footer.length) footer.toggleClass('col-hidden', hide);
+        $(col.nodes()).toggleClass('col-hidden', hide);
+    }
+}
+
+// Tracks which columns are currently visible (for re-applying after draw)
+var _currentVisibleCols = null;
+
+// ─── Grid state read/write ────────────────────────────────────────────────────
+
 function readColumnOrder() {
     if (!table) return getDefaultColumnOrder();
     try { return table.colReorder.order(); }
     catch (e) { return getDefaultColumnOrder(); }
 }
 
-/**
- * Apply a column order safely.
- * ColReorder 1.6.2 crashes on any column with bVisible=false, so this function
- * temporarily makes ALL columns visible before calling colReorder.order().
- * After this function returns, ALL columns are visible — the caller must apply
- * the desired visibility and call draw(false) to sync everything.
- */
 function applyColumnOrder(order) {
     if (!table) return;
     if (!Array.isArray(order) || order.length !== columnDefs.length) return;
-
-    // Skip if order already matches
-    var current = readColumnOrder();
-    var same = true;
-    for (var k = 0; k < order.length; k++) {
-        if (order[k] !== current[k]) { same = false; break; }
-    }
-    if (same) return;
-
-    // Make ALL columns visible so ColReorder can safely reorder them
-    var anyShown = false;
-    for (var i = 0; i < columnDefs.length; i++) {
-        if (!table.column(i).visible()) {
-            table.column(i).visible(true, false);
-            anyShown = true;
-        }
-    }
-    if (anyShown) table.columns.adjust().draw(false);
-
-    // Apply the order — all columns are visible, so no insertBefore errors
-    try {
-        table.colReorder.order(order);
-    } catch (e) {
-        console.warn('applyColumnOrder failed:', e);
-    }
-    // Caller must now apply visibility and call draw(false)
+    try { table.colReorder.order(order); }
+    catch (e) { console.warn('applyColumnOrder failed:', e); }
 }
 
-/** Persist current grid state (order + sort) to localStorage. */
 function persistGridState() {
     try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(readColumnOrder())); } catch (e) {}
     try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(table.order())); } catch (e) {}
@@ -1171,6 +1162,14 @@ var table = null;
             },
             "drawCallback": function (settings) {
                 updateCheckboxes();
+                // Re-apply CSS visibility to newly created <td> elements
+                if (_currentVisibleCols) {
+                    for (var i = 0; i < columnDefs.length; i++) {
+                        if (!_currentVisibleCols.includes(i)) {
+                            $(table.column(i).nodes()).addClass('col-hidden');
+                        }
+                    }
+                }
             }
         });
 
@@ -1183,7 +1182,7 @@ var table = null;
             localStorage.setItem(SCHEMA_VERSION_KEY, '1');
         }
 
-        // ── Restore column order (BEFORE visibility — colReorder needs all cols visible) ──
+        // ── Restore column order ───────────────────────────────────────────────
         (function restoreOrder() {
             try {
                 var savedOrder = JSON.parse(localStorage.getItem(COLUMN_ORDER_KEY) || 'null');
@@ -1193,16 +1192,10 @@ var table = null;
             } catch (e) { /* use default order */ }
         })();
 
-        // ── Restore column visibility ──────────────────────────────────────────
-        (function restoreVisibility() {
-            var saved = getSavedColumns();
-            var effectiveVisible = saved || getDefaultVisibleColumns();
-            for (var i = 0; i < columnDefs.length; i++) {
-                table.column(i).visible(effectiveVisible.includes(i), false);
-            }
-        })();
+        // ── Restore column visibility (CSS-based) ─────────────────────────────
+        applyColumnVisibility(getSavedColumns() || getDefaultVisibleColumns());
 
-        // ── Restore sort and sync everything ───────────────────────────────────
+        // ── Restore sort ───────────────────────────────────────────────────────
         (function restoreSort() {
             try {
                 var savedSort = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || 'null');
@@ -1210,13 +1203,16 @@ var table = null;
                     table.order(savedSort);
                 }
             } catch (e) { /* use default sort */ }
-            // Always draw to sync sort indicators and ColReorder column index mappings
             table.columns.adjust().draw(false);
         })();
 
         // ── Persist state on user interactions ─────────────────────────────────
         table.on('order.dt', function () { persistGridState(); });
-        table.on('column-reorder.dt', function () { persistGridState(); });
+        table.on('column-reorder.dt', function () {
+            // Re-apply CSS visibility after drag (ColReorder moves DOM elements)
+            if (_currentVisibleCols) applyColumnVisibility(_currentVisibleCols);
+            persistGridState();
+        });
 
         // ── SortableJS for the modal list ──────────────────────────────────────
         window.initModalSortable = function () {
@@ -1267,14 +1263,11 @@ var table = null;
 
             var fullOrder = [0].concat(middleFromModal).concat([lastCol]);
 
-            // 4. Apply order first (applyColumnOrder shows all cols temporarily)
+            // 4. Apply order
             applyColumnOrder(fullOrder);
 
-            // 5. Then apply visibility from checkboxes
-            for (var j = 0; j < columnDefs.length; j++) {
-                table.column(j).visible(checked.includes(j), false);
-            }
-            // Sync sort indicators and ColReorder index mappings
+            // 5. Apply visibility via CSS (never touches bVisible)
+            applyColumnVisibility(checked);
             table.columns.adjust().draw(false);
 
             localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(checked));
@@ -1288,16 +1281,13 @@ var table = null;
             if (!confirm('Reset columns to default view? Your current column selection and order will be lost.')) return;
             clearSavedView();
 
-            // Apply default order first (applyColumnOrder temporarily shows all columns)
+            // Apply default order
             applyColumnOrder(getDefaultColumnOrder());
 
-            // Then apply default visibility
-            var defaultVisible = getDefaultVisibleColumns();
-            for (var i = 0; i < columnDefs.length; i++) {
-                table.column(i).visible(defaultVisible.includes(i), false);
-            }
+            // Apply default visibility via CSS
+            applyColumnVisibility(getDefaultVisibleColumns());
 
-            // Apply default sort, sync, and draw
+            // Apply default sort and draw
             table.order(getDefaultSort()).columns.adjust().draw();
         });
 
@@ -1705,11 +1695,11 @@ var table = null;
             items.push({ idx: origIdx, label: col.label, mandatory: col.mandatory });
         });
 
-        // Determine which columns are currently visible
-        var savedVisible = getSavedColumns() || getDefaultVisibleColumns();
+        // Determine which columns are currently visible (use in-memory state)
+        var currentVisible = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
 
         var formHtml = items.map(function (it) {
-            var checked = it.mandatory || savedVisible.includes(it.idx);
+            var checked = it.mandatory || currentVisible.includes(it.idx);
             var disabled = it.mandatory ? 'disabled' : '';
             return '<div class="column-item" data-idx="' + it.idx + '">'
                 + '<span class="column-left"><span class="column-drag-handle" title="Drag to reorder">☰</span></span>'
