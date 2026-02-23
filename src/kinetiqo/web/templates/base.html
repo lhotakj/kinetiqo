@@ -14,9 +14,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Italiana&display=swap"
           rel="stylesheet">
 
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/2.3.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -210,11 +210,15 @@
             color: #d4d4d4;
         }
 
-        /* DataTables Minimalist Style */
+        /* DataTables Minimalist Style — supports both DT 1.x and 2.x class names */
         .dataTables_wrapper .dataTables_length,
         .dataTables_wrapper .dataTables_filter,
         .dataTables_wrapper .dataTables_info,
-        .dataTables_wrapper .dataTables_paginate {
+        .dataTables_wrapper .dataTables_paginate,
+        .dt-container .dt-length,
+        .dt-container .dt-search,
+        .dt-container .dt-info,
+        .dt-container .dt-paging {
             font-family: 'Inter', sans-serif;
             font-size: 0.875rem;
             color: #666;
@@ -225,7 +229,11 @@
         body.dark .dataTables_wrapper .dataTables_length,
         body.dark .dataTables_wrapper .dataTables_filter,
         body.dark .dataTables_wrapper .dataTables_info,
-        body.dark .dataTables_wrapper .dataTables_paginate {
+        body.dark .dataTables_wrapper .dataTables_paginate,
+        body.dark .dt-container .dt-length,
+        body.dark .dt-container .dt-search,
+        body.dark .dt-container .dt-info,
+        body.dark .dt-container .dt-paging {
             color: #a3a3a3;
         }
 
@@ -267,34 +275,40 @@
         }
 
         /* DataTables pagination buttons */
-        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button {
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button,
+        body.dark .dt-container .dt-paging .dt-paging-button {
             color: #d4d4d4 !important;
         }
 
-        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button:hover,
+        body.dark .dt-container .dt-paging .dt-paging-button:hover {
             background: #333333 !important;
             border-color: #404040 !important;
             color: #f5f5f5 !important;
         }
 
-        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+        body.dark .dt-container .dt-paging .dt-paging-button.current {
             background: #404040 !important;
             border-color: #525252 !important;
             color: #f5f5f5 !important;
         }
 
-        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.disabled {
+        body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+        body.dark .dt-container .dt-paging .dt-paging-button.disabled {
             color: #525252 !important;
         }
 
         /* DataTables filter input */
-        body.dark .dataTables_wrapper .dataTables_filter input {
+        body.dark .dataTables_wrapper .dataTables_filter input,
+        body.dark .dt-container .dt-search input {
             background-color: #262626;
             border-color: #404040;
             color: #e5e5e5;
         }
 
-        body.dark .dataTables_wrapper .dataTables_length select {
+        body.dark .dataTables_wrapper .dataTables_length select,
+        body.dark .dt-container .dt-length select {
             background-color: #262626;
             border-color: #404040;
             color: #e5e5e5;

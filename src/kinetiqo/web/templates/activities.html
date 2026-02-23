@@ -7,11 +7,11 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
 
-<!-- DataTables Buttons -->
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<!-- DataTables Buttons (3.x for DT 2.x) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.3/css/buttons.dataTables.min.css">
+<script src="https://cdn.datatables.net/buttons/3.2.3/js/dataTables.buttons.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.html5.min.js"></script>
 
 <!-- ColReorder extension for DataTables (enables in-grid column drag & drop) -->
 <link rel="stylesheet" href="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css">
@@ -21,8 +21,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
 <style>
-    /* Column visibility via CSS — used instead of DataTables visible(false) to avoid ColReorder crashes */
-    .col-hidden { display: none !important; }
 
     .select2-selection__choice__display {
         padding-left: 15px !important;
@@ -369,44 +367,15 @@
     .column-item { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; display:flex; align-items:center; justify-content:space-between }
     .column-list { display:flex; flex-direction:column; gap:6px }
 
-    /* DataTables sort indicators — ensure arrows are always visible despite Tailwind resets */
-    table.dataTable thead th {
-        position: relative;
-    }
-    table.dataTable thead th.sorting,
-    table.dataTable thead th.sorting_asc,
-    table.dataTable thead th.sorting_desc {
+    /* DataTables 2.x sort indicators — just ensure enough right-padding for built-in indicators */
+    table.dataTable thead th.dt-orderable-asc,
+    table.dataTable thead th.dt-orderable-desc {
         cursor: pointer;
-        padding-right: 28px !important;
+        padding-right: 26px !important;
     }
-    /* Override any Tailwind reset that removes pseudo-element content */
-    table.dataTable thead th.sorting::before,
-    table.dataTable thead th.sorting::after,
-    table.dataTable thead th.sorting_asc::before,
-    table.dataTable thead th.sorting_asc::after,
-    table.dataTable thead th.sorting_desc::before,
-    table.dataTable thead th.sorting_desc::after {
-        position: absolute !important;
-        display: block !important;
-        right: 8px !important;
-        font-size: 0.7em !important;
-        line-height: 1 !important;
-    }
-    table.dataTable thead th.sorting::before       { content: "▲" !important; bottom: 57% !important; opacity: 0.25 !important; }
-    table.dataTable thead th.sorting::after        { content: "▼" !important; top: 57% !important; opacity: 0.25 !important; }
-    table.dataTable thead th.sorting_asc::before   { content: "▲" !important; bottom: 57% !important; opacity: 1 !important; }
-    table.dataTable thead th.sorting_asc::after    { content: "▼" !important; top: 57% !important; opacity: 0.1 !important; }
-    table.dataTable thead th.sorting_desc::before  { content: "▲" !important; bottom: 57% !important; opacity: 0.1 !important; }
-    table.dataTable thead th.sorting_desc::after   { content: "▼" !important; top: 57% !important; opacity: 1 !important; }
-
-    /* Dark mode sort indicators */
-    body.dark table.dataTable thead th.sorting::before,
-    body.dark table.dataTable thead th.sorting::after,
-    body.dark table.dataTable thead th.sorting_asc::before,
-    body.dark table.dataTable thead th.sorting_asc::after,
-    body.dark table.dataTable thead th.sorting_desc::before,
-    body.dark table.dataTable thead th.sorting_desc::after {
-        color: #e5e5e5 !important;
+    /* Dark mode: make DT 2.x sort indicator spans visible */
+    body.dark table.dataTable thead th .dt-column-order {
+        color: #e5e5e5;
     }
 </style>
 
@@ -673,13 +642,12 @@
 <script>
 // ─── Grid State Management ────────────────────────────────────────────────────
 // All grid state (visibility, column order, sort) is persisted to localStorage.
-// Column indices below correspond 1-to-1 with the DataTable "columns" array.
-// There are NO hidden columns — ColReorder works natively, no workarounds needed.
+// DT 2.x + ColReorder 2.x — column().visible() works natively, no workarounds.
 
 const COLUMN_STORAGE_KEY = 'activities_column_selection';
 const COLUMN_ORDER_KEY   = 'activities_column_order';
 const SORT_STORAGE_KEY   = 'activities_sort_order';
-const SCHEMA_VERSION_KEY = 'activities_schema_v3';
+const SCHEMA_VERSION_KEY = 'activities_schema_v5';
 
 var columnDefs = [
     {label: 'Select',            mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  0, defaultSort: null  }, //  0
@@ -747,25 +715,18 @@ function clearSavedView() {
     try { localStorage.removeItem(SORT_STORAGE_KEY); } catch (e) {}
 }
 
-// ─── CSS-based column visibility ──────────────────────────────────────────────
-// We NEVER call table.column().visible(false) because ColReorder 1.6.2 crashes
-// with insertBefore on ANY column with bVisible=false — both during programmatic
-// reorder AND during user drag-and-drop. Instead we toggle a CSS class.
+// ─── Column visibility (native DT 2.x API) ───────────────────────────────────
+// DT 2.x + ColReorder 2.x properly handles column().visible() without crashes.
 
 function applyColumnVisibility(visibleCols) {
     if (!table) return;
-    _currentVisibleCols = visibleCols;  // remember for drawCallback
+    _currentVisibleCols = visibleCols;
     for (var i = 0; i < columnDefs.length; i++) {
-        var col = table.column(i);
-        var hide = !visibleCols.includes(i);
-        $(col.header()).toggleClass('col-hidden', hide);
-        var footer = $(col.footer());
-        if (footer.length) footer.toggleClass('col-hidden', hide);
-        $(col.nodes()).toggleClass('col-hidden', hide);
+        table.column(i).visible(visibleCols.includes(i), false); // false = don't redraw each time
     }
 }
 
-// Tracks which columns are currently visible (for re-applying after draw)
+// Tracks which columns are currently visible
 var _currentVisibleCols = null;
 
 // ─── Grid state read/write ────────────────────────────────────────────────────
@@ -779,8 +740,11 @@ function readColumnOrder() {
 function applyColumnOrder(order) {
     if (!table) return;
     if (!Array.isArray(order) || order.length !== columnDefs.length) return;
-    try { table.colReorder.order(order); }
-    catch (e) { console.warn('applyColumnOrder failed:', e); }
+    try {
+        table.colReorder.order(order, true);
+    } catch (e) {
+        console.warn('applyColumnOrder failed:', e);
+    }
 }
 
 function persistGridState() {
@@ -936,18 +900,24 @@ var table = null;
         // 4. Initialize DataTable
         table = $('#activitiesTable').DataTable({
             "processing": true,
-            "serverSide": false, // Client-side processing
+            "serverSide": false,
             "pageLength": 25,
-            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
+            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
             "order": getDefaultSort(),
-            "autoWidth": false, // Disable auto width calculation to use our custom widths
-            "dom": 'Brt<"flex justify-between items-center mt-4"ilp>',
+            "autoWidth": false,
+            // DT 2.x layout replaces 'dom'
+            "layout": {
+                "topStart": null,
+                "topEnd": null,
+                "bottomStart": ['info', 'pageLength'],
+                "bottomEnd": 'paging'
+            },
             "search": {
-                "search": savedFilters.search || "" // Initialize with saved search
+                "search": savedFilters.search || ""
             },
             "buttons": [],
-            // Enable ColReorder so user can drag columns in the grid. Keep first (checkbox) and last (actions) columns fixed.
-            "colReorder": { "realtime": true, "fixedColumnsLeft": 1, "fixedColumnsRight": 1 },
+            // ColReorder 2.x
+            "colReorder": true,
             "ajax": {
                 "url": "/api/activities",
                 "data": function (d) {
@@ -1162,19 +1132,10 @@ var table = null;
             },
             "drawCallback": function (settings) {
                 updateCheckboxes();
-                // Re-apply CSS visibility to newly created <td> elements
-                if (_currentVisibleCols) {
-                    for (var i = 0; i < columnDefs.length; i++) {
-                        if (!_currentVisibleCols.includes(i)) {
-                            $(table.column(i).nodes()).addClass('col-hidden');
-                        }
-                    }
-                }
             }
         });
 
-        // Move buttons to the container
-        table.buttons().container().appendTo('#custom-buttons-wrapper');
+        // Buttons are empty — custom UI buttons are in #custom-buttons-wrapper via HTML
 
         // ── Schema migration: wipe old localStorage if schema changed ──────────
         if (!localStorage.getItem(SCHEMA_VERSION_KEY)) {
@@ -1192,7 +1153,7 @@ var table = null;
             } catch (e) { /* use default order */ }
         })();
 
-        // ── Restore column visibility (CSS-based) ─────────────────────────────
+        // ── Restore column visibility ──────────────────────────────────────────
         applyColumnVisibility(getSavedColumns() || getDefaultVisibleColumns());
 
         // ── Restore sort ───────────────────────────────────────────────────────
@@ -1208,11 +1169,7 @@ var table = null;
 
         // ── Persist state on user interactions ─────────────────────────────────
         table.on('order.dt', function () { persistGridState(); });
-        table.on('column-reorder.dt', function () {
-            // Re-apply CSS visibility after drag (ColReorder moves DOM elements)
-            if (_currentVisibleCols) applyColumnVisibility(_currentVisibleCols);
-            persistGridState();
-        });
+        table.on('column-reorder.dt', function () { persistGridState(); });
 
         // ── SortableJS for the modal list ──────────────────────────────────────
         window.initModalSortable = function () {
@@ -1263,10 +1220,15 @@ var table = null;
 
             var fullOrder = [0].concat(middleFromModal).concat([lastCol]);
 
-            // 4. Apply order
+            // 4. Show all columns first so colReorder can work correctly
+            for (var j = 0; j < columnDefs.length; j++) {
+                table.column(j).visible(true, false);
+            }
+
+            // 5. Apply order (all columns visible — no conflicts)
             applyColumnOrder(fullOrder);
 
-            // 5. Apply visibility via CSS (never touches bVisible)
+            // 6. Apply desired visibility
             applyColumnVisibility(checked);
             table.columns.adjust().draw(false);
 
@@ -1284,7 +1246,7 @@ var table = null;
             // Apply default order
             applyColumnOrder(getDefaultColumnOrder());
 
-            // Apply default visibility via CSS
+            // Apply default visibility
             applyColumnVisibility(getDefaultVisibleColumns());
 
             // Apply default sort and draw
@@ -1695,7 +1657,7 @@ var table = null;
             items.push({ idx: origIdx, label: col.label, mandatory: col.mandatory });
         });
 
-        // Determine which columns are currently visible (use in-memory state)
+        // Determine which columns are currently visible
         var currentVisible = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
 
         var formHtml = items.map(function (it) {
