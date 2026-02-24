@@ -65,6 +65,18 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
                 "def_pg": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
                 "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_date ON "activities" ("start_date")'
+            },
+            {
+                "name": "idx_activities_sport_start_date",
+                "def_mysql": "CREATE INDEX idx_activities_sport_start_date ON activities (sport, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_sport_start_date ON activities (sport, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_sport_start_date ON "activities" ("sport", "start_date")'
+            },
+            {
+                "name": "idx_activities_sport",
+                "def_mysql": "CREATE INDEX idx_activities_sport ON activities (sport)",
+                "def_pg": "CREATE INDEX idx_activities_sport ON activities (sport)",
+                "def_firebird": 'CREATE INDEX idx_activities_sport ON "activities" ("sport")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -116,6 +128,12 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_streams_ts ON streams (ts)",
                 "def_pg": "CREATE INDEX idx_streams_ts ON streams (ts)",
                 "def_firebird": 'CREATE INDEX idx_streams_ts ON "streams" ("ts")'
+            },
+            {
+                "name": "idx_streams_activity_id_ts_gps",
+                "def_mysql": "CREATE INDEX idx_streams_activity_id_ts_gps ON streams (activity_id, ts, lat, lng)",
+                "def_pg": "CREATE INDEX idx_streams_activity_id_ts_gps ON streams (activity_id, ts) WHERE lat IS NOT NULL AND lng IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_id_ts_gps ON "streams" ("activity_id", "ts")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -169,6 +187,73 @@ class SchemaManager:
         for table_name, definition in SCHEMA_DEFINITION.items():
             self._ensure_table(table_name, definition)
 
+        # Safely apply indexes after all tables are confirmed to exist.
+        # Idempotent — safe to run on every startup.
+        for table_name, definition in SCHEMA_DEFINITION.items():
+            if "indexes" in definition:
+                self._ensure_indexes(table_name, definition["indexes"])
+
+    def _ensure_indexes(self, table_name: str, indexes: list):
+        """Safely create indexes that don't yet exist. Idempotent — safe on every startup."""
+        type_suffix = self._get_type_suffix()
+        for idx in indexes:
+            idx_name = idx["name"]
+            idx_sql = idx[f"def_{type_suffix}"]
+
+            if self._index_exists(idx_name, table_name):
+                continue  # Already exists, skip silently
+
+            cur = self.conn.cursor()
+            try:
+                if self.db_type == 'postgresql':
+                    # PostgreSQL supports CREATE INDEX IF NOT EXISTS natively
+                    safe_sql = idx_sql.replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ", 1)
+                    safe_sql = safe_sql.replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ", 1)
+                else:
+                    # MySQL / Firebird: existence already confirmed above
+                    safe_sql = idx_sql
+                cur.execute(safe_sql)
+                self.conn.commit()
+                logger.info(f"{self.db_type.upper()}: Created index '{idx_name}' on '{table_name}'.")
+            except Exception as e:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                logger.warning(f"{self.db_type.upper()}: Could not create index '{idx_name}' on '{table_name}': {e}")
+            finally:
+                cur.close()
+
+    def _index_exists(self, index_name: str, table_name: str) -> bool:
+        """Check whether an index already exists in the database."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == 'mysql':
+                cur.execute(
+                    "SELECT COUNT(*) FROM information_schema.statistics "
+                    "WHERE table_schema = DATABASE() AND table_name = %s AND index_name = %s",
+                    (table_name, index_name)
+                )
+            elif self.db_type == 'postgresql':
+                cur.execute(
+                    "SELECT COUNT(*) FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                    (table_name, index_name)
+                )
+            elif self.db_type == 'firebird':
+                cur.execute(
+                    "SELECT COUNT(*) FROM RDB$INDICES WHERE RDB$INDEX_NAME = ?",
+                    (index_name.upper(),)
+                )
+            else:
+                return False
+            result = cur.fetchone()
+            return (result[0] > 0) if result else False
+        except Exception as e:
+            logger.warning(f"{self.db_type.upper()}: Could not check index existence for '{index_name}': {e}")
+            return False
+        finally:
+            cur.close()
+
     def _quote_identifier(self, identifier):
         """Quotes an identifier based on the database dialect."""
         if self.db_type == 'mysql':
@@ -201,7 +286,7 @@ class SchemaManager:
             cur.close()
 
     def _create_table(self, table_name, definition):
-        logger.info(f"{self.db_type.upper()}: Creating table '{table_name}'...")
+        logger.info(f"{self.db_type.upper()}: Creating table '{table_name}' if not exists...")
 
         type_suffix = self._get_type_suffix()
         columns_def = []
@@ -217,7 +302,15 @@ class SchemaManager:
                 const_def = const[const_key]
                 columns_def.append(const_def)
 
-        create_sql = f"CREATE TABLE {self._quote_identifier(table_name)} ({', '.join(columns_def)})"
+        quoted_table = self._quote_identifier(table_name)
+
+        # Use IF NOT EXISTS at DB level — safe for concurrent workers (Gunicorn etc.)
+        if self.db_type == 'firebird':
+            # Firebird does not support CREATE TABLE IF NOT EXISTS — wrap in existence check
+            # under an exception handler; concurrent duplicate is harmless
+            create_sql = f"CREATE TABLE {quoted_table} ({', '.join(columns_def)})"
+        else:
+            create_sql = f"CREATE TABLE IF NOT EXISTS {quoted_table} ({', '.join(columns_def)})"
 
         if self.db_type == 'mysql' and "engine_mysql" in definition:
             create_sql += f" {definition['engine_mysql']}"
@@ -225,17 +318,22 @@ class SchemaManager:
         cur = self.conn.cursor()
         try:
             cur.execute(create_sql)
-            self.conn.commit()  # Commit table creation before creating indexes
-
-            # Create indexes
-            if "indexes" in definition:
-                for idx_def in definition["indexes"]:
-                    idx_key = f"def_{type_suffix}"
-                    idx_sql = idx_def[idx_key]
-                    cur.execute(idx_sql)
-
             self.conn.commit()
-            logger.info(f"{self.db_type.upper()}: Table '{table_name}' created.")
+            # Indexes are NOT created here — _ensure_indexes() in ensure_schema() handles
+            # them after all tables exist, idempotently and safely on every re-run.
+            logger.info(f"{self.db_type.upper()}: Table '{table_name}' ready.")
+        except Exception as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+            # On Firebird (no IF NOT EXISTS), a concurrent worker may have created the
+            # table between our existence check and CREATE — that is fine, just log it.
+            if self._table_exists(table_name):
+                logger.info(f"{self.db_type.upper()}: Table '{table_name}' already exists (created by another worker).")
+            else:
+                logger.error(f"{self.db_type.upper()}: Failed to create table '{table_name}': {e}")
+                raise
         finally:
             cur.close()
 

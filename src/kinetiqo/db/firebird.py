@@ -219,9 +219,7 @@ class FirebirdRepository(DatabaseRepository):
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
-        # Quote sort column
         sort_by = f'"{sort_by}"'
-
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
         where_conditions = []
@@ -234,20 +232,23 @@ class FirebirdRepository(DatabaseRepository):
 
         if start_date:
             where_conditions.append('"start_date" >= ?')
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date)
             params.append(start_date)
 
         if end_date:
-            if len(end_date) == 10:
-                end_date += " 23:59:59.999999"
             where_conditions.append('"start_date" <= ?')
+            if isinstance(end_date, str):
+                if len(end_date) == 10:
+                    end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                else:
+                    end_date = datetime.fromisoformat(end_date)
             params.append(end_date)
 
         where_clause = ""
         if where_conditions:
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
-        # Firebird uses FIRST/SKIP for pagination
-        # Inject limit/offset directly to avoid parameter binding issues with FIRST/SKIP
         query = f"""
             SELECT FIRST {limit} SKIP {offset}
                 "activity_id" as id,
@@ -396,12 +397,17 @@ class FirebirdRepository(DatabaseRepository):
 
         if start_date:
             where_conditions.append('"start_date" >= ?')
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date)
             params.append(start_date)
 
         if end_date:
-            if len(end_date) == 10:
-                end_date += " 23:59:59.999999"
             where_conditions.append('"start_date" <= ?')
+            if isinstance(end_date, str):
+                if len(end_date) == 10:
+                    end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                else:
+                    end_date = datetime.fromisoformat(end_date)
             params.append(end_date)
 
         where_clause = ""
@@ -409,8 +415,7 @@ class FirebirdRepository(DatabaseRepository):
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
         query = f"""
-            SELECT
-                COALESCE(SUM("distance"), 0) as total_distance,
+            SELECT COALESCE(SUM("distance"), 0) as total_distance,
                 COALESCE(SUM("total_elevation_gain"), 0) as total_elevation,
                 COALESCE(SUM("moving_time"), 0) as total_moving_time
             FROM "activities"
