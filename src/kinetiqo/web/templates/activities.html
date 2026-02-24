@@ -410,31 +410,40 @@
                         <h4 class="font-semibold text-sm mb-2">Presets</h4>
                         <div class="grid grid-cols-1 gap-2">
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="all_time">All time
-                            </button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="today">Today
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="yesterday">Yesterday
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_week">This Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="7_days">Last 7 Days
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="last_week">Last Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="14_days">Last 14 Days
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="this_month">This Month
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="last_month">Last Month
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="this_year">This Year
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="7_days">7 Days
+                                    data-preset="last_year">Last Year
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="14_days">14 Days
+                                    data-preset="year">Last 12 Months
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="year">Year
+                                    data-preset="all_time">All Time
                             </button>
                         </div>
                     </div>
@@ -1329,17 +1338,29 @@ var table = null;
                         startDate = moment().subtract(1, 'days');
                         endDate = moment().subtract(1, 'days');
                         break;
+                    case 'this_week':
+                        startDate = moment().startOf('isoWeek');
+                        endDate = moment();
+                        break;
                     case 'last_week':
-                        startDate = moment().subtract(1, 'week').startOf('week');
-                        endDate = moment().subtract(1, 'week').endOf('week');
+                        startDate = moment().subtract(1, 'week').startOf('isoWeek');
+                        endDate = moment().subtract(1, 'week').endOf('isoWeek');
                         break;
                     case 'this_month':
                         startDate = moment().startOf('month');
-                        endDate = moment().endOf('month');
+                        endDate = moment();
+                        break;
+                    case 'last_month':
+                        startDate = moment().subtract(1, 'month').startOf('month');
+                        endDate = moment().subtract(1, 'month').endOf('month');
                         break;
                     case 'this_year':
                         startDate = moment().startOf('year');
-                        endDate = moment().endOf('year');
+                        endDate = moment();
+                        break;
+                    case 'last_year':
+                        startDate = moment().subtract(1, 'year').startOf('year');
+                        endDate = moment().subtract(1, 'year').endOf('year');
                         break;
                     case '7_days':
                         startDate = moment().subtract(6, 'days');
