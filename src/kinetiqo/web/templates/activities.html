@@ -601,6 +601,19 @@
     </div>
 </div>
 
+<!-- Flash message banner -->
+<div id="flashMessage" class="hidden mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between" role="alert">
+    <div class="flex items-center">
+        <svg id="flashIconError" class="hidden w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+        <svg id="flashIconWarning" class="hidden w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+        <svg id="flashIconInfo" class="hidden w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+        <span id="flashText"></span>
+    </div>
+    <button onclick="hideFlash()" class="ml-4 text-current opacity-70 hover:opacity-100 focus:outline-none">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+    </button>
+</div>
+
 <div class="bg-white rounded-lg">
     <table id="activitiesTable" class="w-full text-left border-collapse">
         <thead>
@@ -652,6 +665,43 @@
 // ─── Grid State Management ────────────────────────────────────────────────────
 // All grid state (visibility, column order, sort) is persisted to localStorage.
 // DT 2.x + ColReorder 2.x — column().visible() works natively, no workarounds.
+
+// ─── Flash Message Helpers ────────────────────────────────────────────────────
+function showFlash(message, type) {
+    // type: 'error', 'warning', 'info'
+    type = type || 'error';
+    var el = document.getElementById('flashMessage');
+    var textEl = document.getElementById('flashText');
+    var iconError = document.getElementById('flashIconError');
+    var iconWarning = document.getElementById('flashIconWarning');
+    var iconInfo = document.getElementById('flashIconInfo');
+
+    textEl.textContent = message;
+
+    // Reset classes and icons
+    el.className = 'mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between';
+    iconError.classList.add('hidden');
+    iconWarning.classList.add('hidden');
+    iconInfo.classList.add('hidden');
+
+    if (type === 'error') {
+        el.classList.add('bg-red-100', 'border', 'border-red-300', 'text-red-800');
+        iconError.classList.remove('hidden');
+    } else if (type === 'warning') {
+        el.classList.add('bg-yellow-100', 'border', 'border-yellow-300', 'text-yellow-800');
+        iconWarning.classList.remove('hidden');
+    } else {
+        el.classList.add('bg-blue-100', 'border', 'border-blue-300', 'text-blue-800');
+        iconInfo.classList.remove('hidden');
+    }
+
+    el.classList.remove('hidden');
+    el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function hideFlash() {
+    document.getElementById('flashMessage').classList.add('hidden');
+}
 
 const COLUMN_STORAGE_KEY = 'activities_column_selection';
 const COLUMN_ORDER_KEY   = 'activities_column_order';
@@ -952,7 +1002,34 @@ var table = null;
                     d.endDate = $('#endDate').val();
                 },
                 "dataSrc": function (json) {
+                    hideFlash();
+                    if (!json || typeof json !== 'object') {
+                        showFlash('The server returned an unexpected response. Please try again later.', 'error');
+                        return [];
+                    }
+                    if (json.error) {
+                        showFlash('Server error: ' + json.error, 'error');
+                        return [];
+                    }
+                    if (!Array.isArray(json.data)) {
+                        showFlash('The server returned data in an unexpected format.', 'error');
+                        return [];
+                    }
+                    if (json.data.length === 0) {
+                        showFlash('No activities found matching the current filters.', 'info');
+                    }
                     return json.data;
+                },
+                "error": function (xhr, status, error) {
+                    if (xhr.status === 0) {
+                        showFlash('Unable to connect to the server. Please check if the server is running.', 'error');
+                    } else if (xhr.status === 401 || xhr.status === 403) {
+                        showFlash('Your session has expired. Please log in again.', 'warning');
+                    } else if (xhr.status === 500) {
+                        showFlash('Internal server error. Please check the server logs for details.', 'error');
+                    } else {
+                        showFlash('Failed to load activities (HTTP ' + xhr.status + '). Please try again.', 'error');
+                    }
                 }
             },
             "columns": [
@@ -1532,7 +1609,11 @@ var table = null;
                         table.ajax.reload(null, false); // Reload and keep paging
                     },
                     error: function (xhr, status, error) {
-                        alert('An error occurred while deleting activities: ' + error);
+                        if (xhr.status === 0) {
+                            showFlash('Unable to connect to the server. Please check if the server is running.', 'error');
+                        } else {
+                            showFlash('An error occurred while deleting activities: ' + (error || 'Unknown error'), 'error');
+                        }
                         table.ajax.reload(null, false);
                     }
                 });
@@ -1675,7 +1756,11 @@ var table = null;
                         table.ajax.reload(null, false); // false to keep current paging
                     },
                     error: function (xhr, status, error) {
-                        alert('Error deleting activity: ' + error);
+                        if (xhr.status === 0) {
+                            showFlash('Unable to connect to the server. Please check if the server is running.', 'error');
+                        } else {
+                            showFlash('Error deleting activity: ' + (error || 'Unknown error'), 'error');
+                        }
                     }
                 });
             }
