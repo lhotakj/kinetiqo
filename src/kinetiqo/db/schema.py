@@ -77,6 +77,24 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_sport ON activities (sport)",
                 "def_pg": "CREATE INDEX idx_activities_sport ON activities (sport)",
                 "def_firebird": 'CREATE INDEX idx_activities_sport ON "activities" ("sport")'
+            },
+            {
+                "name": "idx_activities_distance",
+                "def_mysql": "CREATE INDEX idx_activities_distance ON activities (distance DESC)",
+                "def_pg": "CREATE INDEX idx_activities_distance ON activities (distance DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_distance ON "activities" ("distance")'
+            },
+            {
+                "name": "idx_activities_elevation",
+                "def_mysql": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
+                "def_pg": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_elevation ON "activities" ("total_elevation_gain")'
+            },
+            {
+                "name": "idx_activities_moving_time",
+                "def_mysql": "CREATE INDEX idx_activities_moving_time ON activities (moving_time DESC)",
+                "def_pg": "CREATE INDEX idx_activities_moving_time ON activities (moving_time DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_moving_time ON "activities" ("moving_time")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
