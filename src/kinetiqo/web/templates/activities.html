@@ -367,6 +367,76 @@
     .column-item { padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; display:flex; align-items:center; justify-content:space-between }
     .column-list { display:flex; flex-direction:column; gap:6px }
 
+    /* Dark mode for column selection modal */
+    body.dark #columnSelectModal > div {
+        background-color: #262626;
+        color: #e5e5e5;
+    }
+    body.dark #columnSelectModal h3 {
+        color: #f5f5f5;
+    }
+    body.dark .column-item {
+        background: #333333;
+        border-color: #525252;
+        color: #e5e5e5;
+    }
+    body.dark .column-drag-handle {
+        color: #a3a3a3;
+    }
+    body.dark #columnSelectModal label {
+        color: #e5e5e5;
+    }
+    body.dark #columnSelectModal .text-gray-400 {
+        color: #a3a3a3 !important;
+    }
+    /* Scrollbar styling for column select modal */
+    #columnSelectForm::-webkit-scrollbar {
+        width: 8px;
+    }
+    #columnSelectForm::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    #columnSelectForm::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+    #columnSelectForm::-webkit-scrollbar-thumb:hover {
+        background: #a1a1a1;
+    }
+    body.dark #columnSelectForm::-webkit-scrollbar-track {
+        background: #333333;
+    }
+    body.dark #columnSelectForm::-webkit-scrollbar-thumb {
+        background: #525252;
+    }
+    body.dark #columnSelectForm::-webkit-scrollbar-thumb:hover {
+        background: #6b6b6b;
+    }
+
+    /* Dark mode for modal buttons */
+    body.dark #closeColumnSelectModal {
+        background-color: #525252 !important;
+        color: #e5e5e5;
+    }
+    body.dark #closeColumnSelectModal:hover {
+        background-color: #6b6b6b !important;
+    }
+    body.dark #saveColumnSelect {
+        background-color: #2563eb !important;
+        color: #f5f5f5;
+    }
+    body.dark #saveColumnSelect:hover {
+        background-color: #1d4ed8 !important;
+    }
+    /* Disabled button state */
+    body.dark #closeColumnSelectModal:disabled,
+    body.dark #saveColumnSelect:disabled {
+        background-color: #404040 !important;
+        color: #808080;
+        cursor: not-allowed;
+    }
+
     /* DataTables 2.x sort indicators — just ensure enough right-padding for built-in indicators */
     table.dataTable thead th.dt-orderable-asc,
     table.dataTable thead th.dt-orderable-desc {
@@ -587,14 +657,14 @@
 
 <!-- Column selection modal -->
 <div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50 hidden">
-    <div class="bg-white rounded-lg shadow-lg p-6 w-96">
-        <h3 class="text-lg font-semibold mb-4">Select columns to display</h3>
-        <form id="columnSelectForm">
+    <div class="bg-white rounded-lg shadow-lg p-6 w-96 flex flex-col" style="max-height: 90vh;">
+        <h3 class="text-lg font-semibold mb-4 flex-shrink-0">Select columns to display</h3>
+        <form id="columnSelectForm" class="flex-1 overflow-y-auto min-h-0">
             <div class="space-y-2">
                 <!-- Dynamically filled -->
             </div>
         </form>
-        <div class="flex justify-end mt-4">
+        <div class="flex justify-end mt-4 flex-shrink-0">
             <button id="closeColumnSelectModal" class="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded mr-2">Cancel</button>
             <button id="saveColumnSelect" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">Save</button>
         </div>
