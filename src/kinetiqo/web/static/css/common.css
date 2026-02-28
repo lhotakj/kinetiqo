@@ -509,7 +509,7 @@ body.dark .github-logo {
    11. Select2 — theme integration
    --------------------------------------------------------------- */
 .select2-selection__choice__display {
-    padding-left: 15px !important;
+    padding-left: 5px !important;
 }
 
 .select2-container--default .select2-selection--multiple {
@@ -538,11 +538,16 @@ body.dark .github-logo {
     display: none;
 }
 
+.select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection--multiple .select2-selection__rendered {
+    display: none;
+}
+
 .select2-selection__summary {
     display: none;
-    padding: 0 0.5rem;
+    padding: 0.35rem 0.5rem 0;
     color: #374151;
     font-size: 0.875rem;
+    white-space: nowrap;
 }
 
 .select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection__summary {
