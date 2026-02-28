@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+import mimetypes
 from datetime import datetime
 
 import folium
@@ -15,8 +16,52 @@ from kinetiqo.web.auth import User, users
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kinetiqo.web")
 
-app = Flask(__name__, template_folder='./templates')
+app = Flask(__name__, template_folder='./templates',
+            static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
+
+# --- Static Files MIME Type Configuration ---
+# Add custom MIME types for common files if not already registered
+mimetypes.add_type('text/css', '.css')
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('application/json', '.json')
+mimetypes.add_type('image/svg+xml', '.svg')
+mimetypes.add_type('font/woff2', '.woff2')
+mimetypes.add_type('font/woff', '.woff')
+mimetypes.add_type('font/ttf', '.ttf')
+
+
+@app.after_request
+def set_static_headers(response):
+    """Set proper headers for static content and caching."""
+    # Only apply to static files
+    if request.path.startswith('/static/'):
+        # Set appropriate Cache-Control headers based on file type
+        if request.path.endswith('.css') or request.path.endswith('.js'):
+            # CSS and JS: cache for 1 year (they're usually versioned)
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        elif request.path.endswith(('.woff', '.woff2', '.ttf', '.eot')):
+            # Fonts: cache for 1 year
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        elif request.path.endswith(('.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.webp')):
+            # Images: cache for 30 days
+            response.headers['Cache-Control'] = 'public, max-age=2592000'
+        else:
+            # Default: cache for 1 hour
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+
+        # Ensure Content-Type is set correctly
+        if 'Content-Type' not in response.headers:
+            content_type, _ = mimetypes.guess_type(request.path)
+            if content_type:
+                response.headers['Content-Type'] = content_type
+
+        # Add additional security headers for static content
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Access-Control-Allow-Origin'] = '*'
+
+    return response
+
 
 # --- Configuration & Database ---
 # Default config, will be overwritten by set_config
