@@ -59,6 +59,13 @@ def set_static_headers(response):
         # Add additional security headers for static content
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Access-Control-Allow-Origin'] = '*'
+    else:
+        # Prevent browser caching of API responses and dynamic pages.
+        # This ensures that data freshly synced (e.g. new activities) is
+        # visible immediately without requiring a hard refresh.
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
 
     return response
 
