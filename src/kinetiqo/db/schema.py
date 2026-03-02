@@ -109,6 +109,12 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE DESCENDING INDEX idx_activities_moving_time ON "activities" ("moving_time")'
             },
             {
+                "name": "idx_activities_average_speed",
+                "def_mysql": "CREATE INDEX idx_activities_average_speed ON activities (average_speed DESC)",
+                "def_pg": "CREATE INDEX idx_activities_average_speed ON activities (average_speed DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_average_speed ON "activities" ("average_speed")'
+            },
+            {
                 "name": "idx_activities_avg_watts",
                 "def_mysql": "CREATE INDEX idx_activities_avg_watts ON activities (average_watts DESC)",
                 "def_pg": "CREATE INDEX idx_activities_avg_watts ON activities (average_watts DESC) WHERE average_watts IS NOT NULL",
