@@ -38,7 +38,8 @@ def set_static_headers(response):
     if request.path.startswith('/static/'):
         # Set appropriate Cache-Control headers based on file type
         if request.path.endswith('.css') or request.path.endswith('.js'):
-            # CSS and JS: cache for 1 year (they're usually versioned)
+            # CSS and JS: cache for 1 year with immutable. Cache-busting is done
+            # via the ?v=<app_version> query parameter appended by templates.
             response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         elif request.path.endswith(('.woff', '.woff2', '.ttf', '.eot')):
             # Fonts: cache for 1 year
