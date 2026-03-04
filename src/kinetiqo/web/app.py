@@ -494,15 +494,18 @@ def get_settings():
     db_host = None
     db_port = None
 
+    # Prefer the repository's config if available, otherwise fall back to the global config
+    db_config = getattr(db_repo, 'config', config)
+
     if db_type == 'mysql':
-        db_host = config.mysql_host or getattr(db_repo, 'config', {}).get('mysql_host', 'unknown')
-        db_port = config.mysql_port or getattr(db_repo, 'config', {}).get('mysql_port', 'unknown')
+        db_host = config.mysql_host or getattr(db_config, 'mysql_host', 'unknown')
+        db_port = config.mysql_port or getattr(db_config, 'mysql_port', 'unknown')
     elif db_type == 'postgresql':
-        db_host = config.postgresql_host or getattr(db_repo, 'config', {}).get('postgresql_host', 'unknown')
-        db_port = config.postgresql_port or getattr(db_repo, 'config', {}).get('postgresql_port', 'unknown')
+        db_host = config.postgresql_host or getattr(db_config, 'postgresql_host', 'unknown')
+        db_port = config.postgresql_port or getattr(db_config, 'postgresql_port', 'unknown')
     elif db_type == 'firebird':
-        db_host = config.firebird_host or getattr(db_repo, 'config', {}).get('firebird_host', 'unknown')
-        db_port = config.firebird_port or getattr(db_repo, 'config', {}).get('firebird_port', 'unknown')
+        db_host = config.firebird_host or getattr(db_config, 'firebird_host', 'unknown')
+        db_port = config.firebird_port or getattr(db_config, 'firebird_port', 'unknown')
     else:
         db_host = 'unknown'
         db_port = 'unknown'
