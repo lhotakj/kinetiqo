@@ -1,4 +1,5 @@
 import logging
+import time
 
 import requests
 
@@ -105,7 +106,18 @@ class StravaClient:
                     if attempt > self.request_retries:
                         yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
                         return
-                    # brief backoff
+                    # Exponential backoff; honour Retry-After for HTTP 429 responses
+                    if isinstance(e, requests.exceptions.HTTPError) and e.response is not None and e.response.status_code == 429:
+                        try:
+                            retry_after = int(e.response.headers.get("Retry-After", 60))
+                        except (ValueError, TypeError):
+                            retry_after = 60
+                        logger.warning(f"Rate limited (HTTP 429). Waiting {retry_after}s before retry.")
+                        time.sleep(retry_after)
+                    else:
+                        backoff = 2 ** attempt
+                        logger.debug(f"Backing off for {backoff}s before retry.")
+                        time.sleep(backoff)
             try:
                 batch = r.json()
             except Exception as e:
@@ -160,6 +172,18 @@ class StravaClient:
                 if attempt > self.request_retries:
                     logger.error(f"Failed to fetch streams for {activity_id} after {attempt} attempts: {e}")
                     raise
+                # Exponential backoff; honour Retry-After for HTTP 429 responses
+                if isinstance(e, requests.exceptions.HTTPError) and e.response is not None and e.response.status_code == 429:
+                    try:
+                        retry_after = int(e.response.headers.get("Retry-After", 60))
+                    except (ValueError, TypeError):
+                        retry_after = 60
+                    logger.warning(f"Rate limited (HTTP 429). Waiting {retry_after}s before retry.")
+                    time.sleep(retry_after)
+                else:
+                    backoff = 2 ** attempt
+                    logger.debug(f"Backing off for {backoff}s before retry.")
+                    time.sleep(backoff)
 
         streams = r.json()
 
