@@ -1,4 +1,5 @@
 import logging
+import time
 
 import requests
 
@@ -91,7 +92,7 @@ class StravaClient:
 
             logger.debug(f"GET {url} | params={params}")
 
-            # Try with simple retry logic to avoid long blocking
+            # Try with simple retry logic and exponential backoff
             attempt = 0
             while True:
                 attempt += 1
@@ -99,13 +100,27 @@ class StravaClient:
                     r = requests.get(url, headers=self._headers(), params=params, timeout=self.request_timeout)
                     r.raise_for_status()
                     break
+                except requests.exceptions.HTTPError as e:
+                    logger.warning(f"Strava request failed (attempt {attempt}): {e}")
+                    yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
+                    if attempt > self.request_retries:
+                        yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
+                        return
+                    # For HTTP 429 (rate-limited), honour the server's Retry-After header if present
+                    if e.response is not None and e.response.status_code == 429:
+                        retry_after = e.response.headers.get("Retry-After")
+                        sleep_secs = int(retry_after) if retry_after and retry_after.isdigit() else 2 ** attempt
+                        logger.warning(f"Rate-limited by Strava (HTTP 429). Sleeping {sleep_secs}s before retry.")
+                    else:
+                        sleep_secs = 2 ** attempt
+                    time.sleep(sleep_secs)
                 except requests.exceptions.RequestException as e:
                     logger.warning(f"Strava request failed (attempt {attempt}): {e}")
                     yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
                     if attempt > self.request_retries:
                         yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
                         return
-                    # brief backoff
+                    time.sleep(2 ** attempt)
             try:
                 batch = r.json()
             except Exception as e:
