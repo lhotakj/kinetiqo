@@ -96,12 +96,11 @@ jobs:
             require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `changelog<<EOF\n${fullChangelog}\nEOF\n`);
 
       - name: Upload changelog as artifact
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+        if: (contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')) && (steps.changelog.outputs.result != '')
         uses: actions/upload-artifact@v4
         with:
           name: changelog
           path: CHANGELOG.md
-        if: steps.changelog.outputs.result != ''
 
       - name: Create GitHub Release (on /release or /publish)
         if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
