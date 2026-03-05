@@ -1,4 +1,5 @@
 import logging
+import time
 
 import requests
 
@@ -15,6 +16,10 @@ class StravaClient:
         self.config = config
         self._access_token = None
         self.cache = CacheManager(config)
+        # Network timeout in seconds for (connect, read)
+        self.request_timeout = getattr(self.config, 'strava_request_timeout', 15)
+        # Simple retry count for transient network errors
+        self.request_retries = getattr(self.config, 'strava_request_retries', 2)
 
     def _get_access_token(self) -> str:
         """Exchange refresh token for a new access token."""
@@ -31,7 +36,11 @@ class StravaClient:
         }
 
         logger.debug(f"POST {url}")
-        r = requests.post(url, data=payload)
+        try:
+            r = requests.post(url, data=payload, timeout=self.request_timeout)
+        except Exception as e:
+            logger.error(f"Token exchange request failed: {e}")
+            raise
 
         if r.status_code != 200:
             logger.error(f"Token exchange failed: {r.status_code}")
@@ -82,9 +91,42 @@ class StravaClient:
                 params["after"] = after
 
             logger.debug(f"GET {url} | params={params}")
-            r = requests.get(url, headers=self._headers(), params=params)
-            r.raise_for_status()
-            batch = r.json()
+
+            # Try with simple retry logic and exponential backoff
+            attempt = 0
+            while True:
+                attempt += 1
+                try:
+                    r = requests.get(url, headers=self._headers(), params=params, timeout=self.request_timeout)
+                    r.raise_for_status()
+                    break
+                except requests.exceptions.HTTPError as e:
+                    logger.warning(f"Strava request failed (attempt {attempt}): {e}")
+                    yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
+                    if attempt > self.request_retries:
+                        yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
+                        return
+                    # For HTTP 429 (rate-limited), honour the server's Retry-After header if present
+                    if e.response is not None and e.response.status_code == 429:
+                        retry_after = e.response.headers.get("Retry-After")
+                        sleep_secs = int(retry_after) if retry_after and retry_after.isdigit() else 2 ** attempt
+                        logger.warning(f"Rate-limited by Strava (HTTP 429). Sleeping {sleep_secs}s before retry.")
+                    else:
+                        sleep_secs = 2 ** attempt
+                    time.sleep(sleep_secs)
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Strava request failed (attempt {attempt}): {e}")
+                    yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
+                    if attempt > self.request_retries:
+                        yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
+                        return
+                    time.sleep(2 ** attempt)
+            try:
+                batch = r.json()
+            except Exception as e:
+                logger.error(f"Failed to decode Strava response JSON: {e}")
+                yield f"Error: Failed to decode Strava response: {e}"
+                return
 
             msg = f"Page {page}: Found {len(batch)} activities."
             logger.debug(msg)
@@ -116,12 +158,24 @@ class StravaClient:
 
         url = f"{self.BASE_URL}/activities/{activity_id}/streams"
         params = {
-            "keys": "time,latlng,altitude,heartrate,cadence,velocity_smooth,distance",
+            "keys": "time,latlng,altitude,heartrate,cadence,velocity_smooth,distance,watts,temp,grade_smooth,moving",
             "key_by_type": "true"
         }
         logger.debug(f"GET {url} | params={params}")
-        r = requests.get(url, headers=self._headers(), params=params)
-        r.raise_for_status()
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = requests.get(url, headers=self._headers(), params=params, timeout=self.request_timeout)
+                r.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Strava streams request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.error(f"Failed to fetch streams for {activity_id} after {attempt} attempts: {e}")
+                    raise
+
         streams = r.json()
 
         # Cache the streams

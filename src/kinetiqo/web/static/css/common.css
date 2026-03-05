@@ -1,0 +1,972 @@
+/* ===================================================================
+   Kinetiqo — common.css
+   Shared styles used across all pages (base layout, dark-mode, etc.)
+   =================================================================== */
+
+/* ---------------------------------------------------------------
+   1. Body & Typography
+   --------------------------------------------------------------- */
+body {
+    background-color: #FDFDFC;
+    color: #2C2A26;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+body.dark {
+    background-color: #171717;
+    color: #e5e5e5;
+}
+
+h1, h2, h3, h4, .italiana {
+    font-family: "Italiana", serif !important;
+}
+
+/* ---------------------------------------------------------------
+   2. Sidebar
+   --------------------------------------------------------------- */
+.nav-item {
+    transition: all 0.2s ease;
+    border-radius: 0.5rem;
+}
+
+.nav-item:hover {
+    background-color: #E8E6E1;
+}
+
+.nav-item.active {
+    background-color: #E8E6E1;
+    font-weight: 500;
+}
+
+body.dark .nav-item:hover {
+    background-color: #404040;
+}
+
+body.dark .nav-item.active {
+    background-color: #404040;
+    color: #f5f5f5;
+}
+
+body.dark aside {
+    background-color: #262626;
+    border-color: #404040;
+}
+
+/* ---------------------------------------------------------------
+   3. Dark-mode — Tailwind color-class overrides
+   --------------------------------------------------------------- */
+body.dark .text-warm-900 {
+    color: #f5f5f5;
+}
+
+body.dark .bg-warm-100 {
+    background-color: #171717;
+}
+
+body.dark .text-gray-400 {
+    color: #737373;
+}
+
+body.dark .text-gray-500 {
+    color: #a3a3a3;
+}
+
+body.dark .text-gray-600 {
+    color: #d4d4d4;
+}
+
+body.dark .text-gray-700 {
+    color: #d4d4d4;
+}
+
+body.dark .text-gray-900 {
+    color: #f5f5f5;
+}
+
+body.dark .bg-white {
+    background-color: #1a1a1a;
+    border-color: #404040;
+}
+
+body.dark .bg-gray-50 {
+    background-color: #262626;
+}
+
+body.dark .bg-gray-100 {
+    background-color: #2a2a2a;
+}
+
+body.dark .hover\:bg-gray-100:hover {
+    background-color: #333333;
+}
+
+body.dark .hover\:bg-gray-200:hover {
+    background-color: #404040;
+}
+
+body.dark main {
+    background-color: #171717;
+}
+
+body.dark .border-warm-200 {
+    border-color: #404040;
+}
+
+body.dark .border-gray-100 {
+    border-color: #333333;
+}
+
+body.dark .border-gray-200 {
+    border-color: #404040;
+}
+
+body.dark .border-gray-300 {
+    border-color: #525252;
+}
+
+body.dark .hover\:bg-warm-200:hover {
+    background-color: #404040;
+}
+
+body.dark .bg-gray-300 {
+    background-color: #525252;
+}
+
+body.dark .hover\:text-gray-600:hover {
+    color: #d4d4d4;
+}
+
+/* ---------------------------------------------------------------
+   4. Dark-mode — Input fields
+   --------------------------------------------------------------- */
+body.dark input[type="text"],
+body.dark input[type="password"] {
+    background-color: #262626;
+    border-color: #404040;
+    color: #e5e5e5;
+}
+
+body.dark input[type="text"]:focus,
+body.dark input[type="password"]:focus {
+    background-color: #2a2a2a;
+    border-color: #525252;
+}
+
+body.dark input::placeholder {
+    color: #737373;
+}
+
+body.dark input[type="range"] {
+    background-color: #404040;
+}
+
+body.dark select {
+    background-color: #262626;
+    border-color: #404040;
+    color: #e5e5e5;
+}
+
+body.dark label {
+    color: #d4d4d4;
+}
+
+/* ---------------------------------------------------------------
+   5. Dark-mode — Buttons
+   --------------------------------------------------------------- */
+
+/* Inverted (login) button */
+body.dark button.bg-gray-900 {
+    background-color: #f5f5f5;
+    color: #171717;
+}
+
+body.dark button.bg-gray-900:hover {
+    background-color: #e5e5e5;
+}
+
+body.dark .bg-gray-900 {
+    background-color: #f5f5f5;
+    color: #171717;
+}
+
+body.dark .bg-gray-900:hover {
+    background-color: #e5e5e5;
+}
+
+/* Gray buttons (secondary / cancel) */
+body.dark button.bg-gray-400,
+body.dark button.bg-gray-300,
+body.dark button.bg-gray-100,
+body.dark button.bg-gray-700 {
+    background-color: #525252 !important;
+    color: #e5e5e5 !important;
+    border-color: #6b6b6b !important;
+}
+
+body.dark button.bg-gray-400:hover,
+body.dark button.bg-gray-300:hover,
+body.dark button.bg-gray-100:hover,
+body.dark button.bg-gray-700:hover {
+    background-color: #6b6b6b !important;
+    color: #f5f5f5 !important;
+}
+
+body.dark button.bg-gray-400:disabled,
+body.dark button.bg-gray-300:disabled,
+body.dark button.bg-gray-100:disabled,
+body.dark button.bg-gray-700:disabled {
+    background-color: #404040 !important;
+    color: #808080 !important;
+    border-color: #525252 !important;
+    cursor: not-allowed !important;
+}
+
+/* Blue buttons (primary) */
+body.dark button.bg-blue-600 {
+    background-color: #2563eb !important;
+    color: #f5f5f5 !important;
+    border-color: #1d4ed8 !important;
+}
+
+body.dark button.bg-blue-600:hover {
+    background-color: #1d4ed8 !important;
+    color: #f5f5f5 !important;
+}
+
+body.dark button.bg-blue-600:disabled {
+    background-color: #404040 !important;
+    color: #808080 !important;
+    border-color: #525252 !important;
+    cursor: not-allowed !important;
+}
+
+/* Orange buttons (accent) */
+body.dark button.bg-orange-600 {
+    background-color: #ea580c !important;
+    color: #f5f5f5 !important;
+    border-color: #d94a0c !important;
+}
+
+body.dark button.bg-orange-600:hover {
+    background-color: #d94a0c !important;
+    color: #f5f5f5 !important;
+}
+
+body.dark button.bg-orange-600:disabled {
+    background-color: #404040 !important;
+    color: #808080 !important;
+    border-color: #525252 !important;
+    cursor: not-allowed !important;
+}
+
+/* Link-styled buttons */
+body.dark a.bg-gray-100,
+body.dark a.bg-gray-700 {
+    background-color: #404040 !important;
+    border-color: #525252 !important;
+    color: #e5e5e5 !important;
+}
+
+body.dark a.bg-gray-100:hover,
+body.dark a.bg-gray-700:hover {
+    background-color: #525252 !important;
+    border-color: #6b6b6b !important;
+    color: #f5f5f5 !important;
+}
+
+/* ---------------------------------------------------------------
+   6. Dark-mode — User section / avatar
+   --------------------------------------------------------------- */
+body.dark .bg-orange-200 {
+    background-color: #7c2d12;
+}
+
+body.dark .text-orange-800 {
+    color: #fed7aa;
+}
+
+body.dark .border-orange-300 {
+    border-color: #9a3412;
+}
+
+/* ---------------------------------------------------------------
+   7. Dark-mode — Alerts
+   --------------------------------------------------------------- */
+body.dark .bg-red-50 {
+    background-color: #7f1d1d;
+    border-color: #991b1b;
+}
+
+body.dark .text-red-700 {
+    color: #fca5a5;
+}
+
+/* ---------------------------------------------------------------
+   8. DataTables — minimalist style (DT 1.x + 2.x class names)
+   --------------------------------------------------------------- */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate,
+.dt-container .dt-length,
+.dt-container .dt-search,
+.dt-container .dt-info,
+.dt-container .dt-paging {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    color: #666;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+}
+
+body.dark .dataTables_wrapper .dataTables_length,
+body.dark .dataTables_wrapper .dataTables_filter,
+body.dark .dataTables_wrapper .dataTables_info,
+body.dark .dataTables_wrapper .dataTables_paginate,
+body.dark .dt-container .dt-length,
+body.dark .dt-container .dt-search,
+body.dark .dt-container .dt-info,
+body.dark .dt-container .dt-paging {
+    color: #a3a3a3;
+}
+
+table.dataTable.no-footer {
+    border-bottom: 1px solid #E5E7EB;
+}
+
+body.dark table.dataTable.no-footer {
+    border-bottom: 1px solid #404040;
+}
+
+table.dataTable thead th {
+    border-bottom: 1px solid #E5E7EB;
+    font-weight: 600;
+    color: #4B5563;
+}
+
+body.dark table.dataTable thead th {
+    border-bottom: 1px solid #404040;
+    color: #d4d4d4;
+}
+
+body.dark table.dataTable tbody tr {
+    background-color: #1a1a1a;
+    color: #d4d4d4;
+}
+
+body.dark table.dataTable tbody tr:hover {
+    background-color: #262626;
+}
+
+body.dark table.dataTable tfoot {
+    background-color: #262626;
+    color: #d4d4d4;
+}
+
+body.dark table.dataTable tfoot tr {
+    border-color: #404040;
+}
+
+/* DataTables pagination buttons */
+body.dark .dataTables_wrapper .dataTables_paginate .paginate_button,
+body.dark .dt-container .dt-paging .dt-paging-button {
+    color: #d4d4d4 !important;
+}
+
+body.dark .dataTables_wrapper .dataTables_paginate .paginate_button:hover,
+body.dark .dt-container .dt-paging .dt-paging-button:hover {
+    background: #333333 !important;
+    border-color: #404040 !important;
+    color: #f5f5f5 !important;
+}
+
+body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+body.dark .dt-container .dt-paging .dt-paging-button.current {
+    background: #404040 !important;
+    border-color: #525252 !important;
+    color: #f5f5f5 !important;
+}
+
+body.dark .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+body.dark .dt-container .dt-paging .dt-paging-button.disabled {
+    color: #525252 !important;
+}
+
+/* DataTables filter input */
+body.dark .dataTables_wrapper .dataTables_filter input,
+body.dark .dt-container .dt-search input {
+    background-color: #262626;
+    border-color: #404040;
+    color: #e5e5e5;
+}
+
+body.dark .dataTables_wrapper .dataTables_length select,
+body.dark .dt-container .dt-length select {
+    background-color: #262626;
+    border-color: #404040;
+    color: #e5e5e5;
+}
+
+/* DataTables 2.x sort indicators */
+table.dataTable thead th.dt-orderable-asc,
+table.dataTable thead th.dt-orderable-desc {
+    cursor: pointer;
+    padding-right: 26px !important;
+}
+
+body.dark table.dataTable thead th .dt-column-order {
+    color: #e5e5e5;
+}
+
+/* DataTables buttons */
+.dt-buttons .dt-button {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    height: 42px;
+    transition: background-color 0.2s;
+}
+
+.dt-buttons .dt-button:hover {
+    background-color: #f3f4f6;
+}
+
+body.dark .dt-buttons .dt-button {
+    background-color: #262626;
+    border-color: #404040;
+    color: #d4d4d4;
+}
+
+body.dark .dt-buttons .dt-button:hover {
+    background-color: #333333;
+}
+
+/* ---------------------------------------------------------------
+   9. Animations
+   --------------------------------------------------------------- */
+
+/* Fade-in for HTMX */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Loading spinner */
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #FC4C02;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    animation: spin 1s linear infinite;
+}
+
+body.dark .loading-spinner {
+    border-color: #404040;
+    border-top-color: #FC4C02;
+}
+
+@keyframes spin {
+    0%  { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+}
+
+/* ---------------------------------------------------------------
+   10. GitHub logo
+   --------------------------------------------------------------- */
+.github-logo {
+    fill: #54575b;
+}
+
+body.dark .github-logo {
+    fill: #aeaeae;
+}
+
+/* ---------------------------------------------------------------
+   11. Select2 — theme integration
+   --------------------------------------------------------------- */
+.select2-selection__choice__display {
+    padding-left: 5px !important;
+}
+
+.select2-container--default .select2-selection--multiple {
+    border-color: #E5E7EB;
+    border-radius: 0.5rem;
+    padding: 0.25rem;
+    min-height: 42px;
+    max-height: 42px;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.select2-container--default.select2-container--focus .select2-selection--multiple,
+.select2-container--default.select2-container--open .select2-selection--multiple {
+    max-height: 400px;
+    overflow-y: auto;
+    border-color: #D1D5DB;
+    outline: none;
+    box-shadow: 0 0 0 1px #D1D5DB;
+}
+
+.select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection--multiple .select2-selection__choice {
+    display: none;
+}
+
+.select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection--multiple .select2-selection__rendered {
+    display: none;
+}
+
+.select2-selection__summary {
+    display: none;
+    padding: 0.35rem 0.5rem 0;
+    color: #374151;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection__summary {
+    display: block;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background-color: #F3F4F6;
+    border: 1px solid #E5E7EB;
+    border-radius: 0.25rem;
+    color: #374151;
+    padding: 0 0.4rem;
+    margin-top: 0.25rem;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: #6B7280;
+    margin-right: 0.25rem;
+    border-right: none;
+}
+
+.select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+    background-color: #E5E7EB;
+    color: #111827;
+}
+
+.select2-dropdown {
+    border-color: #E5E7EB;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Select2 dark mode */
+body.dark .select2-selection__summary {
+    color: #d4d4d4;
+}
+
+body.dark .select2-container--default .select2-selection--multiple {
+    background-color: #262626;
+    border-color: #404040;
+}
+
+body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background-color: #333333;
+    border-color: #525252;
+    color: #e5e5e5;
+}
+
+body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: #a3a3a3;
+}
+
+body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: #e5e5e5;
+}
+
+body.dark .select2-dropdown {
+    background-color: #262626;
+    border-color: #404040;
+}
+
+body.dark .select2-results__option {
+    color: #e5e5e5;
+}
+
+body.dark .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+    background-color: #333333;
+    color: #f5f5f5;
+}
+
+body.dark .select2-results__option--selected {
+    background-color: #404040;
+}
+
+body.dark .select2-container--default .select2-results__group {
+    color: #a3a3a3;
+}
+
+body.dark .select2-search__field {
+    background-color: #1a1a1a;
+    border-color: #525252;
+    color: #e5e5e5;
+}
+
+/* ---------------------------------------------------------------
+   12. Activity icons
+   --------------------------------------------------------------- */
+.activity-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background-color: #F3F4F6;
+    color: #4B5563;
+    font-size: 12px;
+}
+
+.icon-Ride, .icon-GravelRide, .icon-MountainBikeRide, .icon-VirtualRide, .icon-EBikeRide, .icon-EMountainBikeRide, .icon-Velomobile, .icon-Handcycle {
+    color: #EA580C;
+    background-color: #FFEDD5;
+}
+
+.icon-Run, .icon-TrailRun, .icon-VirtualRun, .icon-Walk, .icon-Hike, .icon-Snowshoe, .icon-Wheelchair {
+    color: #059669;
+    background-color: #D1FAE5;
+}
+
+.icon-Swim, .icon-Surfing, .icon-Windsurf, .icon-Kitesurf, .icon-Kayaking, .icon-Rowing, .icon-Canoeing, .icon-StandUpPaddling, .icon-Sail {
+    color: #0284C7;
+    background-color: #E0F2FE;
+}
+
+.icon-AlpineSki, .icon-BackcountrySki, .icon-NordicSki, .icon-Snowboard, .icon-IceSkate, .icon-RollerSki, .icon-InlineSkate {
+    color: #2563EB;
+    background-color: #DBEAFE;
+}
+
+.icon-Workout, .icon-WeightTraining, .icon-Crossfit, .icon-Yoga, .icon-Pilates, .icon-HighIntensityIntervalTraining, .icon-RockClimbing {
+    color: #7C3AED;
+    background-color: #EDE9FE;
+}
+
+.icon-Golf, .icon-Soccer, .icon-Tennis, .icon-Squash, .icon-Badminton, .icon-Pickleball, .icon-Racquetball, .icon-TableTennis {
+    color: #DB2777;
+    background-color: #FCE7F3;
+}
+
+.icon-StairStepper, .icon-Skateboard, .icon-Elliptical, .icon-VirtualRow {
+    color: #9a16a1;
+    background-color: #fde3ff;
+}
+
+/* Select2 choice colors per activity type */
+.select2-selection__choice.choice-Ride, .select2-selection__choice.choice-GravelRide, .select2-selection__choice.choice-MountainBikeRide, .select2-selection__choice.choice-VirtualRide, .select2-selection__choice.choice-EBikeRide, .select2-selection__choice.choice-EMountainBikeRide, .select2-selection__choice.choice-Velomobile, .select2-selection__choice.choice-Handcycle {
+    background-color: #FFEDD5 !important;
+    color: #EA580C !important;
+    border-color: #FDBA74 !important;
+}
+
+.select2-selection__choice.choice-Run, .select2-selection__choice.choice-TrailRun, .select2-selection__choice.choice-VirtualRun, .select2-selection__choice.choice-Walk, .select2-selection__choice.choice-Hike, .select2-selection__choice.choice-Snowshoe, .select2-selection__choice.choice-Wheelchair {
+    background-color: #D1FAE5 !important;
+    color: #059669 !important;
+    border-color: #6EE7B7 !important;
+}
+
+.select2-selection__choice.choice-Swim, .select2-selection__choice.choice-Surfing, .select2-selection__choice.choice-Windsurf, .select2-selection__choice.choice-Kitesurf, .select2-selection__choice.choice-Kayaking, .select2-selection__choice.choice-Rowing, .select2-selection__choice.choice-Canoeing, .select2-selection__choice.choice-StandUpPaddling, .select2-selection__choice.choice-Sail {
+    background-color: #E0F2FE !important;
+    color: #0284C7 !important;
+    border-color: #7DD3FC !important;
+}
+
+.select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate {
+    background-color: #DBEAFE !important;
+    color: #2563EB !important;
+    border-color: #93C5FD !important;
+}
+
+.select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing {
+    background-color: #EDE9FE !important;
+    color: #7C3AED !important;
+    border-color: #C4B5FD !important;
+}
+
+.select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis {
+    background-color: #FCE7F3 !important;
+    color: #DB2777 !important;
+    border-color: #F9A8D4 !important;
+}
+
+.select2-selection__choice.choice-StairStepper, .select2-selection__choice.choice-Skateboard, .select2-selection__choice.choice-Elliptical, .select2-selection__choice.choice-VirtualRow {
+    background-color: #fde3ff !important;
+    color: #9a16a1 !important;
+    border-color: #c9c1c9 !important;
+}
+
+/* ---------------------------------------------------------------
+   13. Daterangepicker dark mode
+   --------------------------------------------------------------- */
+body.dark .daterangepicker {
+    background-color: #262626;
+    border-color: #404040;
+}
+
+body.dark .daterangepicker .calendar-table {
+    background-color: #262626;
+    border-color: #404040;
+}
+
+body.dark .daterangepicker td, body.dark .daterangepicker th {
+    color: #e5e5e5;
+}
+
+body.dark .daterangepicker td.off, body.dark .daterangepicker td.off.in-range, body.dark .daterangepicker td.off.start-date, body.dark .daterangepicker td.off.end-date {
+    color: #737373;
+}
+
+body.dark .daterangepicker td.available:hover, body.dark .daterangepicker th.available:hover {
+    background-color: #333333;
+}
+
+body.dark .daterangepicker td.active, body.dark .daterangepicker td.active:hover {
+    background-color: #EA580C;
+}
+
+body.dark .daterangepicker .calendar-table thead tr {
+    background-color: #1a1a1a;
+}
+
+body.dark .daterangepicker select {
+    background-color: #1a1a1a;
+    border-color: #525252;
+    color: #e5e5e5;
+}
+
+body.dark .daterangepicker .ranges li {
+    color: #e5e5e5;
+}
+
+body.dark .daterangepicker .ranges li:hover {
+    background-color: #333333;
+}
+
+body.dark .daterangepicker .ranges li.active {
+    background-color: #EA580C;
+}
+
+/* ---------------------------------------------------------------
+   14. Date filter dark mode
+   --------------------------------------------------------------- */
+body.dark #dateFilter {
+    background-color: #262626 !important;
+    border-color: #404040;
+    color: #e5e5e5;
+}
+
+body.dark #dateFilterDropdown {
+    background-color: #262626;
+    border-color: #404040;
+}
+
+body.dark .date-preset-btn {
+    color: #e5e5e5;
+}
+
+body.dark .date-preset-btn:hover {
+    background-color: #333333;
+}
+
+/* ---------------------------------------------------------------
+   15. Action / filter buttons (no-wrap)
+   --------------------------------------------------------------- */
+.activity-action-btn, .activity-filter-btn, .activity-export-btn {
+    white-space: nowrap;
+    min-width: 110px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+/* ---------------------------------------------------------------
+   16. Column-select modal
+   --------------------------------------------------------------- */
+.column-drag-handle {
+    cursor: grab;
+    display: inline-block;
+    width: 18px;
+    text-align: center;
+    margin-right: 8px;
+    color: #6b7280;
+}
+
+.column-item {
+    padding: 6px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.column-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+body.dark #columnSelectModal > div {
+    background-color: #262626;
+    color: #e5e5e5;
+}
+
+body.dark #columnSelectModal h3 {
+    color: #f5f5f5;
+}
+
+body.dark .column-item {
+    background: #333333;
+    border-color: #525252;
+    color: #e5e5e5;
+}
+
+body.dark .column-drag-handle {
+    color: #a3a3a3;
+}
+
+body.dark #columnSelectModal label {
+    color: #e5e5e5;
+}
+
+body.dark #columnSelectModal .text-gray-400 {
+    color: #a3a3a3 !important;
+}
+
+/* Scrollbar styling for column-select modal */
+#columnSelectForm::-webkit-scrollbar {
+    width: 8px;
+}
+
+#columnSelectForm::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+#columnSelectForm::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+#columnSelectForm::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+body.dark #columnSelectForm::-webkit-scrollbar-track {
+    background: #333333;
+}
+
+body.dark #columnSelectForm::-webkit-scrollbar-thumb {
+    background: #525252;
+}
+
+body.dark #columnSelectForm::-webkit-scrollbar-thumb:hover {
+    background: #6b6b6b;
+}
+
+/* Modal buttons dark mode */
+body.dark #closeColumnSelectModal {
+    background-color: #525252 !important;
+    color: #e5e5e5;
+}
+
+body.dark #closeColumnSelectModal:hover {
+    background-color: #6b6b6b !important;
+}
+
+body.dark #saveColumnSelect {
+    background-color: #2563eb !important;
+    color: #f5f5f5;
+}
+
+body.dark #saveColumnSelect:hover {
+    background-color: #1d4ed8 !important;
+}
+
+body.dark #closeColumnSelectModal:disabled,
+body.dark #saveColumnSelect:disabled {
+    background-color: #404040 !important;
+    color: #808080;
+    cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------
+   17. Export button (map page) dark mode
+   --------------------------------------------------------------- */
+body.dark #exportBtn:disabled {
+    background-color: #404040 !important;
+    border-color: #525252 !important;
+    color: #808080 !important;
+}
+
+body.dark #exportBtn:not(:disabled) {
+    background-color: #525252 !important;
+    border-color: #6b6b6b !important;
+    color: #e5e5e5 !important;
+}
+
+body.dark #exportBtn:not(:disabled):hover {
+    background-color: #6b6b6b !important;
+    border-color: #808080 !important;
+    color: #f5f5f5 !important;
+}
+
+/* ---------------------------------------------------------------
+   18. Sync page — dark mode extras
+   --------------------------------------------------------------- */
+body.dark .border-gray-100 {
+    background-color: #333333;
+}
+
+body.dark #syncLimit {
+    background-color: #262626;
+    border-color: #404040;
+    color: #e5e5e5;
+}
+
+/* ---------------------------------------------------------------
+   19. Map page — container helpers
+   --------------------------------------------------------------- */
+#map-container iframe {
+    width: 100% !important;
+    height: 85% !important;
+    border: none;
+}
+
+#map-container .folium-map {
+    width: 100% !important;
+    height: 85% !important;
+}
+
+

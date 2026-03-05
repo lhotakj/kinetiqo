@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+import mimetypes
 from datetime import datetime
 
 import folium
@@ -15,8 +16,60 @@ from kinetiqo.web.auth import User, users
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kinetiqo.web")
 
-app = Flask(__name__, template_folder='./templates')
+app = Flask(__name__, template_folder='./templates',
+            static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
+
+# --- Static Files MIME Type Configuration ---
+# Add custom MIME types for common files if not already registered
+mimetypes.add_type('text/css', '.css')
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('application/json', '.json')
+mimetypes.add_type('image/svg+xml', '.svg')
+mimetypes.add_type('font/woff2', '.woff2')
+mimetypes.add_type('font/woff', '.woff')
+mimetypes.add_type('font/ttf', '.ttf')
+
+
+@app.after_request
+def set_static_headers(response):
+    """Set proper headers for static content and caching."""
+    # Only apply to static files
+    if request.path.startswith('/static/'):
+        # Set appropriate Cache-Control headers based on file type
+        if request.path.endswith('.css') or request.path.endswith('.js'):
+            # CSS and JS: cache for 1 year with immutable. Cache-busting is done
+            # via the ?v=<app_version> query parameter appended by templates.
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        elif request.path.endswith(('.woff', '.woff2', '.ttf', '.eot')):
+            # Fonts: cache for 1 year
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        elif request.path.endswith(('.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico', '.webp')):
+            # Images: cache for 30 days
+            response.headers['Cache-Control'] = 'public, max-age=2592000'
+        else:
+            # Default: cache for 1 hour
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+
+        # Ensure Content-Type is set correctly
+        if 'Content-Type' not in response.headers:
+            content_type, _ = mimetypes.guess_type(request.path)
+            if content_type:
+                response.headers['Content-Type'] = content_type
+
+        # Add additional security headers for static content
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Access-Control-Allow-Origin'] = '*'
+    else:
+        # Prevent browser caching of API responses and dynamic pages.
+        # This ensures that data freshly synced (e.g. new activities) is
+        # visible immediately without requiring a hard refresh.
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
+    return response
+
 
 # --- Configuration & Database ---
 # Default config, will be overwritten by set_config
@@ -267,6 +320,7 @@ def generate_map_api():
 
     def generate():
         import json
+        import base64
 
         try:
             repo = db_repo
@@ -364,9 +418,10 @@ def generate_map_api():
             yield f"data: {json.dumps({'type': 'progress', 'step': 'finalizing', 'message': 'Finalizing map...'})}\n\n"
 
             map_html = m._repr_html_()
+            map_html_b64 = base64.b64encode(map_html.encode("utf-8")).decode("ascii")
 
             # Send final result
-            yield f"data: {json.dumps({'type': 'complete', 'html': map_html, 'activity_count': activity_count, 'point_count': total_points})}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'html_b64': map_html_b64, 'activity_count': activity_count, 'point_count': total_points})}\n\n"
 
         except Exception as e:
             logger.error(f"Error generating map: {e}")
@@ -432,6 +487,32 @@ def get_settings():
     full_sync = os.environ.get('FULL_SYNC', '')
     fast_sync = os.environ.get('FAST_SYNC', '')
 
+    global db_repo
+    if db_repo is None:
+        db_repo = create_repository(config)
+
+    db_type = config.database_type or 'unknown'
+    db_host = None
+    db_port = None
+
+    # Prefer the repository's config if available, otherwise fall back to the global config
+    db_config = getattr(db_repo, 'config', config)
+
+    if db_type == 'mysql':
+        db_host = config.mysql_host or getattr(db_config, 'mysql_host', 'unknown')
+        db_port = config.mysql_port or getattr(db_config, 'mysql_port', 'unknown')
+    elif db_type == 'postgresql':
+        db_host = config.postgresql_host or getattr(db_config, 'postgresql_host', 'unknown')
+        db_port = config.postgresql_port or getattr(db_config, 'postgresql_port', 'unknown')
+    elif db_type == 'firebird':
+        db_host = config.firebird_host or getattr(db_config, 'firebird_host', 'unknown')
+        db_port = config.firebird_port or getattr(db_config, 'firebird_port', 'unknown')
+    else:
+        db_host = 'unknown'
+        db_port = 'unknown'
+
+    table_counts = db_repo.get_table_record_counts() if db_repo else {}
+
     return jsonify({
         'full_sync': {
             'expression': full_sync,
@@ -440,6 +521,12 @@ def get_settings():
         'fast_sync': {
             'expression': fast_sync,
             'description': describe_cron(fast_sync)
+        },
+        'database': {
+            'type': db_type,
+            'host': db_host,
+            'port': db_port,
+            'table_counts': table_counts
         }
     })
 
@@ -523,17 +610,32 @@ def get_activities_api():
 
             data.append({
                 'id': a['id'],
-                'name': a['name'],
-                'type': a['type'],
+                'name': a.get('name') or '',
+                'type': a.get('type') or '',
                 'date': {
                     'display': formatted_date,
                     'timestamp': timestamp
                 },
-                'distance': float(a['distance']),
-                'elevation': float(a['total_elevation_gain']),
-                'moving_time': a['moving_time'],
-                'average_speed': float(a['average_speed']) if a.get('average_speed') is not None else 0.0,
-                'average_heartrate': int(a['average_heartrate']) if a.get('average_heartrate') is not None else 0
+                'distance': float(a.get('distance') or 0.0),
+                'elevation': float(a.get('total_elevation_gain') or 0.0),
+                'moving_time': int(a.get('moving_time') or 0),
+                'average_speed': float(a.get('average_speed') or 0.0),
+                'average_heartrate': int(a.get('average_heartrate') or 0),
+                'average_watts': float(a.get('average_watts') or 0.0),
+                'max_watts': float(a.get('max_watts') or 0.0),
+                'weighted_average_watts': float(a.get('weighted_average_watts') or 0.0),
+                'device_watts': int(a.get('device_watts')) if a.get('device_watts') is not None else None,
+                'calories': float(a.get('calories')) if a.get('calories') is not None else None,
+                'kilojoules': float(a.get('kilojoules')) if a.get('kilojoules') is not None else None,
+                'achievement_count': int(a.get('achievement_count') or 0),
+                'pr_count': int(a.get('pr_count') or 0),
+                'suffer_score': int(a.get('suffer_score') or 0),
+                'average_temp': float(a.get('average_temp')) if a.get('average_temp') is not None else None,
+                'elev_high': float(a.get('elev_high')) if a.get('elev_high') is not None else None,
+                'elev_low': float(a.get('elev_low')) if a.get('elev_low') is not None else None,
+                'gear_id': a.get('gear_id') or None,
+                'has_heartrate': bool(a.get('has_heartrate')) if a.get('has_heartrate') is not None else False,
+                'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None
             })
 
         return jsonify({

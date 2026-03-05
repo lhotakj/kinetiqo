@@ -32,8 +32,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🐳 **Container-Native**: Architected for Docker environments, facilitating seamless integration into existing infrastructure.
 - ⏱️ **Automated Scheduling**: Includes a built-in cron scheduler to ensure data currency without manual intervention.
 - 💾 **Database Compatibility**:
-  - **PostgreSQL** (version 18+)
-  - **MySQL 8 / MariaDB 12**
+  - **PostgreSQL** (version 12+)
+  - **MySQL 8 / MariaDB 10+**
   - **Firebird** (versions 3.0, 4.0, 5.0)
 - 🚀 **Performance Optimization**: Utilizes intelligent caching strategies to minimize API consumption and accelerate data retrieval.
 - 🔒 **Security**: Implements standard OAuth 2.0 protocols to safeguard user credentials.
@@ -47,6 +47,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - Python 3.12+
 - A running instance of PostgreSQL, MySQL/MariaDB, or Firebird.
 - Python package dependencies as listed in `requirements.txt`.
+- For Firebird, you need to install the Firebird client library.
 
 ### Local Setup
 
@@ -55,15 +56,22 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     git clone https://github.com/lhotakj/kinetiqo.git
     cd kinetiqo
     ```
+    
+2.  **Install Firebird Client (Optional):**
+    Required only if using Firebird as the database backend. Install on Ubuntu:
+    ```bash
+    sudo apt update
+    sudo apt install -y libfbclient2
+    ```
 
-2.  **Initialize Virtual Environment:**
+3.  **Initialize Virtual Environment:**
     ```bash
     python -m venv .venv
     source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
     pip install -r requirements.txt
     ```
 
-3.  **Environment Management with `direnv` (Optional):**
+4.  **Environment Management with `direnv` (Optional):**
     The `development` directory contains a script to configure `direnv` for automated environment management.
     ```bash
     cd development
@@ -71,7 +79,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     ```
     Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
-4.  **Configure Environment Variables:**
+5.  **Configure Environment Variables:**
     Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
     
     **Example `.env` file:**
@@ -79,7 +87,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     STRAVA_CLIENT_ID=12345
     STRAVA_CLIENT_SECRET=your_secret_here
     STRAVA_REFRESH_TOKEN=your_refresh_token_here
-    DATABASE_TYPE=firebird  # or postgresql or mysql
+    DATABASE_TYPE=postgresql  # or mysql or firebird
     # PostgreSQL
     POSTGRESQL_HOST=localhost
     POSTGRESQL_PORT=5432
@@ -104,7 +112,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
     - Only the relevant database section is required for your selected type.
 
-5.  **Secure Secret Storage with GPG (Optional):**
+6.  **Secure Secret Storage with GPG (Optional):**
     For enhanced security, environment files can be encrypted using GPG. The included `.envrc` script supports automatic decryption.
     
     1. **Import GPG Key:**
@@ -141,22 +149,22 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `POSTGRESQL_HOST` | Database server hostname. | `localhost` |
+| `POSTGRESQL_HOST` | Database server hostname. | Required |
 | `POSTGRESQL_PORT` | Database server port. | `5432` |
-| `POSTGRESQL_USER` | Database username. | `postgres` |
-| `POSTGRESQL_PASSWORD` | Database password. | `postgres` |
-| `POSTGRESQL_DATABASE` | Database name. | `kinetiqo` |
+| `POSTGRESQL_USER` | Database username. | Required |
+| `POSTGRESQL_PASSWORD` | Database password. | Required |
+| `POSTGRESQL_DATABASE` | Database name. | Required |
 | `POSTGRESQL_SSL_MODE` | SSL connection mode (`disable`, `require`, etc.). | `disable` |
 
 **MySQL / MariaDB:**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MYSQL_HOST` | Database server hostname. | `localhost` |
+| `MYSQL_HOST` | Database server hostname. | Required |
 | `MYSQL_PORT` | Database server port. | `3306` |
-| `MYSQL_USER` | Database username. | `root` |
-| `MYSQL_PASSWORD` | Database password. | - |
-| `MYSQL_DATABASE` | Database name. | `kinetiqo` |
+| `MYSQL_USER` | Database username. | Required |
+| `MYSQL_PASSWORD` | Database password. | Required |
+| `MYSQL_DATABASE` | Database name. | Required |
 | `MYSQL_SSL_MODE` | SSL connection mode. | `disable` |
 
 > **Note:** For MySQL, ensure the user has `CREATE` and `ALL PRIVILEGES` on the target database to allow for schema management.
@@ -181,18 +189,50 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 > - For embedded Firebird, ensure the application has **write access** to the database file directory
 
 #### 3. Scheduling (Cron)
-The Docker image includes a cron scheduler. Define schedules using standard cron syntax.
+The Docker image includes a built-in cron scheduler powered by `dcron`. When the container starts, the entrypoint script registers cron jobs for any sync schedules you define via environment variables. If neither variable is set, no automatic synchronization occurs.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `FULL_SYNC` | Schedule for full synchronization. | `0 3 * * *` (Daily at 3 AM) |
 | `FAST_SYNC` | Schedule for incremental synchronization. | `*/15 * * * *` (Every 15 minutes) |
 
+Both variables accept standard **5-field cron expressions** (`minute hour day-of-month month day-of-week`):
+
+| Field | Allowed Values |
+|-------|---------------|
+| Minute | `0–59` |
+| Hour | `0–23` |
+| Day of month | `1–31` |
+| Month | `1–12` |
+| Day of week | `0–7` (0 and 7 = Sunday) |
+
+**How the two sync modes differ:**
+
+- **`FAST_SYNC`** runs an incremental sync (`--fast-sync`). It only fetches activities newer than the most recent one already in the database. This is lightweight and ideal for frequent scheduling (e.g., every 15 minutes) to keep data nearly real-time.
+- **`FULL_SYNC`** runs a comprehensive audit (`--full-sync`). It retrieves your entire Strava activity history, inserts any missing activities, and removes any that were deleted on Strava. This is heavier and best scheduled infrequently (e.g., once daily during off-hours).
+
+**Recommended setup:** Use both together — `FAST_SYNC` for frequent, low-cost updates and `FULL_SYNC` as a daily reconciliation pass.
+
+**Common cron examples:**
+
+| Expression | Meaning |
+|-----------|---------|
+| `*/15 * * * *` | Every 15 minutes |
+| `0 * * * *` | Every hour, on the hour |
+| `0 3 * * *` | Daily at 3:00 AM |
+| `0 3 * * 0` | Weekly on Sunday at 3:00 AM |
+| `0 */6 * * *` | Every 6 hours |
+
 #### 4. Web Interface Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `WEB_LOGIN` | Username for web access. | `admin` |
 | `WEB_PASSWORD` | Password for web access. | `admin123` |
+
+#### 5. Display Configuration
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATE_FORMAT` | Date format string (Python `strftime` syntax). | `%b %d, %Y` |
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
@@ -256,25 +296,12 @@ docker run -d \
   -e STRAVA_CLIENT_ID="your_id" \
   -e STRAVA_CLIENT_SECRET="your_secret" \
   -e STRAVA_REFRESH_TOKEN="your_token" \
-  -e DATABASE_TYPE="firebird" \  # or postgresql or mysql
-  # Firebird example
-  -e FIREBIRD_HOST="host.docker.internal" \
-  -e FIREBIRD_PORT=3050 \
-  -e FIREBIRD_USER="firebird" \
-  -e FIREBIRD_PASSWORD="firebird" \
-  -e FIREBIRD_DATABASE="/db/data/kinetiqo.fdb" \
-  # PostgreSQL example
+  -e DATABASE_TYPE="postgresql" \
   -e POSTGRESQL_HOST="host.docker.internal" \
   -e POSTGRESQL_PORT=5432 \
   -e POSTGRESQL_USER="postgres" \
   -e POSTGRESQL_PASSWORD="password" \
   -e POSTGRESQL_DATABASE="kinetiqo" \
-  # MySQL example
-  -e MYSQL_HOST="host.docker.internal" \
-  -e MYSQL_PORT=3306 \
-  -e MYSQL_USER="root" \
-  -e MYSQL_PASSWORD="password" \
-  -e MYSQL_DATABASE="kinetiqo" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -e WEB_LOGIN="admin" \
@@ -282,8 +309,17 @@ docker run -d \
   lhotakj/kinetiqo:latest
 ```
 
-- Set only the relevant database variables for your selected `DATABASE_TYPE`.
+- Set `DATABASE_TYPE` and only the relevant database variables for your chosen backend (`postgresql`, `mysql`, or `firebird`).
 - The web UI will be available at http://localhost:8080
+
+**Cron schedule in this example:**
+
+| Variable | Value | Effect |
+|----------|-------|--------|
+| `FAST_SYNC` | `*/15 * * * *` | Runs an incremental sync every 15 minutes — quickly picks up any new activities recorded on Strava. |
+| `FULL_SYNC` | `0 3 * * *` | Runs a full audit every day at 3:00 AM — reconciles all activities and detects deletions on Strava. |
+
+Both schedules are optional. If omitted, no automatic sync occurs and you would need to trigger syncs manually via the Web UI or CLI.
 
 ### Docker Compose
 
@@ -292,7 +328,6 @@ For a production-grade deployment, use Docker Compose. The following configurati
 **`docker-compose.yml`:**
 
 ```yaml
-version: '3.8'
 services:
   kinetiqo:
     image: lhotakj/kinetiqo:latest
@@ -310,8 +345,8 @@ services:
       - POSTGRESQL_USER=postgres
       - POSTGRESQL_PASSWORD=${POSTGRESQL_PASSWORD}
       - POSTGRESQL_DATABASE=kinetiqo
-      - FAST_SYNC=*/15 * * * *
-      - FULL_SYNC=0 3 * * *
+      - FAST_SYNC="*/15 * * * *"
+      - FULL_SYNC="0 3 * * *"
       - WEB_LOGIN=admin
       - WEB_PASSWORD=securepassword13
     depends_on:
@@ -357,7 +392,7 @@ Deploy the stack:
 docker-compose up -d
 ```
 
-- For more details and advanced configuration, see the [README.md](../README.md) and [local-dev.md](docs/local-dev.md).
+- For more details and advanced configuration, see the project documentation at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net).
 
 ## License
 

@@ -160,7 +160,22 @@ class FirebirdRepository(DatabaseRepository):
                     "total_elevation_gain",
                     "start_date",
                     "average_speed",
-                    "average_heartrate"
+                    "average_heartrate",
+                    "average_watts",
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type"
                 FROM "activities" 
                 ORDER BY "start_date" DESC
             """)
@@ -176,7 +191,22 @@ class FirebirdRepository(DatabaseRepository):
                     'total_elevation_gain': row[5],
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
-                    'average_heartrate': row[8]
+                    'average_heartrate': row[8],
+                    'average_watts': row[9],
+                    'max_watts': row[10],
+                    'weighted_average_watts': row[11],
+                    'device_watts': row[12],
+                    'calories': row[13],
+                    'kilojoules': row[14],
+                    'achievement_count': row[15],
+                    'pr_count': row[16],
+                    'suffer_score': row[17],
+                    'average_temp': row[18],
+                    'elev_high': row[19],
+                    'elev_low': row[20],
+                    'gear_id': row[21],
+                    'has_heartrate': row[22],
+                    'workout_type': row[23]
                 }
                 activities.append(activity)
             return activities
@@ -185,13 +215,11 @@ class FirebirdRepository(DatabaseRepository):
                            start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from Firebird"""
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
-        # Quote sort column
         sort_by = f'"{sort_by}"'
-
         sort_order = 'DESC' if sort_order.upper() == 'DESC' else 'ASC'
 
         where_conditions = []
@@ -204,20 +232,23 @@ class FirebirdRepository(DatabaseRepository):
 
         if start_date:
             where_conditions.append('"start_date" >= ?')
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date)
             params.append(start_date)
 
         if end_date:
-            if len(end_date) == 10:
-                end_date += " 23:59:59.999999"
             where_conditions.append('"start_date" <= ?')
+            if isinstance(end_date, str):
+                if len(end_date) == 10:
+                    end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                else:
+                    end_date = datetime.fromisoformat(end_date)
             params.append(end_date)
 
         where_clause = ""
         if where_conditions:
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
-        # Firebird uses FIRST/SKIP for pagination
-        # Inject limit/offset directly to avoid parameter binding issues with FIRST/SKIP
         query = f"""
             SELECT FIRST {limit} SKIP {offset}
                 "activity_id" as id,
@@ -228,7 +259,22 @@ class FirebirdRepository(DatabaseRepository):
                 "total_elevation_gain",
                 "start_date",
                 "average_speed",
-                "average_heartrate"
+                "average_heartrate",
+                "average_watts",
+                "max_watts",
+                "weighted_average_watts",
+                "device_watts",
+                "calories",
+                "kilojoules",
+                "achievement_count",
+                "pr_count",
+                "suffer_score",
+                "average_temp",
+                "elev_high",
+                "elev_low",
+                "gear_id",
+                "has_heartrate",
+                "workout_type"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -248,7 +294,22 @@ class FirebirdRepository(DatabaseRepository):
                     'total_elevation_gain': row[5],
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
-                    'average_heartrate': row[8]
+                    'average_heartrate': row[8],
+                    'average_watts': row[9],
+                    'max_watts': row[10],
+                    'weighted_average_watts': row[11],
+                    'device_watts': row[12],
+                    'calories': row[13],
+                    'kilojoules': row[14],
+                    'achievement_count': row[15],
+                    'pr_count': row[16],
+                    'suffer_score': row[17],
+                    'average_temp': row[18],
+                    'elev_high': row[19],
+                    'elev_low': row[20],
+                    'gear_id': row[21],
+                    'has_heartrate': row[22],
+                    'workout_type': row[23]
                 }
                 activities.append(activity)
             return activities
@@ -272,7 +333,22 @@ class FirebirdRepository(DatabaseRepository):
                     "total_elevation_gain",
                     "start_date",
                     "average_speed",
-                    "average_heartrate"
+                    "average_heartrate",
+                    "average_watts",
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type"
                 FROM "activities" 
                 WHERE "activity_id" IN ({placeholders})
                 ORDER BY "start_date" DESC
@@ -289,7 +365,22 @@ class FirebirdRepository(DatabaseRepository):
                     'total_elevation_gain': row[5],
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
-                    'average_heartrate': row[8]
+                    'average_heartrate': row[8],
+                    'average_watts': row[9],
+                    'max_watts': row[10],
+                    'weighted_average_watts': row[11],
+                    'device_watts': row[12],
+                    'calories': row[13],
+                    'kilojoules': row[14],
+                    'achievement_count': row[15],
+                    'pr_count': row[16],
+                    'suffer_score': row[17],
+                    'average_temp': row[18],
+                    'elev_high': row[19],
+                    'elev_low': row[20],
+                    'gear_id': row[21],
+                    'has_heartrate': row[22],
+                    'workout_type': row[23]
                 }
                 activities.append(activity)
             return activities
@@ -306,12 +397,17 @@ class FirebirdRepository(DatabaseRepository):
 
         if start_date:
             where_conditions.append('"start_date" >= ?')
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date)
             params.append(start_date)
 
         if end_date:
-            if len(end_date) == 10:
-                end_date += " 23:59:59.999999"
             where_conditions.append('"start_date" <= ?')
+            if isinstance(end_date, str):
+                if len(end_date) == 10:
+                    end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                else:
+                    end_date = datetime.fromisoformat(end_date)
             params.append(end_date)
 
         where_clause = ""
@@ -319,8 +415,7 @@ class FirebirdRepository(DatabaseRepository):
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
         query = f"""
-            SELECT
-                COALESCE(SUM("distance"), 0) as total_distance,
+            SELECT COALESCE(SUM("distance"), 0) as total_distance,
                 COALESCE(SUM("total_elevation_gain"), 0) as total_elevation,
                 COALESCE(SUM("moving_time"), 0) as total_moving_time
             FROM "activities"
@@ -355,11 +450,12 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             # Helper to safely cast to int or return None
             def to_int(val):
-                if val is None: return None
+                if val is None:
+                    return None
                 return int(val)
 
             cur.execute(
-                'UPDATE OR INSERT INTO "activities" ("start_date", "activity_id", "name", "sport", "athlete_id", "distance", "moving_time", "elapsed_time", "total_elevation_gain", "average_speed", "max_speed", "average_heartrate", "max_heartrate", "average_cadence") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) MATCHING ("activity_id")',
+                'UPDATE OR INSERT INTO "activities" ("start_date", "activity_id", "name", "sport", "athlete_id", "distance", "moving_time", "elapsed_time", "total_elevation_gain", "average_speed", "max_speed", "average_heartrate", "max_heartrate", "average_cadence", "average_watts", "max_watts", "achievement_count", "average_temp", "calories", "device_watts", "elev_high", "elev_low", "gear_id", "has_heartrate", "kilojoules", "pr_count", "suffer_score", "weighted_average_watts", "workout_type") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) MATCHING ("activity_id")',
                 (
                     self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))),
                     int(activity["id"]),
@@ -374,7 +470,22 @@ class FirebirdRepository(DatabaseRepository):
                     float(activity.get("max_speed", 0.0)),
                     to_int(activity.get("average_heartrate")),
                     to_int(activity.get("max_heartrate")),
-                    activity.get("average_cadence")  # float or None
+                    activity.get("average_cadence"),
+                    activity.get("average_watts"),
+                    activity.get("max_watts"),
+                    to_int(activity.get("achievement_count")),
+                    activity.get("average_temp"),
+                    activity.get("calories"),
+                    to_int(activity.get("device_watts")) if activity.get("device_watts") is not None else None,
+                    activity.get("elev_high"),
+                    activity.get("elev_low"),
+                    activity.get("gear_id"),
+                    to_int(activity.get("has_heartrate")) if activity.get("has_heartrate") is not None else None,
+                    activity.get("kilojoules"),
+                    to_int(activity.get("pr_count")),
+                    to_int(activity.get("suffer_score")),
+                    activity.get("weighted_average_watts"),
+                    to_int(activity.get("workout_type"))
                 )
             )
             self.conn.commit()
@@ -409,11 +520,15 @@ class FirebirdRepository(DatabaseRepository):
                     get_val("heartrate", int),
                     get_val("cadence", int),
                     get_val("velocity_smooth", float),
-                    get_val("distance", float)
+                    get_val("distance", float),
+                    get_val("watts", float),
+                    get_val("temp", float),
+                    get_val("grade_smooth", float),
+                    get_val("moving", lambda v: 1 if v else 0)
                 ))
 
             cur.executemany(
-                'INSERT INTO "streams" ("ts", "activity_id", "sport", "athlete_id", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO "streams" ("ts", "activity_id", "sport", "athlete_id", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance", "watts", "temp", "grade_smooth", "moving") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 rows
             )
             self.conn.commit()
@@ -506,5 +621,36 @@ class FirebirdRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+    def get_table_record_counts(self) -> Dict[str, int]:
+        """Return a dict of table names and their record counts."""
+        tables = ['activities', 'streams', 'logs']
+        counts = {}
+        with self.conn.cursor() as cur:
+            for table in tables:
+                try:
+                    cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                    result = cur.fetchone()
+                    counts[table] = result[0] if result else 0
+                except Exception:
+                    counts[table] = None
+        return counts
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def close(self):
-        self.conn.close()
+        try:
+            if self.conn:
+                # Firebird driver does not have 'closed' attribute, just try to close
+                self.conn.close()
+        except Exception as e:
+            logger.warning(f"Error closing Firebird connection: {e}")
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass

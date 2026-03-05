@@ -23,78 +23,7 @@
             }
         }
     </script>
-    <style>
-        /* Dark mode support */
-        body {
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        h1, h2, h3, h4, .italiana {
-            font-family: "Italiana", serif !important;
-        }
-
-        body.dark {
-            background-color: #171717;
-        }
-
-        body.dark .bg-warm-100 {
-            background-color: #171717;
-        }
-
-        body.dark .bg-white {
-            background-color: #1a1a1a;
-            border-color: #404040;
-        }
-
-        body.dark .text-gray-900 {
-            color: #f5f5f5;
-        }
-
-        body.dark .text-gray-700 {
-            color: #d4d4d4;
-        }
-
-        body.dark .text-gray-500 {
-            color: #a3a3a3;
-        }
-
-        body.dark .text-gray-400 {
-            color: #737373;
-        }
-
-        body.dark input {
-            background-color: #262626;
-            border-color: #404040;
-            color: #e5e5e5;
-        }
-
-        body.dark input:focus {
-            background-color: #2a2a2a;
-            border-color: #525252;
-        }
-
-        body.dark input::placeholder {
-            color: #737373;
-        }
-
-        body.dark .bg-gray-900 {
-            background-color: #f5f5f5;
-            color: #171717;
-        }
-
-        body.dark .bg-gray-900:hover {
-            background-color: #e5e5e5;
-        }
-
-        body.dark .bg-red-50 {
-            background-color: #7f1d1d;
-            border-color: #991b1b;
-        }
-
-        body.dark .text-red-700 {
-            color: #fca5a5;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v=app_version) }}">
 </head>
 <body class="bg-warm-100 h-screen flex items-center justify-center">
 <script>

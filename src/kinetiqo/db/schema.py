@@ -2,7 +2,7 @@ import logging
 
 logger = logging.getLogger("kinetiqo")
 
-# Define the schema in a database-agnostic way where possible, 
+# Define the schema in a database-agnostic way where possible,
 # or provide specific types for each dialect.
 SCHEMA_DEFINITION = {
     "activities": {
@@ -27,7 +27,37 @@ SCHEMA_DEFINITION = {
             {"name": "average_heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "max_heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "average_cadence", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"}
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "average_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "max_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "achievement_count", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "average_temp", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "calories", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "device_watts", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
+             "type_firebird": "SMALLINT"},
+            {"name": "elev_high", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "elev_low", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "gear_id", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
+            {"name": "has_heartrate", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
+             "type_firebird": "SMALLINT"},
+            {"name": "kilojoules", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "pr_count", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "suffer_score", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "weighted_average_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "workout_type", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
         ],
         "indexes": [
             {
@@ -35,6 +65,78 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
                 "def_pg": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
                 "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_date ON "activities" ("start_date")'
+            },
+            {
+                "name": "idx_activities_sport_start_date",
+                "def_mysql": "CREATE INDEX idx_activities_sport_start_date ON activities (sport, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_sport_start_date ON activities (sport, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_sport_start_date ON "activities" ("sport", "start_date")'
+            },
+            {
+                "name": "idx_activities_sport",
+                "def_mysql": "CREATE INDEX idx_activities_sport ON activities (sport)",
+                "def_pg": "CREATE INDEX idx_activities_sport ON activities (sport)",
+                "def_firebird": 'CREATE INDEX idx_activities_sport ON "activities" ("sport")'
+            },
+            {
+                "name": "idx_activities_totals_cover",
+                "def_mysql": "CREATE INDEX idx_activities_totals_cover ON activities (sport, start_date, distance, total_elevation_gain, moving_time)",
+                "def_pg": "CREATE INDEX idx_activities_totals_cover ON activities (sport, start_date) INCLUDE (distance, total_elevation_gain, moving_time)",
+                "def_firebird": 'CREATE INDEX idx_activities_totals_cover ON "activities" ("sport", "start_date", "distance", "total_elevation_gain", "moving_time")'
+            },
+            {
+                "name": "idx_activities_athlete_start_date",
+                "def_mysql": "CREATE INDEX idx_activities_athlete_start_date ON activities (athlete_id, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_athlete_start_date ON activities (athlete_id, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_athlete_start_date ON "activities" ("athlete_id", "start_date")'
+            },
+            {
+                "name": "idx_activities_distance",
+                "def_mysql": "CREATE INDEX idx_activities_distance ON activities (distance DESC)",
+                "def_pg": "CREATE INDEX idx_activities_distance ON activities (distance DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_distance ON "activities" ("distance")'
+            },
+            {
+                "name": "idx_activities_elevation",
+                "def_mysql": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
+                "def_pg": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_elevation ON "activities" ("total_elevation_gain")'
+            },
+            {
+                "name": "idx_activities_moving_time",
+                "def_mysql": "CREATE INDEX idx_activities_moving_time ON activities (moving_time DESC)",
+                "def_pg": "CREATE INDEX idx_activities_moving_time ON activities (moving_time DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_moving_time ON "activities" ("moving_time")'
+            },
+            {
+                "name": "idx_activities_average_speed",
+                "def_mysql": "CREATE INDEX idx_activities_average_speed ON activities (average_speed DESC)",
+                "def_pg": "CREATE INDEX idx_activities_average_speed ON activities (average_speed DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_average_speed ON "activities" ("average_speed")'
+            },
+            {
+                "name": "idx_activities_avg_watts",
+                "def_mysql": "CREATE INDEX idx_activities_avg_watts ON activities (average_watts DESC)",
+                "def_pg": "CREATE INDEX idx_activities_avg_watts ON activities (average_watts DESC) WHERE average_watts IS NOT NULL",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_avg_watts ON "activities" ("average_watts")'
+            },
+            {
+                "name": "idx_activities_max_watts",
+                "def_mysql": "CREATE INDEX idx_activities_max_watts ON activities (max_watts DESC)",
+                "def_pg": "CREATE INDEX idx_activities_max_watts ON activities (max_watts DESC) WHERE max_watts IS NOT NULL",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_max_watts ON "activities" ("max_watts")'
+            },
+            {
+                "name": "idx_activities_avg_hr",
+                "def_mysql": "CREATE INDEX idx_activities_avg_hr ON activities (average_heartrate DESC)",
+                "def_pg": "CREATE INDEX idx_activities_avg_hr ON activities (average_heartrate DESC) WHERE average_heartrate IS NOT NULL",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_avg_hr ON "activities" ("average_heartrate")'
+            },
+            {
+                "name": "idx_activities_gear",
+                "def_mysql": "CREATE INDEX idx_activities_gear ON activities (gear_id)",
+                "def_pg": "CREATE INDEX idx_activities_gear ON activities (gear_id) WHERE gear_id IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_activities_gear ON "activities" ("gear_id")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -57,7 +159,14 @@ SCHEMA_DEFINITION = {
             {"name": "speed", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
              "type_firebird": "DOUBLE PRECISION"},
             {"name": "distance", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"}
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "temp", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "grade_smooth", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "moving", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN", "type_firebird": "SMALLINT"}
         ],
         "constraints": [
             {
@@ -75,10 +184,34 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE INDEX idx_streams_activity_id ON "streams" ("activity_id")'
             },
             {
+                "name": "idx_streams_activity_ts",
+                "def_mysql": "CREATE INDEX idx_streams_activity_ts ON streams (activity_id, ts)",
+                "def_pg": "CREATE INDEX idx_streams_activity_ts ON streams (activity_id, ts)",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_ts ON "streams" ("activity_id", "ts")'
+            },
+            {
                 "name": "idx_streams_ts",
                 "def_mysql": "CREATE INDEX idx_streams_ts ON streams (ts)",
                 "def_pg": "CREATE INDEX idx_streams_ts ON streams (ts)",
                 "def_firebird": 'CREATE INDEX idx_streams_ts ON "streams" ("ts")'
+            },
+            {
+                "name": "idx_streams_activity_gps",
+                "def_mysql": "CREATE INDEX idx_streams_activity_gps ON streams (activity_id, ts, lat, lng)",
+                "def_pg": "CREATE INDEX idx_streams_activity_gps ON streams (activity_id, ts) INCLUDE (lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_gps ON "streams" ("activity_id", "ts", "lat", "lng")'
+            },
+            {
+                "name": "idx_streams_sport_activity",
+                "def_mysql": "CREATE INDEX idx_streams_sport_activity ON streams (sport, activity_id)",
+                "def_pg": "CREATE INDEX idx_streams_sport_activity ON streams (sport, activity_id)",
+                "def_firebird": 'CREATE INDEX idx_streams_sport_activity ON "streams" ("sport", "activity_id")'
+            },
+            {
+                "name": "idx_streams_activity_watts",
+                "def_mysql": "CREATE INDEX idx_streams_activity_watts ON streams (activity_id, watts)",
+                "def_pg": "CREATE INDEX idx_streams_activity_watts ON streams (activity_id, watts) WHERE watts IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_watts ON "streams" ("activity_id", "watts")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -104,6 +237,18 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_logs_created_at ON logs (created_at DESC)",
                 "def_pg": "CREATE INDEX idx_logs_created_at ON logs (created_at DESC)",
                 "def_firebird": 'CREATE DESCENDING INDEX idx_logs_created_at ON "logs" ("created_at")'
+            },
+            {
+                "name": "idx_logs_action",
+                "def_mysql": "CREATE INDEX idx_logs_action ON logs (action, created_at DESC)",
+                "def_pg": "CREATE INDEX idx_logs_action ON logs (action, created_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_logs_action ON "logs" ("action", "created_at")'
+            },
+            {
+                "name": "idx_logs_success",
+                "def_mysql": "CREATE INDEX idx_logs_success ON logs (success, created_at DESC)",
+                "def_pg": "CREATE INDEX idx_logs_success ON logs (success, created_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_logs_success ON "logs" ("success", "created_at")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -132,12 +277,82 @@ class SchemaManager:
         for table_name, definition in SCHEMA_DEFINITION.items():
             self._ensure_table(table_name, definition)
 
+        for table_name, definition in SCHEMA_DEFINITION.items():
+            if "indexes" in definition:
+                self._ensure_indexes(table_name, definition["indexes"])
+
+    def _ensure_indexes(self, table_name: str, indexes: list):
+        """Safely create indexes that don't yet exist. Idempotent."""
+        type_suffix = self._get_type_suffix()
+        for idx in indexes:
+            idx_name = idx["name"]
+            idx_def_key = f"def_{type_suffix}"
+
+            if idx_def_key not in idx:
+                continue
+
+            idx_sql = idx[idx_def_key]
+
+            if self._index_exists(idx_name, table_name):
+                continue
+
+            cur = self.conn.cursor()
+            try:
+                if self.db_type == 'postgresql':
+                    safe_sql = idx_sql.replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ", 1)
+                    safe_sql = safe_sql.replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ", 1)
+                else:
+                    safe_sql = idx_sql
+                cur.execute(safe_sql)
+                self.conn.commit()
+                logger.info(f"{self.db_type.upper()}: Created index '{idx_name}' on '{table_name}'.")
+            except Exception as e:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                error_str = str(e).lower()
+                if 'already exists' in error_str or 'duplicate' in error_str:
+                    logger.debug(f"{self.db_type.upper()}: Index '{idx_name}' already exists on '{table_name}'.")
+                else:
+                    logger.warning(f"{self.db_type.upper()}: Could not create index '{idx_name}' on '{table_name}': {e}")
+            finally:
+                cur.close()
+
+    def _index_exists(self, index_name: str, table_name: str) -> bool:
+        """Check whether an index already exists in the database."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == 'mysql':
+                cur.execute(
+                    "SELECT COUNT(*) FROM information_schema.statistics "
+                    "WHERE table_schema = DATABASE() AND table_name = %s AND index_name = %s",
+                    (table_name, index_name)
+                )
+            elif self.db_type == 'postgresql':
+                cur.execute(
+                    "SELECT COUNT(*) FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                    (table_name, index_name)
+                )
+            elif self.db_type == 'firebird':
+                cur.execute(
+                    "SELECT COUNT(*) FROM RDB$INDICES WHERE TRIM(RDB$INDEX_NAME) = ?",
+                    (index_name.upper(),)
+                )
+            else:
+                return False
+            result = cur.fetchone()
+            return (result[0] > 0) if result else False
+        except Exception as e:
+            logger.warning(f"{self.db_type.upper()}: Could not check index existence for '{index_name}': {e}")
+            return False
+        finally:
+            cur.close()
+
     def _quote_identifier(self, identifier):
         """Quotes an identifier based on the database dialect."""
         if self.db_type == 'mysql':
             return f"`{identifier}`"
-        elif self.db_type == 'firebird':
-            return f'"{identifier}"'
         else:
             return f'"{identifier}"'
 
@@ -155,8 +370,8 @@ class SchemaManager:
                     "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
                     (table_name,))
             elif self.db_type == 'firebird':
-                # Check for exact table name (case sensitive if quoted)
-                cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = ?", (table_name,))
+                cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE TRIM(RDB$RELATION_NAME) = ?",
+                            (table_name,))
             else:
                 cur.execute("SELECT table_name FROM information_schema.tables WHERE table_name = %s", (table_name,))
             return cur.fetchone() is not None
@@ -180,7 +395,12 @@ class SchemaManager:
                 const_def = const[const_key]
                 columns_def.append(const_def)
 
-        create_sql = f"CREATE TABLE {self._quote_identifier(table_name)} ({', '.join(columns_def)})"
+        quoted_table = self._quote_identifier(table_name)
+
+        if self.db_type == 'firebird':
+            create_sql = f"CREATE TABLE {quoted_table} ({', '.join(columns_def)})"
+        else:
+            create_sql = f"CREATE TABLE IF NOT EXISTS {quoted_table} ({', '.join(columns_def)})"
 
         if self.db_type == 'mysql' and "engine_mysql" in definition:
             create_sql += f" {definition['engine_mysql']}"
@@ -188,35 +408,35 @@ class SchemaManager:
         cur = self.conn.cursor()
         try:
             cur.execute(create_sql)
-            self.conn.commit()  # Commit table creation before creating indexes
-
-            # Create indexes
-            if "indexes" in definition:
-                for idx_def in definition["indexes"]:
-                    idx_key = f"def_{type_suffix}"
-                    idx_sql = idx_def[idx_key]
-                    cur.execute(idx_sql)
-
             self.conn.commit()
-            logger.info(f"{self.db_type.upper()}: Table '{table_name}' created.")
+            logger.info(f"{self.db_type.upper()}: Table '{table_name}' ready.")
+        except Exception as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+            if self._table_exists(table_name):
+                logger.info(f"{self.db_type.upper()}: Table '{table_name}' already exists.")
+            else:
+                logger.error(f"{self.db_type.upper()}: Failed to create table '{table_name}': {e}")
+                raise
         finally:
             cur.close()
 
     def _update_table(self, table_name, definition):
-        # Check for missing columns
         existing_columns = self._get_existing_columns(table_name)
 
         type_suffix = self._get_type_suffix()
         for col in definition["columns"]:
-            if col["name"] not in existing_columns:
-                logger.info(f"{self.db_type.upper()}: Adding missing column '{col['name']}' to table '{table_name}'...")
+            col_name_check = col["name"].lower() if self.db_type == 'firebird' else col["name"]
+            if col_name_check not in existing_columns:
+                logger.info(f"{self.db_type.upper()}: Adding column '{col['name']}' to '{table_name}'...")
                 col_type_key = f"type_{type_suffix}"
                 col_type = col[col_type_key]
 
                 quoted_table = self._quote_identifier(table_name)
                 quoted_col = self._quote_identifier(col['name'])
 
-                # Firebird uses ADD without COLUMN keyword
                 if self.db_type == 'firebird':
                     alter_sql = f"ALTER TABLE {quoted_table} ADD {quoted_col} {col_type}"
                 else:
@@ -226,23 +446,52 @@ class SchemaManager:
                 try:
                     cur.execute(alter_sql)
                     self.conn.commit()
+                except Exception as e:
+                    try:
+                        self.conn.rollback()
+                    except Exception:
+                        pass
+                    logger.warning(f"{self.db_type.upper()}: Failed to add column '{col['name']}': {e}")
                 finally:
                     cur.close()
+
+        desired_columns = {col["name"].lower() if self.db_type == 'firebird' else col["name"]
+                          for col in definition["columns"]}
+        extra_columns = existing_columns - desired_columns
+        for col_name in sorted(extra_columns):
+            logger.info(f"{self.db_type.upper()}: Dropping column '{col_name}' from '{table_name}'...")
+            quoted_table = self._quote_identifier(table_name)
+            quoted_col = self._quote_identifier(col_name)
+
+            if self.db_type == 'firebird':
+                alter_sql = f"ALTER TABLE {quoted_table} DROP {quoted_col}"
+            else:
+                alter_sql = f"ALTER TABLE {quoted_table} DROP COLUMN {quoted_col}"
+
+            cur = self.conn.cursor()
+            try:
+                cur.execute(alter_sql)
+                self.conn.commit()
+            except Exception as exc:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                logger.warning(f"{self.db_type.upper()}: Failed to drop column '{col_name}': {exc}")
+            finally:
+                cur.close()
 
     def _get_existing_columns(self, table_name):
         cur = self.conn.cursor()
         try:
             if self.db_type == 'mysql':
-                cur.execute(f"SHOW COLUMNS FROM {table_name}")
-                # MySQL returns (Field, Type, Null, Key, Default, Extra)
+                cur.execute(f"SHOW COLUMNS FROM {self._quote_identifier(table_name)}")
                 return {row[0] for row in cur.fetchall()}
             elif self.db_type == 'firebird':
-                # Check for exact column name
-                cur.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = ?",
+                cur.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE TRIM(RDB$RELATION_NAME) = ?",
                             (table_name,))
                 return {row[0].lower() for row in cur.fetchall()}
             else:
-                # PostgreSQL
                 cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'")
                 return {row[0] for row in cur.fetchall()}
         finally:

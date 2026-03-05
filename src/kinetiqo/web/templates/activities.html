@@ -7,357 +7,24 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
 
-<!-- DataTables Buttons -->
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<!-- DataTables Buttons (3.x for DT 2.x) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.3/css/buttons.dataTables.min.css">
+<script src="https://cdn.datatables.net/buttons/3.2.3/js/dataTables.buttons.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.html5.min.js"></script>
 
-<style>
-    .select2-selection__choice__display {
-        padding-left: 15px !important;
-    }
+<!-- ColReorder extension for DataTables (enables in-grid column drag & drop) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css">
+<script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js"></script>
 
-    /* Select2 Customization to match theme */
-    .select2-container--default .select2-selection--multiple {
-        border-color: #E5E7EB;
-        border-radius: 0.5rem;
-        padding: 0.25rem;
-        min-height: 42px;
+<!-- SortableJS for drag+drop inside the modal as fallback/control -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
-        /* Condensed State (Default) */
-        max-height: 42px;
-        overflow: hidden;
-        transition: max-height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-
-        /* Flex layout for summary text */
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-    }
-
-    /* Expanded State (Focus or Open) */
-    .select2-container--default.select2-container--focus .select2-selection--multiple,
-    .select2-container--default.select2-container--open .select2-selection--multiple {
-        max-height: 400px; /* Expand to show content */
-        overflow-y: auto;
-
-        /* Focus styles */
-        border-color: #D1D5DB;
-        outline: none;
-        box-shadow: 0 0 0 1px #D1D5DB;
-    }
-
-    /* Hide choices in condensed state (except when container is focused/open) */
-    .select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection--multiple .select2-selection__choice {
-        display: none;
-    }
-
-    /* Show summary text in condensed state */
-    .select2-selection__summary {
-        display: none;
-        padding: 0 0.5rem;
-        color: #374151;
-        font-size: 0.875rem;
-    }
-
-    .select2-container--default:not(.select2-container--focus):not(.select2-container--open) .select2-selection__summary {
-        display: block;
-    }
-
-    .select2-container--default .select2-selection--multiple .select2-selection__choice {
-        background-color: #F3F4F6;
-        border: 1px solid #E5E7EB;
-        border-radius: 0.25rem;
-        color: #374151;
-        padding: 0 0.4rem;
-        margin-top: 0.25rem;
-    }
-
-    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
-        color: #6B7280;
-        margin-right: 0.25rem;
-        border-right: none;
-    }
-
-    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
-        background-color: #E5E7EB;
-        color: #111827;
-    }
-
-    .select2-dropdown {
-        border-color: #E5E7EB;
-        border-radius: 0.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    }
-
-    /* Dark mode for Select2 */
-    body.dark .select2-selection__summary {
-        color: #d4d4d4;
-    }
-
-    body.dark .select2-container--default .select2-selection--multiple {
-        background-color: #262626;
-        border-color: #404040;
-    }
-
-    body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice {
-        background-color: #333333;
-        border-color: #525252;
-        color: #e5e5e5;
-    }
-
-    body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
-        color: #a3a3a3;
-    }
-
-    body.dark .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
-        color: #e5e5e5;
-    }
-
-    body.dark .select2-dropdown {
-        background-color: #262626;
-        border-color: #404040;
-    }
-
-    body.dark .select2-results__option {
-        color: #e5e5e5;
-    }
-
-    body.dark .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
-        background-color: #333333;
-        color: #f5f5f5;
-    }
-
-    body.dark .select2-results__option--selected {
-        background-color: #404040;
-    }
-
-    body.dark .select2-container--default .select2-results__group {
-        color: #a3a3a3;
-    }
-
-    body.dark .select2-search__field {
-        background-color: #1a1a1a;
-        border-color: #525252;
-        color: #e5e5e5;
-    }
-
-    /* Activity Icons */
-    .activity-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        margin-right: 8px;
-        border-radius: 50%;
-        background-color: #F3F4F6;
-        color: #4B5563;
-        font-size: 12px;
-    }
-
-    /* Specific colors for common activities */
-    .icon-Ride, .icon-GravelRide, .icon-MountainBikeRide, .icon-VirtualRide, .icon-EBikeRide, .icon-EMountainBikeRide, .icon-Velomobile, .icon-Handcycle {
-        color: #EA580C;
-        background-color: #FFEDD5;
-    }
-
-    /* Orange */
-    .icon-Run, .icon-TrailRun, .icon-VirtualRun, .icon-Walk, .icon-Hike, .icon-Snowshoe, .icon-Wheelchair {
-        color: #059669;
-        background-color: #D1FAE5;
-    }
-
-    /* Emerald/Green */
-    .icon-Swim, .icon-Surfing, .icon-Windsurf, .icon-Kitesurf, .icon-Kayaking, .icon-Rowing, .icon-Canoeing, .icon-StandUpPaddling, .icon-Sail {
-        color: #0284C7;
-        background-color: #E0F2FE;
-    }
-
-    /* Sky Blue */
-    .icon-AlpineSki, .icon-BackcountrySki, .icon-NordicSki, .icon-Snowboard, .icon-IceSkate, .icon-RollerSki, .icon-InlineSkate {
-        color: #2563EB;
-        background-color: #DBEAFE;
-    }
-
-    /* Blue */
-    .icon-Workout, .icon-WeightTraining, .icon-Crossfit, .icon-Yoga, .icon-Pilates, .icon-HighIntensityIntervalTraining, .icon-RockClimbing {
-        color: #7C3AED;
-        background-color: #EDE9FE;
-    }
-
-    /* Violet */
-    .icon-Golf, .icon-Soccer, .icon-Tennis, .icon-Squash, .icon-Badminton, .icon-Pickleball, .icon-Racquetball, .icon-TableTennis {
-        color: #DB2777;
-        background-color: #FCE7F3;
-    }
-
-    /* Pink */
-    .icon-StairStepper, .icon-Skateboard, .icon-Elliptical, .icon-VirtualRow {
-        color: #9a16a1;
-        background-color: #fde3ff;
-    }
-
-    /* Purple */
-
-    /* Dynamic Select2 Choice Colors */
-    .select2-selection__choice.choice-Ride, .select2-selection__choice.choice-GravelRide, .select2-selection__choice.choice-MountainBikeRide, .select2-selection__choice.choice-VirtualRide, .select2-selection__choice.choice-EBikeRide, .select2-selection__choice.choice-EMountainBikeRide, .select2-selection__choice.choice-Velomobile, .select2-selection__choice.choice-Handcycle {
-        background-color: #FFEDD5 !important;
-        color: #EA580C !important;
-        border-color: #FDBA74 !important;
-    }
-
-    .select2-selection__choice.choice-Run, .select2-selection__choice.choice-TrailRun, .select2-selection__choice.choice-VirtualRun, .select2-selection__choice.choice-Walk, .select2-selection__choice.choice-Hike, .select2-selection__choice.choice-Snowshoe, .select2-selection__choice.choice-Wheelchair {
-        background-color: #D1FAE5 !important;
-        color: #059669 !important;
-        border-color: #6EE7B7 !important;
-    }
-
-    .select2-selection__choice.choice-Swim, .select2-selection__choice.choice-Surfing, .select2-selection__choice.choice-Windsurf, .select2-selection__choice.choice-Kitesurf, .select2-selection__choice.choice-Kayaking, .select2-selection__choice.choice-Rowing, .select2-selection__choice.choice-Canoeing, .select2-selection__choice.choice-StandUpPaddling, .select2-selection__choice.choice-Sail {
-        background-color: #E0F2FE !important;
-        color: #0284C7 !important;
-        border-color: #7DD3FC !important;
-    }
-
-    .select2-selection__choice.choice-AlpineSki, .select2-selection__choice.choice-BackcountrySki, .select2-selection__choice.choice-NordicSki, .select2-selection__choice.choice-Snowboard, .select2-selection__choice.choice-IceSkate, .select2-selection__choice.choice-RollerSki, .select2-selection__choice.choice-InlineSkate {
-        background-color: #DBEAFE !important;
-        color: #2563EB !important;
-        border-color: #93C5FD !important;
-    }
-
-    .select2-selection__choice.choice-Workout, .select2-selection__choice.choice-WeightTraining, .select2-selection__choice.choice-Crossfit, .select2-selection__choice.choice-Yoga, .select2-selection__choice.choice-Pilates, .select2-selection__choice.choice-HighIntensityIntervalTraining, .select2-selection__choice.choice-RockClimbing {
-        background-color: #EDE9FE !important;
-        color: #7C3AED !important;
-        border-color: #C4B5FD !important;
-    }
-
-    .select2-selection__choice.choice-Golf, .select2-selection__choice.choice-Soccer, .select2-selection__choice.choice-Tennis, .select2-selection__choice.choice-Squash, .select2-selection__choice.choice-Badminton, .select2-selection__choice.choice-Pickleball, .select2-selection__choice.choice-Racquetball, .select2-selection__choice.choice-TableTennis {
-        background-color: #FCE7F3 !important;
-        color: #DB2777 !important;
-        border-color: #F9A8D4 !important;
-    }
-
-    .select2-selection__choice.choice-StairStepper, .select2-selection__choice.choice-Skateboard, .select2-selection__choice.choice-Elliptical, .select2-selection__choice.choice-VirtualRow {
-        background-color: #fde3ff !important;
-        color: #9a16a1 !important;
-        border-color: #c9c1c9 !important;
-    }
-
-    /* DataTables Customization */
-    .dt-buttons .dt-button {
-        background-color: #f9fafb; /* bg-gray-50 */
-        border: 1px solid #e5e7eb; /* border-gray-200 */
-        border-radius: 0.375rem; /* rounded-md */
-        color: #374151; /* text-gray-700 */
-        font-size: 0.875rem; /* text-sm */
-        font-weight: 500; /* font-medium */
-        padding: 0.5rem 0.75rem; /* px-3 py-2 */
-        height: 42px;
-        transition: background-color 0.2s;
-    }
-
-    .dt-buttons .dt-button:hover {
-        background-color: #f3f4f6; /* hover:bg-gray-100 */
-    }
-
-    /* Dark mode for DataTables buttons */
-    body.dark .dt-buttons .dt-button {
-        background-color: #262626;
-        border-color: #404040;
-        color: #d4d4d4;
-    }
-
-    body.dark .dt-buttons .dt-button:hover {
-        background-color: #333333;
-    }
-
-    /* Dark mode for date filter dropdown */
-    body.dark #dateFilter {
-        background-color: #262626 !important;
-        border-color: #404040;
-        color: #e5e5e5;
-    }
-
-    body.dark #dateFilterDropdown {
-        background-color: #262626;
-        border-color: #404040;
-    }
-
-    body.dark .date-preset-btn {
-        color: #e5e5e5;
-    }
-
-    body.dark .date-preset-btn:hover {
-        background-color: #333333;
-    }
-
-    /* Dark mode for divider */
-    body.dark .bg-gray-300 {
-        background-color: #525252;
-    }
-
-    /* Dark mode for daterangepicker */
-    body.dark .daterangepicker {
-        background-color: #262626;
-        border-color: #404040;
-    }
-
-    body.dark .daterangepicker .calendar-table {
-        background-color: #262626;
-        border-color: #404040;
-    }
-
-    body.dark .daterangepicker td, body.dark .daterangepicker th {
-        color: #e5e5e5;
-    }
-
-    body.dark .daterangepicker td.off, body.dark .daterangepicker td.off.in-range, body.dark .daterangepicker td.off.start-date, body.dark .daterangepicker td.off.end-date {
-        color: #737373;
-    }
-
-    body.dark .daterangepicker td.available:hover, body.dark .daterangepicker th.available:hover {
-        background-color: #333333;
-    }
-
-    body.dark .daterangepicker td.active, body.dark .daterangepicker td.active:hover {
-        background-color: #EA580C;
-    }
-
-    body.dark .daterangepicker .calendar-table thead tr {
-        background-color: #1a1a1a;
-    }
-
-    body.dark .daterangepicker select {
-        background-color: #1a1a1a;
-        border-color: #525252;
-        color: #e5e5e5;
-    }
-
-    body.dark .daterangepicker .ranges li {
-        color: #e5e5e5;
-    }
-
-    body.dark .daterangepicker .ranges li:hover {
-        background-color: #333333;
-    }
-
-    body.dark .daterangepicker .ranges li.active {
-        background-color: #EA580C;
-    }
-
-    /* Prevent text wrapping and set minimum width for action/filter buttons */
-    .activity-action-btn, .activity-filter-btn, .activity-export-btn {
-        white-space: nowrap;
-        min-width: 110px; /* Adjust as needed for your longest label */
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }
-</style>
 
 <div class="mb-8">
     <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
 </div>
+<div id="activitiesFooterNote" class="mt-2 text-xs text-gray-500">Columns selection is saved to your browser (localStorage).</div>
 
 <div class="bg-white rounded-lg p-4 mb-4 border border-gray-200">
     <div class="flex flex-col md:flex-row gap-4 items-end">
@@ -385,31 +52,40 @@
                         <h4 class="font-semibold text-sm mb-2">Presets</h4>
                         <div class="grid grid-cols-1 gap-2">
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="all_time">All time
-                            </button>
-                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="today">Today
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="yesterday">Yesterday
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_week">This Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="7_days">Last 7 Days
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="last_week">Last Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="14_days">Last 14 Days
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="this_month">This Month
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="last_month">Last Month
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
                                     data-preset="this_year">This Year
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="7_days">7 Days
+                                    data-preset="last_year">Last Year
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="14_days">14 Days
+                                    data-preset="year">Last 12 Months
                             </button>
                             <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
-                                    data-preset="year">Year
+                                    data-preset="all_time">All Time
                             </button>
                         </div>
                     </div>
@@ -534,6 +210,14 @@
                     class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled>Display on map
             </button>
+            <button id="selectColumnsBtn"
+                    class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    >Select columns
+            </button>
+            <button id="resetViewBtn"
+                    class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    title="Reset columns to default configuration">Reset View
+            </button>
             <button id="exportCsvBtn"
                     class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled>Export to CSV
@@ -543,12 +227,40 @@
     </div>
 </div>
 
+<!-- Column selection modal -->
+<div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 w-96 flex flex-col" style="max-height: 90vh;">
+        <h3 class="text-lg font-semibold mb-4 flex-shrink-0">Select columns to display</h3>
+        <form id="columnSelectForm" class="flex-1 overflow-y-auto min-h-0">
+            <div class="space-y-2">
+                <!-- Dynamically filled -->
+            </div>
+        </form>
+        <div class="flex justify-end mt-4 flex-shrink-0">
+            <button id="closeColumnSelectModal" class="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded mr-2">Cancel</button>
+            <button id="saveColumnSelect" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Flash message banner -->
+<div id="flashMessage" class="hidden mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between" role="alert">
+    <div class="flex items-center">
+        <svg id="flashIconError" class="hidden w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+        <svg id="flashIconWarning" class="hidden w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+        <svg id="flashIconInfo" class="hidden w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+        <span id="flashText"></span>
+    </div>
+    <button onclick="hideFlash()" class="ml-4 text-current opacity-70 hover:opacity-100 focus:outline-none">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+    </button>
+</div>
+
 <div class="bg-white rounded-lg">
     <table id="activitiesTable" class="w-full text-left border-collapse">
         <thead>
         <tr class="text-sm font-semibold text-gray-600 border-b border-gray-200">
             <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="selectAllOnPage"></th>
-            <th class="py-3 px-4 w-20">ID</th>
             <th class="py-3 px-4">Activity Name</th>
             <th class="py-3 px-4 w-32">Type</th>
             <th class="py-3 px-4 w-32">Date</th>
@@ -556,7 +268,23 @@
             <th class="py-3 px-4 w-32 text-right">Elevation (m)</th>
             <th class="py-3 px-4 w-32">Moving Time</th>
             <th class="py-3 px-4 w-32">Avg Speed (km/h)</th>
+            <th class="py-3 px-4 w-32 text-right">Avg Watts (W)</th>
+            <th class="py-3 px-4 w-32 text-right">Max Watts (W)</th>
             <th class="py-3 px-4 w-32">Avg HR (bpm)</th>
+            <!-- Additional DB fields -->
+            <th class="py-3 px-4 w-28 text-right">Weighted Avg Watts (W)</th>
+            <th class="py-3 px-4 w-24 text-right">Device Watts (W)</th>
+            <th class="py-3 px-4 w-24 text-right">Calories</th>
+            <th class="py-3 px-4 w-24 text-right">Kilojoules</th>
+            <th class="py-3 px-4 w-24 text-right">Achievement Count</th>
+            <th class="py-3 px-4 w-24 text-right">PR Count</th>
+            <th class="py-3 px-4 w-24 text-right">Suffer Score</th>
+            <th class="py-3 px-4 w-24 text-right">Avg Temp (°C)</th>
+            <th class="py-3 px-4 w-24 text-right">Elev High (m)</th>
+            <th class="py-3 px-4 w-24 text-right">Elev Low (m)</th>
+            <th class="py-3 px-4 w-28">Gear ID</th>
+            <th class="py-3 px-4 w-20">Has HR</th>
+            <th class="py-3 px-4 w-24">Workout Type</th>
             <th class="py-3 px-4 w-32">Link to Strava</th>
             <th class="py-3 px-4 w-20 text-center">Delete</th>
         </tr>
@@ -565,7 +293,7 @@
         </tbody>
         <tfoot class="text-gray-700 text-sm font-semibold bg-gray-50 border-t border-gray-200">
         <tr>
-            <td colspan="5" class="py-3 px-4 text-right">Totals:</td>
+            <td colspan="4" class="py-3 px-4 text-right">Totals:</td>
             <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
             <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
             <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
@@ -576,6 +304,168 @@
 </div>
 
 <script>
+// ─── Grid State Management ────────────────────────────────────────────────────
+// All grid state (visibility, column order, sort) is persisted to localStorage.
+// DT 2.x + ColReorder 2.x — column().visible() works natively, no workarounds.
+
+// ─── Flash Message Helpers ────────────────────────────────────────────────────
+function showFlash(message, type) {
+    // type: 'error', 'warning', 'info'
+    type = type || 'error';
+    var el = document.getElementById('flashMessage');
+    var textEl = document.getElementById('flashText');
+    var iconError = document.getElementById('flashIconError');
+    var iconWarning = document.getElementById('flashIconWarning');
+    var iconInfo = document.getElementById('flashIconInfo');
+
+    textEl.textContent = message;
+
+    // Reset classes and icons
+    el.className = 'mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between';
+    iconError.classList.add('hidden');
+    iconWarning.classList.add('hidden');
+    iconInfo.classList.add('hidden');
+
+    if (type === 'error') {
+        el.classList.add('bg-red-100', 'border', 'border-red-300', 'text-red-800');
+        iconError.classList.remove('hidden');
+    } else if (type === 'warning') {
+        el.classList.add('bg-yellow-100', 'border', 'border-yellow-300', 'text-yellow-800');
+        iconWarning.classList.remove('hidden');
+    } else {
+        el.classList.add('bg-blue-100', 'border', 'border-blue-300', 'text-blue-800');
+        iconInfo.classList.remove('hidden');
+    }
+
+    el.classList.remove('hidden');
+    el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function hideFlash() {
+    document.getElementById('flashMessage').classList.add('hidden');
+}
+
+const COLUMN_STORAGE_KEY = 'activities_column_selection';
+const COLUMN_ORDER_KEY   = 'activities_column_order';
+const SORT_STORAGE_KEY   = 'activities_sort_order';
+const SCHEMA_VERSION_KEY = 'activities_schema_v5';
+
+var columnDefs = [
+    {label: 'Select',            mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  0, defaultSort: null  }, //  0
+    {label: 'Name',              mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  1, defaultSort: null  }, //  1
+    {label: 'Type',              mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  2, defaultSort: null  }, //  2
+    {label: 'Date',              mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  3, defaultSort: 'desc'}, //  3
+    {label: 'Distance',          mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  4, defaultSort: null  }, //  4
+    {label: 'Elevation',         mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  5, defaultSort: null  }, //  5
+    {label: 'Moving Time',       mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  6, defaultSort: null  }, //  6
+    {label: 'Avg Speed',         mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder:  7, defaultSort: null  }, //  7
+    {label: 'Avg Watts',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder:  8, defaultSort: null  }, //  8
+    {label: 'Max Watts',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder:  9, defaultSort: null  }, //  9
+    {label: 'Avg HR',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 10, defaultSort: null  }, // 10
+    {label: 'Weighted Avg Watts',mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 11, defaultSort: null  }, // 11
+    {label: 'Device Watts',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 12, defaultSort: null  }, // 12
+    {label: 'Calories',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 13, defaultSort: null  }, // 13
+    {label: 'Kilojoules',        mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 14, defaultSort: null  }, // 14
+    {label: 'Achievement Count', mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 15, defaultSort: null  }, // 15
+    {label: 'PR Count',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 16, defaultSort: null  }, // 16
+    {label: 'Suffer Score',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 17, defaultSort: null  }, // 17
+    {label: 'Avg Temp',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 18, defaultSort: null  }, // 18
+    {label: 'Elev High',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 19, defaultSort: null  }, // 19
+    {label: 'Elev Low',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 20, defaultSort: null  }, // 20
+    {label: 'Gear ID',           mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 21, defaultSort: null  }, // 21
+    {label: 'Has HR',            mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 22, defaultSort: null  }, // 22
+    {label: 'Workout Type',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 23, defaultSort: null  }, // 23
+    {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 24, defaultSort: null  }, // 24
+    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 25, defaultSort: null  }  // 25
+];
+
+// ─── Defaults ─────────────────────────────────────────────────────────────────
+
+function getDefaultVisibleColumns() {
+    return columnDefs.reduce(function (acc, col, idx) {
+        if (col.mandatory || col.default) acc.push(idx);
+        return acc;
+    }, []);
+}
+
+function getDefaultColumnOrder() {
+    return columnDefs
+        .map(function (col, idx) { return { idx: idx, order: col.defaultOrder }; })
+        .sort(function (a, b) { return a.order - b.order; })
+        .map(function (item) { return item.idx; });
+}
+
+function getDefaultSort() {
+    var sortCols = [];
+    columnDefs.forEach(function (col, idx) {
+        if (col.defaultSort) sortCols.push([idx, col.defaultSort]);
+    });
+    return sortCols.length ? sortCols : [[3, 'desc']];
+}
+
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+
+function getSavedColumns() {
+    try { var raw = localStorage.getItem(COLUMN_STORAGE_KEY); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
+}
+
+function clearSavedView() {
+    try { localStorage.removeItem(COLUMN_STORAGE_KEY); } catch (e) {}
+    try { localStorage.removeItem(COLUMN_ORDER_KEY); } catch (e) {}
+    try { localStorage.removeItem(SORT_STORAGE_KEY); } catch (e) {}
+}
+
+// ─── Column visibility (native DT 2.x API) ───────────────────────────────────
+// IMPORTANT: ColReorder 2.x physically rearranges aoColumns, so table.column(i)
+// refers to the column at CURRENT position i, not original column i.
+// We must use the current order mapping to apply visibility correctly.
+// _currentVisibleCols always stores ORIGINAL column indices.
+
+function applyColumnVisibility(visibleCols) {
+    if (!table) return;
+    _currentVisibleCols = visibleCols;
+    // Get current order: order[currentPos] = originalIdx
+    var order = readColumnOrder();
+    for (var pos = 0; pos < order.length; pos++) {
+        var origIdx = order[pos];
+        table.column(pos).visible(visibleCols.includes(origIdx), false);
+    }
+}
+
+// Tracks which columns are currently visible
+var _currentVisibleCols = null;
+
+// ─── Grid state read/write ────────────────────────────────────────────────────
+
+function readColumnOrder() {
+    if (!table) return getDefaultColumnOrder();
+    try { return table.colReorder.order(); }
+    catch (e) { return getDefaultColumnOrder(); }
+}
+
+function applyColumnOrder(order) {
+    if (!table) return;
+    if (!Array.isArray(order) || order.length !== columnDefs.length) return;
+    try {
+        // 2nd param = true means the array contains ORIGINAL column indices
+        // (colReorder.order's 2nd param is 'original', NOT 'redraw')
+        table.colReorder.order(order, true);
+    } catch (e) {
+        console.warn('applyColumnOrder failed:', e);
+    }
+}
+
+function persistGridState() {
+    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(readColumnOrder())); } catch (e) {}
+    try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(table.order())); } catch (e) {}
+    if (_currentVisibleCols) {
+        try { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(_currentVisibleCols)); } catch (e) {}
+    }
+}
+
+var table = null;
+
     $(document).ready(function () {
         const FILTER_STORAGE_KEY = 'kinetiqoActivityFilters';
         const SELECTION_STORAGE_KEY = 'kinetiqoSelectedActivities';
@@ -620,24 +510,25 @@
             }
         });
 
-        // Add summary element to the selection container
+        // Remove duplicate updateSummary function and variable declarations
+        // Only add select2-selection__summary if not already present
         var $container = $select.next('.select2-container').find('.select2-selection--multiple');
-        $container.prepend('<div class="select2-selection__summary"></div>');
+        if ($container.find('.select2-selection__summary').length === 0) {
+            $container.prepend('<div class="select2-selection__summary"></div>');
+        }
 
         function updateSummary() {
             var count = $('#activityTypeFilter').select2('data').length;
             var total = $('#activityTypeFilter option').length;
-            var text = "";
-
+            var summaryText = "";
             if (count === 0) {
-                text = "No activities selected";
+                summaryText = "No activities selected";
             } else if (count === total) {
-                text = "All activities selected (" + count + ")";
+                summaryText = "All activities selected (" + count + ")";
             } else {
-                text = count + " Activities selected";
+                summaryText = count + " Activities selected";
             }
-
-            $('.select2-selection__summary').text(text);
+            $('.select2-selection__summary').text(summaryText);
         }
 
         // Initial update of summary based on loaded values
@@ -649,19 +540,18 @@
                 $('#dateFilter span').text(presetName);
                 return;
             }
-
             var startDate = $('#startDate').val();
             var endDate = $('#endDate').val();
             if (startDate && endDate) {
-                var start = moment(startDate).format('MMM D, YYYY');
-                var end = moment(endDate).format('MMM D, YYYY');
-                $('#dateFilter span').text(start + ' - ' + end);
+                let startFmt = moment(startDate).format('MMM D, YYYY');
+                let endFmt = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text(startFmt + ' - ' + endFmt);
             } else if (startDate) {
-                var start = moment(startDate).format('MMM D, YYYY');
-                $('#dateFilter span').text('From ' + start);
+                let startFmt = moment(startDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('From ' + startFmt);
             } else if (endDate) {
-                var end = moment(endDate).format('MMM D, YYYY');
-                $('#dateFilter span').text('To ' + end);
+                let endFmt = moment(endDate).format('MMM D, YYYY');
+                $('#dateFilter span').text('To ' + endFmt);
             } else {
                 $('#dateFilter span').text('All time');
             }
@@ -720,18 +610,26 @@
         updateDateFilterDisplay(currentDatePreset);
 
         // 4. Initialize DataTable
-        var table = $('#activitiesTable').DataTable({
+        table = $('#activitiesTable').DataTable({
             "processing": true,
-            "serverSide": false, // Client-side processing
+            "serverSide": false,
             "pageLength": 25,
-            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]], // Added length menu
-            "order": [[4, "desc"]],
-            "autoWidth": false, // Disable auto width calculation to use our custom widths
-            "dom": 'Brt<"flex justify-between items-center mt-4"ilp>',
+            "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+            "order": getDefaultSort(),
+            "autoWidth": false,
+            // DT 2.x layout replaces 'dom'
+            "layout": {
+                "topStart": null,
+                "topEnd": null,
+                "bottomStart": ['info', 'pageLength'],
+                "bottomEnd": 'paging'
+            },
             "search": {
-                "search": savedFilters.search || "" // Initialize with saved search
+                "search": savedFilters.search || ""
             },
             "buttons": [],
+            // ColReorder 2.x
+            "colReorder": true,
             "ajax": {
                 "url": "/api/activities",
                 "data": function (d) {
@@ -746,7 +644,34 @@
                     d.endDate = $('#endDate').val();
                 },
                 "dataSrc": function (json) {
+                    hideFlash();
+                    if (!json || typeof json !== 'object') {
+                        showFlash('The server returned an unexpected response. Please try again later.', 'error');
+                        return [];
+                    }
+                    if (json.error) {
+                        showFlash('Server error: ' + json.error, 'error');
+                        return [];
+                    }
+                    if (!Array.isArray(json.data)) {
+                        showFlash('The server returned data in an unexpected format.', 'error');
+                        return [];
+                    }
+                    if (json.data.length === 0) {
+                        showFlash('No activities found matching the current filters.', 'info');
+                    }
                     return json.data;
+                },
+                "error": function (xhr, status, error) {
+                    if (xhr.status === 0) {
+                        showFlash('Unable to connect to the server. Please check if the server is running.', 'error');
+                    } else if (xhr.status === 401 || xhr.status === 403) {
+                        showFlash('Your session has expired. Please log in again.', 'warning');
+                    } else if (xhr.status === 500) {
+                        showFlash('Internal server error. Please check the server logs for details.', 'error');
+                    } else {
+                        showFlash('Failed to load activities (HTTP ' + xhr.status + '). Please try again.', 'error');
+                    }
                 }
             },
             "columns": [
@@ -756,11 +681,6 @@
                     "className": "text-center",
                     "render": function (data, type, row) {
                         return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
-                    }
-                },
-                {
-                    "data": "id", "visible": false, "render": function (data) {
-                        return '#' + data;
                     }
                 },
                 {"data": "name"},
@@ -817,6 +737,26 @@
                     }
                 },
                 {
+                    "data": "average_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        if (type === 'display') {
+                            return data > 0 ? Math.round(data) : '-';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    "data": "max_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        if (type === 'display') {
+                            return data > 0 ? Math.round(data) : '-';
+                        }
+                        return data;
+                    }
+                },
+                {
                     "data": "average_heartrate",
                     "className": "text-right",
                     "render": function (data, type, row) {
@@ -825,6 +765,73 @@
                         }
                         return data;
                     }
+                },
+                // New DB fields
+                {
+                    "data": "weighted_average_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        return (type === 'display') ? (data ? Math.round(data) : '-') : data;
+                    }
+                },
+                {
+                    "data": "device_watts",
+                    "className": "text-right",
+                    "render": function (data, type, row) {
+                        return (type === 'display') ? (data ? Math.round(data) : '-') : data;
+                    }
+                },
+                {
+                    "data": "calories",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? Math.round(data) : '-') : data; }
+                },
+                {
+                    "data": "kilojoules",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? Math.round(data) : '-') : data; }
+                },
+                {
+                    "data": "achievement_count",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data || 0) : data; }
+                },
+                {
+                    "data": "pr_count",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data || 0) : data; }
+                },
+                {
+                    "data": "suffer_score",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? Math.round(data) : '-') : data; }
+                },
+                {
+                    "data": "average_temp",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data !== null && data !== undefined ? Number(data).toFixed(1) : '-') : data; }
+                },
+                {
+                    "data": "elev_high",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? formatElevation(data) : '-') : data; }
+                },
+                {
+                    "data": "elev_low",
+                    "className": "text-right",
+                    "render": function (data, type) { return (type === 'display') ? (data ? formatElevation(data) : '-') : data; }
+                },
+                {
+                    "data": "gear_id",
+                    "render": function (data, type, row) { return data || '-'; }
+                },
+                {
+                    "data": "has_heartrate",
+                    "render": function (data, type, row) { return data ? 'Yes' : 'No'; }
+                },
+                {
+                    "data": "workout_type",
+                    "render": function (data, type, row) { return data || '-'; }
                 },
                 {
                     "data": null,
@@ -867,8 +874,142 @@
             }
         });
 
-        // Move buttons to the container
-        table.buttons().container().appendTo('#custom-buttons-wrapper');
+        // Buttons are empty — custom UI buttons are in #custom-buttons-wrapper via HTML
+
+        // ── Schema migration: wipe old localStorage if schema changed ──────────
+        if (!localStorage.getItem(SCHEMA_VERSION_KEY)) {
+            clearSavedView();
+            localStorage.setItem(SCHEMA_VERSION_KEY, '1');
+        }
+
+        // ── Restore column order ───────────────────────────────────────────────
+        (function restoreOrder() {
+            try {
+                var savedOrder = JSON.parse(localStorage.getItem(COLUMN_ORDER_KEY) || 'null');
+                if (Array.isArray(savedOrder) && savedOrder.length === columnDefs.length) {
+                    applyColumnOrder(savedOrder);
+                }
+            } catch (e) { /* use default order */ }
+        })();
+
+        // ── Restore column visibility ──────────────────────────────────────────
+        applyColumnVisibility(getSavedColumns() || getDefaultVisibleColumns());
+
+        // ── Restore sort and do a single draw ──────────────────────────────────
+        (function restoreSort() {
+            try {
+                var savedSort = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || 'null');
+                if (Array.isArray(savedSort) && savedSort.length > 0) {
+                    table.order(savedSort);
+                }
+            } catch (e) { /* use default sort */ }
+            table.columns.adjust().draw(false);  // single draw applies order + visibility + sort
+        })();
+
+        // ── Persist state on user interactions ─────────────────────────────────
+        table.on('order.dt', function () { persistGridState(); });
+        table.on('column-reorder.dt', function () { persistGridState(); });
+
+        // ── SortableJS for the modal list ──────────────────────────────────────
+        window.initModalSortable = function () {
+            var el = document.querySelector('#columnSelectForm .column-list');
+            if (!el) return;
+            if (window._activitiesSortable && window._activitiesSortable.destroy) {
+                try { window._activitiesSortable.destroy(); } catch (_) {}
+            }
+            window._activitiesSortable = Sortable.create(el, {
+                handle: '.column-drag-handle',
+                animation: 150
+            });
+        };
+
+        // ── Modal "Save" handler ───────────────────────────────────────────────
+        $('#saveColumnSelect').off('click').on('click', function (e) {
+            e.preventDefault();
+
+            // 1. Read the desired order from the modal's draggable list
+            var orderedElems = document.querySelectorAll('#columnSelectForm .column-list .column-item');
+            var modalOrder = Array.from(orderedElems).map(function (el) {
+                return parseInt(el.getAttribute('data-idx'));
+            });
+
+            // 2. Read which columns are checked
+            var checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]'))
+                .filter(function (cb) { return cb.checked; })
+                .map(function (cb) { return parseInt(cb.value); });
+
+            // Always include mandatory columns
+            columnDefs.forEach(function (col, idx) {
+                if (col.mandatory && !checked.includes(idx)) checked.push(idx);
+            });
+
+            // 3. Build a complete column order:
+            //    - col 0 (Select) is always first
+            //    - modal-ordered columns in the middle
+            //    - col N-1 (Actions) is always last
+            var lastCol = columnDefs.length - 1;
+            var middleFromModal = modalOrder.filter(function (idx) { return idx !== 0 && idx !== lastCol; });
+
+            // Any column NOT in modalOrder and NOT 0 or lastCol should be appended
+            var inModal = new Set(modalOrder);
+            for (var i = 1; i < lastCol; i++) {
+                if (!inModal.has(i)) middleFromModal.push(i);
+            }
+
+            var fullOrder = [0].concat(middleFromModal).concat([lastCol]);
+
+            // 4. Temporarily unbind event handlers to prevent stale persistence
+            table.off('column-reorder.dt');
+
+            // 5. Make all columns visible so colReorder can rearrange DOM correctly
+            for (var j = 0; j < columnDefs.length; j++) {
+                table.column(j).visible(true, false);
+            }
+
+            // 6. Apply column order (uses original indices)
+            applyColumnOrder(fullOrder);
+
+            // 7. Apply desired visibility (uses order-aware mapping)
+            applyColumnVisibility(checked);
+
+            // 8. Single draw to apply everything at once
+            table.columns.adjust().draw(false);
+
+            // 9. Save state to localStorage
+            localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(checked));
+            persistGridState();
+
+            // 10. Re-bind event handlers
+            table.on('column-reorder.dt', function () { persistGridState(); });
+
+            $('#columnSelectModal').addClass('hidden');
+        });
+
+        // ── "Reset View" handler ───────────────────────────────────────────────
+        $('#resetViewBtn').on('click', function () {
+            if (!confirm('Reset columns to default view? Your current column selection and order will be lost.')) return;
+            clearSavedView();
+
+            // Temporarily unbind to prevent stale persistence during reset
+            table.off('column-reorder.dt');
+
+            // Make all columns visible first so colReorder can work
+            for (var j = 0; j < columnDefs.length; j++) {
+                table.column(j).visible(true, false);
+            }
+
+            // Apply default order (uses original indices)
+            applyColumnOrder(getDefaultColumnOrder());
+
+            // Apply default visibility (uses order-aware mapping)
+            applyColumnVisibility(getDefaultVisibleColumns());
+
+            // Apply default sort and do single draw
+            table.order(getDefaultSort()).columns.adjust().draw();
+
+            // Re-bind event handler
+            table.on('column-reorder.dt', function () { persistGridState(); });
+        });
 
         // 5. Bind Events for Persistence & Interaction
         $('#activityTypeFilter').on('change', function () {
@@ -916,17 +1057,29 @@
                         startDate = moment().subtract(1, 'days');
                         endDate = moment().subtract(1, 'days');
                         break;
+                    case 'this_week':
+                        startDate = moment().startOf('isoWeek');
+                        endDate = moment();
+                        break;
                     case 'last_week':
-                        startDate = moment().subtract(1, 'week').startOf('week');
-                        endDate = moment().subtract(1, 'week').endOf('week');
+                        startDate = moment().subtract(1, 'week').startOf('isoWeek');
+                        endDate = moment().subtract(1, 'week').endOf('isoWeek');
                         break;
                     case 'this_month':
                         startDate = moment().startOf('month');
-                        endDate = moment().endOf('month');
+                        endDate = moment();
+                        break;
+                    case 'last_month':
+                        startDate = moment().subtract(1, 'month').startOf('month');
+                        endDate = moment().subtract(1, 'month').endOf('month');
                         break;
                     case 'this_year':
                         startDate = moment().startOf('year');
-                        endDate = moment().endOf('year');
+                        endDate = moment();
+                        break;
+                    case 'last_year':
+                        startDate = moment().subtract(1, 'year').startOf('year');
+                        endDate = moment().subtract(1, 'year').endOf('year');
                         break;
                     case '7_days':
                         startDate = moment().subtract(6, 'days');
@@ -1098,7 +1251,11 @@
                         table.ajax.reload(null, false); // Reload and keep paging
                     },
                     error: function (xhr, status, error) {
-                        alert('An error occurred while deleting activities: ' + error);
+                        if (xhr.status === 0) {
+                            showFlash('Unable to connect to the server. Please check if the server is running.', 'error');
+                        } else {
+                            showFlash('An error occurred while deleting activities: ' + (error || 'Unknown error'), 'error');
+                        }
                         table.ajax.reload(null, false);
                     }
                 });
@@ -1140,7 +1297,7 @@
             if (selectedData.length === 0) return;
 
             // Define CSV headers and data mapping
-            const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg HR (bpm)'];
+            const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg Watts (W)', 'Max Watts (W)', 'Avg HR (bpm)'];
 
             const csvContent = [
                 headers.join(','),
@@ -1150,6 +1307,8 @@
                     const elevationM = row.elevation.toFixed(2); // Assuming elevation is in meters
                     const movingTime = formatDuration(row.moving_time);
                     const avgSpeed = (row.average_speed * 3.6).toFixed(1);
+                    const avgWatts = row.average_watts > 0 ? Math.round(row.average_watts) : '';
+                    const maxWatts = row.max_watts > 0 ? Math.round(row.max_watts) : '';
                     const avgHr = row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '';
 
                     // Escape quotes in name
@@ -1164,6 +1323,8 @@
                         elevationM,
                         movingTime,
                         avgSpeed,
+                        avgWatts,
+                        maxWatts,
                         avgHr
                     ].join(',');
                 })
@@ -1237,7 +1398,11 @@
                         table.ajax.reload(null, false); // false to keep current paging
                     },
                     error: function (xhr, status, error) {
-                        alert('Error deleting activity: ' + error);
+                        if (xhr.status === 0) {
+                            showFlash('Unable to connect to the server. Please check if the server is running.', 'error');
+                        } else {
+                            showFlash('Error deleting activity: ' + (error || 'Unknown error'), 'error');
+                        }
                     }
                 });
             }
@@ -1250,7 +1415,48 @@
 
         // Initial update of buttons based on loaded selection
         updateSelectionButtons();
+
+        // Add event listeners
+        $('#selectColumnsBtn').on('click', showColumnSelectModal);
+        $('#closeColumnSelectModal').on('click', hideColumnSelectModal);
+        // Note: #saveColumnSelect and #resetViewBtn are bound above
     });
+
+    function showColumnSelectModal() {
+        // Read current visual order
+        var currentOrder = readColumnOrder();
+
+        // Show only columns that are selectable or mandatory (skip Select/Actions which are pinned)
+        var items = [];
+        currentOrder.forEach(function (origIdx) {
+            var col = columnDefs[origIdx];
+            if (!col) return;
+            if (!col.selectable && !col.mandatory) return;
+            items.push({ idx: origIdx, label: col.label, mandatory: col.mandatory });
+        });
+
+        // Determine which columns are currently visible
+        var currentVisible = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
+
+        var formHtml = items.map(function (it) {
+            var checked = it.mandatory || currentVisible.includes(it.idx);
+            var disabled = it.mandatory ? 'disabled' : '';
+            return '<div class="column-item" data-idx="' + it.idx + '">'
+                + '<span class="column-left"><span class="column-drag-handle" title="Drag to reorder">☰</span></span>'
+                + '<label style="flex:1; margin-left:6px;">'
+                + '<input type="checkbox" value="' + it.idx + '" ' + (checked ? 'checked' : '') + ' ' + disabled + '> '
+                + it.label + (it.mandatory ? ' <span class="text-xs text-gray-400">(mandatory)</span>' : '')
+                + '</label></div>';
+        }).join('');
+
+        $('#columnSelectForm .space-y-2').html('<div class="column-list">' + formHtml + '</div>');
+        $('#columnSelectModal').removeClass('hidden');
+        initModalSortable();
+    }
+
+    function hideColumnSelectModal() {
+        $('#columnSelectModal').addClass('hidden');
+    }
 </script>
 
 {% endblock %}

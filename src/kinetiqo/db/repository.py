@@ -97,3 +97,8 @@ class DatabaseRepository(ABC):
     def close(self):
         """Close database connection."""
         pass
+
+    @abstractmethod
+    def get_table_record_counts(self) -> Dict[str, int]:
+        """Return a dict of table names and their record counts."""
+        pass
