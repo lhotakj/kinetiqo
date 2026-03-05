@@ -584,6 +584,31 @@ class PostgresqlRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+    def get_watts_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[float]]:
+        """Get watts time-series for a list of activity IDs."""
+        if not activity_ids:
+            return {}
+
+        result = {}
+        int_ids = [int(aid) for aid in activity_ids]
+
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                        SELECT activity_id, watts
+                        FROM streams
+                        WHERE activity_id = ANY (%s)
+                          AND watts IS NOT NULL
+                        ORDER BY activity_id, ts
+                        """, (int_ids,))
+
+            for row in cur.fetchall():
+                aid = str(row[0])
+                if aid not in result:
+                    result[aid] = []
+                result[aid].append(float(row[1]))
+
+        return result
+
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         tables = ['activities', 'streams', 'logs']

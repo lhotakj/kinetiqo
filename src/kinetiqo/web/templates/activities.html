@@ -210,6 +210,10 @@
                     class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled>Display on map
             </button>
+            <button id="powerSkillsBtn"
+                    class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled>⚡ Power Skills
+            </button>
             <button id="selectColumnsBtn"
                     class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     >Select columns
@@ -1124,10 +1128,12 @@ var table = null;
             if (count > 0) {
                 $('#deleteSelectedBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-red-500');
                 $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
+                $('#powerSkillsBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-purple-600');
                 $('#exportCsvBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-blue-600');
             } else {
                 $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
                 $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
+                $('#powerSkillsBtn').prop('disabled', true).removeClass('bg-purple-600').addClass('bg-gray-400');
                 $('#exportCsvBtn').prop('disabled', true).removeClass('bg-blue-600').addClass('bg-gray-400');
             }
         }
@@ -1283,6 +1289,30 @@ var table = null;
             });
 
             // Append form to body and submit
+            form.appendTo('body').submit();
+            form.remove();
+        });
+
+        // Power Skills
+        $('#powerSkillsBtn').on('click', function () {
+            if (selectedActivities.size === 0) return;
+
+            // Create a hidden form
+            const form = $('<form>', {
+                method: 'POST',
+                action: '/powerskills',
+                target: '_blank'
+            }).hide();
+
+            // Add selected IDs as hidden inputs
+            selectedActivities.forEach(id => {
+                $('<input>').attr({
+                    type: 'hidden',
+                    name: 'activity_ids[]',
+                    value: id
+                }).appendTo(form);
+            });
+
             form.appendTo('body').submit();
             form.remove();
         });

@@ -99,6 +99,18 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_watts_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[float]]:
+        """Get watts time-series for a list of activity IDs.
+
+        Returns a dictionary mapping activity_id to a list of watts values
+        ordered by timestamp (1 sample per second).
+
+        :param activity_ids: List of activity IDs to fetch watts for.
+        :return: Dict mapping activity_id string to list of float watts values.
+        """
+        pass
+
+    @abstractmethod
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         pass

@@ -5,6 +5,7 @@ import mimetypes
 from datetime import datetime
 
 import folium
+import json as json_module
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
@@ -428,6 +429,94 @@ def generate_map_api():
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
     return Response(generate(), mimetype='text/event-stream')
+
+
+def _compute_best_average_power(watts_series: list, duration_seconds: int) -> float:
+    """Compute the best (max) average power over a sliding window for a single activity.
+
+    :param watts_series: List of float watts values (1 sample/sec).
+    :param duration_seconds: Window size in seconds.
+    :return: Best average power as float, or 0.0 if insufficient data.
+    """
+    n = len(watts_series)
+    if n < duration_seconds:
+        return 0.0
+
+    window_sum = sum(watts_series[:duration_seconds])
+    max_sum = window_sum
+
+    for i in range(1, n - duration_seconds + 1):
+        window_sum += watts_series[i + duration_seconds - 1] - watts_series[i - 1]
+        if window_sum > max_sum:
+            max_sum = window_sum
+
+    return max_sum / duration_seconds
+
+
+# Power Skills durations matching Strava's spider chart
+POWER_SKILLS_DURATIONS = [
+    {"label": "15s", "seconds": 15},
+    {"label": "30s", "seconds": 30},
+    {"label": "1m", "seconds": 60},
+    {"label": "2m", "seconds": 120},
+    {"label": "3m", "seconds": 180},
+    {"label": "5m", "seconds": 300},
+    {"label": "10m", "seconds": 600},
+    {"label": "15m", "seconds": 900},
+    {"label": "20m", "seconds": 1200},
+    {"label": "30m", "seconds": 1800},
+    {"label": "45m", "seconds": 2700},
+    {"label": "60m", "seconds": 3600},
+]
+
+
+@app.route('/powerskills', methods=['GET', 'POST'])
+@login_required
+def powerskills():
+    """Render the Power Skills spider chart for selected activities."""
+    # Accept activity IDs from POST (form) or GET (query string)
+    if request.method == 'POST':
+        activity_ids = request.form.getlist('activity_ids[]')
+    else:
+        ids_param = request.args.get('ids', '')
+        activity_ids = [aid.strip() for aid in ids_param.split(',') if aid.strip()]
+
+    if not activity_ids:
+        return redirect(url_for('activities'))
+
+    try:
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+
+        # Fetch watts stream data for selected activities
+        watts_data = repo.get_watts_streams_for_activities(activity_ids)
+
+        # Compute best average power for each duration across all activities
+        power_data = []
+        for d in POWER_SKILLS_DURATIONS:
+            best_power = 0.0
+            for aid, watts_list in watts_data.items():
+                avg = _compute_best_average_power(watts_list, d["seconds"])
+                if avg > best_power:
+                    best_power = avg
+            power_data.append({
+                "label": d["label"],
+                "seconds": d["seconds"],
+                "watts": int(round(best_power)),
+            })
+
+    except Exception as e:
+        logger.error(f"Error computing power skills: {e}")
+        power_data = [{"label": d["label"], "seconds": d["seconds"], "watts": 0} for d in POWER_SKILLS_DURATIONS]
+
+    return render_template(
+        'powerskills.html',
+        title="Power Skills",
+        power_data=power_data,
+        activity_count=len(activity_ids),
+        power_data_json=json_module.dumps(power_data),
+    )
 
 
 @app.route('/logs')
