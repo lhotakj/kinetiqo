@@ -22,9 +22,7 @@
 
 <div class="flex flex-col items-center">
     <!-- Spider Chart Canvas -->
-    <div class="bg-gray-900 rounded-xl shadow-lg p-2" style="max-width: 760px; width: 100%;">
-        <canvas id="powerSpiderCanvas" width="740" height="740"></canvas>
-    </div>
+    <canvas id="powerSpiderCanvas" width="740" height="740" style="max-width: 740px; width: 100%;"></canvas>
 
     <!-- Data Table -->
     <div class="mt-6 w-full bg-white rounded-lg border border-gray-200 overflow-hidden" style="max-width: 760px;">
@@ -97,6 +95,14 @@
     // Max watts for normalization
     const maxWatts = Math.max(...powerData.map(d => d.watts), 1);
 
+    // --- Exponential Scale Normalization ---
+    function normalizeLog(value, max) {
+        if (max <= 0 || value <= 0) return 0;
+        // Using a logarithmic scale (log(1+x)) to make lower values more visible
+        // and "flatten" the scale for higher values.
+        return Math.log1p(value) / Math.log1p(max);
+    }
+
     // Zone colours matching Strava reference image
     function getZoneColor(sec) {
         if (sec <= 30)  return '#3b82f6';  // Blue — Sprint
@@ -108,15 +114,34 @@
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, W, H);
 
-    // Grid circles
-    const gridLevels = 5;
-    for (let i = 1; i <= gridLevels; i++) {
-        const r = centerR + (chartR - centerR) * (i / gridLevels);
+    // Grid circles — linear watt scale with evenly spaced watt intervals
+    // Compute a nice round step for grid lines
+    const gridStep = maxWatts <= 200 ? 50 :
+                     maxWatts <= 500 ? 100 :
+                     maxWatts <= 1000 ? 200 :
+                     maxWatts <= 2000 ? 500 : 500;
+    const gridLevels = [];
+    for (let w = gridStep; w < maxWatts; w += gridStep) {
+        gridLevels.push(w);
+    }
+    for (let gi = 0; gi < gridLevels.length; gi++) {
+        const normVal = normalizeLog(gridLevels[gi], maxWatts);
+        const r = centerR + (chartR - centerR) * normVal;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, 2 * Math.PI);
         ctx.strokeStyle = 'rgba(255,255,255,0.10)';
         ctx.lineWidth = 1;
         ctx.stroke();
+
+        // Draw watt label on the grid circle (at ~11 o'clock position)
+        const labelAngle = startAngle + 0.15;  // slightly offset from 12 o'clock
+        const glx = cx + r * Math.cos(labelAngle) + 8;
+        const gly = cy + r * Math.sin(labelAngle);
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(gridLevels[gi] + 'W', glx, gly);
     }
 
     // Spoke lines
@@ -172,7 +197,7 @@
     ctx.beginPath();
     for (let i = 0; i < numAxes; i++) {
         const angle = startAngle + i * angleStep;
-        const normVal = maxWatts > 0 ? powerData[i].watts / maxWatts : 0;
+        const normVal = normalizeLog(powerData[i].watts, maxWatts);
         const r = centerR + (chartR - centerR) * normVal;
         const x = cx + r * Math.cos(angle);
         const y = cy + r * Math.sin(angle);
@@ -187,7 +212,7 @@
     ctx.beginPath();
     for (let i = 0; i < numAxes; i++) {
         const angle = startAngle + i * angleStep;
-        const normVal = maxWatts > 0 ? powerData[i].watts / maxWatts : 0;
+        const normVal = normalizeLog(powerData[i].watts, maxWatts);
         const r = centerR + (chartR - centerR) * normVal;
         const x = cx + r * Math.cos(angle);
         const y = cy + r * Math.sin(angle);
@@ -202,7 +227,7 @@
     // Data point dots
     for (let i = 0; i < numAxes; i++) {
         const angle = startAngle + i * angleStep;
-        const normVal = maxWatts > 0 ? powerData[i].watts / maxWatts : 0;
+        const normVal = normalizeLog(powerData[i].watts, maxWatts);
         const r = centerR + (chartR - centerR) * normVal;
         const x = cx + r * Math.cos(angle);
         const y = cy + r * Math.sin(angle);
@@ -256,4 +281,3 @@
 
 {% endif %}
 {% endblock %}
-
