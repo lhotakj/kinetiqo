@@ -15,6 +15,17 @@
     .leaflet-container .leaflet-control-zoom a {
         text-decoration: none;
     }
+    /* Indeterminate progress bar — server processing phase */
+    .progress-indeterminate-bar {
+        background-color: #FC4C02;
+        animation: indeterminate-slide 1.4s ease-in-out infinite;
+        width: 40%;
+    }
+    @keyframes indeterminate-slide {
+        0%   { transform: translateX(-100%); }
+        60%  { transform: translateX(250%); }
+        100% { transform: translateX(250%); }
+    }
 </style>
 {% endblock %}
 
@@ -95,11 +106,15 @@
             <p id="loading-detail" class="text-gray-500 dark:text-gray-400 text-center max-w-md mb-4">
                 Fetching activity coordinates from the server.
             </p>
-            <!-- Progress bar -->
+            <!-- Phase 1: indeterminate bar — server is processing (no bytes flowing yet) -->
+            <div id="progress-indeterminate" class="w-64 bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden">
+                <div class="h-full rounded-full progress-indeterminate-bar"></div>
+            </div>
+            <!-- Phase 2: determinate bar — download stream in progress -->
             <div id="progress-wrapper" class="w-64 bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden" style="display: none;">
                 <div id="progress-bar" class="h-full rounded-full transition-all duration-200 ease-out" style="width: 0%; background-color: #FC4C02;"></div>
             </div>
-            <p id="progress-text" class="text-sm text-gray-400 dark:text-gray-500 mt-2" style="display: none;">0%</p>
+            <p id="progress-text" class="text-sm text-gray-400 dark:text-gray-500 mt-2">Waiting for server...</p>
         </div>
 
         <!-- Leaflet map target (rendered directly, no iframe) -->
@@ -249,15 +264,17 @@
 
     // --- Progress bar helpers ---
     function updateProgress(pct, detail) {
-        var bar = document.getElementById('progress-bar');
-        var text = document.getElementById('progress-text');
-        var wrapper = document.getElementById('progress-wrapper');
-        var detailEl = document.getElementById('loading-detail');
-        var titleEl = document.getElementById('loading-title');
+        var bar         = document.getElementById('progress-bar');
+        var text        = document.getElementById('progress-text');
+        var wrapper     = document.getElementById('progress-wrapper');
+        var indeterminate = document.getElementById('progress-indeterminate');
+        var detailEl    = document.getElementById('loading-detail');
+        var titleEl     = document.getElementById('loading-title');
 
-        if (wrapper.style.display === 'none') {
+        // First real byte received — switch from indeterminate to determinate bar
+        if (indeterminate && indeterminate.style.display !== 'none') {
+            indeterminate.style.display = 'none';
             wrapper.style.display = 'block';
-            text.style.display = 'block';
         }
 
         var clamped = Math.min(100, Math.max(0, Math.round(pct)));
@@ -269,16 +286,18 @@
     }
 
     function resetProgress() {
-        var bar = document.getElementById('progress-bar');
-        var text = document.getElementById('progress-text');
-        var wrapper = document.getElementById('progress-wrapper');
-        var titleEl = document.getElementById('loading-title');
-        var detailEl = document.getElementById('loading-detail');
+        var bar           = document.getElementById('progress-bar');
+        var text          = document.getElementById('progress-text');
+        var wrapper       = document.getElementById('progress-wrapper');
+        var indeterminate = document.getElementById('progress-indeterminate');
+        var titleEl       = document.getElementById('loading-title');
+        var detailEl      = document.getElementById('loading-detail');
 
-        bar.style.width = '0%';
-        text.textContent = '0%';
+        // Reset to Phase 1: indeterminate (server processing)
+        if (indeterminate) indeterminate.style.display = 'block';
         wrapper.style.display = 'none';
-        text.style.display = 'none';
+        bar.style.width = '0%';
+        text.textContent = 'Waiting for server...';
         titleEl.textContent = 'Loading map data...';
         detailEl.textContent = 'Fetching activity coordinates from the server.';
     }
