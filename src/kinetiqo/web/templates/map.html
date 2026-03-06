@@ -143,10 +143,49 @@
     const activityIds = {{ activity_ids | tojson | safe }};
     const tileProviders = {{ tile_providers | tojson | safe }};
 
-    let currentColor   = "{{ current_color }}";
-    let currentWidth   = parseInt("{{ current_width }}", 10) || 2;
-    let currentOpacity = parseInt("{{ current_opacity }}", 10) || 100;
-    let currentBasemap = "{{ current_basemap }}";
+    // Server-side defaults (used when localStorage has no saved value)
+    const DEFAULTS = {
+        color:   "{{ current_color }}",
+        width:   parseInt("{{ current_width }}", 10) || 2,
+        opacity: parseInt("{{ current_opacity }}", 10) || 100,
+        basemap: "{{ current_basemap }}"
+    };
+
+    const STORAGE_KEY = 'kinetiqo_map_settings';
+
+    function loadSettings() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return Object.assign({}, DEFAULTS);
+            var saved = JSON.parse(raw);
+            return {
+                color:   (typeof saved.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.color)) ? saved.color : DEFAULTS.color,
+                width:   (Number.isInteger(saved.width)   && saved.width >= 1   && saved.width <= 20)  ? saved.width   : DEFAULTS.width,
+                opacity: (Number.isInteger(saved.opacity) && saved.opacity >= 0 && saved.opacity <= 100) ? saved.opacity : DEFAULTS.opacity,
+                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap])            ? saved.basemap : DEFAULTS.basemap
+            };
+        } catch (e) {
+            return Object.assign({}, DEFAULTS);
+        }
+    }
+
+    function saveSettings() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                color:   currentColor,
+                width:   currentWidth,
+                opacity: currentOpacity,
+                basemap: currentBasemap
+            }));
+        } catch (e) { /* quota exceeded or private browsing — silently ignore */ }
+    }
+
+    // Initialise from localStorage (or server defaults)
+    var _s = loadSettings();
+    let currentColor   = _s.color;
+    let currentWidth   = _s.width;
+    let currentOpacity = _s.opacity;
+    let currentBasemap = _s.basemap;
 
     // --- Leaflet state ---
     let leafletMap = null;
@@ -413,51 +452,62 @@
 
     // --- Event listeners ---
     document.addEventListener('DOMContentLoaded', function() {
+        // Sync UI controls to whatever was loaded from localStorage
+        var colorPicker   = document.getElementById('colorPicker');
+        var widthPicker   = document.getElementById('widthPicker');
+        var widthValue    = document.getElementById('widthValue');
+        var opacityPicker = document.getElementById('opacityPicker');
+        var opacityValue  = document.getElementById('opacityValue');
+        var basemapPicker = document.getElementById('basemapPicker');
+
+        if (colorPicker)   colorPicker.value         = currentColor;
+        if (widthPicker)   widthPicker.value          = currentWidth;
+        if (widthValue)    widthValue.textContent     = currentWidth;
+        if (opacityPicker) opacityPicker.value        = currentOpacity;
+        if (opacityValue)  opacityValue.textContent   = currentOpacity + '%';
+        if (basemapPicker) basemapPicker.value        = currentBasemap;
+
         // Start loading map data
         loadMapData();
 
         // Base Map Picker — swaps tile layer, no data re-fetch
-        const basemapPicker = document.getElementById('basemapPicker');
         if (basemapPicker) {
             basemapPicker.addEventListener('change', function(e) {
                 currentBasemap = e.target.value;
-                if (leafletMap) {
-                    setTileLayer(currentBasemap);
-                }
+                saveSettings();
+                if (leafletMap) setTileLayer(currentBasemap);
             });
         }
 
         // Color Picker — client-side style update only
-        const colorPicker = document.getElementById('colorPicker');
         if (colorPicker) {
             colorPicker.addEventListener('change', function(e) {
                 currentColor = e.target.value;
+                saveSettings();
                 updatePolylineStyles();
             });
         }
 
         // Width Picker — client-side style update only
-        const widthPicker = document.getElementById('widthPicker');
-        const widthValue  = document.getElementById('widthValue');
         if (widthPicker && widthValue) {
             widthPicker.addEventListener('input', function(e) {
                 widthValue.textContent = e.target.value;
             });
             widthPicker.addEventListener('change', function(e) {
                 currentWidth = parseInt(e.target.value, 10);
+                saveSettings();
                 updatePolylineStyles();
             });
         }
 
         // Opacity Picker — client-side style update only
-        const opacityPicker = document.getElementById('opacityPicker');
-        const opacityValue  = document.getElementById('opacityValue');
         if (opacityPicker && opacityValue) {
             opacityPicker.addEventListener('input', function(e) {
                 opacityValue.textContent = e.target.value + '%';
             });
             opacityPicker.addEventListener('change', function(e) {
                 currentOpacity = parseInt(e.target.value, 10);
+                saveSettings();
                 updatePolylineStyles();
             });
         }
