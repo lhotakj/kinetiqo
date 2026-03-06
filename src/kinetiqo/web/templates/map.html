@@ -7,8 +7,13 @@
     <div class="mb-4 flex flex-wrap justify-between items-center gap-4">
         <div>
             <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{{ title }}</h1>
-            <p id="map-subtitle" class="text-gray-500 dark:text-gray-400 text-sm">Visualizing selected activities on the
-                map.</p>
+            <p id="map-subtitle" class="text-gray-500 dark:text-gray-400 text-sm">
+                {% if activity_count %}
+                    Showing {{ activity_count }} activities with {{ point_count_str }} GPS points.
+                {% else %}
+                    Visualizing selected activities on the map.
+                {% endif %}
+            </p>
         </div>
         <div class="flex flex-wrap items-center gap-4">
             <!-- Base Map Selector -->
@@ -76,23 +81,8 @@
             <div class="loading-spinner mb-6"></div>
             <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Generating your map...</h3>
             <p class="text-gray-500 dark:text-gray-400 text-center max-w-md loading-pulse mb-4">
-                This may take a minute depending on the number of activities and GPS points.
+                This may take a moment depending on the number of activities.
             </p>
-
-            <!-- Progress Bar Container -->
-            <div id="progress-container" class="w-full max-w-md px-4" style="display: none;">
-                <div class="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
-                    <span id="progress-label">Loading...</span>
-                    <span id="progress-percent">0%</span>
-                </div>
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                    <div id="progress-bar" class="bg-orange-500 h-2.5 rounded-full transition-all duration-300"
-                         style="width: 0%"></div>
-                </div>
-                <p id="progress-detail" class="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center"></p>
-            </div>
-
-            <p id="loading-status" class="text-sm text-gray-400 dark:text-gray-500 mt-4"></p>
         </div>
 
         <!-- Map Content (injected after load) -->
@@ -126,45 +116,14 @@
         basemap: "{{ current_basemap }}"
     };
 
-    // Build API URL with parameters
-    function buildApiUrl() {
-        const params = new URLSearchParams();
-
-        if (filterParams.activity_ids && filterParams.activity_ids.length > 0) {
-            filterParams.activity_ids.forEach(id => {
-                params.append('activity_ids[]', id);
-            });
-        }
-
-        params.append('color', filterParams.color);
-        params.append('width', filterParams.width);
-        params.append('opacity', filterParams.opacity);
-        params.append('basemap', filterParams.basemap);
-
-        return '/api/map/generate?' + params.toString();
-    }
-
-    // Update URL helper - preserves existing params and updates/adds specified key
+    // Update URL helper
     function updateUrl(key, value) {
-        const url = new URL(window.location.href);
-        url.searchParams.set(key, value);
-        // Since we are using POST, we can't easily update the URL and reload.
-        // But for these parameters, we can just reload the page with the new parameters appended to the form data?
-        // No, that's complicated.
-        // Actually, the user is already on the page. We can just reload the map via AJAX/SSE with new params.
-        // But the current implementation reloads the page.
-        // Let's just update the filterParams and call loadMap() again?
-        // But loadMap() uses buildApiUrl() which uses filterParams.
-        // So if we update filterParams and call loadMap(), it should work without reloading the page.
-
         filterParams[key] = value;
 
-        // Reset UI
+        // Reset UI and reload map
         document.getElementById('loading-state').style.display = 'flex';
         document.getElementById('map-content').style.display = 'none';
         document.getElementById('error-state').style.display = 'none';
-
-        // Reload map
         loadMap();
     }
 
@@ -176,33 +135,20 @@
         document.getElementById('error-message').textContent = message;
     }
 
-    // Update progress bar
-    function updateProgress(current, total, label, detail) {
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
-        const progressLabel = document.getElementById('progress-label');
-        const progressPercent = document.getElementById('progress-percent');
-        const progressDetail = document.getElementById('progress-detail');
-
-        progressContainer.style.display = 'block';
-
-        if (total && total > 0) {
-            const percent = Math.round((current / total) * 100);
-            progressBar.style.width = percent + '%';
-            progressPercent.textContent = percent + '%';
-        }
-
-        if (label) {
-            progressLabel.textContent = label;
-        }
-
-        if (detail) {
-            progressDetail.textContent = detail;
+    // Update subtitle
+    function updateSubtitle(count, points, originalPoints) {
+        const subtitle = document.getElementById('map-subtitle');
+        if (subtitle && count) {
+            let text = `Showing ${count} activities with ${points.toLocaleString()} GPS points.`;
+            if (originalPoints && originalPoints > points) {
+                text += ` (downsampled from ${originalPoints.toLocaleString()})`;
+            }
+            subtitle.textContent = text;
         }
     }
 
     // Show map content
-    function showMap(html, activityCount, pointCount) {
+    function showMap(html, activityCount, pointCount, originalPointCount) {
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('error-state').style.display = 'none';
 
@@ -210,17 +156,14 @@
         mapContent.innerHTML = html;
         mapContent.style.display = 'block';
 
+        // Update subtitle
+        updateSubtitle(activityCount, pointCount, originalPointCount);
+
         // Enable export button
         const exportBtn = document.getElementById('exportBtn');
         exportBtn.disabled = false;
         exportBtn.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-500', 'dark:text-gray-400', 'cursor-not-allowed');
         exportBtn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-50', 'dark:hover:bg-gray-600', 'cursor-pointer');
-
-        // Update subtitle with stats
-        const subtitle = document.getElementById('map-subtitle');
-        if (subtitle && activityCount && pointCount) {
-            subtitle.textContent = `Showing ${activityCount} activities with ${pointCount.toLocaleString()} GPS points.`;
-        }
     }
 
     function decodeMapHtml(data) {
@@ -231,77 +174,45 @@
                 return new TextDecoder('utf-8').decode(bytes);
             } catch (e) {
                 console.error('Failed to decode map HTML:', e);
+                return '';
             }
         }
-        return data && data.html ? data.html : '';
+        return '';
     }
 
-    // Load map data using Server-Sent Events for progress
+    // Load map data using a simple AJAX request
     function loadMap() {
-        const statusEl = document.getElementById('loading-status');
-        statusEl.textContent = 'Connecting...';
-
-        const startTime = Date.now();
-        const eventSource = new EventSource(buildApiUrl());
-
-        eventSource.onmessage = function (event) {
-            try {
-                const data = JSON.parse(event.data);
-
-                if (data.type === 'progress') {
-                    // Update progress display
-                    const current = data.current || 0;
-                    const total = data.total || 0;
-
-                    let label = 'Processing...';
-                    switch (data.step) {
-                        case 'activities':
-                            label = 'Finding activities';
-                            break;
-                        case 'streams':
-                            label = 'Loading GPS data';
-                            break;
-                        case 'processing':
-                            label = 'Processing coordinates';
-                            break;
-                        case 'rendering':
-                            label = 'Rendering routes';
-                            break;
-                        case 'finalizing':
-                            label = 'Finalizing';
-                            updateProgress(100, 100, label, data.message);
-                            return;
-                    }
-
-                    updateProgress(current, total, label, data.message);
-                    statusEl.textContent = data.message;
-
-                } else if (data.type === 'complete') {
-                    eventSource.close();
-                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                    statusEl.textContent = `Map generated in ${elapsed}s`;
-
-                    const html = decodeMapHtml(data);
-
-                    // Small delay for smooth transition
-                    setTimeout(() => {
-                        showMap(html, data.activity_count, data.point_count);
-                    }, 300);
-
-                } else if (data.type === 'error') {
-                    eventSource.close();
-                    showError(data.error || 'Unknown error occurred');
-                }
-            } catch (e) {
-                console.error('Error parsing SSE data:', e);
+        fetch('/api/map/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(filterParams)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || `HTTP error! status: ${response.status}`) });
             }
-        };
-
-        eventSource.onerror = function (error) {
-            console.error('SSE error:', error);
-            eventSource.close();
-            showError('Connection lost. Please try again.');
-        };
+            return response.json();
+        })
+        .then(data => {
+            if (data.type === 'complete') {
+                const html = decodeMapHtml(data);
+                if (html) {
+                    showMap(html, data.activity_count, data.point_count, data.original_point_count);
+                } else {
+                    showError('Failed to decode map data from server.');
+                }
+            } else {
+                // Handle cases where the server returns an error in a 200 OK response
+                showError(data.error || 'Received an unexpected response from the server.');
+            }
+        })
+        .catch(error => {
+            console.error('Map generation failed:', error);
+            showError(error.message || 'An unknown error occurred.');
+        });
     }
 
     // Initialize when DOM is ready
@@ -332,7 +243,6 @@
             widthPicker.addEventListener('input', (e) => {
                 widthValue.textContent = e.target.value;
             });
-
             widthPicker.addEventListener('change', (e) => {
                 updateUrl('width', e.target.value);
             });
@@ -345,7 +255,6 @@
             opacityPicker.addEventListener('input', (e) => {
                 opacityValue.textContent = e.target.value + '%';
             });
-
             opacityPicker.addEventListener('change', (e) => {
                 updateUrl('opacity', e.target.value);
             });
@@ -356,47 +265,37 @@
         if (exportBtn) {
             exportBtn.addEventListener('click', () => {
                 if (exportBtn.disabled) return;
-
                 const mapContainer = document.getElementById('map-container');
-
-                // Try to find the iframe containing the Folium map
                 const iframe = mapContainer.querySelector('iframe');
                 if (iframe) {
                     try {
-                        // Access iframe content
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                         const mapElement = iframeDoc.querySelector('.folium-map') || iframeDoc.body;
-
-                        html2canvas(mapElement, {
-                            useCORS: true,
-                            allowTaint: true
-                        }).then(canvas => {
+                        html2canvas(mapElement, { useCORS: true, allowTaint: true })
+                            .then(canvas => {
+                                const link = document.createElement('a');
+                                link.download = 'kinetiqo-map.png';
+                                link.href = canvas.toDataURL();
+                                link.click();
+                            }).catch(err => {
+                                console.error("Export failed:", err);
+                                alert("Could not export map to image. Try taking a screenshot instead.");
+                            });
+                    } catch (err) {
+                        console.error("Cannot access iframe content:", err);
+                        alert("Could not export map due to cross-origin restrictions. Try taking a screenshot instead.");
+                    }
+                } else {
+                    html2canvas(mapContainer, { useCORS: true, allowTaint: true })
+                        .then(canvas => {
                             const link = document.createElement('a');
                             link.download = 'kinetiqo-map.png';
                             link.href = canvas.toDataURL();
                             link.click();
                         }).catch(err => {
                             console.error("Export failed:", err);
-                            alert("Could not export map to image. This is often due to browser security restrictions with map tiles. Try taking a screenshot instead.");
+                            alert("Could not export map to image.");
                         });
-                    } catch (err) {
-                        console.error("Cannot access iframe content:", err);
-                        alert("Could not export map to image due to cross-origin restrictions. Try taking a screenshot instead.");
-                    }
-                } else {
-                    // Direct map rendering (not in iframe)
-                    html2canvas(mapContainer, {
-                        useCORS: true,
-                        allowTaint: true
-                    }).then(canvas => {
-                        const link = document.createElement('a');
-                        link.download = 'kinetiqo-map.png';
-                        link.href = canvas.toDataURL();
-                        link.click();
-                    }).catch(err => {
-                        console.error("Export failed:", err);
-                        alert("Could not export map to image. This is often due to browser security restrictions with map tiles.");
-                    });
                 }
             });
         }

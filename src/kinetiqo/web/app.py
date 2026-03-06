@@ -2,6 +2,7 @@ import atexit
 import logging
 import os
 import mimetypes
+import base64
 from datetime import datetime
 
 import folium
@@ -258,22 +259,126 @@ TILE_PROVIDERS = {
 }
 
 
+def _generate_map_content(activity_ids, color, width, opacity, basemap):
+    """Helper to generate Folium map HTML content with conditional downsampling."""
+    try:
+        width = int(width)
+        if width < 1: width = 1
+        if width > 20: width = 20
+    except:
+        width = 2
+
+    try:
+        opacity = int(opacity)
+        if opacity < 0: opacity = 0
+        if opacity > 100: opacity = 100
+    except:
+        opacity = 100
+    opacity_float = opacity / 100.0
+
+    if basemap not in TILE_PROVIDERS:
+        basemap = 'openstreetmap'
+
+    repo = db_repo
+    if repo is None:
+        repo = create_repository(config)
+
+    # Step 1: Get activities
+    activities_data = repo.get_activities_by_ids(activity_ids)
+    if not activities_data:
+        return None, 0, 0, 0, 'No activities found matching the filter criteria.'
+
+    # Step 2: Get stream data
+    streams_data = repo.get_streams_for_activities(activity_ids)
+    if not streams_data:
+        return None, 0, 0, 0, 'No GPS data found for the selected activities.'
+
+    # --- Conditional Downsampling ---
+    total_points_before_downsample = sum(len(points) for points in streams_data.values())
+    DOWNSAMPLE_THRESHOLD = 2_000_000
+    processed_streams = {}
+
+    if total_points_before_downsample > DOWNSAMPLE_THRESHOLD:
+        ratio = total_points_before_downsample / DOWNSAMPLE_THRESHOLD
+        step = max(1, int(ratio))
+        
+        for aid, points in streams_data.items():
+            if not points: continue
+            reduced_points = points[::step]
+            if reduced_points and points and reduced_points[-1] != points[-1]:
+                reduced_points.append(points[-1])
+            processed_streams[aid] = reduced_points
+    else:
+        processed_streams = streams_data
+
+    # Create activity name map and calculate bounds
+    activity_names = {str(a['id']): a['name'] for a in activities_data}
+    all_lats = []
+    all_lngs = []
+    for aid, points in processed_streams.items():
+        for p in points:
+            all_lats.append(p['lat'])
+            all_lngs.append(p['lng'])
+
+    if not all_lats or not all_lngs:
+        return None, 0, 0, 0, 'No valid GPS coordinates found.'
+
+    total_points_after_downsample = len(all_lats)
+    activities_with_gps = len(processed_streams)
+
+    # Step 3: Create map
+    center_lat = sum(all_lats) / len(all_lats)
+    center_lng = sum(all_lngs) / len(all_lngs)
+    tile_config = TILE_PROVIDERS[basemap]
+
+    if tile_config['tiles'].startswith('http'):
+        m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=None)
+        folium.TileLayer(
+            tiles=tile_config['tiles'],
+            attr=tile_config['attr'],
+            name=tile_config['name']
+        ).add_to(m)
+    else:
+        m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=tile_config['tiles'])
+
+    # Add polylines
+    for aid, points in processed_streams.items():
+        if len(points) < 2:
+            continue
+        coords = [[p['lat'], p['lng']] for p in points]
+        name = activity_names.get(aid, f'Activity {aid}')
+        folium.PolyLine(
+            coords,
+            color=color,
+            weight=width,
+            opacity=opacity_float,
+            tooltip=name
+        ).add_to(m)
+
+    # Fit bounds and generate HTML
+    m.fit_bounds([[min(all_lats), min(all_lngs)], [max(all_lats), max(all_lngs)]])
+    map_html = m._repr_html_()
+    
+    return map_html, activities_with_gps, total_points_after_downsample, total_points_before_downsample, None
+
+
 @app.route('/map', methods=['GET', 'POST'])
 @login_required
 def map_view():
-    """Render the map page shell - data is loaded asynchronously."""
+    """Render the map page shell. Data is loaded asynchronously."""
     if request.method == 'GET':
         return redirect(url_for('activities'))
 
-    # Get filter parameters to pass to template for the async request
+    # Get filter parameters
     activity_ids = request.form.getlist('activity_ids[]')
 
     # Map customization parameters
-    color = request.args.get('color', '#FC4C02')  # Strava orange default
+    color = request.args.get('color', '#FC4C02')
     width = request.args.get('width', '2')
     opacity = request.args.get('opacity', '100')
     basemap = request.args.get('basemap', 'openstreetmap')
 
+    # Just render the template with IDs, don't generate map yet
     return render_template('map.html',
                            title="Activity Map",
                            activity_ids=activity_ids,
@@ -284,151 +389,44 @@ def map_view():
                            tile_providers=TILE_PROVIDERS)
 
 
-@app.route('/api/map/generate')
+@app.route('/api/map/generate', methods=['POST'])
 @login_required
 def generate_map_api():
-    """API endpoint to generate map HTML with SSE progress updates."""
-
-    # Get filter parameters
-    activity_ids = request.args.getlist('activity_ids[]')
-
-    # Map customization parameters
-    color = request.args.get('color', '#FC4C02')
-    width = request.args.get('width', '2')
+    """API endpoint to generate map HTML and return as a single JSON object."""
     try:
-        width = int(width)
-        if width < 1:
-            width = 1
-        if width > 20:
-            width = 20
-    except:
-        width = 2
+        # Get filter parameters from JSON body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid request body'}), 400
 
-    opacity = request.args.get('opacity', '100')
-    try:
-        opacity = int(opacity)
-        if opacity < 0:
-            opacity = 0
-        if opacity > 100:
-            opacity = 100
-    except:
-        opacity = 100
-    opacity_float = opacity / 100.0
+        activity_ids = data.get('activity_ids', [])
+        color = data.get('color', '#FC4C02')
+        width = data.get('width', '2')
+        opacity = data.get('opacity', '100')
+        basemap = data.get('basemap', 'openstreetmap')
 
-    basemap = request.args.get('basemap', 'openstreetmap')
-    if basemap not in TILE_PROVIDERS:
-        basemap = 'openstreetmap'
+        map_html, activity_count, point_count, original_point_count, error = _generate_map_content(
+            activity_ids, color, width, opacity, basemap
+        )
 
-    def generate():
-        import json
-        import base64
+        if error:
+            return jsonify({'error': error}), 404
 
-        try:
-            repo = db_repo
-            if repo is None:
-                repo = create_repository(config)
+        # Send final result
+        # Encode HTML to base64 to avoid JSON encoding issues with special characters
+        map_html_b64 = base64.b64encode(map_html.encode("utf-8")).decode("ascii")
+        
+        return jsonify({
+            'type': 'complete',
+            'html_b64': map_html_b64,
+            'activity_count': activity_count,
+            'point_count': point_count,
+            'original_point_count': original_point_count
+        })
 
-            # Step 1: Get activities
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'activities', 'message': 'Fetching activities...'})}\n\n"
-
-            activities_data = repo.get_activities_by_ids(activity_ids)
-
-            if not activities_data:
-                yield f"data: {json.dumps({'type': 'error', 'error': 'No activities found matching the filter criteria.'})}\n\n"
-                return
-
-            total_activities = len(activities_data)
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'activities', 'message': f'Found {total_activities} activities', 'total': total_activities})}\n\n"
-
-            # Step 2: Get stream data
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'streams', 'message': 'Loading GPS data...', 'total': total_activities, 'current': 0})}\n\n"
-
-            streams_data = repo.get_streams_for_activities(activity_ids)
-
-            if not streams_data:
-                yield f"data: {json.dumps({'type': 'error', 'error': 'No GPS data found for the selected activities.'})}\n\n"
-                return
-
-            activities_with_gps = len(streams_data)
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'streams', 'message': f'Loaded GPS data for {activities_with_gps} activities', 'total': total_activities, 'current': activities_with_gps})}\n\n"
-
-            # Create activity name map
-            activity_names = {str(a['id']): a['name'] for a in activities_data}
-
-            # Calculate bounds
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'processing', 'message': 'Processing coordinates...'})}\n\n"
-
-            all_lats = []
-            all_lngs = []
-            for aid, points in streams_data.items():
-                for p in points:
-                    all_lats.append(p['lat'])
-                    all_lngs.append(p['lng'])
-
-            if not all_lats or not all_lngs:
-                yield f"data: {json.dumps({'type': 'error', 'error': 'No valid GPS coordinates found.'})}\n\n"
-                return
-
-            total_points = len(all_lats)
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'processing', 'message': f'Processing {total_points:,} GPS points...'})}\n\n"
-
-            # Step 3: Create map
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'rendering', 'message': 'Creating map...', 'total': activities_with_gps, 'current': 0})}\n\n"
-
-            center_lat = sum(all_lats) / len(all_lats)
-            center_lng = sum(all_lngs) / len(all_lngs)
-
-            tile_config = TILE_PROVIDERS[basemap]
-
-            if tile_config['tiles'].startswith('http'):
-                m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=None)
-                folium.TileLayer(
-                    tiles=tile_config['tiles'],
-                    attr=tile_config['attr'],
-                    name=tile_config['name']
-                ).add_to(m)
-            else:
-                m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=tile_config['tiles'])
-
-            # Add polylines with progress updates
-            activity_count = 0
-            for aid, points in streams_data.items():
-                if len(points) < 2:
-                    continue
-
-                coords = [[p['lat'], p['lng']] for p in points]
-                name = activity_names.get(aid, f'Activity {aid}')
-
-                folium.PolyLine(
-                    coords,
-                    color=color,
-                    weight=width,
-                    opacity=opacity_float,
-                    tooltip=name
-                ).add_to(m)
-                activity_count += 1
-
-                # Send progress every 10 activities or at the end
-                if activity_count % 10 == 0 or activity_count == activities_with_gps:
-                    yield f"data: {json.dumps({'type': 'progress', 'step': 'rendering', 'message': f'Rendering activity {activity_count} of {activities_with_gps}...', 'total': activities_with_gps, 'current': activity_count})}\n\n"
-
-            # Fit bounds
-            m.fit_bounds([[min(all_lats), min(all_lngs)], [max(all_lats), max(all_lngs)]])
-
-            # Generate HTML
-            yield f"data: {json.dumps({'type': 'progress', 'step': 'finalizing', 'message': 'Finalizing map...'})}\n\n"
-
-            map_html = m._repr_html_()
-            map_html_b64 = base64.b64encode(map_html.encode("utf-8")).decode("ascii")
-
-            # Send final result
-            yield f"data: {json.dumps({'type': 'complete', 'html_b64': map_html_b64, 'activity_count': activity_count, 'point_count': total_points})}\n\n"
-
-        except Exception as e:
-            logger.error(f"Error generating map: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
-
-    return Response(generate(), mimetype='text/event-stream')
+    except Exception as e:
+        logger.error(f"Error generating map: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 def _compute_best_average_power(watts_series: list, duration_seconds: int) -> float:
@@ -478,10 +476,12 @@ def powerskills():
     if request.method == 'POST':
         activity_ids = request.form.getlist('activity_ids[]')
     else:
+        # Fallback for GET, though not recommended for large selections
         ids_param = request.args.get('ids', '')
         activity_ids = [aid.strip() for aid in ids_param.split(',') if aid.strip()]
 
     if not activity_ids:
+        flash("No activities selected.", "warning")
         return redirect(url_for('activities'))
 
     try:
@@ -508,6 +508,7 @@ def powerskills():
 
     except Exception as e:
         logger.error(f"Error computing power skills: {e}")
+        flash(f"An error occurred while computing power skills: {e}", "error")
         power_data = [{"label": d["label"], "seconds": d["seconds"], "watts": 0} for d in POWER_SKILLS_DURATIONS]
 
     return render_template(
