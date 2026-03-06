@@ -1,11 +1,10 @@
 import atexit
+import gzip
 import logging
 import os
 import mimetypes
-import base64
 from datetime import datetime
 
-import folium
 import json as json_module
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -234,138 +233,39 @@ def activities():
     return render_template('activities.html', title="Activities", activities=data)
 
 
-# Available base map tile providers
+# Available base map tile providers with Leaflet-compatible URL templates
 TILE_PROVIDERS = {
     'openstreetmap': {
         'name': 'OpenStreetMap',
-        'tiles': 'OpenStreetMap',
-        'attr': '© OpenStreetMap contributors'
+        'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        'maxZoom': 19
     },
     'cartodbpositron': {
         'name': 'CartoDB Positron',
-        'tiles': 'CartoDB positron',
-        'attr': '© OpenStreetMap contributors, © CartoDB'
+        'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+        'maxZoom': 20
     },
     'cartodbdark': {
         'name': 'CartoDB Dark',
-        'tiles': 'CartoDB dark_matter',
-        'attr': '© OpenStreetMap contributors, © CartoDB'
+        'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+        'maxZoom': 20
     },
     'esriworldimagery': {
         'name': 'Esri World Imagery',
-        'tiles': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'attr': '© Esri, Maxar, Earthstar Geographics'
+        'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'attr': '&copy; Esri, Maxar, Earthstar Geographics',
+        'maxZoom': 18
     }
 }
-
-
-def _generate_map_content(activity_ids, color, width, opacity, basemap):
-    """Helper to generate Folium map HTML content with conditional downsampling."""
-    try:
-        width = int(width)
-        if width < 1: width = 1
-        if width > 20: width = 20
-    except:
-        width = 2
-
-    try:
-        opacity = int(opacity)
-        if opacity < 0: opacity = 0
-        if opacity > 100: opacity = 100
-    except:
-        opacity = 100
-    opacity_float = opacity / 100.0
-
-    if basemap not in TILE_PROVIDERS:
-        basemap = 'openstreetmap'
-
-    repo = db_repo
-    if repo is None:
-        repo = create_repository(config)
-
-    # Step 1: Get activities
-    activities_data = repo.get_activities_by_ids(activity_ids)
-    if not activities_data:
-        return None, 0, 0, 0, 'No activities found matching the filter criteria.'
-
-    # Step 2: Get stream data
-    streams_data = repo.get_streams_for_activities(activity_ids)
-    if not streams_data:
-        return None, 0, 0, 0, 'No GPS data found for the selected activities.'
-
-    # --- Conditional Downsampling ---
-    total_points_before_downsample = sum(len(points) for points in streams_data.values())
-    DOWNSAMPLE_THRESHOLD = 2_000_000
-    processed_streams = {}
-
-    if total_points_before_downsample > DOWNSAMPLE_THRESHOLD:
-        ratio = total_points_before_downsample / DOWNSAMPLE_THRESHOLD
-        step = max(1, int(ratio))
-        
-        for aid, points in streams_data.items():
-            if not points: continue
-            reduced_points = points[::step]
-            if reduced_points and points and reduced_points[-1] != points[-1]:
-                reduced_points.append(points[-1])
-            processed_streams[aid] = reduced_points
-    else:
-        processed_streams = streams_data
-
-    # Create activity name map and calculate bounds
-    activity_names = {str(a['id']): a['name'] for a in activities_data}
-    all_lats = []
-    all_lngs = []
-    for aid, points in processed_streams.items():
-        for p in points:
-            all_lats.append(p['lat'])
-            all_lngs.append(p['lng'])
-
-    if not all_lats or not all_lngs:
-        return None, 0, 0, 0, 'No valid GPS coordinates found.'
-
-    total_points_after_downsample = len(all_lats)
-    activities_with_gps = len(processed_streams)
-
-    # Step 3: Create map
-    center_lat = sum(all_lats) / len(all_lats)
-    center_lng = sum(all_lngs) / len(all_lngs)
-    tile_config = TILE_PROVIDERS[basemap]
-
-    if tile_config['tiles'].startswith('http'):
-        m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=None)
-        folium.TileLayer(
-            tiles=tile_config['tiles'],
-            attr=tile_config['attr'],
-            name=tile_config['name']
-        ).add_to(m)
-    else:
-        m = folium.Map(location=[center_lat, center_lng], zoom_start=10, tiles=tile_config['tiles'])
-
-    # Add polylines
-    for aid, points in processed_streams.items():
-        if len(points) < 2:
-            continue
-        coords = [[p['lat'], p['lng']] for p in points]
-        name = activity_names.get(aid, f'Activity {aid}')
-        folium.PolyLine(
-            coords,
-            color=color,
-            weight=width,
-            opacity=opacity_float,
-            tooltip=name
-        ).add_to(m)
-
-    # Fit bounds and generate HTML
-    m.fit_bounds([[min(all_lats), min(all_lngs)], [max(all_lats), max(all_lngs)]])
-    map_html = m._repr_html_()
-    
-    return map_html, activities_with_gps, total_points_after_downsample, total_points_before_downsample, None
 
 
 @app.route('/map', methods=['GET', 'POST'])
 @login_required
 def map_view():
-    """Render the map page shell. Data is loaded asynchronously."""
+    """Render the map page shell. Data is loaded asynchronously via /api/map/data."""
     if request.method == 'GET':
         return redirect(url_for('activities'))
 
@@ -389,43 +289,102 @@ def map_view():
                            tile_providers=TILE_PROVIDERS)
 
 
-@app.route('/api/map/generate', methods=['POST'])
+@app.route('/api/map/data', methods=['POST'])
 @login_required
-def generate_map_api():
-    """API endpoint to generate map HTML and return as a single JSON object."""
+def map_data_api():
+    """API endpoint returning raw coordinate arrays as gzip-compressed JSON.
+
+    Replaces the old Folium-based /api/map/generate endpoint.  The server
+    sends only compact [lat, lng] arrays and SQL-computed bounds; the client
+    renders polylines directly with Leaflet's Canvas renderer.
+
+    Request JSON body::
+
+        {
+            "activity_ids": ["123", "456", ...]
+        }
+
+    Response JSON (gzip-compressed)::
+
+        {
+            "activities": {
+                "<id>": {"name": "...", "coords": [[lat, lng], ...]},
+                ...
+            },
+            "bounds": [min_lat, min_lng, max_lat, max_lng],
+            "activity_count": <int>,
+            "point_count": <int>
+        }
+    """
     try:
-        # Get filter parameters from JSON body
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Invalid request body'}), 400
 
         activity_ids = data.get('activity_ids', [])
-        color = data.get('color', '#FC4C02')
-        width = data.get('width', '2')
-        opacity = data.get('opacity', '100')
-        basemap = data.get('basemap', 'openstreetmap')
+        if not activity_ids:
+            return jsonify({'error': 'No activity IDs provided'}), 400
 
-        map_html, activity_count, point_count, original_point_count, error = _generate_map_content(
-            activity_ids, color, width, opacity, basemap
-        )
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
 
-        if error:
-            return jsonify({'error': error}), 404
+        # Step 1: Get activity names
+        activities_data = repo.get_activities_by_ids(activity_ids)
+        if not activities_data:
+            return jsonify({'error': 'No activities found matching the filter criteria.'}), 404
 
-        # Send final result
-        # Encode HTML to base64 to avoid JSON encoding issues with special characters
-        map_html_b64 = base64.b64encode(map_html.encode("utf-8")).decode("ascii")
-        
-        return jsonify({
-            'type': 'complete',
-            'html_b64': map_html_b64,
-            'activity_count': activity_count,
-            'point_count': point_count,
-            'original_point_count': original_point_count
-        })
+        activity_names = {str(a['id']): a.get('name', f"Activity {a['id']}") for a in activities_data}
+
+        # Step 2: Get compact coordinate arrays — [[lat, lng], ...] per activity
+        streams_data = repo.get_streams_coords_for_activities(activity_ids)
+        if not streams_data:
+            return jsonify({'error': 'No GPS data found for the selected activities.'}), 404
+
+        # Step 3: Get bounds via SQL aggregation (much faster than Python iteration)
+        bounds = repo.get_streams_bounds_for_activities(activity_ids)
+        if bounds is None:
+            return jsonify({'error': 'No valid GPS coordinates found.'}), 404
+
+        # Step 4: Build compact response
+        total_points = 0
+        activities_payload = {}
+        for aid, coords in streams_data.items():
+            if len(coords) < 2:
+                continue
+            total_points += len(coords)
+            activities_payload[aid] = {
+                'name': activity_names.get(aid, f"Activity {aid}"),
+                'coords': coords
+            }
+
+        if not activities_payload:
+            return jsonify({'error': 'No valid GPS tracks found.'}), 404
+
+        payload = {
+            'activities': activities_payload,
+            'bounds': list(bounds),  # [min_lat, min_lng, max_lat, max_lng]
+            'activity_count': len(activities_payload),
+            'point_count': total_points
+        }
+
+        # Serialize and gzip-compress for efficient transfer
+        json_bytes = json_module.dumps(payload, separators=(',', ':')).encode('utf-8')
+        accepts_gzip = 'gzip' in request.headers.get('Accept-Encoding', '')
+
+        if accepts_gzip:
+            compressed = gzip.compress(json_bytes, compresslevel=6)
+            response = Response(compressed, mimetype='application/json')
+            response.headers['Content-Encoding'] = 'gzip'
+            response.headers['Content-Length'] = len(compressed)
+        else:
+            response = Response(json_bytes, mimetype='application/json')
+            response.headers['Content-Length'] = len(json_bytes)
+
+        return response
 
     except Exception as e:
-        logger.error(f"Error generating map: {e}")
+        logger.error(f"Error generating map data: {e}")
         return jsonify({'error': str(e)}), 500
 
 

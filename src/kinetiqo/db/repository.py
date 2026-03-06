@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Set, List, Dict, Any
+from typing import Optional, Set, List, Dict, Any, Tuple
 
 
 class DatabaseRepository(ABC):
@@ -85,6 +85,30 @@ class DatabaseRepository(ABC):
         """Get GPS streams (lat, lng) for a list of activity IDs.
 
         Returns a dictionary mapping activity_id to a list of {lat, lng} points.
+        """
+        pass
+
+    @abstractmethod
+    def get_streams_coords_for_activities(self, activity_ids: List[str]) -> Dict[str, List[List[float]]]:
+        """Get GPS coordinate arrays for a list of activity IDs.
+
+        Returns a dictionary mapping activity_id to a compact list of [lat, lng] pairs.
+        More memory-efficient than get_streams_for_activities() — avoids per-point dict overhead.
+
+        :param activity_ids: List of activity IDs to fetch coordinates for.
+        :return: Dict mapping activity_id string to list of [lat, lng] float pairs.
+        """
+        pass
+
+    @abstractmethod
+    def get_streams_bounds_for_activities(self, activity_ids: List[str]) -> Optional[Tuple[float, float, float, float]]:
+        """Get GPS bounding box for a list of activity IDs via SQL aggregation.
+
+        Returns (min_lat, min_lng, max_lat, max_lng) or None if no GPS data exists.
+        Much faster than computing bounds in Python from all coordinate rows.
+
+        :param activity_ids: List of activity IDs to compute bounds for.
+        :return: Tuple of (min_lat, min_lng, max_lat, max_lng) or None.
         """
         pass
 

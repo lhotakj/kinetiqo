@@ -1,7 +1,7 @@
 import logging
 import sys
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Set, List, Dict, Any
+from typing import Optional, Set, List, Dict, Any, Tuple
 
 import mysql.connector
 from kinetiqo.config import Config
@@ -573,6 +573,54 @@ class MySQLRepository(DatabaseRepository):
                 })
 
         return result
+
+    def get_streams_coords_for_activities(self, activity_ids: List[str]) -> Dict[str, List[List[float]]]:
+        """Get GPS coordinate arrays for a list of activity IDs as compact [lat, lng] pairs."""
+        if not activity_ids:
+            return {}
+
+        result: Dict[str, List[List[float]]] = {}
+        int_ids = [int(aid) for aid in activity_ids]
+        placeholders = ', '.join(['%s'] * len(int_ids))
+
+        with self.conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT activity_id, lat, lng
+                FROM streams
+                WHERE activity_id IN ({placeholders})
+                  AND lat IS NOT NULL
+                  AND lng IS NOT NULL
+                ORDER BY activity_id, ts
+            """, int_ids)
+
+            for row in cur:
+                aid = str(row[0])
+                if aid not in result:
+                    result[aid] = []
+                result[aid].append([float(row[1]), float(row[2])])
+
+        return result
+
+    def get_streams_bounds_for_activities(self, activity_ids: List[str]) -> Optional[Tuple[float, float, float, float]]:
+        """Get GPS bounding box for a list of activity IDs via SQL aggregation."""
+        if not activity_ids:
+            return None
+
+        int_ids = [int(aid) for aid in activity_ids]
+        placeholders = ', '.join(['%s'] * len(int_ids))
+
+        with self.conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT MIN(lat), MIN(lng), MAX(lat), MAX(lng)
+                FROM streams
+                WHERE activity_id IN ({placeholders})
+                  AND lat IS NOT NULL
+                  AND lng IS NOT NULL
+            """, int_ids)
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
+            return None
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
