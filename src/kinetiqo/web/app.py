@@ -370,6 +370,7 @@ def map_data_api():
 
         # Serialize and gzip-compress for efficient transfer
         json_bytes = json_module.dumps(payload, separators=(',', ':')).encode('utf-8')
+        uncompressed_len = len(json_bytes)
         accepts_gzip = 'gzip' in request.headers.get('Accept-Encoding', '')
 
         if accepts_gzip:
@@ -379,7 +380,12 @@ def map_data_api():
             response.headers['Content-Length'] = len(compressed)
         else:
             response = Response(json_bytes, mimetype='application/json')
-            response.headers['Content-Length'] = len(json_bytes)
+            response.headers['Content-Length'] = uncompressed_len
+
+        # Custom header for client-side download progress tracking.
+        # Browsers strip Content-Length when transparently decompressing gzip,
+        # so the client reads this to know the final decompressed size.
+        response.headers['X-Uncompressed-Length'] = uncompressed_len
 
         return response
 
