@@ -1,0 +1,399 @@
+---
+layout: nil
+---
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+  <style>
+    /* ── CSS Custom Properties ── */
+    :root {
+      --bg:           #0f172a;
+      --bg-secondary: #161b22;
+      --border:       #30363d;
+      --nav-bg:       rgba(13, 17, 23, 0.88);
+      --text:         #c9d1d9;
+      --text-muted:   #8b949e;
+      --heading:      #e6edf3;
+      --accent:       #58a6ff;
+      --accent-hover: #79b8ff;
+      --code-bg:      #1f2428;
+      --code-text:    #ffa657;
+      --toggle-bg:    #21262d;
+      --shadow:       0 1px 0 rgba(255,255,255,0.04);
+      --radius:       8px;
+      --nav-height:   60px;
+    }
+    [data-theme="light"] {
+      --bg:           #ffffff;
+      --bg-secondary: #f6f8fa;
+      --border:       #d0d7de;
+      --nav-bg:       rgba(255,255,255,0.92);
+      --text:         #24292f;
+      --text-muted:   #57606a;
+      --heading:      #1f2328;
+      --accent:       #0969da;
+      --accent-hover: #0550ae;
+      --code-bg:      #f6f8fa;
+      --code-text:    #953800;
+      --toggle-bg:    #f6f8fa;
+      --shadow:       0 1px 0 rgba(0,0,0,0.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans", sans-serif;
+      font-weight: 300;
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.75;
+      transition: background 0.25s, color 0.25s;
+    }
+
+    h1, h2, h3, h4, h5 {
+      font-family: "Italiana", serif;
+      font-weight: 400;
+      color: var(--heading);
+      line-height: 1.3;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+    /* ── Sticky Top Navbar ── */
+    .navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      height: var(--nav-height);
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      align-items: center;
+      padding: 0 2.5rem;
+      gap: 2rem;
+      box-shadow: var(--shadow);
+      transition: background 0.25s, border-color 0.25s;
+    }
+
+    .navbar-brand {
+      font-family: "Italiana", serif;
+      font-size: 1.5rem;
+      color: var(--heading);
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+    .navbar-brand:hover { color: var(--accent); text-decoration: none; }
+
+    .navbar-divider {
+      width: 1px; height: 24px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    .navbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+      flex: 1;
+      list-style: none;
+      margin: 0; padding: 0;
+    }
+
+    .navbar-nav a {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 0.8rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .navbar-nav a:hover {
+      background: var(--bg-secondary);
+      color: var(--text);
+      text-decoration: none;
+    }
+    .navbar-nav a.active {
+      background: var(--bg-secondary);
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Dark / Light Toggle ── */
+    .theme-toggle { margin-left: auto; flex-shrink: 0; }
+
+    .theme-btn {
+      background: var(--toggle-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 20px;
+      padding: 0.3rem 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.8rem;
+      font-family: "Noto Sans", sans-serif;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .theme-btn:hover { background: var(--border); color: var(--heading); }
+    .theme-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .icon-sun  { display: none; }
+    .icon-moon { display: block; }
+    [data-theme="light"] .icon-sun  { display: block; }
+    [data-theme="light"] .icon-moon { display: none; }
+
+    /* ── Page Layout – full width ── */
+    .page-wrapper {
+      margin-top: var(--nav-height);
+      min-height: calc(100vh - var(--nav-height));
+      display: flex;
+      flex-direction: column;
+    }
+
+    .content-area {
+      flex: 1;
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0rem 2rem 5rem;
+    }
+
+    /* ── Content Typography ── */
+    .content-area h1 {
+      font-size: 2.6rem;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .content-area h2 {
+      font-size: 1.65rem;
+      margin-top: 2.5rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .content-area h3 {
+      font-size: 1.2rem;
+      margin-top: 1.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .content-area p { margin-bottom: 1.1rem; }
+
+    /* ── Code ── */
+    .content-area code {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.875em;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    }
+    .content-area pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+    .content-area pre code {
+      background: none; border: none; padding: 0;
+      font-size: 0.875rem; color: var(--text);
+    }
+
+    /* ── Tables ── */
+    .content-area table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.9rem; }
+    .content-area th, .content-area td { padding: 0.65rem 1rem; border: 1px solid var(--border); }
+    .content-area th { background: var(--bg-secondary); color: var(--heading); font-weight: 600; text-align: left; }
+    .content-area tr:nth-child(even) td { background: var(--bg-secondary); }
+
+    /* ── Blockquotes ── */
+    .content-area blockquote {
+      margin: 1.5rem 0;
+      padding: 0.75rem 1.25rem;
+      border-left: 4px solid var(--accent);
+      background: var(--bg-secondary);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      color: var(--text-muted);
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 1.25rem 2rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      background: var(--bg-secondary);
+      transition: background 0.25s, border-color 0.25s;
+    }
+
+    /* ── Responsive / Mobile ── */
+    @media (max-width: 768px) {
+      .navbar { padding: 0 1rem; gap: 0.75rem; }
+      .navbar-divider { display: none; }
+      .navbar-nav {
+        display: none;
+        position: fixed;
+        top: var(--nav-height);
+        left: 0; right: 0;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        padding: 0.75rem 1rem;
+        gap: 0.2rem;
+        align-items: flex-start;
+      }
+      .navbar-nav.open { display: flex; }
+      .hamburger {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+      }
+      .hamburger span {
+        display: block;
+        width: 20px; height: 2px;
+        background: var(--text-muted);
+        border-radius: 2px;
+        transition: background 0.15s;
+      }
+      .hamburger:hover span { background: var(--text); }
+      .content-area { padding: 0rem 1.25rem; }
+    }
+    .video-crop {
+      width: 100vw;
+      height: 680px;
+      overflow: hidden;
+      margin-left: 50%;
+      transform: translateX(-50%);
+    }
+    .full-width-video {
+      width: 100vw;
+      height: auto;
+      display: block;
+      opacity: 0.4;
+      object-fit: cover;
+    }
+
+    @media (min-width: 769px) { .hamburger { display: none; } }
+  </style>
+</head>
+<body>
+
+  <!-- ── Sticky Top Navigation ── -->
+  <header class="navbar">
+    <a href="{{ '/' | relative_url }}" class="navbar-brand">{{ site.title }}</a>
+    <div class="navbar-divider"></div>
+
+    <!-- Hamburger (mobile only) -->
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+
+    <nav>
+      <ul class="navbar-nav" id="navbar-nav">
+        <li><a href="{{ '/' | relative_url }}"              {% if page.url == '/' %}class="active"{% endif %}>Home</a></li>
+        <li><a href="{{ '/cli-commands' | relative_url }}"  {% if page.url contains '/cli-commands' %}class="active"{% endif %}>CLI Interface</a></li>
+        <li><a href="{{ '/web' | relative_url }}"           {% if page.url contains '/web' %}class="active"{% endif %}>Web Interface</a></li>
+        <li><a href="{{ '/configuration' | relative_url }}" {% if page.url contains '/configuration' %}class="active"{% endif %}>Configuration</a></li>
+        <li><a href="{{ '/local-dev' | relative_url }}"     {% if page.url contains '/local-dev' %}class="active"{% endif %}>Local Dev</a></li>
+        <li><a href="{{ '/direnv-setup' | relative_url }}"  {% if page.url contains '/direnv-setup' %}class="active"{% endif %}>Direnv Setup</a></li>
+        <li><a href="{{ '/deployment' | relative_url }}"    {% if page.url contains '/deployment' %}class="active"{% endif %}>Deployment</a></li>
+        <li><a href="https://github.com/lhotakj/kinetiqo" target="_new" >Github &nbsp;
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="GitHub" style="vertical-align: middle;">
+            <path class="github-logo" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"
+              d="M12 2C6.477 2 2 6.484 2 12.021c0 4.426 2.865 8.178 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.004.07 1.532 1.032 1.532 1.032.892 1.53 2.341 1.088 2.91.832.091-.647.35-1.088.636-1.339-2.221-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.987 1.029-2.687-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.025A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.295 2.748-1.025 2.748-1.025.546 1.378.202 2.397.1 2.65.64.7 1.028 1.594 1.028 2.687 0 3.847-2.337 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.749 0 .267.18.578.688.48C19.138 20.195 22 16.444 22 12.021 22 6.484 17.523 2 12 2z"/>
+          </svg>
+        </a></li>
+        <li><a href="https://hub.docker.com/repository/docker/lhotakj/kinetiqo" target="_new" >Docker Hub &nbsp;
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-label="Docker" style="vertical-align: middle;">
+            <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"
+              d="M13.983 11.078h2.119a.186.186 0 0 0 .186-.185V9.006a.186.186 0 0 0-.186-.186h-2.119a.185.185 0 0 0-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 0 0 .186-.186V3.574a.186.186 0 0 0-.186-.185h-2.118a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 0 0 .186-.186V6.29a.186.186 0 0 0-.186-.185h-2.118a.185.185 0 0 0-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 0 0 .184-.186V6.29a.185.185 0 0 0-.185-.185H8.1a.185.185 0 0 0-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 0 0 .185-.186V6.29a.185.185 0 0 0-.185-.185H5.136a.186.186 0 0 0-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 0 0 .186-.185V9.006a.186.186 0 0 0-.186-.186h-2.118a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 0 0 .184-.185V9.006a.185.185 0 0 0-.185-.186h-2.12a.185.185 0 0 0-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 0 0 .185-.185V9.006a.185.185 0 0 0-.184-.186h-2.12a.186.186 0 0 0-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.186.186 0 0 0 .184-.185V9.006a.185.185 0 0 0-.185-.186h-2.12a.185.185 0 0 0-.184.185v1.888c0 .102.083.185.185.185m2.964 2.715h2.119a.185.185 0 0 0 .185-.185v-1.888a.185.185 0 0 0-.185-.185H8.1a.185.185 0 0 0-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.186.186 0 0 0 .185-.185v-1.888a.185.185 0 0 0-.185-.185H5.136a.186.186 0 0 0-.186.185v1.888c0 .102.084.185.186.185m17.741-3.625c-.43-.286-1.431-.402-2.192-.255-.114-.938-.576-1.75-1.418-2.477l-.481-.32-.322.48c-.411.614-.524 1.63-.482 2.399a3.942 3.942 0 0 0 .372 1.348 5.474 5.474 0 0 1-1.92.44H.34a.34.34 0 0 0-.34.34c-.013 1.227.083 2.498.503 3.648.479 1.288 1.19 2.234 2.113 2.806 1.036.638 2.726 1.003 4.646 1.003.876 0 1.76-.08 2.595-.245a11.16 11.16 0 0 0 3.316-1.302 8.784 8.784 0 0 0 2.298-2.089c1.101-1.396 1.755-2.951 2.238-4.327h.196c1.213 0 1.96-.482 2.374-1.286.286-.535.352-1.155.337-1.563z"/>
+          </svg>
+        </a></li>
+
+      </ul>
+    </nav>
+
+    <!-- Theme toggle -->
+    <div class="theme-toggle">
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">
+        <!-- Moon shown in dark mode, sun shown in light mode -->
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <span id="theme-label">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Main content ── -->
+  <div class="page-wrapper">
+    <main class="content-area">
+      {{ content }}
+    </main>
+    <footer>
+      &copy; {{ site.time | date: '%Y' }} Jaroslav Lhoták
+    </footer>
+  </div>
+
+  <script>
+    // ── Theme: read from localStorage, fall back to OS preference ──
+    const root  = document.documentElement;
+    const btn   = document.getElementById('theme-toggle');
+    const label = document.getElementById('theme-label');
+    const saved = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+
+    btn.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      localStorage.setItem('theme', next);
+    });
+
+    function applyTheme(theme) {
+      root.setAttribute('data-theme', theme);
+      label.textContent = theme === 'dark' ? 'Light' : 'Dark';
+    }
+
+    // ── Mobile hamburger ──
+    const hamburger = document.getElementById('hamburger');
+    const nav = document.getElementById('navbar-nav');
+    hamburger.addEventListener('click', () => nav.classList.toggle('open'));
+    nav.querySelectorAll('a').forEach(a =>
+      a.addEventListener('click', () => nav.classList.remove('open'))
+    );
+  </script>
+</body>
+</html>

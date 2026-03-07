@@ -1,0 +1,49 @@
+title: Kinetiqo
+description: Self-hosted data warehouse for Strava activities.
+
+# Use remote_theme for better GitHub Pages compatibility
+remote_theme: just-the-docs/just-the-docs
+
+url: "https://kinetiqo.lhotak.net"
+baseurl: ""
+
+#url: https://lhotakj.github.io
+#baseurl: /kinetiqo
+
+plugins:
+  - jekyll-remote-theme
+
+aux_links:
+  "GitHub Repository":
+    - "//github.com/lhotakj/kinetiqo"
+
+# Color scheme (Commented out 'auto' as it caused build errors. Default is light.)
+# color_scheme: auto
+
+# Typography
+google_fonts: "Inter"
+
+# Logo (Uncomment and ensure the file exists in docs/assets/images/logo.png)
+# logo: /assets/images/logo.png
+
+# Search
+search:
+  enabled: true
+  tokenizer_separator: /[\s/]+/
+
+# Navigation
+nav_enabled: true
+nav_sort: case_insensitive
+
+# Footer
+footer_content: "Copyright &copy; 2026 Jaroslav Lhoták. Distributed by an MIT license."
+
+# Edit on GitHub
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/lhotakj/kinetiqo"
+gh_edit_branch: "doc"
+gh_edit_view_mode: "tree"
+
+mermaid:
+  enabled: true
