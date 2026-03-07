@@ -25,6 +25,9 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 ## Features
 
 - 📊 **Advanced Visualization**: A streamlined web interface for daily monitoring and comprehensive Grafana dashboards for in-depth analysis.
+- ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (15s to 1h) with a Strava-like spider chart.
+- 🗺️ **Interactive Maps**: View your activities on an interactive map with customizable styles, filtering, and performance optimizations for large datasets.
+- 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
 - 📝 **Audit Logging**: Records all synchronization operations and data modifications, providing a complete audit trail within the Web UI.
 - 🔄 **Intelligent Synchronization**:
   - **Full Synchronization**: Conducts a comprehensive audit of your Strava history, retrieving all activities and reconciling any deletions.
