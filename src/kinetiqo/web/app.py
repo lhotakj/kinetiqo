@@ -418,6 +418,7 @@ def _compute_best_average_power(watts_series: list, duration_seconds: int) -> fl
 
 # Power Skills durations matching Strava's spider chart
 POWER_SKILLS_DURATIONS = [
+    {"label": "5s", "seconds": 5},
     {"label": "15s", "seconds": 15},
     {"label": "30s", "seconds": 30},
     {"label": "1m", "seconds": 60},
