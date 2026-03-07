@@ -3,65 +3,65 @@
 {% block content %}
 <div class="">
     <div class="mb-8">
-        <h1 class="text-3xl font-serif font-bold text-warm-900 mb-2">Settings</h1>
-        <p class="text-gray-500">View system configuration and schedules.</p>
+        <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Settings</h1>
+        <p class="text-gray-500 dark:text-gray-400">View system configuration and schedules.</p>
     </div>
 
-    <div class="bg-white rounded-xl shadow-sm border border-warm-200 overflow-hidden">
-        <div class="p-6 border-b border-warm-200 bg-warm-50">
-            <h2 class="text-lg font-medium text-warm-900">Sync Schedules</h2>
-            <p class="text-sm text-gray-500 mt-1">These schedules are defined by environment variables.</p>
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">These schedules are defined by environment variables.</p>
         </div>
 
         <div class="p-6 space-y-6" id="settings-container">
             <!-- Full Sync -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Full Sync Schedule</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Sync Schedule</label>
                 <div class="relative">
                     <input type="text" id="full-sync-input" readonly
-                           class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
                            value="Loading...">
-                    <div class="mt-1 text-xs text-gray-500" id="full-sync-desc"></div>
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="full-sync-desc"></div>
                 </div>
             </div>
 
             <!-- Fast Sync -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Fast Sync Schedule</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fast Sync Schedule</label>
                 <div class="relative">
                     <input type="text" id="fast-sync-input" readonly
-                           class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
                            value="Loading...">
-                    <div class="mt-1 text-xs text-gray-500" id="fast-sync-desc"></div>
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="fast-sync-desc"></div>
                 </div>
             </div>
 
             <!-- Database Info -->
             <div class="mt-8">
-                <h2 class="text-lg font-medium text-warm-900 mb-2">Database Backend</h2>
+                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h2>
                 <div class="grid grid-cols-3 gap-4 mb-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                        <input type="text" id="db-type" readonly class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block p-2.5" value="Loading...">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <input type="text" id="db-type" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Host</label>
-                        <input type="text" id="db-host" readonly class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block p-2.5" value="Loading...">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Host</label>
+                        <input type="text" id="db-host" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Port</label>
-                        <input type="text" id="db-port" readonly class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block p-2.5" value="Loading...">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
+                        <input type="text" id="db-port" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                 </div>
-                <h3 class="text-md font-medium text-warm-900 mb-1">Table Record Counts</h3>
-                <table class="min-w-full divide-y divide-gray-200 border">
-                    <thead class="bg-warm-50">
+                <h3 class="text-md font-medium text-warm-900 dark:text-gray-100 mb-1">Table Record Counts</h3>
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 border dark:border-zinc-700">
+                    <thead class="bg-warm-50 dark:bg-zinc-700">
                         <tr>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Table</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Records</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Table</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Records</th>
                         </tr>
                     </thead>
-                    <tbody id="db-table-counts">
+                    <tbody id="db-table-counts" class="divide-y divide-gray-200 dark:divide-zinc-700 text-gray-900 dark:text-gray-300">
                         <tr><td class="px-4 py-2">Loading...</td><td class="px-4 py-2">...</td></tr>
                     </tbody>
                 </table>
