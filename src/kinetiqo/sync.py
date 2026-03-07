@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 from datetime import datetime, timezone, timedelta
 
 from kinetiqo.config import Config
@@ -8,11 +9,22 @@ from kinetiqo.strava import StravaClient
 
 logger = logging.getLogger("kinetiqo")
 
+STOP_SIGNAL_FILE = ".sync_stop"
 
 class SyncService:
     def __init__(self, config: Config):
         self.strava = StravaClient(config)
         self.db = create_repository(config)
+
+    def _check_stop_signal(self):
+        """Check if the stop signal file exists."""
+        if os.path.exists(STOP_SIGNAL_FILE):
+            try:
+                os.remove(STOP_SIGNAL_FILE)
+            except:
+                pass
+            return True
+        return False
 
     def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0):
         """
@@ -24,14 +36,22 @@ class SyncService:
         :param user: User who initiated the sync.
         :param limit_days: If > 0, limits the sync to the last N days.
         """
+        # Clear any existing stop signal at start
+        if os.path.exists(STOP_SIGNAL_FILE):
+            try:
+                os.remove(STOP_SIGNAL_FILE)
+            except:
+                pass
+
         log_buffer = []
         sync_type_str = 'full' if full_sync else 'fast'
         action = 'full-sync' if full_sync else 'fast-sync'
         added_count = 0
         removed_count = 0
         success = True
+        stopped = False
 
-        def yield_log(msg, final=False):
+        def yield_log(msg, final=False, is_stopped=False):
             # Sanitize message to ensure it doesn't break SSE format (no newlines)
             msg = str(msg).replace('\n', ' ').replace('\r', '')
             logger.info(msg)
@@ -48,6 +68,16 @@ class SyncService:
             if final:
                 # OOB Swap to replace the log area (stopping SSE) and re-enable the button
 
+                status_color = "text-green-600"
+                status_msg = "Sync completed successfully."
+                
+                if is_stopped:
+                    status_color = "text-yellow-600"
+                    status_msg = "Sync stopped by user."
+                elif "failed" in msg.lower():
+                    status_color = "text-red-600"
+                    status_msg = "Sync failed."
+
                 # 1. Replace wrapper to remove sse-connect but keep log
                 wrapper_html = f"""<div id="sync-log-area" hx-swap-oob="true">
                     <div class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
@@ -55,14 +85,12 @@ class SyncService:
                             {log_content}
                         </div>
                         <div class="text-center pt-4 border-t border-gray-200">
-                            <p class="text-sm text-green-600 font-medium mb-3">Sync completed successfully.</p>
+                            <p class="text-sm {status_color} font-medium mb-3">{status_msg}</p>
                         </div>
                     </div>
                 </div>"""
 
-                # 2. Re-enable the button
-                # We need to conditionally add hx-include only for full sync, but since we are in sync() method,
-                # we know if it's full sync.
+                # 2. Re-enable the Start button
                 hx_include = 'hx-include="#syncLimit"' if full_sync else ''
 
                 button_html = f"""<button id="start-sync-btn" 
@@ -76,14 +104,25 @@ class SyncService:
                     Start Sync
                 </button>"""
 
-                # Combine into a single SSE message and strip newlines from HTML
                 combined_html = (wrapper_html + button_html).replace('\n', '')
                 return f"data: {combined_html}\n\n"
             else:
-                # Normal update targets #sync-result (implied by sse-swap="message" in the client)
+                # Normal update targets #sync-result
                 return f"data: {log_content}\n\n"
 
         try:
+            # Yield the Stop button immediately
+            stop_button_html = f"""<button id="start-sync-btn" 
+                    hx-post="/api/sync/stop" 
+                    hx-swap="none"
+                    hx-swap-oob="true"
+                    class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                Stop Sync
+            </button>""".replace('\n', '')
+            
+            yield f"data: {stop_button_html}\n\n"
+
             yield yield_log(
                 f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'}, Limit: {limit_days} days)...")
 
@@ -93,6 +132,11 @@ class SyncService:
             # 1. Get already synced activity IDs
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
+
+            if self._check_stop_signal():
+                stopped = True
+                yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                return
 
             # 2. Determine fetch strategy
             after = None
@@ -112,6 +156,10 @@ class SyncService:
             # 3. Fetch activities from Strava
             activities = []
             for progress_msg in self.strava.get_activities(activities, after=after):
+                if self._check_stop_signal():
+                    stopped = True
+                    yield yield_log("Stop signal received during fetch. Aborting...", final=True, is_stopped=True)
+                    return
                 yield yield_log(progress_msg)
 
             yield yield_log(f"Found {len(activities)} activities from Strava.")
@@ -132,9 +180,19 @@ class SyncService:
             else:
                 yield yield_log("Skipping deletion check (not in unlimited full sync mode).")
 
+            if self._check_stop_signal():
+                stopped = True
+                yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                return
+
             # 6. Sync new activities
             total_new = len(new_activities)
             for i, activity in enumerate(new_activities, 1):
+                if self._check_stop_signal():
+                    stopped = True
+                    yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                    return
+
                 activity_id = activity["id"]
                 sport = activity["sport_type"]
                 name = activity.get("name", "Unknown Activity")
@@ -166,6 +224,11 @@ class SyncService:
             if ids_to_delete:
                 total_del = len(ids_to_delete)
                 for i, act_id in enumerate(ids_to_delete, 1):
+                    if self._check_stop_signal():
+                        stopped = True
+                        yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                        return
+
                     yield yield_log(f"[{i}/{total_del}] Deleting activity {act_id} from database...")
                     try:
                         self.db.delete_activity(act_id)
@@ -182,7 +245,10 @@ class SyncService:
             raise e
         finally:
             try:
-                self.db.log_sync(added_count, removed_count, trigger, success, action, user)
+                # Log the sync result, marking as success only if not stopped and no exceptions
+                final_success = success and not stopped
+                final_action = action + ("-stopped" if stopped else "")
+                self.db.log_sync(added_count, removed_count, trigger, final_success, final_action, user)
             except Exception as e:
                 logger.error(f"Failed to write sync log: {e}")
 

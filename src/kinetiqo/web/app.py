@@ -10,7 +10,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
-from kinetiqo.sync import SyncService
+from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
 
 # Configure logging
@@ -855,6 +855,20 @@ def sync_stream(type):
             sync_service.close()
 
     return Response(generate(), mimetype='text/event-stream')
+
+
+@app.route('/api/sync/stop', methods=['POST'])
+@login_required
+def stop_sync():
+    """Endpoint to signal the sync process to stop."""
+    try:
+        with open(STOP_SIGNAL_FILE, 'w') as f:
+            f.write('stop')
+        logger.info("Stop signal created.")
+        return '', 204
+    except Exception as e:
+        logger.error(f"Failed to create stop signal: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # Context processor to inject version into all templates

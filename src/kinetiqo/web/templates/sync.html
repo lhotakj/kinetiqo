@@ -3,8 +3,8 @@
 
 {% block content %}
 <div class="mb-8">
-    <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
-    <p class="text-gray-500">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ title }}</h1>
+    <p class="text-gray-500 dark:text-gray-400">
         {% if sync_type == 'full' %}
         Perform a complete synchronization with the Strava API. This downloads all historical data.
         {% else %}
@@ -13,16 +13,16 @@
     </p>
 </div>
 
-<div class="bg-white rounded-lg p-6 border border-gray-200" hx-ext="sse">
+<div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700" hx-ext="sse">
     <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h3 class="font-medium text-gray-900">Sync Status</h3>
+        <h3 class="font-medium text-gray-900 dark:text-gray-100">Sync Status</h3>
 
         {% if sync_type == 'full' %}
         <div class="flex items-center gap-4">
             <div>
-                <label for="syncLimit" class="block text-sm font-medium text-gray-700 mb-1">Limit the scope for sync
+                <label for="syncLimit" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Limit the scope for sync
                     period</label>
-                <select id="syncLimit" name="limit_days" class="h-10 px-3 border border-gray-200 rounded-lg text-sm">
+                <select id="syncLimit" name="limit_days" class="h-10 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
                     <option value="{{ limits.this_week }}">This week</option>
                     <option value="{{ limits.this_month }}">This month</option>
                     <option value="{{ limits.last_month }}">Last month</option>
@@ -42,10 +42,8 @@
                 hx-get="/sync/start/{{ sync_type }}"
                 hx-target="#sync-log-area"
                 hx-swap="outerHTML"
-                {% if sync_type==
-        'full' %}hx-include="#syncLimit"{% endif %}
-        class="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition
-        shadow-sm inline-flex items-center">
+                {% if sync_type == 'full' %}hx-include="#syncLimit"{% endif %}
+                class="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
@@ -64,9 +62,9 @@
     {% endif %}
 
     <div id="sync-log-area">
-        <div class="bg-gray-50 rounded-lg p-8 border border-gray-100 text-center min-h-[200px] flex items-center justify-center">
-            <div class="text-gray-500">
-                <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-8 border border-gray-100 dark:border-gray-700 text-center min-h-[200px] flex items-center justify-center">
+            <div class="text-gray-500 dark:text-gray-400">
+                <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>

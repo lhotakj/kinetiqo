@@ -126,21 +126,17 @@ class MySQLRepository(DatabaseRepository):
             return False
 
     def get_latest_activity_time(self) -> Optional[int]:
-        """Get the start timestamp of the activity with the highest ID."""
+        """Get the start timestamp of the most recent activity."""
         with self.conn.cursor() as cur:
-            cur.execute("SELECT MAX(activity_id) FROM activities")
-            result = cur.fetchone()
-            if not result or result[0] is None:
-                return None
-
-            max_activity_id = result[0]
-
-            cur.execute("SELECT start_date FROM activities WHERE activity_id = %s", (max_activity_id,))
-
+            cur.execute("SELECT MAX(start_date) FROM activities")
             result = cur.fetchone()
             if result and result[0]:
-                ts = int(result[0].replace(tzinfo=timezone.utc).timestamp())
-                logger.debug(f"Latest activity {max_activity_id} start time: {ts}")
+                # Ensure we have a timezone-aware datetime
+                dt = result[0]
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                ts = int(dt.timestamp())
+                logger.debug(f"Latest activity start time: {ts}")
                 return ts
             return None
 
