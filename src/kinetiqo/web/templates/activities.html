@@ -179,11 +179,11 @@
         <div class="flex-grow"></div>
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
             <button id="selectAllBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activity types">
                 Select All
             </button>
             <button id="deselectAllBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Deselect all activity types">
                 Deselect All
             </button>
             <div class="h-6 w-px bg-gray-300 mx-1"></div>
@@ -192,28 +192,28 @@
     <div class="w-full mt-4 flex justify-between items-center flex-wrap gap-4">
         <div class="flex gap-2 items-center flex-wrap">
             <button id="selectAllOnAllPagesBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activities that match the current filters, across all pages">
                 Select all activities on all pages
             </button>
             <button id="clearSelectionBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]">
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Clear the current selection of activities">
                 Clear selection
             </button>
             <button id="deleteSelectedBtn"
                     class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled>Delete selected
+                    disabled title="Delete the selected activities from the database">Delete selected
             </button>
             <button id="displayOnMapBtn"
                     class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled>Display on map
+                    disabled title="Display the selected activities on a map">Display on map
             </button>
             <button id="powerSkillsBtn"
                     class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled>⚡ Power Skills
+                    disabled title="Analyze the power skills for the selected activities">⚡ Power Skills
             </button>
             <button id="selectColumnsBtn"
                     class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    >Select columns
+                    title="Choose which columns to display in the table">Select columns
             </button>
             <button id="resetViewBtn"
                     class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
@@ -221,7 +221,7 @@
             </button>
             <button id="exportCsvBtn"
                     class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled>Export to CSV
+                    disabled title="Export the selected activities to a CSV file">Export to CSV
             </button>
         </div>
         <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
