@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">⚡ {{ title }}</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        Best average power across <strong>{{ activity_count }}</strong> selected activit{{ "y" if activity_count == 1 else "ies" }}.
+    </p>
+</div>
+
+{% set has_data = power_data | selectattr("watts", "greaterthan", 0) | list | length > 0 %}
+
+{% if not has_data %}
+<div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 text-center">
+    <p class="text-yellow-800 dark:text-yellow-200 text-lg font-medium">⚠ No Power Data</p>
+    <p class="text-yellow-700 dark:text-yellow-300 text-sm mt-2">No power (watts) data found for the selected activities. Power Skills requires activities recorded with a power meter.</p>
+    <a href="{{ url_for('activities') }}" class="inline-block mt-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
+        ← Back to Activities
+    </a>
+</div>
+{% else %}
+
+<div class="flex flex-col items-center">
+    <!-- Spider Chart Canvas -->
+    <canvas id="powerSpiderCanvas" width="800" height="800" style="max-width: 800px; width: 100%;"></canvas>
+
+    <!-- Data Table -->
+    <div class="mt-6 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden" style="max-width: 900px;">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                <tr>
+                    <th class="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Duration</th>
+                    <th class="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-300">Best Avg Power</th>
+                    <th class="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Category</th>
+                    <th class="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Activity</th>
+                    <th class="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Date</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% for d in power_data %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td class="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{{ d.label }}</td>
+                    <td class="px-4 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
+                        {% if d.watts > 0 %}{{ d.watts }} W{% else %}<span class="text-gray-400 dark:text-gray-500">—</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-2">
+                        {% if d.seconds <= 30 %}
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full" style="background-color: #3b82f6;"></span>
+                                <span class="text-gray-600 dark:text-gray-300">Sprint</span>
+                            </span>
+                        {% elif d.seconds <= 300 %}
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full" style="background-color: #65a30d;"></span>
+                                <span class="text-gray-600 dark:text-gray-300">Attacks</span>
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full" style="background-color: #f97316;"></span>
+                                <span class="text-gray-600 dark:text-gray-300">Endurance</span>
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2 text-gray-900 dark:text-gray-100">
+                        {% if d.activity_id %}
+                            <a href="https://www.strava.com/activities/{{ d.activity_id }}" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline truncate block max-w-[200px]" title="{{ d.activity_name }}">
+                                {{ d.activity_name }}
+                            </a>
+                        {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        {% if d.activity_date %}
+                            {{ d.activity_date }}
+                        {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4">
+        <a href="{{ url_for('activities') }}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
+            ← Back to Activities
+        </a>
+    </div>
+</div>
+
+<script>
+(function() {
+    const powerData = {{ power_data_json | safe }};
+    const canvas = document.getElementById('powerSpiderCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const numAxes = powerData.length;
+    const angleStep = (2 * Math.PI) / numAxes;
+    const startAngle = -Math.PI / 2; // 12 o'clock
+
+    // Radii
+    // Increased margin from 60 to 110 to ensure labels fit on left/right edges
+    const outerR = Math.min(W, H) / 2 - 110;
+    const bandWidth = 30;
+    const innerR = outerR - bandWidth;
+    const chartR = innerR - 12;
+    const centerR = chartR * 0.15;
+
+    // Max watts for normalization
+    const maxWatts = Math.max(...powerData.map(d => d.watts), 1);
+
+    // --- Exponential Scale Normalization ---
+    function normalizeLog(value, max) {
+        if (max <= 0 || value <= 0) return 0;
+        // Using a logarithmic scale (log(1+x)) to make lower values more visible
+        // and "flatten" the scale for higher values.
+        return Math.log1p(value) / Math.log1p(max);
+    }
+
+    // Zone colours matching Strava reference image
+    function getZoneColor(sec) {
+        if (sec <= 30)  return '#3b82f6';  // Blue — Sprint
+        if (sec <= 300) return '#65a30d';  // Green — Attacks
+        return '#f97316';                   // Orange — Endurance
+    }
+
+    // Background
+    // Check for dark mode to set background color
+    const isDark = document.documentElement.classList.contains('dark');
+    ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
+    // Actually, for the canvas itself, we might want a consistent dark background for the chart
+    // as per the original design, or adapt it. The original code had hardcoded #1a1a1a.
+    // Let's keep the dark chart background for now as it looks better with the neon colors.
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid circles — linear watt scale with evenly spaced watt intervals
+    // Compute a nice round step for grid lines
+    const gridStep = maxWatts <= 200 ? 50 :
+                     maxWatts <= 500 ? 100 :
+                     maxWatts <= 1000 ? 200 :
+                     maxWatts <= 2000 ? 500 : 500;
+    const gridLevels = [];
+    for (let w = gridStep; w < maxWatts; w += gridStep) {
+        gridLevels.push(w);
+    }
+    for (let gi = 0; gi < gridLevels.length; gi++) {
+        const normVal = normalizeLog(gridLevels[gi], maxWatts);
+        const r = centerR + (chartR - centerR) * normVal;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw watt label on the grid circle (at ~11 o'clock position)
+        const labelAngle = startAngle + 0.15;  // slightly offset from 12 o'clock
+        const glx = cx + r * Math.cos(labelAngle) + 8;
+        const gly = cy + r * Math.sin(labelAngle);
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(gridLevels[gi] + 'W', glx, gly);
+    }
+
+    // Spoke lines
+    for (let i = 0; i < numAxes; i++) {
+        const angle = startAngle + i * angleStep;
+        ctx.beginPath();
+        ctx.moveTo(cx + centerR * Math.cos(angle), cy + centerR * Math.sin(angle));
+        ctx.lineTo(cx + chartR * Math.cos(angle), cy + chartR * Math.sin(angle));
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Outer coloured ring segments
+    for (let i = 0; i < numAxes; i++) {
+        const a1 = startAngle + i * angleStep - angleStep / 2 + 0.025;
+        const a2 = startAngle + i * angleStep + angleStep / 2 - 0.025;
+        const color = getZoneColor(powerData[i].seconds);
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, outerR, a1, a2);
+        ctx.arc(cx, cy, innerR, a2, a1, true);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Duration label on the ring
+        const midAngle = startAngle + i * angleStep;
+        const labelR = (outerR + innerR) / 2;
+        const lx = cx + labelR * Math.cos(midAngle);
+        const ly = cy + labelR * Math.sin(midAngle);
+
+        ctx.save();
+        ctx.translate(lx, ly);
+
+        // Determine text rotation so it reads correctly
+        const deg = ((midAngle * 180 / Math.PI) % 360 + 360) % 360;
+        if (deg > 90 && deg < 270) {
+            ctx.rotate(midAngle + Math.PI);
+        } else {
+            ctx.rotate(midAngle);
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(powerData[i].label, 0, 0);
+        ctx.restore();
+    }
+
+    // Filled power polygon (pink)
+    ctx.beginPath();
+    for (let i = 0; i < numAxes; i++) {
+        const angle = startAngle + i * angleStep;
+        const normVal = normalizeLog(powerData[i].watts, maxWatts);
+        const r = centerR + (chartR - centerR) * normVal;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(236, 149, 232, 0.50)';
+    ctx.fill();
+
+    // Purple border for the polygon
+    ctx.beginPath();
+    for (let i = 0; i < numAxes; i++) {
+        const angle = startAngle + i * angleStep;
+        const normVal = normalizeLog(powerData[i].watts, maxWatts);
+        const r = centerR + (chartR - centerR) * normVal;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(120, 40, 140, 0.85)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Data point dots
+    for (let i = 0; i < numAxes; i++) {
+        const angle = startAngle + i * angleStep;
+        const normVal = normalizeLog(powerData[i].watts, maxWatts);
+        const r = centerR + (chartR - centerR) * normVal;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+    }
+
+    // Power labels outside the ring
+    ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+    for (let i = 0; i < numAxes; i++) {
+        const angle = startAngle + i * angleStep;
+        const labelOuterR = outerR + 32;
+        const lx = cx + labelOuterR * Math.cos(angle);
+        const ly = cy + labelOuterR * Math.sin(angle);
+
+        const text = powerData[i].watts > 0 ? powerData[i].watts + ' W' : '— W';
+
+        // Dynamic alignment based on position around the circle
+        if (Math.cos(angle) > 0.3) ctx.textAlign = 'left';
+        else if (Math.cos(angle) < -0.3) ctx.textAlign = 'right';
+        else ctx.textAlign = 'center';
+
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, lx, ly);
+
+        // Underline
+        const metrics = ctx.measureText(text);
+        const tw = metrics.width;
+        let ulX = lx;
+        if (ctx.textAlign === 'center') ulX = lx - tw / 2;
+        else if (ctx.textAlign === 'right') ulX = lx - tw;
+
+        ctx.beginPath();
+        ctx.moveTo(ulX, ly + 11);
+        ctx.lineTo(ulX + tw, ly + 11);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // Center fill
+    ctx.beginPath();
+    ctx.arc(cx, cy, centerR, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(236, 149, 232, 0.30)';
+    ctx.fill();
+})();
+</script>
+
+{% endif %}
+{% endblock %}

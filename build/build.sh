@@ -1,0 +1,51 @@
+#!/bin/sh
+
+# Logging functions
+info() {
+    printf "\033[0;32m[INFO]\033[0m %s\n"  "$1"
+}
+
+debug() {
+    printf "\033[0;90m[DEBUG]\033[0m %s\n" "$1"
+}
+
+error() {
+    printf "\033[0;31m[ERROR]\033[0m %s\n" "$1"
+}
+
+warn() {
+    printf "\033[0;33m[WARN]\033[0m %s\n"  "$1"
+}
+
+
+(
+cd ../src
+info "Reading version ..."
+export VERSION=$(cat ./version.template)
+
+if [ -n "$GITHUB_RUN_NUMBER" ]; then
+  info "Using GITHUB_RUN_NUMBER value $GITHUB_RUN_NUMBER"
+  VERSION=$(echo $VERSION | awk -F. -v runid="$GITHUB_RUN_NUMBER" '{print $1"."$2"."runid}')
+else
+  VERSION=$(echo $VERSION | awk -F. -v runid="dev" '{print $1"."$2"."runid}')
+  warn "GITHUB_RUN_NUMBER is not set. Using 'dev' instead."
+fi
+
+SHORT_VERSION=$(echo $VERSION | cut -d. -f1,2)
+
+echo "$VERSION" > ./version.txt
+echo "$SHORT_VERSION" > ./short_version.txt
+
+info "Building version ${VERSION} (Short: ${SHORT_VERSION}) ..."
+docker build \
+  --no-cache \
+  --build-arg VERSION=${SHORT_VERSION} \
+  -t kinetiqo:latest \
+  -t kinetiqo:${SHORT_VERSION} \
+  -t kinetiqo:${VERSION} \
+  -f ../build/Dockerfile \
+  ..
+
+info "Built image size:"
+docker image ls kinetiqo:${SHORT_VERSION}
+)

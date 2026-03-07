@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="">
+    <div class="mb-8">
+        <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Settings</h1>
+        <p class="text-gray-500 dark:text-gray-400">View system configuration and schedules.</p>
+    </div>
+
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">These schedules are defined by environment variables.</p>
+        </div>
+
+        <div class="p-6 space-y-6" id="settings-container">
+            <!-- Full Sync -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Sync Schedule</label>
+                <div class="relative">
+                    <input type="text" id="full-sync-input" readonly
+                           class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
+                           value="Loading...">
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="full-sync-desc"></div>
+                </div>
+            </div>
+
+            <!-- Fast Sync -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fast Sync Schedule</label>
+                <div class="relative">
+                    <input type="text" id="fast-sync-input" readonly
+                           class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
+                           value="Loading...">
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="fast-sync-desc"></div>
+                </div>
+            </div>
+
+            <!-- Database Info -->
+            <div class="mt-8">
+                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h2>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <input type="text" id="db-type" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Host</label>
+                        <input type="text" id="db-host" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
+                        <input type="text" id="db-port" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
+                    </div>
+                </div>
+                <h3 class="text-md font-medium text-warm-900 dark:text-gray-100 mb-1">Table Record Counts</h3>
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 border dark:border-zinc-700">
+                    <thead class="bg-warm-50 dark:bg-zinc-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Table</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Records</th>
+                        </tr>
+                    </thead>
+                    <tbody id="db-table-counts" class="divide-y divide-gray-200 dark:divide-zinc-700 text-gray-900 dark:text-gray-300">
+                        <tr><td class="px-4 py-2">Loading...</td><td class="px-4 py-2">...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/api/settings')
+            .then(response => response.json())
+            .then(data => {
+                // Full Sync
+                const fullSyncInput = document.getElementById('full-sync-input');
+                const fullSyncDesc = document.getElementById('full-sync-desc');
+
+                if (data.full_sync.expression) {
+                    fullSyncInput.value = data.full_sync.expression;
+                    fullSyncDesc.textContent = data.full_sync.description;
+                } else {
+                    fullSyncInput.value = "Not set";
+                    fullSyncDesc.textContent = "No schedule configured";
+                }
+
+                // Fast Sync
+                const fastSyncInput = document.getElementById('fast-sync-input');
+                const fastSyncDesc = document.getElementById('fast-sync-desc');
+
+                if (data.fast_sync.expression) {
+                    fastSyncInput.value = data.fast_sync.expression;
+                    fastSyncDesc.textContent = data.fast_sync.description;
+                } else {
+                    fastSyncInput.value = "Not set";
+                    fastSyncDesc.textContent = "No schedule configured";
+                }
+
+                // Database Info
+                const dbType = document.getElementById('db-type');
+                const dbHost = document.getElementById('db-host');
+                const dbPort = document.getElementById('db-port');
+                const dbTableCounts = document.getElementById('db-table-counts');
+
+                if (data.database) {
+                    dbType.value = data.database.type || "Unknown";
+                    dbHost.value = data.database.host || "Unknown";
+                    dbPort.value = data.database.port || "Unknown";
+
+                    // Table counts
+                    dbTableCounts.innerHTML = "";
+                    const counts = data.database.table_counts || {};
+                    const keys = Object.keys(counts);
+                    if (keys.length === 0) {
+                        dbTableCounts.innerHTML = '<tr><td class="px-4 py-2">No data</td><td class="px-4 py-2">-</td></tr>';
+                    } else {
+                        keys.forEach(table => {
+                            let value = counts[table];
+                            if (typeof value === 'number') {
+                                value = value.toLocaleString('en-US');
+                            } else if (value === null || value === undefined) {
+                                value = '-';
+                            }
+                            dbTableCounts.innerHTML += `<tr><td class="px-4 py-2">${table}</td><td class="px-4 py-2">${value}</td></tr>`;
+                        });
+                    }
+                } else {
+                    dbType.value = "Unknown";
+                    dbHost.value = "Unknown";
+                    dbPort.value = "Unknown";
+                    dbTableCounts.innerHTML = '<tr><td class="px-4 py-2">No data</td><td class="px-4 py-2">-</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching settings:', error);
+                document.getElementById('full-sync-input').value = "Error loading data";
+                document.getElementById('fast-sync-input').value = "Error loading data";
+                document.getElementById('db-type').value = "Error";
+                document.getElementById('db-host').value = "Error";
+                document.getElementById('db-port').value = "Error";
+                document.getElementById('db-table-counts').innerHTML = '<tr><td class="px-4 py-2">Error</td><td class="px-4 py-2">-</td></tr>';
+            });
+    });
+</script>
+{% endblock %}

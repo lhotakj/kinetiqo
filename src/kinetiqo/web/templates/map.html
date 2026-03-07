@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+
+{% block head %}
+<!-- Leaflet CSS & JS loaded directly — no Folium server-side rendering -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Override Tailwind preflight styles that break Leaflet tile rendering -->
+<style>
+    .leaflet-container img {
+        max-width: none !important;
+        max-height: none !important;
+    }
+    .leaflet-container .leaflet-control-zoom a {
+        text-decoration: none;
+    }
+    /* Indeterminate progress bar — server processing phase */
+    .progress-indeterminate-bar {
+        background-color: #FC4C02;
+        animation: indeterminate-slide 1.4s ease-in-out infinite;
+        width: 40%;
+    }
+    @keyframes indeterminate-slide {
+        0%   { transform: translateX(-100%); }
+        60%  { transform: translateX(250%); }
+        100% { transform: translateX(250%); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col" style="height: calc(100vh - 6rem);">
+    <!-- Header with controls -->
+    <div class="mb-4 flex flex-wrap justify-between items-center gap-4 flex-shrink-0">
+        <div>
+            <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{{ title }}</h1>
+            <p id="map-subtitle" class="text-gray-500 dark:text-gray-400 text-sm">
+                Loading activity data…
+            </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-4">
+            <!-- Base Map Selector -->
+            <div class="flex items-center gap-2">
+                <label for="basemapPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Base
+                    Map:</label>
+                <select id="basemapPicker"
+                        class="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                    {% for key, provider in tile_providers.items() %}
+                    <option value="{{ key }}" {% if key == current_basemap %}selected{% endif %}>{{ provider.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Color Picker -->
+            <div class="flex items-center gap-2">
+                <label for="colorPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Color:</label>
+                <input type="color" id="colorPicker" value="{{ current_color }}"
+                       class="h-9 w-16 p-1 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
+            </div>
+
+            <!-- Width Slider -->
+            <div class="flex items-center gap-2">
+                <label for="widthPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Width:</label>
+                <input type="range" id="widthPicker" min="1" max="20" value="{{ current_width }}"
+                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                <span id="widthValue" class="text-sm text-gray-500 dark:text-gray-400 w-6">{{ current_width }}</span>
+            </div>
+
+            <!-- Opacity Slider -->
+            <div class="flex items-center gap-2">
+                <label for="opacityPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Opacity:</label>
+                <input type="range" id="opacityPicker" min="0" max="100" value="{{ current_opacity }}"
+                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                <span id="opacityValue"
+                      class="text-sm text-gray-500 dark:text-gray-400 w-8">{{ current_opacity }}%</span>
+            </div>
+
+            <!-- Export Button -->
+            <button id="exportBtn" disabled
+                    class="px-4 py-2 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed transition shadow-sm flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Export PNG
+            </button>
+
+            <!-- Back to List -->
+            <a href="{{ url_for('activities') }}"
+               class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+                Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map-container"
+         class="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden relative z-0">
+        <!-- Loading State -->
+        <div id="loading-state"
+             class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 z-10">
+            <div class="loading-spinner mb-6"></div>
+            <h3 id="loading-title" class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Loading map data...</h3>
+            <p id="loading-detail" class="text-gray-500 dark:text-gray-400 text-center max-w-md mb-4">
+                Fetching activity coordinates from the server.
+            </p>
+            <!-- Phase 1: indeterminate bar — server is processing (no bytes flowing yet) -->
+            <div id="progress-indeterminate" class="w-64 bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden">
+                <div class="h-full rounded-full progress-indeterminate-bar"></div>
+            </div>
+            <!-- Phase 2: determinate bar — download stream in progress -->
+            <div id="progress-wrapper" class="w-64 bg-gray-200 dark:bg-gray-600 rounded-full h-3 overflow-hidden" style="display: none;">
+                <div id="progress-bar" class="h-full rounded-full transition-all duration-200 ease-out" style="width: 0%; background-color: #FC4C02;"></div>
+            </div>
+            <p id="progress-text" class="text-sm text-gray-400 dark:text-gray-500 mt-2">Waiting for server...</p>
+        </div>
+
+        <!-- Leaflet map target (rendered directly, no iframe) -->
+        <div id="leaflet-map" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></div>
+
+        <!-- Error State -->
+        <div id="error-state"
+             class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 z-10"
+             style="display: none;">
+            <svg class="w-16 h-16 text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Unable to generate map</h3>
+            <p id="error-message" class="text-gray-500 dark:text-gray-400 text-center max-w-md"></p>
+            <a href="{{ url_for('activities') }}"
+               class="mt-6 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+                Back to Activities
+            </a>
+        </div>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+    // --- Configuration from server ---
+    const activityIds = {{ activity_ids | tojson | safe }};
+    const tileProviders = {{ tile_providers | tojson | safe }};
+
+    // Server-side defaults (used when localStorage has no saved value)
+    const DEFAULTS = {
+        color:   "{{ current_color }}",
+        width:   parseInt("{{ current_width }}", 10) || 2,
+        opacity: parseInt("{{ current_opacity }}", 10) || 100,
+        basemap: "{{ current_basemap }}"
+    };
+
+    const STORAGE_KEY = 'kinetiqo_map_settings';
+
+    function loadSettings() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return Object.assign({}, DEFAULTS);
+            var saved = JSON.parse(raw);
+            return {
+                color:   (typeof saved.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.color)) ? saved.color : DEFAULTS.color,
+                width:   (Number.isInteger(saved.width)   && saved.width >= 1   && saved.width <= 20)  ? saved.width   : DEFAULTS.width,
+                opacity: (Number.isInteger(saved.opacity) && saved.opacity >= 0 && saved.opacity <= 100) ? saved.opacity : DEFAULTS.opacity,
+                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap])            ? saved.basemap : DEFAULTS.basemap
+            };
+        } catch (e) {
+            return Object.assign({}, DEFAULTS);
+        }
+    }
+
+    function saveSettings() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                color:   currentColor,
+                width:   currentWidth,
+                opacity: currentOpacity,
+                basemap: currentBasemap
+            }));
+        } catch (e) { /* quota exceeded or private browsing — silently ignore */ }
+    }
+
+    // Initialise from localStorage (or server defaults)
+    var _s = loadSettings();
+    let currentColor   = _s.color;
+    let currentWidth   = _s.width;
+    let currentOpacity = _s.opacity;
+    let currentBasemap = _s.basemap;
+
+    // --- Leaflet state ---
+    let leafletMap = null;
+    let tileLayer  = null;
+    let canvasRenderer = null;
+    let polylines  = [];        // Array of L.Polyline instances
+    let mapDataCache = null;    // Cached server response (coordinates never change)
+
+    // --- UI helpers ---
+    function showError(message) {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('leaflet-map').style.display = 'none';
+        document.getElementById('error-state').style.display = 'flex';
+        document.getElementById('error-message').textContent = message;
+    }
+
+    function showLoading() {
+        document.getElementById('loading-state').style.display = 'flex';
+        document.getElementById('leaflet-map').style.display = 'none';
+        document.getElementById('error-state').style.display = 'none';
+    }
+
+    function showMap() {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('error-state').style.display = 'none';
+        document.getElementById('leaflet-map').style.display = 'block';
+
+        // Enable export button
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.disabled = false;
+        exportBtn.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-500', 'dark:text-gray-400', 'cursor-not-allowed');
+        exportBtn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-50', 'dark:hover:bg-gray-600', 'cursor-pointer');
+    }
+
+    function updateSubtitle(count, points) {
+        const el = document.getElementById('map-subtitle');
+        if (el && count) {
+            el.textContent = 'Showing ' + count + ' activities with ' + points.toLocaleString() + ' GPS points.';
+        }
+    }
+
+    // --- Leaflet initialisation (called once) ---
+    function initLeafletMap() {
+        if (leafletMap) return;
+
+        const mapEl = document.getElementById('leaflet-map');
+        // Must be visible before L.map() so Leaflet can measure the container
+        mapEl.style.display = 'block';
+
+        // Canvas renderer — dramatically faster than default SVG for many polylines/points
+        canvasRenderer = L.canvas({ padding: 0.5 });
+
+        leafletMap = L.map('leaflet-map', {
+            renderer: canvasRenderer,
+            zoomControl: true,
+            preferCanvas: true
+        });
+
+        // Set initial tile layer
+        setTileLayer(currentBasemap);
+    }
+
+    function setTileLayer(key) {
+        const provider = tileProviders[key] || tileProviders['openstreetmap'];
+        if (tileLayer) {
+            leafletMap.removeLayer(tileLayer);
+        }
+        tileLayer = L.tileLayer(provider.url, {
+            attribution: provider.attr,
+            maxZoom: provider.maxZoom || 19
+        }).addTo(leafletMap);
+    }
+
+    // --- Render polylines from cached data ---
+    function renderPolylines() {
+        if (!mapDataCache || !leafletMap) return;
+
+        // Remove existing polylines
+        polylines.forEach(function(pl) { leafletMap.removeLayer(pl); });
+        polylines = [];
+
+        const opacityFloat = currentOpacity / 100.0;
+        const activities = mapDataCache.activities;
+
+        for (const aid in activities) {
+            const activity = activities[aid];
+            const coords = activity.coords;    // already [[lat, lng], ...]
+            if (!coords || coords.length < 2) continue;
+
+            // Leaflet accepts [[lat, lng], ...] directly — no conversion needed
+            const pl = L.polyline(coords, {
+                color: currentColor,
+                weight: currentWidth,
+                opacity: opacityFloat,
+                renderer: canvasRenderer,
+                interactive: true
+            });
+            pl.bindTooltip(activity.name, { sticky: true });
+            pl.addTo(leafletMap);
+            polylines.push(pl);
+        }
+    }
+
+    // --- Update polyline styles without re-fetching data ---
+    function updatePolylineStyles() {
+        const opacityFloat = currentOpacity / 100.0;
+        polylines.forEach(function(pl) {
+            pl.setStyle({
+                color: currentColor,
+                weight: currentWidth,
+                opacity: opacityFloat
+            });
+            pl.redraw();
+        });
+    }
+
+    // --- Progress bar helpers ---
+    function updateProgress(pct, detail) {
+        var bar         = document.getElementById('progress-bar');
+        var text        = document.getElementById('progress-text');
+        var wrapper     = document.getElementById('progress-wrapper');
+        var indeterminate = document.getElementById('progress-indeterminate');
+        var detailEl    = document.getElementById('loading-detail');
+        var titleEl     = document.getElementById('loading-title');
+
+        // First real byte received — switch from indeterminate to determinate bar
+        if (indeterminate && indeterminate.style.display !== 'none') {
+            indeterminate.style.display = 'none';
+            wrapper.style.display = 'block';
+        }
+
+        var clamped = Math.min(100, Math.max(0, Math.round(pct)));
+        bar.style.width = clamped + '%';
+        text.textContent = clamped + '%';
+
+        if (detail && detailEl) detailEl.textContent = detail;
+        if (titleEl && clamped >= 100) titleEl.textContent = 'Rendering map...';
+    }
+
+    function resetProgress() {
+        var bar           = document.getElementById('progress-bar');
+        var text          = document.getElementById('progress-text');
+        var wrapper       = document.getElementById('progress-wrapper');
+        var indeterminate = document.getElementById('progress-indeterminate');
+        var titleEl       = document.getElementById('loading-title');
+        var detailEl      = document.getElementById('loading-detail');
+
+        // Reset to Phase 1: indeterminate (server processing)
+        if (indeterminate) indeterminate.style.display = 'block';
+        wrapper.style.display = 'none';
+        bar.style.width = '0%';
+        text.textContent = 'Waiting for server...';
+        titleEl.textContent = 'Loading map data...';
+        detailEl.textContent = 'Fetching activity coordinates from the server.';
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    // --- Fetch data from server (only once) with download progress ---
+    function loadMapData() {
+        showLoading();
+        resetProgress();
+
+        fetch('/api/map/data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ activity_ids: activityIds })
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                return response.text().then(function(text) {
+                    try { var err = JSON.parse(text); throw new Error(err.error || 'HTTP error ' + response.status); }
+                    catch(e) { if (e.message) throw e; throw new Error('HTTP error ' + response.status); }
+                });
+            }
+
+            // Read total size for progress tracking.
+            // X-Uncompressed-Length survives transparent gzip decompression;
+            // Content-Length is often stripped by the browser in that case.
+            var totalHeader = response.headers.get('X-Uncompressed-Length') || response.headers.get('Content-Length');
+            var total = totalHeader ? parseInt(totalHeader, 10) : 0;
+
+            // If no Content-Length or no body stream, fall back to simple .json()
+            if (!total || !response.body) {
+                updateProgress(50, 'Downloading data...');
+                return response.json();
+            }
+
+            // Stream the response body and track progress
+            var reader = response.body.getReader();
+            var received = 0;
+            var chunks = [];
+
+            function pump() {
+                return reader.read().then(function(result) {
+                    if (result.done) {
+                        // Combine all chunks into a single Uint8Array
+                        var body = new Uint8Array(received);
+                        var offset = 0;
+                        for (var i = 0; i < chunks.length; i++) {
+                            body.set(chunks[i], offset);
+                            offset += chunks[i].length;
+                        }
+                        // Decode and parse JSON
+                        var text = new TextDecoder('utf-8').decode(body);
+                        return JSON.parse(text);
+                    }
+
+                    chunks.push(result.value);
+                    received += result.value.length;
+
+                    var pct = (received / total) * 100;
+                    updateProgress(pct, 'Downloading... ' + formatBytes(received) + ' / ' + formatBytes(total));
+
+                    return pump();
+                });
+            }
+
+            return pump();
+        })
+        .then(function(data) {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+
+            mapDataCache = data;
+            updateProgress(100, 'Rendering map...');
+
+            // Initialise Leaflet map (once) — container must be visible
+            initLeafletMap();
+
+            // Hide loading overlay and show map container
+            showMap();
+
+            // Let the browser calculate layout, then tell Leaflet to recalculate
+            // its size before fitting bounds and adding polylines
+            setTimeout(function() {
+                leafletMap.invalidateSize();
+
+                // Fit bounds from server-computed values [min_lat, min_lng, max_lat, max_lng]
+                var b = data.bounds;
+                leafletMap.fitBounds([[b[0], b[1]], [b[2], b[3]]]);
+
+                // Render polylines
+                renderPolylines();
+
+                // Update subtitle
+                updateSubtitle(data.activity_count, data.point_count);
+            }, 50);
+        })
+        .catch(function(error) {
+            console.error('Map data fetch failed:', error);
+            showError(error.message || 'An unknown error occurred.');
+        });
+    }
+
+    // --- Event listeners ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sync UI controls to whatever was loaded from localStorage
+        var colorPicker   = document.getElementById('colorPicker');
+        var widthPicker   = document.getElementById('widthPicker');
+        var widthValue    = document.getElementById('widthValue');
+        var opacityPicker = document.getElementById('opacityPicker');
+        var opacityValue  = document.getElementById('opacityValue');
+        var basemapPicker = document.getElementById('basemapPicker');
+
+        if (colorPicker)   colorPicker.value         = currentColor;
+        if (widthPicker)   widthPicker.value          = currentWidth;
+        if (widthValue)    widthValue.textContent     = currentWidth;
+        if (opacityPicker) opacityPicker.value        = currentOpacity;
+        if (opacityValue)  opacityValue.textContent   = currentOpacity + '%';
+        if (basemapPicker) basemapPicker.value        = currentBasemap;
+
+        // Start loading map data
+        loadMapData();
+
+        // Base Map Picker — swaps tile layer, no data re-fetch
+        if (basemapPicker) {
+            basemapPicker.addEventListener('change', function(e) {
+                currentBasemap = e.target.value;
+                saveSettings();
+                if (leafletMap) setTileLayer(currentBasemap);
+            });
+        }
+
+        // Color Picker — client-side style update only
+        if (colorPicker) {
+            colorPicker.addEventListener('change', function(e) {
+                currentColor = e.target.value;
+                saveSettings();
+                updatePolylineStyles();
+            });
+        }
+
+        // Width Picker — client-side style update only
+        if (widthPicker && widthValue) {
+            widthPicker.addEventListener('input', function(e) {
+                widthValue.textContent = e.target.value;
+            });
+            widthPicker.addEventListener('change', function(e) {
+                currentWidth = parseInt(e.target.value, 10);
+                saveSettings();
+                updatePolylineStyles();
+            });
+        }
+
+        // Opacity Picker — client-side style update only
+        if (opacityPicker && opacityValue) {
+            opacityPicker.addEventListener('input', function(e) {
+                opacityValue.textContent = e.target.value + '%';
+            });
+            opacityPicker.addEventListener('change', function(e) {
+                currentOpacity = parseInt(e.target.value, 10);
+                saveSettings();
+                updatePolylineStyles();
+            });
+        }
+
+        // Export — render the Leaflet Canvas to PNG
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', function() {
+                if (exportBtn.disabled) return;
+                const mapContainer = document.getElementById('map-container');
+                html2canvas(mapContainer, { useCORS: true, allowTaint: true })
+                    .then(function(canvas) {
+                        const link = document.createElement('a');
+                        link.download = 'kinetiqo-map.png';
+                        link.href = canvas.toDataURL();
+                        link.click();
+                    })
+                    .catch(function(err) {
+                        console.error('Export failed:', err);
+                        alert('Could not export map to image. Try taking a screenshot instead.');
+                    });
+            });
+        }
+    });
+</script>
+{% endblock %}

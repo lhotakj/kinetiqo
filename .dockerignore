@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+*.iml
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test and development files
+.pytest_cache/
+tests/
+development/
+dashboards/
+
+# Documentation
+README.md
+
+# Other
+LICENSE
+kinetiqo-activities-map.json
+build/
+!build/Dockerfile
+!build/entrypoint.sh
