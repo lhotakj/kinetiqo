@@ -454,6 +454,22 @@ def powerskills():
         if repo is None:
             repo = create_repository(config)
 
+        # Fetch activity metadata for names and dates
+        activities_meta = repo.get_activities_by_ids(activity_ids)
+        activity_map = {}
+        for a in activities_meta:
+            # Format date nicely
+            try:
+                dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                date_str = dt.strftime(config.date_format)
+            except:
+                date_str = a['start_date']
+            
+            activity_map[str(a['id'])] = {
+                'name': a.get('name', f"Activity {a['id']}"),
+                'date': date_str
+            }
+
         # Fetch watts stream data for selected activities
         watts_data = repo.get_watts_streams_for_activities(activity_ids)
 
@@ -461,14 +477,28 @@ def powerskills():
         power_data = []
         for d in POWER_SKILLS_DURATIONS:
             best_power = 0.0
+            best_activity_id = None
+            
             for aid, watts_list in watts_data.items():
                 avg = _compute_best_average_power(watts_list, d["seconds"])
                 if avg > best_power:
                     best_power = avg
+                    best_activity_id = aid
+            
+            # Get details for the best activity
+            activity_name = None
+            activity_date = None
+            if best_activity_id and best_activity_id in activity_map:
+                activity_name = activity_map[best_activity_id]['name']
+                activity_date = activity_map[best_activity_id]['date']
+
             power_data.append({
                 "label": d["label"],
                 "seconds": d["seconds"],
                 "watts": int(round(best_power)),
+                "activity_id": best_activity_id,
+                "activity_name": activity_name,
+                "activity_date": activity_date
             })
 
     except Exception as e:
