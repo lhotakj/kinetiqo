@@ -17,6 +17,20 @@ warn() {
     printf "\033[0;33m[WARN]\033[0m %s\n"  "$1"
 }
 
+# Default values
+PUSH_FLAG=""
+DOCKER_USERNAME="lhotakj"
+
+# Parse command-line arguments
+for arg in "$@"
+do
+    case $arg in
+        --push)
+        PUSH_FLAG="--push"
+        shift
+        ;;
+    esac
+done
 
 (
 cd ../src
@@ -36,16 +50,32 @@ SHORT_VERSION=$(echo $VERSION | cut -d. -f1,2)
 echo "$VERSION" > ./version.txt
 echo "$SHORT_VERSION" > ./short_version.txt
 
-info "Building version ${VERSION} (Short: ${SHORT_VERSION}) ..."
-docker build \
-  --no-cache \
-  --build-arg VERSION=${SHORT_VERSION} \
-  -t kinetiqo:latest \
-  -t kinetiqo:${SHORT_VERSION} \
-  -t kinetiqo:${VERSION} \
-  -f ../build/Dockerfile \
-  ..
+if [ -n "$PUSH_FLAG" ]; then
+    info "Building and pushing version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 and linux/arm64 ..."
+    docker buildx build \
+      --platform linux/amd64,linux/arm64 \
+      --no-cache \
+      --build-arg VERSION=${SHORT_VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo:latest \
+      -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo:${VERSION} \
+      -f ../build/Dockerfile \
+      --push \
+      ..
+else
+    info "Building locally version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 ..."
+    docker buildx build \
+      --platform linux/amd64 \
+      --load \
+      --no-cache \
+      --build-arg VERSION=${SHORT_VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo:latest \
+      -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo:${VERSION} \
+      -f ../build/Dockerfile \
+      ..
 
-info "Built image size:"
-docker image ls kinetiqo:${SHORT_VERSION}
+    info "Built image size:"
+    docker image ls ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION}
+fi
 )

@@ -34,7 +34,9 @@ jobs:
         run: |
           chmod +x build/build.sh
           cd build
-          ./build.sh
+          if [[ "${{ contains(github.event.head_commit.message, '/publish') }}" == "true" ]]; then
+            ./build.sh --push
+          fi
 
       - name: Get versions from build
         if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
@@ -102,8 +104,8 @@ jobs:
           name: changelog
           path: CHANGELOG.md
 
-      - name: Create GitHub Release (on /release or /publish)
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+      - name: Create GitHub Release (on /release)
+        if: contains(github.event.head_commit.message, '/release')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
@@ -112,20 +114,8 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Tag and push image (on /publish)
-        if: contains(github.event.head_commit.message, '/publish')
-        run: |
-          VERSION=${{ steps.get_version.outputs.version }}
-          SHORT_VERSION=${{ steps.get_version.outputs.short_version }}
-          docker tag kinetiqo lhotakj/kinetiqo:$VERSION
-          docker tag kinetiqo lhotakj/kinetiqo:$SHORT_VERSION
-          docker tag kinetiqo lhotakj/kinetiqo:latest
-          docker push lhotakj/kinetiqo:$VERSION
-          docker push lhotakj/kinetiqo:$SHORT_VERSION
-          docker push lhotakj/kinetiqo:latest
-
       - name: Add DockerHub link to build summary
-        if: contains(github.event.head_commit.message, '/publish')
+        if: contains(github.event.head_commit.message, '/release') && contains(github.event.head_commit.message, '/publish')
         run: |
           echo "### Docker image published" >> $GITHUB_STEP_SUMMARY
           echo "[View Docker image on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${{ steps.get_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
