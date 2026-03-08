@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Build Firebird client-only and keep the shared library
+# Sed for explicit remove flag -p from the generated makefiles after the configuration step. Which is incompatible with the Alpine Linux (musl libc) environment on ARM64.
 RUN apk add --no-cache build-base icu-dev zlib-dev wget tar autoconf automake libtool pkgconf libtommath-dev ncurses-dev \
     && wget -q https://github.com/FirebirdSQL/firebird/archive/refs/tags/v5.0.3.tar.gz \
     && tar xzf v5.0.3.tar.gz \
@@ -20,6 +21,7 @@ RUN apk add --no-cache build-base icu-dev zlib-dev wget tar autoconf automake li
     && chmod +x ./autogen.sh \
     && ./autogen.sh --with-builtin-tomcrypt \
     && ./configure --disable-server --enable-client-only --with-builtin-tomcrypt \
+    && sed -i 's/ -p / /g' gen/make.platform \
     && make -j$(nproc) \
     && cd ./gen/Release/firebird/lib \
     && cp ./* /usr/local/lib/
