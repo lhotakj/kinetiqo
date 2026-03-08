@@ -669,6 +669,24 @@ class PostgresqlRepository(DatabaseRepository):
                     counts[table] = None
         return counts
 
+    def get_activities_with_suffer_score(self) -> List[Dict[str, Any]]:
+        """Get all activities that have a suffer_score > 0, ordered by date."""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT start_date, suffer_score
+                FROM activities
+                WHERE suffer_score > 0
+                ORDER BY start_date ASC
+            """)
+            
+            activities = []
+            for row in cur.fetchall():
+                activity = dict(row)
+                if isinstance(activity['start_date'], datetime):
+                    activity['start_date'] = activity['start_date'].isoformat()
+                activities.append(activity)
+            return activities
+
     def __enter__(self):
         return self
 

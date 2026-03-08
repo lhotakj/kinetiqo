@@ -12,6 +12,7 @@ from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
+from kinetiqo.web.fitness import calculate_fitness_freshness
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -514,6 +515,29 @@ def powerskills():
         activity_count=len(activity_ids),
         power_data_json=json_module.dumps(power_data),
     )
+
+
+@app.route('/fitness')
+@login_required
+def fitness():
+    """Render the Fitness & Freshness chart page."""
+    return render_template('fitness.html', title="Fitness & Freshness")
+
+
+@app.route('/api/fitness_data')
+@login_required
+def fitness_data():
+    """API endpoint to get fitness, fatigue, and form data."""
+    try:
+        repo = db_repo
+        if repo is None:
+            repo = create_repository(config)
+        
+        data = calculate_fitness_freshness(repo)
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error calculating fitness data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/logs')

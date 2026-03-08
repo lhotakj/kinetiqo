@@ -138,3 +138,8 @@ class DatabaseRepository(ABC):
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         pass
+
+    @abstractmethod
+    def get_activities_with_suffer_score(self) -> List[Dict[str, Any]]:
+        """Get all activities that have a suffer_score > 0, ordered by date."""
+        pass

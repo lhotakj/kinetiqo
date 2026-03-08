@@ -709,6 +709,25 @@ class FirebirdRepository(DatabaseRepository):
                     counts[table] = None
         return counts
 
+    def get_activities_with_suffer_score(self) -> List[Dict[str, Any]]:
+        """Get all activities that have a suffer_score > 0, ordered by date."""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT "start_date", "suffer_score"
+                FROM "activities"
+                WHERE "suffer_score" > 0
+                ORDER BY "start_date" ASC
+            """)
+            
+            activities = []
+            for row in cur.fetchall():
+                activity = {
+                    'start_date': row[0].isoformat() if isinstance(row[0], datetime) else row[0],
+                    'suffer_score': row[1]
+                }
+                activities.append(activity)
+            return activities
+
     def __enter__(self):
         return self
 
