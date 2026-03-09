@@ -4,18 +4,18 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
 <!-- DataTables Buttons (3.x for DT 2.x) -->
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.3/css/buttons.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.6/css/buttons.dataTables.min.css">
 <!-- ColReorder extension for DataTables -->
 <link rel="stylesheet" href="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css">
 
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js" defer></script>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js" defer></script>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js" defer></script>
-<script src="https://cdn.datatables.net/buttons/3.2.3/js/dataTables.buttons.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
-<script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.html5.min.js" defer></script>
-<script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.2.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -297,7 +297,7 @@
             <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
             <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
             <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
-            <td colspan="4"></td>
+            <td colspan="4" class="py-3 px-4"></td>
         </tr>
         </tfoot>
     </table>
@@ -431,6 +431,71 @@ function applyColumnVisibility(visibleCols) {
         var origIdx = order[pos];
         table.column(pos).visible(visibleCols.includes(origIdx), false);
     }
+    recalculateFooterColspans();
+}
+
+// ─── Footer colspan recalculation ────────────────────────────────────────────
+// Rebuilds the footer <tr> to match the currently visible columns in their
+// current visual order (from ColReorder). Sum cells (Distance/Elevation/
+// Moving Time) appear at their correct positions; everything else is empty.
+// The fixed columns (Select=0, Name=1, Actions=25) are always at the ends.
+var _lastTotals = { distance: '0.0', elevation: '0.00', movingTime: '00:00:00' };
+
+function recalculateFooterColspans() {
+    if (!table || !_currentVisibleCols) return;
+
+    // Current visual order of ALL columns (position → origIdx)
+    var order = readColumnOrder();
+
+    // Filter to only visible ones, in visual order
+    var visibleOrder = order.filter(function(origIdx) {
+        return _currentVisibleCols.includes(origIdx);
+    });
+
+    var n = visibleOrder.length;
+    if (n === 0) return;
+
+    // Which original indices carry sum values
+    var sumCols = {
+        4: { id: 'totalDistance',   cls: 'py-3 px-4 text-right', val: function() { return _lastTotals.distance; } },
+        5: { id: 'totalElevation',  cls: 'py-3 px-4 text-right', val: function() { return _lastTotals.elevation; } },
+        6: { id: 'totalMovingTime', cls: 'py-3 px-4',            val: function() { return _lastTotals.movingTime; } }
+    };
+
+    // Find the first and last positions of sum columns in the visible order
+    var firstSumPos = -1, lastSumPos = -1;
+    visibleOrder.forEach(function(origIdx, pos) {
+        if (sumCols[origIdx]) {
+            if (firstSumPos === -1) firstSumPos = pos;
+            lastSumPos = pos;
+        }
+    });
+
+    var html = '';
+    if (firstSumPos === -1) {
+        // No sum columns visible — one empty cell spanning everything
+        html = '<td colspan="' + n + '" class="py-3 px-4"></td>';
+    } else {
+        // Leading empty span (before first sum column)
+        if (firstSumPos > 0) {
+            html += '<td colspan="' + firstSumPos + '" class="py-3 px-4 text-right">Totals:</td>';
+        }
+        // Individual cells from firstSumPos to lastSumPos
+        for (var pos = firstSumPos; pos <= lastSumPos; pos++) {
+            var origIdx = visibleOrder[pos];
+            var sc = sumCols[origIdx];
+            html += sc
+                ? '<td class="' + sc.cls + '" id="' + sc.id + '">' + sc.val() + '</td>'
+                : '<td class="py-3 px-4"></td>';
+        }
+        // Trailing empty span (after last sum column)
+        var trailingCount = n - lastSumPos - 1;
+        if (trailingCount > 0) {
+            html += '<td colspan="' + trailingCount + '" class="py-3 px-4"></td>';
+        }
+    }
+
+    $('#activitiesTable tfoot tr').html(html);
 }
 
 // Tracks which columns are currently visible
@@ -628,8 +693,13 @@ var table = null;
                 "search": savedFilters.search || ""
             },
             "buttons": [],
-            // ColReorder 2.x
-            "colReorder": true,
+            // ColReorder 2.x — fixedColumnsLeft/Right default to 2/0 which causes
+            // stuck-column bugs when hidden columns are present. Set both to 0 and
+            // rely on orderable:false on individual columns instead.
+            "colReorder": {
+                "fixedColumnsLeft": 0,
+                "fixedColumnsRight": 0
+            },
             "ajax": {
                 "url": "/api/activities",
                 "data": function (d) {
@@ -678,12 +748,13 @@ var table = null;
                 {
                     "data": "id",
                     "orderable": false,
+                    "colReorder": false,
                     "className": "text-center",
                     "render": function (data, type, row) {
                         return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
                     }
                 },
-                {"data": "name"},
+                {"data": "name", "colReorder": false},
                 {
                     "data": "type", "render": function (data) {
                         return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
@@ -843,6 +914,7 @@ var table = null;
                 {
                     "data": null,
                     "orderable": false,
+                    "colReorder": false,
                     "className": "text-center",
                     "render": function (data, type, row) {
                         return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
@@ -854,11 +926,11 @@ var table = null;
             "footerCallback": function (row, data, start, end, display) {
                 var api = this.api();
                 var json = api.ajax.json();
-
                 if (json && json.totals) {
-                    $('#totalDistance').html(formatDistance(json.totals.total_distance));
-                    $('#totalElevation').html(formatElevation(json.totals.total_elevation));
-                    $('#totalMovingTime').html(formatDuration(json.totals.total_moving_time));
+                    _lastTotals.distance   = formatDistance(json.totals.total_distance);
+                    _lastTotals.elevation  = formatElevation(json.totals.total_elevation);
+                    _lastTotals.movingTime = formatDuration(json.totals.total_moving_time);
+                    recalculateFooterColspans();
                 }
             },
             "language": {
@@ -904,11 +976,15 @@ var table = null;
                 }
             } catch (e) { /* use default sort */ }
             table.columns.adjust().draw(false);  // single draw applies order + visibility + sort
+            recalculateFooterColspans();
         })();
 
         // ── Persist state on user interactions ─────────────────────────────────
         table.on('order.dt', function () { persistGridState(); });
-        table.on('column-reorder.dt', function () { persistGridState(); });
+        table.on('column-reorder.dt', function () {
+            persistGridState();
+            recalculateFooterColspans();
+        });
 
         // ── SortableJS for the modal list ──────────────────────────────────────
         window.initModalSortable = function () {
