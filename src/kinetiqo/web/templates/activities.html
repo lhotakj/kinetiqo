@@ -293,15 +293,19 @@
         </tbody>
         <tfoot class="text-gray-700 text-sm font-semibold bg-gray-50 border-t border-gray-200">
         <tr>
-            <td colspan="4" class="py-3 px-4 text-right">Totals:</td>
-            <td class="py-3 px-4 text-right" id="totalDistance">0.0</td>
-            <td class="py-3 px-4 text-right" id="totalElevation">0.00</td>
-            <td class="py-3 px-4" id="totalMovingTime">00:00:00</td>
+            <td colspan="4" class="py-3 px-4" style="text-align:left;">Totals:</td>
+            <td class="py-3 px-4 text-right" style="text-align:right" id="totalDistance">0.0</td>
+            <td class="py-3 px-4 text-right" style="text-align:right" id="totalElevation">0.00</td>
+            <td class="py-3 px-4 text-right" style="text-align:right" id="totalMovingTime">00:00:00</td>
             <td colspan="4" class="py-3 px-4"></td>
         </tr>
         </tfoot>
     </table>
 </div>
+
+<style>
+.dt-info { padding-left: 1rem !important; }
+</style>
 
 <script>
 // ─── Grid State Management ────────────────────────────────────────────────────
@@ -457,9 +461,9 @@ function recalculateFooterColspans() {
 
     // Which original indices carry sum values
     var sumCols = {
-        4: { id: 'totalDistance',   cls: 'py-3 px-4 text-right', val: function() { return _lastTotals.distance; } },
-        5: { id: 'totalElevation',  cls: 'py-3 px-4 text-right', val: function() { return _lastTotals.elevation; } },
-        6: { id: 'totalMovingTime', cls: 'py-3 px-4',            val: function() { return _lastTotals.movingTime; } }
+        4: { id: 'totalDistance',   cls: 'py-3 px-4 text-right', style: 'text-align:right', val: function() { return _lastTotals.distance; } },
+        5: { id: 'totalElevation',  cls: 'py-3 px-4 text-right', style: 'text-align:right', val: function() { return _lastTotals.elevation; } },
+        6: { id: 'totalMovingTime', cls: 'py-3 px-4 text-right', style: 'text-align:right', val: function() { return _lastTotals.movingTime; } }
     };
 
     // Find the first and last positions of sum columns in the visible order
@@ -478,14 +482,14 @@ function recalculateFooterColspans() {
     } else {
         // Leading empty span (before first sum column)
         if (firstSumPos > 0) {
-            html += '<td colspan="' + firstSumPos + '" class="py-3 px-4 text-right">Totals:</td>';
+            html += '<td colspan="' + firstSumPos + '" class="py-3 px-4">Totals:</td>';
         }
         // Individual cells from firstSumPos to lastSumPos
         for (var pos = firstSumPos; pos <= lastSumPos; pos++) {
             var origIdx = visibleOrder[pos];
             var sc = sumCols[origIdx];
             html += sc
-                ? '<td class="' + sc.cls + '" id="' + sc.id + '">' + sc.val() + '</td>'
+                ? '<td class="' + sc.cls + '" style="' + sc.style + '" id="' + sc.id + '">' + sc.val() + '</td>'
                 : '<td class="py-3 px-4"></td>';
         }
         // Trailing empty span (after last sum column)
