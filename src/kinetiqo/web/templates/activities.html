@@ -693,12 +693,11 @@ var table = null;
                 "search": savedFilters.search || ""
             },
             "buttons": [],
-            // ColReorder 2.x — fixedColumnsLeft/Right default to 2/0 which causes
-            // stuck-column bugs when hidden columns are present. Set both to 0 and
-            // rely on orderable:false on individual columns instead.
+            // ColReorder used only as an API (order() calls) — drag UI disabled.
+            // SortableJS on <thead> handles drag instead, as it only sees visible
+            // <th> elements and has no hidden-column boundary bugs.
             "colReorder": {
-                "fixedColumnsLeft": 0,
-                "fixedColumnsRight": 0
+                "enable": false
             },
             "ajax": {
                 "url": "/api/activities",
@@ -748,13 +747,12 @@ var table = null;
                 {
                     "data": "id",
                     "orderable": false,
-                    "colReorder": false,
                     "className": "text-center",
                     "render": function (data, type, row) {
                         return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
                     }
                 },
-                {"data": "name", "colReorder": false},
+                {"data": "name"},
                 {
                     "data": "type", "render": function (data) {
                         return `<div class="flex items-center">${getActivityIcon(data)}<span>${data}</span></div>`;
@@ -914,7 +912,6 @@ var table = null;
                 {
                     "data": null,
                     "orderable": false,
-                    "colReorder": false,
                     "className": "text-center",
                     "render": function (data, type, row) {
                         return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
@@ -986,6 +983,60 @@ var table = null;
             recalculateFooterColspans();
         });
 
+        // ── SortableJS drag on <thead> ──────────────────────────────────────────
+        // Operates on visible <th> only — no hidden-column boundary bugs.
+        // Select (first th) and Delete (last th) are locked via onMove guard.
+        var _headerSortable = null;
+        function initHeaderSortable() {
+            var headerRow = document.querySelector('#activitiesTable thead tr');
+            if (!headerRow) return;
+            if (_headerSortable) { try { _headerSortable.destroy(); } catch(e) {} }
+            _headerSortable = Sortable.create(headerRow, {
+                animation: 150,
+                onMove: function (evt) {
+                    var ths = Array.from(headerRow.querySelectorAll('th'));
+                    var firstTh = ths[0], lastTh = ths[ths.length - 1];
+                    // Block dragging Select or Delete, and block dropping onto them
+                    if (evt.dragged === firstTh || evt.dragged === lastTh) return false;
+                    if (evt.related === firstTh || evt.related === lastTh) return false;
+                },
+                onEnd: function (evt) {
+                    if (evt.oldIndex === evt.newIndex) return;
+
+                    var currentOrder = readColumnOrder(); // full 26-col: position → origIdx
+
+                    // Build the pre-drag visible order (same set, ColReorder sequence)
+                    var oldVisibleOrder = currentOrder.filter(function(origIdx) {
+                        return _currentVisibleCols && _currentVisibleCols.includes(origIdx);
+                    });
+
+                    // Splice to get new visible order: move element from oldIndex to newIndex
+                    var newVisibleOrder = oldVisibleOrder.slice();
+                    var moved = newVisibleOrder.splice(evt.oldIndex, 1)[0];
+                    newVisibleOrder.splice(evt.newIndex, 0, moved);
+
+                    // Rebuild full 26-col order: weave hidden cols back in their relative slots
+                    var hiddenInOrder = currentOrder.filter(function(origIdx) {
+                        return !_currentVisibleCols || !_currentVisibleCols.includes(origIdx);
+                    });
+                    var fullOrder = [];
+                    var vi = 0, hi = 0;
+                    for (var i = 0; i < currentOrder.length; i++) {
+                        var wasVisible = _currentVisibleCols && _currentVisibleCols.includes(currentOrder[i]);
+                        fullOrder.push(wasVisible ? newVisibleOrder[vi++] : hiddenInOrder[hi++]);
+                    }
+
+                    // Apply via ColReorder API — reorders both <th> and <td> correctly
+                    applyColumnOrder(fullOrder);
+                    persistGridState();
+                    recalculateFooterColspans();
+                }
+            });
+        }
+        initHeaderSortable();
+
+
+
         // ── SortableJS for the modal list ──────────────────────────────────────
         window.initModalSortable = function () {
             var el = document.querySelector('#columnSelectForm .column-list');
@@ -1056,7 +1107,11 @@ var table = null;
             persistGridState();
 
             // 10. Re-bind event handlers
-            table.on('column-reorder.dt', function () { persistGridState(); });
+            table.on('column-reorder.dt', function () {
+                persistGridState();
+                recalculateFooterColspans();
+            });
+            initHeaderSortable();
 
             $('#columnSelectModal').addClass('hidden');
         });
@@ -1084,7 +1139,11 @@ var table = null;
             table.order(getDefaultSort()).columns.adjust().draw();
 
             // Re-bind event handler
-            table.on('column-reorder.dt', function () { persistGridState(); });
+            table.on('column-reorder.dt', function () {
+                persistGridState();
+                recalculateFooterColspans();
+            });
+            initHeaderSortable();
         });
 
         // 5. Bind Events for Persistence & Interaction
