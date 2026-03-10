@@ -543,17 +543,14 @@ def fitness_data():
 @app.route('/logs')
 def logs():
     try:
-        # Ensure db_repo is initialized
+        # To ensure we see data committed by other processes (like a background sync),
+        # we close the existing connection and create a new one. This guarantees
+        # the new transaction sees the latest state of the database.
+        global db_repo
+        if db_repo:
+            db_repo.close()
+        db_repo = create_repository(config)
         repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
-
-        # Commit to ensure fresh data
-        if hasattr(repo, 'conn') and repo.conn:
-            try:
-                repo.conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to commit transaction in logs: {e}")
 
         logs_data = repo.get_logs(limit=25)
 
@@ -674,17 +671,14 @@ def get_activities_api():
         offset = (page - 1) * per_page
 
     try:
-        # Ensure db_repo is initialized
+        # To ensure we see data committed by other processes (like a background sync),
+        # we close the existing connection and create a new one. This guarantees
+        # the new transaction sees the latest state of the database.
+        global db_repo
+        if db_repo:
+            db_repo.close()
+        db_repo = create_repository(config)
         repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
-
-        # Commit the transaction to ensure we see the latest data
-        if hasattr(repo, 'conn') and repo.conn:
-            try:
-                repo.conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to commit transaction in get_activities_api: {e}")
 
         # Fetch activities directly from database
         activities = repo.get_activities_web(
