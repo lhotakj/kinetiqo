@@ -696,16 +696,17 @@ class MySQLRepository(DatabaseRepository):
                     counts[table] = None
         return counts
 
-    def get_activities_with_suffer_score(self) -> List[Dict[str, Any]]:
+    def get_activities_with_suffer_score(self, days: int = 14) -> List[Dict[str, Any]]:
         """Get all activities that have a suffer_score > 0, ordered by date."""
         with self.conn.cursor(dictionary=True) as cur:
+            start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)
             cur.execute("""
                 SELECT start_date, suffer_score
                 FROM activities
-                WHERE suffer_score > 0
+                WHERE suffer_score > 0 AND start_date >= %s
                 ORDER BY start_date ASC
-            """)
-            
+            """, (start_date_limit,))
+
             activities = []
             for row in cur.fetchall():
                 activity = dict(row)

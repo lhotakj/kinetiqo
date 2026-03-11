@@ -49,7 +49,7 @@ def calculate_fitness_freshness(repo):
     :param repo: The database repository instance.
     :return: A dictionary containing the data for the chart.
     """
-    activities = repo.get_activities_with_suffer_score()
+    activities = repo.get_activities_with_suffer_score(days=14)
 
     if not activities:
         return {
