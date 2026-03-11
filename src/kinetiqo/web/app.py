@@ -521,7 +521,17 @@ def powerskills():
 @login_required
 def fitness():
     """Render the Fitness & Freshness chart page."""
-    return render_template('fitness.html', title="Fitness & Freshness")
+    # Supported periods
+    supported_periods = ["14", "30", "60", "90", "120", "365", "all"]
+    
+    # Get period from query parameter, default to "14"
+    period = request.args.get('period', '14')
+    
+    # Validate period
+    if period not in supported_periods:
+        period = "14"
+        
+    return render_template('fitness.html', title="Fitness & Freshness", current_period=period)
 
 
 @app.route('/api/fitness_data')
@@ -529,11 +539,21 @@ def fitness():
 def fitness_data():
     """API endpoint to get fitness, fatigue, and form data."""
     try:
+        # Supported periods
+        supported_periods = ["14", "30", "60", "90", "120", "365", "all"]
+        
+        # Get period from query parameter, default to "14"
+        period = request.args.get('period', '14')
+        
+        # Validate period
+        if period not in supported_periods:
+            period = "14"
+        
         repo = db_repo
         if repo is None:
             repo = create_repository(config)
         
-        data = calculate_fitness_freshness(repo)
+        data = calculate_fitness_freshness(repo, period)
         return jsonify(data)
     except Exception as e:
         logger.error(f"Error calculating fitness data: {e}")

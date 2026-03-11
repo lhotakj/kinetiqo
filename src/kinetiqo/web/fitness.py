@@ -42,14 +42,20 @@ def generate_ai_insight(fitness, fatigue, form, trend_fitness):
     
     return f"{random.choice(prefixes)} { ' '.join(insight) }"
 
-def calculate_fitness_freshness(repo):
+def calculate_fitness_freshness(repo, period="14"):
     """
     Calculates Fitness (CTL), Fatigue (ATL), and Form (TSB) from activities.
 
     :param repo: The database repository instance.
+    :param period: The number of days to look back, or "all".
     :return: A dictionary containing the data for the chart.
     """
-    activities = repo.get_activities_with_suffer_score(days=14)
+    if period == "all":
+        days = None  # Sentinel for "all time"
+    else:
+        days = int(period)
+
+    activities = repo.get_activities_with_suffer_score(days=days)
 
     if not activities:
         return {
@@ -57,7 +63,7 @@ def calculate_fitness_freshness(repo):
             "fitness": [],
             "fatigue": [],
             "form": [],
-            "insight": "No data available to analyze."
+            "insight": "No data available to analyze for the selected period."
         }
 
     df = pd.DataFrame(activities)

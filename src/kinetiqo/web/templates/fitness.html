@@ -9,29 +9,43 @@
                 Track your Fitness (CTL), Fatigue (ATL), and Form (TSB) over time.
             </p>
         </div>
-        <div class="relative group">
-            <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </button>
-            <div class="absolute right-0 w-80 p-4 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-10 text-sm text-gray-600 dark:text-gray-300">
-                <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-2">About these metrics</h3>
-                <ul class="space-y-2 mb-3">
-                    <li>
-                        <strong class="text-blue-500">Fitness (CTL):</strong> Chronic Training Load. A 42-day weighted average of your daily stress. Represents long-term training volume.
-                    </li>
-                    <li>
-                        <strong class="text-pink-500">Fatigue (ATL):</strong> Acute Training Load. A 7-day weighted average. Represents recent tiredness.
-                    </li>
-                    <li>
-                        <strong class="text-yellow-500">Form (TSB):</strong> Training Stress Balance (Fitness - Fatigue). Positive means fresh, negative means fatigued.
-                    </li>
-                </ul>
-                <p class="text-xs text-gray-500">
-                    Based on the impulse-response model by Banister et al. (1975).
-                    <a href="https://www.trainingpeaks.com/learn/articles/the-science-of-the-performance-management-chart/" target="_blank" class="text-blue-600 hover:underline">Read more at TrainingPeaks</a>.
-                </p>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <label for="period-select" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show&nbsp;period:</label>
+                <select id="period-select" class="block w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">
+                    <option value="14" {% if current_period == '14' %}selected{% endif %}>Last 2 weeks</option>
+                    <option value="30" {% if current_period == '30' %}selected{% endif %}>Last 30 days</option>
+                    <option value="60" {% if current_period == '60' %}selected{% endif %}>Last 60 days</option>
+                    <option value="90" {% if current_period == '90' %}selected{% endif %}>Last 90 days</option>
+                    <option value="120" {% if current_period == '120' %}selected{% endif %}>Last 120 days</option>
+                    <option value="365" {% if current_period == '365' %}selected{% endif %}>Last 365 days</option>
+                    <option value="all" {% if current_period == 'all' %}selected{% endif %}>All time</option>
+                </select>
+            </div>
+            <div class="relative group">
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+                <div class="absolute right-0 w-80 p-4 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-10 text-sm text-gray-600 dark:text-gray-300">
+                    <h3 class="font-bold text-gray-900 dark:text-gray-100 mb-2">About these metrics</h3>
+                    <ul class="space-y-2 mb-3">
+                        <li>
+                            <strong class="text-blue-500">Fitness (CTL):</strong> Chronic Training Load. A 42-day weighted average of your daily stress. Represents long-term training volume.
+                        </li>
+                        <li>
+                            <strong class="text-pink-500">Fatigue (ATL):</strong> Acute Training Load. A 7-day weighted average. Represents recent tiredness.
+                        </li>
+                        <li>
+                            <strong class="text-yellow-500">Form (TSB):</strong> Training Stress Balance (Fitness - Fatigue). Positive means fresh, negative means fatigued.
+                        </li>
+                    </ul>
+                    <p class="text-xs text-gray-500">
+                        Based on the impulse-response model by Banister et al. (1975).
+                        <a href="https://www.trainingpeaks.com/learn/articles/the-science-of-the-performance-management-chart/" target="_blank" class="text-blue-600 hover:underline">Read more at TrainingPeaks</a>.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
@@ -67,137 +81,164 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('fitnessChart').getContext('2d');
+    let fitnessChart = null;
 
-    // Fetch data from API
-    fetch('/api/fitness_data')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error('Error fetching fitness data:', data.error);
-                return;
-            }
+    function fetchAndRenderChart(period) {
+        // Show loading state
+        if (fitnessChart) {
+            fitnessChart.destroy();
+        }
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.font = "20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillStyle = document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280';
+        ctx.fillText("Loading chart data...", ctx.canvas.width/2, ctx.canvas.height/2);
 
-            if (data.insight) {
-                document.getElementById('fitness-insight').textContent = data.insight;
-            }
+        fetch(`/api/fitness_data?period=${period}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching fitness data:', data.error);
+                    ctx.fillText(`Error: ${data.error}`, ctx.canvas.width/2, ctx.canvas.height/2 + 30);
+                    return;
+                }
 
-            if (!data.dates || data.dates.length === 0) {
-                // Handle empty data case
-                ctx.font = "20px Arial";
-                ctx.textAlign = "center";
-                ctx.fillStyle = document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280';
-                ctx.fillText("No fitness data available. Upload activities with heart rate or power.", ctx.canvas.width/2, ctx.canvas.height/2);
-                return;
-            }
+                if (data.insight) {
+                    document.getElementById('fitness-insight').textContent = data.insight;
+                }
 
-            const chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.dates,
-                    datasets: [
-                        {
-                            label: 'Fitness (CTL)',
-                            data: data.fitness,
-                            borderColor: 'rgb(59, 130, 246)', // Blue
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: true,
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Fatigue (ATL)',
-                            data: data.fatigue,
-                            borderColor: 'rgb(236, 72, 153)', // Pink
-                            backgroundColor: 'rgba(236, 72, 153, 0.0)',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: false,
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Form (TSB)',
-                            data: data.form,
-                            borderColor: 'rgb(245, 158, 11)', // Orange
-                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            fill: true,
-                            tension: 0.4,
-                            yAxisID: 'y1' // Use secondary axis for Form
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151'
+                if (!data.dates || data.dates.length === 0) {
+                    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                    ctx.fillText("No fitness data available for the selected period.", ctx.canvas.width/2, ctx.canvas.height/2);
+                    return;
+                }
+
+                fitnessChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.dates,
+                        datasets: [
+                            {
+                                label: 'Fitness (CTL)',
+                                data: data.fitness,
+                                borderColor: 'rgb(59, 130, 246)', // Blue
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Fatigue (ATL)',
+                                data: data.fatigue,
+                                borderColor: 'rgb(236, 72, 153)', // Pink
+                                backgroundColor: 'rgba(236, 72, 153, 0.0)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                                fill: false,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Form (TSB)',
+                                data: data.form,
+                                borderColor: 'rgb(245, 158, 11)', // Orange
+                                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                                fill: true,
+                                tension: 0.4,
+                                yAxisID: 'y1' // Use secondary axis for Form
                             }
-                        },
-                        tooltip: {
-                            enabled: true,
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
                             mode: 'index',
-                            intersect: false
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: {
-                                color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151'
+                                }
                             },
-                            ticks: {
-                                color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
-                                maxTicksLimit: 12
+                            tooltip: {
+                                enabled: true,
+                                mode: 'index',
+                                intersect: false
                             }
                         },
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: {
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
+                                    maxTicksLimit: 12
+                                }
+                            },
+                            y: {
+                                type: 'linear',
                                 display: true,
-                                text: 'Fitness / Fatigue',
-                                color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
+                                position: 'left',
+                                title: {
+                                    display: true,
+                                    text: 'Fitness / Fatigue',
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
+                                },
+                                grid: {
+                                    color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
+                                }
                             },
-                            grid: {
-                                color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                            },
-                            ticks: {
-                                color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
-                            }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: {
+                            y1: {
+                                type: 'linear',
                                 display: true,
-                                text: 'Form',
-                                color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
-                            },
-                            grid: {
-                                drawOnChartArea: false, // only want the grid lines for one axis to show up
-                            },
-                            ticks: {
-                                color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
+                                position: 'right',
+                                title: {
+                                    display: true,
+                                    text: 'Form',
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
+                                },
+                                grid: {
+                                    drawOnChartArea: false, // only want the grid lines for one axis to show up
+                                },
+                                ticks: {
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
+                                }
                             }
                         }
                     }
-                }
+                });
+            })
+            .catch(error => {
+                console.error('Error loading fitness data:', error);
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                ctx.fillText("Failed to load chart data.", ctx.canvas.width/2, ctx.canvas.height/2);
             });
-        })
-        .catch(error => console.error('Error loading fitness data:', error));
+    }
+
+    // Initial load
+    const initialPeriod = document.getElementById('period-select').value;
+    fetchAndRenderChart(initialPeriod);
+
+    // Handle dropdown change
+    document.getElementById('period-select').addEventListener('change', function() {
+        const selectedPeriod = this.value;
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('period', selectedPeriod);
+        window.history.pushState({path: newUrl.href}, '', newUrl.href);
+        fetchAndRenderChart(selectedPeriod);
+    });
 });
 </script>
 {% endblock %}
