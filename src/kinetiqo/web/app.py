@@ -567,7 +567,14 @@ def fitness_data():
         if period not in supported_periods:
             period = "14"
         
-        data = calculate_fitness_freshness(get_db(), period)
+        # Ensure we use a fresh repository instance, consistent with /logs
+        global db_repo
+        if db_repo:
+            db_repo.close()
+        db_repo = create_repository(config)
+        repo = db_repo
+        
+        data = calculate_fitness_freshness(repo, period)
         return jsonify(data)
     except Exception as e:
         logger.error(f"Error calculating fitness data: {e}")
