@@ -654,7 +654,7 @@ class PostgresqlRepository(DatabaseRepository):
                     counts[table] = None
         return counts
 
-    def get_activities_with_suffer_score(self, days: Optional[int] = 14) -> List[Dict[str, Any]]:
+    def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all activities that have a suffer_score > 0, ordered by date."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             if days is not None:
