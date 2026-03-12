@@ -47,7 +47,6 @@ def create_repository(config: Config, log_full_details: bool = False) -> Databas
             else:
                 raise ValueError(f"Unsupported database type: {config.database_type}")
 
-            logger.info(f"Using {db_type} as the database backend (Kinetiqo v{version}).")
             logger.info(f"Connected to {db_type} at {host_info} - {db_version}")
             _factory_logged_full_details = True
             return repo
