@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 
+{% block head %}
+<!-- Include Chart.js and the Moment.js adapter -->
+<script src="https://cdn.jsdelivr.net/npm/moment@^2.29.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@^3.7.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@^1.0.0"></script>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8">
     <div class="flex items-center justify-between">
@@ -52,8 +59,11 @@
 </div>
 
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-    <div class="relative h-[500px] w-full">
+    <div id="chart-container" class="relative h-[500px] w-full">
         <canvas id="fitnessChart"></canvas>
+        <div id="chart-overlay" class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75 z-10">
+            <p class="text-lg text-gray-600 dark:text-gray-400">Loading chart data...</p>
+        </div>
     </div>
 </div>
 
@@ -75,155 +85,125 @@
     </div>
 </div>
 
-<!-- Include Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('fitnessChart').getContext('2d');
-    let fitnessChart = null;
+    const chartOverlay = document.getElementById('chart-overlay');
+    const overlayText = chartOverlay.querySelector('p');
+
+    const chartConfig = {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Fitness (CTL)',
+                    data: [],
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0.4
+                },
+                {
+                    label: 'Fatigue (ATL)',
+                    data: [],
+                    borderColor: 'rgb(236, 72, 153)',
+                    backgroundColor: 'rgba(236, 72, 153, 0.0)',
+                    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0.4
+                },
+                {
+                    label: 'Form (TSB)',
+                    data: [],
+                    borderColor: 'rgb(245, 158, 11)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0.4, yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151' }
+                },
+                tooltip: { enabled: true, mode: 'index', intersect: false }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        parser: 'YYYY-MM-DD',
+                        unit: 'day',
+                        displayFormats: {
+                            day: 'MMM D'
+                        },
+                        tooltipFormat: 'll' // e.g., "Sep 4, 1986"
+                    },
+                    grid: { color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' },
+                    ticks: { color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280', source: 'auto' }
+                },
+                y: {
+                    type: 'linear', display: true, position: 'left',
+                    title: { display: true, text: 'Fitness / Fatigue', color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' },
+                    grid: { color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' },
+                    ticks: { color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' }
+                },
+                y1: {
+                    type: 'linear', display: true, position: 'right',
+                    title: { display: true, text: 'Form', color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' },
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' }
+                }
+            }
+        }
+    };
+
+    let fitnessChart = new Chart(ctx, chartConfig);
+
+    function showOverlay(message) {
+        overlayText.textContent = message;
+        chartOverlay.style.display = 'flex';
+    }
+
+    function hideOverlay() {
+        chartOverlay.style.display = 'none';
+    }
+
+    function updateChart(data) {
+        fitnessChart.data.labels = data.dates;
+        fitnessChart.data.datasets[0].data = data.fitness;
+        fitnessChart.data.datasets[1].data = data.fatigue;
+        fitnessChart.data.datasets[2].data = data.form;
+        fitnessChart.update();
+    }
 
     function fetchAndRenderChart(period) {
-        // Show loading state
-        if (fitnessChart) {
-            fitnessChart.destroy();
-        }
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        ctx.font = "20px Arial";
-        ctx.textAlign = "center";
-        ctx.fillStyle = document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280';
-        ctx.fillText("Loading chart data...", ctx.canvas.width/2, ctx.canvas.height/2);
+        showOverlay('Loading chart data...');
 
         fetch(`/api/fitness_data?period=${period}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
                     console.error('Error fetching fitness data:', data.error);
-                    ctx.fillText(`Error: ${data.error}`, ctx.canvas.width/2, ctx.canvas.height/2 + 30);
+                    showOverlay(`Error: ${data.error}`);
                     return;
                 }
 
-                if (data.insight) {
-                    document.getElementById('fitness-insight').textContent = data.insight;
-                }
+                document.getElementById('fitness-insight').textContent = data.insight || 'No insight available.';
 
                 if (!data.dates || data.dates.length === 0) {
-                    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                    ctx.fillText("No fitness data available for the selected period.", ctx.canvas.width/2, ctx.canvas.height/2);
-                    return;
+                    showOverlay('No fitness data available for the selected period.');
+                    updateChart({ dates: [], fitness: [], fatigue: [], form: [] }); // Clear chart
+                } else {
+                    hideOverlay();
+                    updateChart(data);
                 }
-
-                fitnessChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.dates,
-                        datasets: [
-                            {
-                                label: 'Fitness (CTL)',
-                                data: data.fitness,
-                                borderColor: 'rgb(59, 130, 246)', // Blue
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                borderWidth: 2,
-                                pointRadius: 0,
-                                pointHoverRadius: 4,
-                                fill: true,
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Fatigue (ATL)',
-                                data: data.fatigue,
-                                borderColor: 'rgb(236, 72, 153)', // Pink
-                                backgroundColor: 'rgba(236, 72, 153, 0.0)',
-                                borderWidth: 2,
-                                pointRadius: 0,
-                                pointHoverRadius: 4,
-                                fill: false,
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Form (TSB)',
-                                data: data.form,
-                                borderColor: 'rgb(245, 158, 11)', // Orange
-                                backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                                borderWidth: 2,
-                                pointRadius: 0,
-                                pointHoverRadius: 4,
-                                fill: true,
-                                tension: 0.4,
-                                yAxisID: 'y1' // Use secondary axis for Form
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: {
-                            mode: 'index',
-                            intersect: false,
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                                labels: {
-                                    color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151'
-                                }
-                            },
-                            tooltip: {
-                                enabled: true,
-                                mode: 'index',
-                                intersect: false
-                            }
-                        },
-                        scales: {
-                            x: {
-                                grid: {
-                                    color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                                },
-                                ticks: {
-                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
-                                    maxTicksLimit: 12
-                                }
-                            },
-                            y: {
-                                type: 'linear',
-                                display: true,
-                                position: 'left',
-                                title: {
-                                    display: true,
-                                    text: 'Fitness / Fatigue',
-                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
-                                },
-                                grid: {
-                                    color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                                },
-                                ticks: {
-                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
-                                }
-                            },
-                            y1: {
-                                type: 'linear',
-                                display: true,
-                                position: 'right',
-                                title: {
-                                    display: true,
-                                    text: 'Form',
-                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
-                                },
-                                grid: {
-                                    drawOnChartArea: false, // only want the grid lines for one axis to show up
-                                },
-                                ticks: {
-                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280'
-                                }
-                            }
-                        }
-                    }
-                });
             })
             .catch(error => {
                 console.error('Error loading fitness data:', error);
-                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                ctx.fillText("Failed to load chart data.", ctx.canvas.width/2, ctx.canvas.height/2);
+                showOverlay('Failed to load chart data.');
             });
     }
 
