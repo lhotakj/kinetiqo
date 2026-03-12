@@ -1,4 +1,3 @@
-import atexit
 import gzip
 import logging
 import os
@@ -6,12 +5,13 @@ import mimetypes
 from datetime import datetime
 
 import json as json_module
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
+from kinetiqo.web.fitness import calculate_fitness_freshness
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -75,15 +75,43 @@ def set_static_headers(response):
 # --- Configuration & Database ---
 # Default config, will be overwritten by set_config
 config = Config()
-db_repo = None
+
+
+def get_db():
+    """Returns a per-request database repository, creating one if needed.
+
+    The repository is stored in Flask's ``g`` object so it is scoped to the
+    current request and automatically closed by :func:`close_db` at the end
+    of the application context.
+
+    :return: A database repository instance for the current request.
+    """
+    if 'db_repo' not in g:
+        g.db_repo = create_repository(config)
+    return g.db_repo
+
+
+@app.teardown_appcontext
+def close_db(exception=None):
+    """Closes the per-request database connection after each request.
+
+    :param exception: Any exception that caused the context to be torn down.
+    """
+    repo = g.pop('db_repo', None)
+    if repo is not None:
+        try:
+            repo.close()
+        except Exception as e:
+            logger.debug(f"Error closing per-request database connection: {e}", exc_info=True)
 
 
 def set_config(new_config: Config):
-    """Sets the configuration and initializes the repository."""
-    global config, db_repo
+    """Sets the configuration used by the application.
+
+    :param new_config: The configuration instance to use.
+    """
+    global config
     config = new_config
-    # Initialize the repository immediately with the provided config
-    db_repo = create_repository(config)
 
 
 # --- Login Configuration ---
@@ -219,12 +247,7 @@ def logout():
 def activities():
     # Load real data from database
     try:
-        # Ensure db_repo is initialized if not already (fallback for direct run)
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
-
-        data = repo.get_activities(limit=50)
+        data = get_db().get_activities(limit=50)
     except Exception as e:
         logger.error(f"Error fetching activities: {e}")
         flash(f"Error fetching activities: {e}")
@@ -325,9 +348,7 @@ def map_data_api():
         if not activity_ids:
             return jsonify({'error': 'No activity IDs provided'}), 400
 
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
+        repo = get_db()
 
         # Step 1: Get activity names
         activities_data = repo.get_activities_by_ids(activity_ids)
@@ -451,9 +472,7 @@ def powerskills():
         return redirect(url_for('activities'))
 
     try:
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
+        repo = get_db()
 
         # Fetch activity metadata for names and dates
         activities_meta = repo.get_activities_by_ids(activity_ids)
@@ -516,22 +535,49 @@ def powerskills():
     )
 
 
+@app.route('/fitness')
+@login_required
+def fitness():
+    """Render the Fitness & Freshness chart page."""
+    # Supported periods
+    supported_periods = ["14", "30", "60", "90", "120", "365", "all"]
+    
+    # Get period from query parameter, default to "14"
+    period = request.args.get('period', '14')
+    
+    # Validate period
+    if period not in supported_periods:
+        period = "14"
+        
+    return render_template('fitness.html', title="Fitness & Freshness", current_period=period)
+
+
+@app.route('/api/fitness_data')
+@login_required
+def fitness_data():
+    """API endpoint to get fitness, fatigue, and form data."""
+    try:
+        # Supported periods
+        supported_periods = ["14", "30", "60", "90", "120", "365", "all"]
+        
+        # Get period from query parameter, default to "14"
+        period = request.args.get('period', '14')
+        
+        # Validate period
+        if period not in supported_periods:
+            period = "14"
+        
+        data = calculate_fitness_freshness(get_db(), period)
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error calculating fitness data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/logs')
 def logs():
     try:
-        # Ensure db_repo is initialized
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
-
-        # Commit to ensure fresh data
-        if hasattr(repo, 'conn') and repo.conn:
-            try:
-                repo.conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to commit transaction in logs: {e}")
-
-        logs_data = repo.get_logs(limit=25)
+        logs_data = get_db().get_logs(limit=25)
 
         # Format logs as text
         log_text = f"{'DATETIME':<25} {'ACTION':<12} {'ADDED':<8} {'REMOVED':<8} {'TRIGGER':<10} {'USER':<10} {'RESULT':<10}\n"
@@ -573,16 +619,13 @@ def get_settings():
     full_sync = os.environ.get('FULL_SYNC', '')
     fast_sync = os.environ.get('FAST_SYNC', '')
 
-    global db_repo
-    if db_repo is None:
-        db_repo = create_repository(config)
-
+    repo = get_db()
     db_type = config.database_type or 'unknown'
     db_host = None
     db_port = None
 
     # Prefer the repository's config if available, otherwise fall back to the global config
-    db_config = getattr(db_repo, 'config', config)
+    db_config = getattr(repo, 'config', config)
 
     if db_type == 'mysql':
         db_host = config.mysql_host or getattr(db_config, 'mysql_host', 'unknown')
@@ -597,7 +640,7 @@ def get_settings():
         db_host = 'unknown'
         db_port = 'unknown'
 
-    table_counts = db_repo.get_table_record_counts() if db_repo else {}
+    table_counts = repo.get_table_record_counts()
 
     return jsonify({
         'full_sync': {
@@ -650,17 +693,7 @@ def get_activities_api():
         offset = (page - 1) * per_page
 
     try:
-        # Ensure db_repo is initialized
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
-
-        # Commit the transaction to ensure we see the latest data
-        if hasattr(repo, 'conn') and repo.conn:
-            try:
-                repo.conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to commit transaction in get_activities_api: {e}")
+        repo = get_db()
 
         # Fetch activities directly from database
         activities = repo.get_activities_web(
@@ -743,10 +776,7 @@ def get_activities_api():
 @login_required
 def delete_activity_api(activity_id):
     try:
-        # Ensure db_repo is initialized
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
+        repo = get_db()
 
         repo.delete_activity(activity_id)
 
@@ -769,9 +799,7 @@ def delete_activities_api():
         return jsonify({'success': False, 'error': 'No activity IDs provided'}), 400
 
     try:
-        repo = db_repo
-        if repo is None:
-            repo = create_repository(config)
+        repo = get_db()
 
         repo.delete_activities(activity_ids)
 
@@ -887,20 +915,6 @@ def inject_version():
     except:
         pass
     return dict(app_version=version)
-
-
-def close_db_connection():
-    """Closes the database connection if it's open."""
-    global db_repo
-    if db_repo:
-        try:
-            db_repo.close()
-            logger.info("Database connection closed.")
-        except Exception:
-            pass
-
-
-atexit.register(close_db_connection)
 
 
 def run_app():

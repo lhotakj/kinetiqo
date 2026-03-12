@@ -138,3 +138,14 @@ class DatabaseRepository(ABC):
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         pass
+
+    @abstractmethod
+    def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get activities that have a suffer_score > 0, ordered by date.
+
+        :param days: Optional number of days to look back from today. If provided,
+            only activities within the last ``days`` days should be returned. If None,
+            no date limit must be applied (i.e. return all matching activities for all time).
+        :return: List of activity records with a positive suffer_score.
+        """
+        pass

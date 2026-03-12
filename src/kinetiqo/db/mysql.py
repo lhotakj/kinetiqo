@@ -17,9 +17,6 @@ class MySQLRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
-            if config.database_connect_verbose:
-                logger.info(
-                    f"Connected to MySQL at {config.mysql_host}:{config.mysql_port} - {self.get_mysql_version()}")
         except Exception as err:
             logger.warning(f"Cannot connect to MySQL: {err}")
             sys.exit(1)
@@ -695,6 +692,33 @@ class MySQLRepository(DatabaseRepository):
                 except Exception:
                     counts[table] = None
         return counts
+
+    def get_activities_with_suffer_score(self, days: Optional[int] = 14) -> List[Dict[str, Any]]:
+        """Get all activities that have a suffer_score > 0, ordered by date."""
+        with self.conn.cursor(dictionary=True) as cur:
+            if days is not None:
+                start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)
+                cur.execute("""
+                    SELECT start_date, suffer_score
+                    FROM activities
+                    WHERE suffer_score > 0 AND start_date >= %s
+                    ORDER BY start_date ASC
+                """, (start_date_limit,))
+            else:
+                cur.execute("""
+                    SELECT start_date, suffer_score
+                    FROM activities
+                    WHERE suffer_score > 0
+                    ORDER BY start_date ASC
+                """)
+
+            activities = []
+            for row in cur.fetchall():
+                activity = dict(row)
+                if isinstance(activity['start_date'], datetime):
+                    activity['start_date'] = activity['start_date'].isoformat()
+                activities.append(activity)
+            return activities
 
     def __enter__(self):
         return self

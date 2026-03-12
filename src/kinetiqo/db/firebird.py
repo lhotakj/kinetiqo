@@ -16,9 +16,6 @@ class FirebirdRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
-            if config.database_connect_verbose:
-                logger.info(
-                    f"Connected to Firebird at {config.firebird_host}:{config.firebird_port} - {self.get_firebird_version()}")
         except Exception as err:
             logger.warning(f"Cannot connect to Firebird: {err}")
             sys.exit(1)
@@ -708,6 +705,34 @@ class FirebirdRepository(DatabaseRepository):
                 except Exception:
                     counts[table] = None
         return counts
+
+    def get_activities_with_suffer_score(self, days: Optional[int] = 14) -> List[Dict[str, Any]]:
+        """Get all activities that have a suffer_score > 0, ordered by date."""
+        with self.conn.cursor() as cur:
+            if days is not None:
+                start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)
+                cur.execute("""
+                    SELECT "start_date", "suffer_score"
+                    FROM "activities"
+                    WHERE "suffer_score" > 0 AND "start_date" >= ?
+                    ORDER BY "start_date" ASC
+                """, (start_date_limit,))
+            else:
+                cur.execute("""
+                    SELECT "start_date", "suffer_score"
+                    FROM "activities"
+                    WHERE "suffer_score" > 0
+                    ORDER BY "start_date" ASC
+                """)
+            
+            activities = []
+            for row in cur.fetchall():
+                activity = {
+                    'start_date': row[0].isoformat() if isinstance(row[0], datetime) else row[0],
+                    'suffer_score': row[1]
+                }
+                activities.append(activity)
+            return activities
 
     def __enter__(self):
         return self
