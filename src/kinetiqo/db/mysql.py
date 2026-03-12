@@ -17,9 +17,6 @@ class MySQLRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
-            if config.database_connect_verbose:
-                logger.info(
-                    f"Connected to MySQL at {config.mysql_host}:{config.mysql_port} - {self.get_mysql_version()}")
         except Exception as err:
             logger.warning(f"Cannot connect to MySQL: {err}")
             sys.exit(1)

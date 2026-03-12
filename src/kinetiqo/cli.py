@@ -13,12 +13,12 @@ from kinetiqo.sync import SyncService
 # LOGGING SETUP
 # -----------------------------
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger("kinetiqo")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO) # Changed from DEBUG to INFO
 
 # Reduce noise from libraries
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -46,7 +46,6 @@ def print_version():
 
 
 def validate_config(config):
-    logger.debug("Configuration validation started...")
     if not config.strava_client_id:
         logger.error("Environment variable STRAVA_CLIENT_ID is required.")
         sys.exit(1)
@@ -157,11 +156,10 @@ def cli(ctx, database):
     if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
         validate_config(config)
         try:
-            config.database_connect_verbose = False
-            repository = create_repository(config)
+            # The first repository creation should log full details.
+            repository = create_repository(config, log_full_details=True)
             repository.initialize_schema()
             repository.close()
-            ctx.obj.config.database_connect_verbose = True  # The init DB will be called later to hide connect info
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             sys.exit(1)

@@ -17,11 +17,7 @@ class PostgresqlRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
-            if config.database_connect_verbose:
-                logger.info(
-                    f"Connected to PostgreSQL at {config.postgresql_host}:{config.postgresql_port} - {self.get_pg_version()}")
         except psycopg2.OperationalError as e:
-            # Check if the error is "database does not exist"
             if f'database "{config.postgresql_database}" does not exist' in str(e):
                 logger.warning(f"Database '{config.postgresql_database}' does not exist. Attempting to create it...")
                 self._create_database()
@@ -46,12 +42,9 @@ class PostgresqlRepository(DatabaseRepository):
 
     def _create_database(self):
         """Creates the target database if it doesn't exist."""
-        # Connect to the default 'postgres' database to run CREATE DATABASE
         try:
             conn_temp = self._connect(dbname='postgres')
             with conn_temp.cursor() as cur:
-                # CREATE DATABASE cannot run inside a transaction block.
-                # The _connect method already sets autocommit=True, so we don't need to explicitly manage it here.
                 cur.execute(f"CREATE DATABASE {self.config.postgresql_database}")
                 logger.info(f"Database '{self.config.postgresql_database}' created successfully.")
         except psycopg2.Error as e:
@@ -79,7 +72,6 @@ class PostgresqlRepository(DatabaseRepository):
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
 
-                # Check if tables exist
                 cur.execute("""
                             SELECT table_name
                             FROM information_schema.tables
@@ -198,8 +190,7 @@ class PostgresqlRepository(DatabaseRepository):
             params.append(start_date)
 
         if end_date:
-            # Ensure end_date covers the full day
-            if len(end_date) == 10:  # YYYY-MM-DD
+            if len(end_date) == 10:
                 end_date += " 23:59:59.999999"
             where_conditions.append("start_date <= %s")
             params.append(end_date)
@@ -208,7 +199,6 @@ class PostgresqlRepository(DatabaseRepository):
         if where_conditions:
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
-        # PostgreSQL supports LIMIT and OFFSET directly
         query = f"""
             SELECT
                 activity_id as id,
@@ -314,8 +304,7 @@ class PostgresqlRepository(DatabaseRepository):
             params.append(start_date)
 
         if end_date:
-            # Ensure end_date covers the full day
-            if len(end_date) == 10:  # YYYY-MM-DD
+            if len(end_date) == 10:
                 end_date += " 23:59:59.999999"
             where_conditions.append("start_date <= %s")
             params.append(end_date)
@@ -481,7 +470,6 @@ class PostgresqlRepository(DatabaseRepository):
         logger.debug(f"Writing {len(rows)} stream rows to PostgreSQL for activity {activity_id}...")
 
         with self.conn.cursor() as cur:
-            # First delete existing streams for this activity to avoid duplicates if re-syncing
             cur.execute("DELETE FROM streams WHERE activity_id = %s", (activity_id,))
 
             execute_batch(cur, """
@@ -500,7 +488,6 @@ class PostgresqlRepository(DatabaseRepository):
         aid = int(activity_id)
 
         with self.conn.cursor() as cur:
-            # Because of ON DELETE CASCADE on streams, a delete on activities is enough
             cur.execute("DELETE FROM activities WHERE activity_id = %s", (aid,))
             logger.info(f"Deleted activity {aid} and its streams.")
 
@@ -522,11 +509,9 @@ class PostgresqlRepository(DatabaseRepository):
             return {}
 
         result = {}
-        # Convert to integers for PostgreSQL
         int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Use ANY for list of IDs
             cur.execute("""
                         SELECT activity_id, lat, lng
                         FROM streams

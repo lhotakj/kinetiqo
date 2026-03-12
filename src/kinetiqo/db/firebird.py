@@ -16,9 +16,6 @@ class FirebirdRepository(DatabaseRepository):
         self.config = config
         try:
             self.conn = self._connect()
-            if config.database_connect_verbose:
-                logger.info(
-                    f"Connected to Firebird at {config.firebird_host}:{config.firebird_port} - {self.get_firebird_version()}")
         except Exception as err:
             logger.warning(f"Cannot connect to Firebird: {err}")
             sys.exit(1)
