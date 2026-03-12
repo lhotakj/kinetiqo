@@ -140,6 +140,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def get_activities_with_suffer_score(self) -> List[Dict[str, Any]]:
-        """Get all activities that have a suffer_score > 0, ordered by date."""
+    def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get activities that have a suffer_score > 0, ordered by date.
+
+        :param days: Optional number of days to look back from today. If None,
+            the repository implementation may apply its own default window.
+        :return: List of activity records with a positive suffer_score.
+        """
         pass
