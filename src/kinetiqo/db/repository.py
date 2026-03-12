@@ -144,7 +144,7 @@ class DatabaseRepository(ABC):
         """Get activities that have a suffer_score > 0, ordered by date.
 
         :param days: Optional number of days to look back from today. If None,
-            the repository implementation may apply its own default window.
+            no date limit is applied and all matching activities are returned.
         :return: List of activity records with a positive suffer_score.
         """
         pass
