@@ -484,13 +484,20 @@ function recalculateFooterColspans() {
         if (firstSumPos > 0) {
             html += '<td colspan="' + firstSumPos + '" class="py-3 px-4">Totals:</td>';
         }
+        var showLabelInFirstSumCell = (firstSumPos === 0);
         // Individual cells from firstSumPos to lastSumPos
         for (var pos = firstSumPos; pos <= lastSumPos; pos++) {
             var origIdx = visibleOrder[pos];
             var sc = sumCols[origIdx];
-            html += sc
-                ? '<td class="' + sc.cls + '" style="' + sc.style + '" id="' + sc.id + '">' + sc.val() + '</td>'
-                : '<td class="py-3 px-4"></td>';
+            if (sc) {
+                var isFirstSumCell = (pos === firstSumPos);
+                var cellContent = showLabelInFirstSumCell && isFirstSumCell
+                    ? 'Totals: ' + sc.val()
+                    : sc.val();
+                html += '<td class="' + sc.cls + '" style="' + sc.style + '" id="' + sc.id + '">' + cellContent + '</td>';
+            } else {
+                html += '<td class="py-3 px-4"></td>';
+            }
         }
         // Trailing empty span (after last sum column)
         var trailingCount = n - lastSumPos - 1;
