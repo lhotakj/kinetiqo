@@ -1,6 +1,5 @@
 import pandas as pd
 import random
-from datetime import datetime, timedelta
 
 def generate_ai_insight(fitness, fatigue, form, trend_fitness):
     """
