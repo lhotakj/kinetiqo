@@ -37,8 +37,39 @@ class PostgresqlRepository(DatabaseRepository):
             database=dbname or self.config.postgresql_database,
             sslmode=self.config.postgresql_ssl_mode
         )
+        # Autocommit ensures every statement (including SELECTs) runs outside
+        # a transaction and always sees the latest committed data.  This is
+        # critical when the CLI syncs new activities from a separate process
+        # while Gunicorn serves web requests.
         conn.autocommit = True
         return conn
+
+    def _ensure_connected(self):
+        """Verify the connection is alive; transparently reconnect if not.
+
+        Gunicorn workers may hold connections that the server has closed due
+        to idle timeout or network disruption.  ``psycopg2``'s ``conn.closed``
+        attribute is a lightweight check (no round-trip), but we also issue
+        a ``SELECT 1`` to catch connections that appear open but are actually
+        severed at the TCP level.
+        """
+        try:
+            if self.conn.closed:
+                raise psycopg2.OperationalError("Connection is closed")
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        except Exception:
+            logger.warning("PostgreSQL connection lost, reconnecting...")
+            try:
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+                self.conn = self._connect()
+            except Exception as e:
+                logger.error(f"Failed to reconnect to PostgreSQL: {e}")
+                raise
 
     def _create_database(self):
         """Creates the target database if it doesn't exist."""
@@ -56,6 +87,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_pg_version(self) -> str:
         """Get the PostgreSQL version string."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("SELECT version();")
             result = cur.fetchone()
@@ -63,12 +95,14 @@ class PostgresqlRepository(DatabaseRepository):
 
     def initialize_schema(self):
         """Create or update the database schema using SchemaManager."""
+        self._ensure_connected()
         schema_manager = SchemaManager(self.conn, 'postgresql')
         schema_manager.ensure_schema()
 
     def flightcheck(self) -> bool:
         """Perform a health check on the database."""
         try:
+            self._ensure_connected()
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
 
@@ -95,30 +129,29 @@ class PostgresqlRepository(DatabaseRepository):
             return False
 
     def get_latest_activity_time(self) -> Optional[int]:
-        """Get the start timestamp of the activity with the highest ID."""
+        """Get the start timestamp of the most recent activity by date.
+
+        Used by fast sync to ask Strava for activities newer than this.
+        We use ``MAX(start_date)`` — not ``MAX(activity_id)`` — because
+        Strava IDs are not guaranteed to be sequential in chronological
+        order (e.g. a manual upload of an old ride gets a high ID).
+        """
+        self._ensure_connected()
         with self.conn.cursor() as cur:
-            cur.execute("SELECT MAX(activity_id) FROM activities")
-            result = cur.fetchone()
-            if not result or result[0] is None:
-                return None
-
-            max_activity_id = result[0]
-
-            cur.execute("""
-                        SELECT start_date
-                        FROM activities
-                        WHERE activity_id = %s
-                        """, (max_activity_id,))
-
+            cur.execute("SELECT MAX(start_date) FROM activities")
             result = cur.fetchone()
             if result and result[0]:
-                ts = int(result[0].replace(tzinfo=timezone.utc).timestamp())
-                logger.debug(f"Latest activity {max_activity_id} start time: {ts}")
+                dt = result[0]
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                ts = int(dt.timestamp())
+                logger.debug(f"Latest activity start time: {ts}")
                 return ts
             return None
 
     def get_synced_activity_ids(self) -> Set[str]:
         """Get all activity IDs already in the database."""
+        self._ensure_connected()
         logger.debug("Querying PostgreSQL for all synced activity IDs...")
         with self.conn.cursor() as cur:
             cur.execute("SELECT activity_id FROM activities")
@@ -128,6 +161,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
+        self._ensure_connected()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                         SELECT activity_id as id,
@@ -170,6 +204,7 @@ class PostgresqlRepository(DatabaseRepository):
     def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
                            start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from PostgreSQL"""
+        self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
@@ -248,6 +283,7 @@ class PostgresqlRepository(DatabaseRepository):
         if not activity_ids:
             return []
 
+        self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -291,6 +327,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
+        self._ensure_connected()
         where_conditions = []
         params = []
 
@@ -329,6 +366,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def count_activities(self, types=None):
         """Get total count of activities"""
+        self._ensure_connected()
         where_clause = ""
         params = []
         if types:
@@ -343,6 +381,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def write_activity(self, activity: dict):
         """Write activity metadata to PostgreSQL."""
+        self._ensure_connected()
         activity_id = activity["id"]
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
 
@@ -425,6 +464,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to PostgreSQL."""
+        self._ensure_connected()
         activity_id = activity["id"]
         sport = activity["sport_type"]
         athlete_id = activity["athlete"]["id"]
@@ -483,6 +523,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from PostgreSQL."""
+        self._ensure_connected()
         logger.debug(f"Deleting activity {activity_id} from PostgreSQL...")
 
         aid = int(activity_id)
@@ -496,6 +537,7 @@ class PostgresqlRepository(DatabaseRepository):
         if not activity_ids:
             return
 
+        self._ensure_connected()
         logger.debug(f"Deleting {len(activity_ids)} activities from PostgreSQL...")
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -508,6 +550,7 @@ class PostgresqlRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result = {}
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -537,6 +580,7 @@ class PostgresqlRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result: Dict[str, List[List[float]]] = {}
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -563,6 +607,7 @@ class PostgresqlRepository(DatabaseRepository):
         if not activity_ids:
             return None
 
+        self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor() as cur:
@@ -580,6 +625,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
                         SELECT name
@@ -591,6 +637,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
                         INSERT INTO logs (added, removed, trigger_source, success, action, "user")
@@ -599,6 +646,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get the latest sync logs."""
+        self._ensure_connected()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                         SELECT created_at as timestamp, added, removed, trigger_source, success, action, "user"
@@ -620,6 +668,7 @@ class PostgresqlRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result = {}
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -642,6 +691,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
+        self._ensure_connected()
         tables = ['activities', 'streams', 'logs']
         counts = {}
         with self.conn.cursor() as cur:
@@ -656,6 +706,7 @@ class PostgresqlRepository(DatabaseRepository):
 
     def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all activities that have a suffer_score > 0, ordered by date."""
+        self._ensure_connected()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             if days is not None:
                 start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)

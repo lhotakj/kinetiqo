@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
 import firebird.driver
+from firebird.driver import tpb, Isolation, TraAccessMode
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
@@ -33,9 +34,16 @@ class FirebirdRepository(DatabaseRepository):
         return timestamp
 
     def _connect(self):
-        """Helper to connect to the Firebird database."""
+        """Helper to connect to the Firebird database.
+
+        The connection's default transaction is switched to READ COMMITTED
+        (record version) so that every query sees the latest data committed
+        by other connections — e.g. activities written by a CLI sync while
+        Gunicorn serves web requests.  Firebird's default SNAPSHOT isolation
+        pins a stable view at transaction start, which causes stale reads
+        when the web UI and CLI operate concurrently.
+        """
         try:
-            # Firebird connection string format: host:port/path_to_database or host/port:path_to_database
             dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
 
             conn = firebird.driver.connect(
@@ -44,10 +52,51 @@ class FirebirdRepository(DatabaseRepository):
                 password=self.config.firebird_password,
                 charset='UTF8'
             )
+
+            # Switch the default transaction to READ COMMITTED so every
+            # statement sees the latest committed rows instead of a stale
+            # SNAPSHOT taken when the transaction was first opened.
+            rc_tpb = tpb(isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
+                         access_mode=TraAccessMode.WRITE)
+            conn.main_transaction.default_tpb = rc_tpb
+
             return conn
         except Exception as e:
             logger.error(f"Failed to connect to Firebird: {e}")
             raise
+
+    def _ensure_connected(self):
+        """Verify the connection is alive; transparently reconnect if not.
+
+        Long-running Gunicorn workers or CLI syncs may hold connections that
+        the server has closed due to idle timeout or network disruption.
+
+        The health-check ``SELECT 1`` implicitly opens a Firebird transaction.
+        We **must** commit it before returning so the caller's next statement
+        begins a brand-new transaction that sees all data committed by other
+        connections (e.g. a CLI sync or a web DELETE).  Without this commit
+        the caller would inherit a stale SNAPSHOT and miss recent changes.
+        """
+        try:
+            if self.conn.is_closed():
+                raise ConnectionError("Connection is closed")
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM RDB$DATABASE")
+                cur.fetchone()
+            # Close the implicit transaction so the next operation starts
+            # fresh — critical for seeing recently committed data.
+            self.conn.commit()
+        except Exception:
+            logger.warning("Firebird connection lost, reconnecting...")
+            try:
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+                self.conn = self._connect()
+            except Exception as e:
+                logger.error(f"Failed to reconnect to Firebird: {e}")
+                raise
 
     def _ensure_database(self):
         """Ensures the target database exists."""
@@ -55,6 +104,12 @@ class FirebirdRepository(DatabaseRepository):
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM RDB$DATABASE")
                 cur.fetchone()
+            # Commit to close the implicit transaction opened by the health
+            # check above.  Without this, the SNAPSHOT (or READ COMMITTED
+            # record-version) started here would be held open until the
+            # first explicit commit, and subsequent reads could miss data
+            # committed by other connections in the meantime.
+            self.conn.commit()
         except Exception as e:
             logger.warning(f"Database check failed: {e}")
             try:
@@ -75,6 +130,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def get_firebird_version(self) -> str:
         """Get the Firebird version string."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database")
             result = cur.fetchone()
@@ -82,19 +138,23 @@ class FirebirdRepository(DatabaseRepository):
 
     def initialize_schema(self):
         """Create or update the database schema."""
+        self._ensure_connected()
         schema_manager = SchemaManager(self.conn, 'firebird')
 
-        # For Firebird, we need to create a sequence/generator for the auto-increment logs.id
         with self.conn.cursor() as cur:
             try:
                 cur.execute("CREATE SEQUENCE logs_id_seq")
                 self.conn.commit()
             except Exception:
-                pass
+                # Sequence already exists — rollback the failed DDL so the
+                # connection's transaction is clean for subsequent operations.
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
 
         schema_manager.ensure_schema()
 
-        # Create trigger for auto-increment on logs.id
         with self.conn.cursor() as cur:
             try:
                 cur.execute("""
@@ -108,14 +168,17 @@ class FirebirdRepository(DatabaseRepository):
                 """)
                 self.conn.commit()
             except Exception:
-                pass
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
 
     def flightcheck(self) -> bool:
         """Perform a health check on the database."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             try:
                 cur.execute("SELECT 1 FROM RDB$DATABASE")
-                # Check for exact table name 'activities' (lowercase)
                 cur.execute("SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = 'activities'")
                 if cur.fetchone()[0] == 0:
                     return False
@@ -124,28 +187,36 @@ class FirebirdRepository(DatabaseRepository):
                 return False
 
     def get_latest_activity_time(self) -> Optional[int]:
-        """Get the start timestamp of the activity with the highest ID."""
+        """Get the start timestamp of the most recent activity by date.
+
+        Used by fast sync to ask Strava for activities newer than this.
+        We use ``MAX(start_date)`` — not ``MAX(activity_id)`` — because
+        Strava IDs are not guaranteed to be sequential in chronological
+        order (e.g. a manual upload of an old ride gets a high ID).
+        """
+        self._ensure_connected()
         with self.conn.cursor() as cur:
-            cur.execute('SELECT MAX("activity_id") FROM "activities"')
-            result = cur.fetchone()
-            if not result or result[0] is None:
-                return None
-            max_activity_id = result[0]
-            cur.execute('SELECT "start_date" FROM "activities" WHERE "activity_id" = ?', (max_activity_id,))
+            cur.execute('SELECT MAX("start_date") FROM "activities"')
             result = cur.fetchone()
             if result and result[0]:
-                ts = int(result[0].replace(tzinfo=timezone.utc).timestamp())
+                dt = result[0]
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                ts = int(dt.timestamp())
+                logger.debug(f"Latest activity start time: {ts}")
                 return ts
             return None
 
     def get_synced_activity_ids(self) -> Set[str]:
         """Get all activity IDs already in the database."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute('SELECT "activity_id" FROM "activities"')
             return {str(row[0]) for row in cur.fetchall()}
 
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(f"""
                 SELECT FIRST {limit}
@@ -211,6 +282,7 @@ class FirebirdRepository(DatabaseRepository):
     def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
                            start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from Firebird"""
+        self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
@@ -316,6 +388,7 @@ class FirebirdRepository(DatabaseRepository):
         if not activity_ids:
             return []
 
+        self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['?'] * len(int_ids))
 
@@ -384,6 +457,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
+        self._ensure_connected()
         where_conditions = []
         params = []
 
@@ -430,6 +504,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def count_activities(self, types=None):
         """Get total count of activities"""
+        self._ensure_connected()
         where_clause = ""
         params = []
         if types:
@@ -444,8 +519,8 @@ class FirebirdRepository(DatabaseRepository):
 
     def write_activity(self, activity: dict):
         """Write activity metadata to Firebird."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
-            # Helper to safely cast to int or return None
             def to_int(val):
                 if val is None:
                     return None
@@ -489,6 +564,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to Firebird."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute('DELETE FROM "streams" WHERE "activity_id" = ?', (int(activity["id"]),))
             start_date = self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00")))
@@ -498,7 +574,6 @@ class FirebirdRepository(DatabaseRepository):
                 lat, lng = streams.get("latlng", {}).get("data", [])[i] if i < len(
                     streams.get("latlng", {}).get("data", [])) else (None, None)
 
-                # Helper to get value safely
                 def get_val(key, type_func=lambda x: x):
                     data = streams.get(key, {}).get("data", [])
                     if i < len(data):
@@ -532,6 +607,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from Firebird."""
+        self._ensure_connected()
         aid = int(activity_id)
         with self.conn.cursor() as cur:
             cur.execute('DELETE FROM "activities" WHERE "activity_id" = ?', (aid,))
@@ -542,6 +618,7 @@ class FirebirdRepository(DatabaseRepository):
         """Delete multiple activities and their streams from Firebird."""
         if not activity_ids:
             return
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             placeholders = ','.join(['?'] * len(activity_ids))
             cur.execute(f'DELETE FROM "activities" WHERE "activity_id" IN ({placeholders})',
@@ -553,6 +630,7 @@ class FirebirdRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result = {}
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -583,6 +661,7 @@ class FirebirdRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result: Dict[str, List[List[float]]] = {}
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['?'] * len(int_ids))
@@ -610,6 +689,7 @@ class FirebirdRepository(DatabaseRepository):
         if not activity_ids:
             return None
 
+        self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['?'] * len(int_ids))
 
@@ -628,6 +708,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute('SELECT "name" FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
             row = cur.fetchone()
@@ -635,6 +716,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(
                 'INSERT INTO "logs" ("added", "removed", "trigger_source", "success", "action", "user") VALUES (?, ?, ?, ?, ?, ?)',
@@ -644,6 +726,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get the latest sync logs."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(f"""
                 SELECT FIRST {limit}
@@ -659,7 +742,7 @@ class FirebirdRepository(DatabaseRepository):
                     'added': row[1],
                     'removed': row[2],
                     'trigger_source': row[3],
-                    'success': bool(row[4]),  # Convert smallint back to boolean
+                    'success': bool(row[4]),
                     'action': row[5],
                     'user': row[6]
                 }
@@ -671,6 +754,7 @@ class FirebirdRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result = {}
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -694,6 +778,7 @@ class FirebirdRepository(DatabaseRepository):
 
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
+        self._ensure_connected()
         tables = ['activities', 'streams', 'logs']
         counts = {}
         with self.conn.cursor() as cur:
@@ -706,8 +791,9 @@ class FirebirdRepository(DatabaseRepository):
                     counts[table] = None
         return counts
 
-    def get_activities_with_suffer_score(self, days: Optional[int] = 14) -> List[Dict[str, Any]]:
+    def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all activities that have a suffer_score > 0, ordered by date."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             if days is not None:
                 start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)
@@ -743,7 +829,6 @@ class FirebirdRepository(DatabaseRepository):
     def close(self):
         try:
             if self.conn:
-                # Firebird driver does not have 'closed' attribute, just try to close
                 self.conn.close()
         except Exception as e:
             logger.warning(f"Error closing Firebird connection: {e}")

@@ -55,27 +55,49 @@ class MySQLRepository(DatabaseRepository):
             logger.error(str(err))
             raise
 
+        # Enable autocommit so every statement (including SELECTs) sees the
+        # latest committed data.  Without this, InnoDB's default REPEATABLE
+        # READ isolation keeps a snapshot from the first statement in an
+        # implicit transaction, causing the web UI to show stale data after
+        # a CLI sync commits new activities from a different connection.
+        conn.autocommit = True
         return conn
+
+    def _ensure_connected(self):
+        """Verify the connection is alive; transparently reconnect if not.
+
+        Gunicorn workers or long-running CLI syncs may hold connections that
+        the server has closed due to idle timeout (``wait_timeout``).  A
+        lightweight ``ping()`` followed by a reconnect avoids unexpected
+        "MySQL server has gone away" errors.
+        """
+        try:
+            self.conn.ping(reconnect=True, attempts=3, delay=1)
+        except Exception:
+            logger.warning("MySQL connection lost, reconnecting...")
+            try:
+                self.conn = self._connect()
+                self.conn.database = self.config.mysql_database
+            except Exception as e:
+                logger.error(f"Failed to reconnect to MySQL: {e}")
+                raise
+        # Re-apply autocommit in case ping's reconnect reset session state
+        if not self.conn.autocommit:
+            self.conn.autocommit = True
 
     def _create_database(self):
         """Creates the target database if it doesn't exist."""
         try:
-            # We might be connected to the database already, or not.
-            # If we are connected to the target database, we don't need to do anything.
             if self.conn.database == self.config.mysql_database:
                 return
 
-            # If not connected to the target database (because it didn't exist), create it.
             with self.conn.cursor() as cur:
                 cur.execute(
                     f"CREATE DATABASE IF NOT EXISTS {self.config.mysql_database} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
 
-            # Now connect to the newly created database
             self.conn.database = self.config.mysql_database
 
         except Exception as err:
-            # If we fail here, it might be because we are already connected or something else.
-            # Let's try to ensure we are using the correct database.
             try:
                 self.conn.database = self.config.mysql_database
             except:
@@ -84,6 +106,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_mysql_version(self) -> str:
         """Get the MySQL version string."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("SELECT VERSION();")
             result = cur.fetchone()
@@ -91,12 +114,14 @@ class MySQLRepository(DatabaseRepository):
 
     def initialize_schema(self):
         """Create or update the database schema using SchemaManager."""
+        self._ensure_connected()
         schema_manager = SchemaManager(self.conn, 'mysql')
         schema_manager.ensure_schema()
 
     def flightcheck(self) -> bool:
         """Perform a health check on the database."""
         try:
+            self._ensure_connected()
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
 
@@ -124,11 +149,11 @@ class MySQLRepository(DatabaseRepository):
 
     def get_latest_activity_time(self) -> Optional[int]:
         """Get the start timestamp of the most recent activity."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("SELECT MAX(start_date) FROM activities")
             result = cur.fetchone()
             if result and result[0]:
-                # Ensure we have a timezone-aware datetime
                 dt = result[0]
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
@@ -139,6 +164,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_synced_activity_ids(self) -> Set[str]:
         """Get all activity IDs already in the database."""
+        self._ensure_connected()
         logger.debug("Querying MySQL for all synced activity IDs...")
         with self.conn.cursor() as cur:
             cur.execute("SELECT activity_id FROM activities")
@@ -148,6 +174,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
+        self._ensure_connected()
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute("""
                         SELECT activity_id as id,
@@ -190,6 +217,7 @@ class MySQLRepository(DatabaseRepository):
     def get_activities_web(self, limit=10, offset=0, sort_by='start_date', sort_order='DESC', types=None,
                            start_date=None, end_date=None):
         """Fetch activities with pagination and sorting from MySQL"""
+        self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
                            'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
@@ -268,6 +296,7 @@ class MySQLRepository(DatabaseRepository):
         if not activity_ids:
             return []
 
+        self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['%s'] * len(int_ids))
 
@@ -313,6 +342,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
+        self._ensure_connected()
         where_conditions = []
         params = []
 
@@ -351,6 +381,7 @@ class MySQLRepository(DatabaseRepository):
 
     def count_activities(self, types=None):
         """Get total count of activities"""
+        self._ensure_connected()
         where_clause = ""
         params = []
         if types:
@@ -365,6 +396,7 @@ class MySQLRepository(DatabaseRepository):
 
     def write_activity(self, activity: dict):
         """Write activity metadata to MySQL."""
+        self._ensure_connected()
         activity_id = activity["id"]
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
 
@@ -450,6 +482,7 @@ class MySQLRepository(DatabaseRepository):
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to MySQL."""
+        self._ensure_connected()
         activity_id = activity["id"]
         sport = activity["sport_type"]
         athlete_id = activity["athlete"]["id"]
@@ -512,6 +545,7 @@ class MySQLRepository(DatabaseRepository):
 
     def delete_activity(self, activity_id: str):
         """Delete an activity and its streams from MySQL."""
+        self._ensure_connected()
         logger.debug(f"Deleting activity {activity_id} from MySQL...")
 
         aid = int(activity_id)
@@ -526,6 +560,7 @@ class MySQLRepository(DatabaseRepository):
         if not activity_ids:
             return
 
+        self._ensure_connected()
         logger.debug(f"Deleting {len(activity_ids)} activities from MySQL...")
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['%s'] * len(int_ids))
@@ -540,12 +575,11 @@ class MySQLRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result = {}
-        # Convert to integers for MySQL
         int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor(dictionary=True) as cur:
-            # Use IN clause for list of IDs
             placeholders = ', '.join(['%s'] * len(int_ids))
             cur.execute(f"""
                 SELECT activity_id, lat, lng
@@ -572,6 +606,7 @@ class MySQLRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result: Dict[str, List[List[float]]] = {}
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['%s'] * len(int_ids))
@@ -599,6 +634,7 @@ class MySQLRepository(DatabaseRepository):
         if not activity_ids:
             return None
 
+        self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
         placeholders = ', '.join(['%s'] * len(int_ids))
 
@@ -617,6 +653,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
                         SELECT name
@@ -628,6 +665,7 @@ class MySQLRepository(DatabaseRepository):
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
+        self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
                         INSERT INTO logs (added, removed, trigger_source, success, action, user)
@@ -637,6 +675,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get the latest sync logs."""
+        self._ensure_connected()
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute("""
                         SELECT created_at as timestamp, added, removed, trigger_source, success, action, user
@@ -658,6 +697,7 @@ class MySQLRepository(DatabaseRepository):
         if not activity_ids:
             return {}
 
+        self._ensure_connected()
         result = {}
         int_ids = [int(aid) for aid in activity_ids]
 
@@ -681,6 +721,7 @@ class MySQLRepository(DatabaseRepository):
 
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
+        self._ensure_connected()
         tables = ['activities', 'streams', 'logs']
         counts = {}
         with self.conn.cursor() as cur:
@@ -693,8 +734,9 @@ class MySQLRepository(DatabaseRepository):
                     counts[table] = None
         return counts
 
-    def get_activities_with_suffer_score(self, days: Optional[int] = 14) -> List[Dict[str, Any]]:
+    def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all activities that have a suffer_score > 0, ordered by date."""
+        self._ensure_connected()
         with self.conn.cursor(dictionary=True) as cur:
             if days is not None:
                 start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)

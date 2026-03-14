@@ -17,7 +17,11 @@ class DatabaseRepository(ABC):
 
     @abstractmethod
     def get_latest_activity_time(self) -> Optional[int]:
-        """Get the start timestamp of the activity with the highest ID."""
+        """Get the start timestamp (epoch) of the most recent activity by date.
+
+        Used by fast sync to determine which activities to fetch from Strava.
+        Returns ``None`` when the activities table is empty.
+        """
         pass
 
     @abstractmethod

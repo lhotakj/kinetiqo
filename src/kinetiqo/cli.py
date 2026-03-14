@@ -6,19 +6,19 @@ import sys
 import click
 from kinetiqo.cache import CacheManager
 from kinetiqo.config import Config
-from kinetiqo.db.factory import create_repository
+from kinetiqo.db.factory import create_repository, get_version
 from kinetiqo.sync import SyncService
 
 # -----------------------------
 # LOGGING SETUP
 # -----------------------------
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger("kinetiqo")
-logger.setLevel(logging.INFO) # Changed from DEBUG to INFO
+logger.setLevel(logging.INFO)
 
 # Reduce noise from libraries
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -26,80 +26,30 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 
 def print_version():
-    version = "dev"
-    version_file: str = "version.txt"
-    try:
-        # Look for version.txt in the package root or project root
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        # Check current dir (kinetiqo/)
-        version_path = os.path.join(base_dir, version_file)
-        if not os.path.exists(version_path):
-            # Check parent dir (src/)
-            version_path = os.path.join(os.path.dirname(base_dir), version_file)
-
-        if os.path.exists(version_path):
-            with open(version_path, "r") as vf:
-                version = vf.read().strip()
-    except:
-        pass
-    print(f"Kinetiqo {version}")
+    """Prints the application version."""
+    print(f"Kinetiqo {get_version()}")
 
 
 def validate_config(config):
-    if not config.strava_client_id:
-        logger.error("Environment variable STRAVA_CLIENT_ID is required.")
-        sys.exit(1)
-    if not config.strava_client_secret:
-        logger.error("Environment variable STRAVA_CLIENT_SECRET is required.")
-        sys.exit(1)
-    if not config.strava_refresh_token:
-        logger.error("Environment variable STRAVA_REFRESH_TOKEN is required.")
+    """Ensures all required environment variables are set."""
+    if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
+        logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
         sys.exit(1)
 
-    # Comprehensive config validation
-    if config.database_type == "postgresql":
-        missing = []
-        if not config.postgresql_host:
-            missing.append("POSTGRESQL_HOST")
-        if not config.postgresql_port:
-            missing.append("POSTGRESQL_PORT")
-        if not config.postgresql_user:
-            missing.append("POSTGRESQL_USER")
-        if not config.postgresql_password:
-            missing.append("POSTGRESQL_PASSWORD")
-        if not config.postgresql_database:
-            missing.append("POSTGRESQL_DATABASE")
-        if missing:
-            logger.error(f"Missing required PostgreSQL environment variables: {', '.join(missing)}")
-            sys.exit(1)
-    elif config.database_type == "mysql":
-        missing = []
-        if not config.mysql_host:
-            missing.append("MYSQL_HOST")
-        if not config.mysql_port:
-            missing.append("MYSQL_PORT")
-        if not config.mysql_user:
-            missing.append("MYSQL_USER")
-        if not config.mysql_password:
-            missing.append("MYSQL_PASSWORD")
-        if not config.mysql_database:
-            missing.append("MYSQL_DATABASE")
-        if missing:
-            logger.error(f"Missing required MySQL environment variables: {', '.join(missing)}")
-            sys.exit(1)
-    elif config.database_type == "firebird":
-        missing = []
-        if not config.firebird_host:
-            missing.append("FIREBIRD_HOST")
-        if not config.firebird_user:
-            missing.append("FIREBIRD_USER")
-        if not config.firebird_password:
-            missing.append("FIREBIRD_PASSWORD")
-        if not config.firebird_database:
-            missing.append("FIREBIRD_DATABASE")
-        if missing:
-            logger.error(f"Missing required Firebird environment variables: {', '.join(missing)}")
-            sys.exit(1)
+    db_type = config.database_type
+    if db_type == "postgresql":
+        reqs = ['postgresql_host', 'postgresql_port', 'postgresql_user', 'postgresql_password', 'postgresql_database']
+    elif db_type == "mysql":
+        reqs = ['mysql_host', 'mysql_port', 'mysql_user', 'mysql_password', 'mysql_database']
+    elif db_type == "firebird":
+        reqs = ['firebird_host', 'firebird_port', 'firebird_user', 'firebird_password', 'firebird_database']
+    else:
+        reqs = []
+
+    missing = [f"{db_type.upper()}_{v.split('_')[-1].upper()}" for v in reqs if not getattr(config, v)]
+    if missing:
+        logger.error(f"Missing required {db_type.capitalize()} environment variables: {', '.join(missing)}")
+        sys.exit(1)
 
 
 def parse_period(period_str):
@@ -114,28 +64,19 @@ def parse_period(period_str):
     value = int(match.group(1))
     unit = match.group(2).lower()
 
-    if unit == 'd':
-        return value
-    elif unit == 'w':
-        return value * 7
-    elif unit == 'm':
-        return value * 30
-    elif unit == 'y':
-        return value * 365
-
+    if unit == 'd': return value
+    if unit == 'w': return value * 7
+    if unit == 'm': return value * 30
+    if unit == 'y': return value * 365
     return 0
 
 
 class State:
     """A simple state object to pass config to subcommands."""
-
     def __init__(self):
         self.config = None
 
 
-# -----------------------------
-# CLI
-# -----------------------------
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--database', '-d',
               type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
@@ -145,24 +86,42 @@ class State:
 def cli(ctx, database):
     """Main CLI entry point."""
     ctx.obj = State()
-
     config = Config()
     if database:
         config.database_type = database.lower()
     ctx.obj.config = config
 
-    # Initialize schema for any command that needs the database.
-    # This ensures the DB and tables are ready before the command logic runs.
     if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
         validate_config(config)
+        repo = None
         try:
-            # The first repository creation should log full details.
-            repository = create_repository(config, log_full_details=True)
-            repository.initialize_schema()
-            repository.close()
+            # This is the single point for startup logging.
+            repo = create_repository(config)
+            
+            db_type = config.database_type.capitalize()
+            db_version = "Unknown"
+            host_info = "Unknown"
+
+            if db_type == 'Postgresql':
+                db_version = repo.get_pg_version()
+                host_info = f"{config.postgresql_host}:{config.postgresql_port}"
+            elif db_type == 'Mysql':
+                db_version = repo.get_mysql_version()
+                host_info = f"{config.mysql_host}:{config.mysql_port}"
+            elif db_type == 'Firebird':
+                db_version = repo.get_firebird_version()
+                host_info = f"{config.firebird_host}:{config.firebird_port}"
+
+            logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
+            logger.info(f"DB Version: {db_version}")
+            
+            repo.initialize_schema()
         except Exception as e:
-            logger.error(f"Failed to initialize database: {e}")
+            logger.error(f"Failed to initialize database: {e}", exc_info=True)
             sys.exit(1)
+        finally:
+            if repo:
+                repo.close()
 
 
 @cli.command(help="Show the version and exit")
@@ -178,15 +137,9 @@ def version():
 def web(ctx, port, host):
     """Start the web interface."""
     logger.info(f"Starting web server on {host}:{port}")
-
-    # Import here to avoid circular imports or unnecessary loading.
-    # The web app will create its own repository using the global config.
     from kinetiqo.web.app import app, set_config
-
-    # Pass the config from CLI to the web app
     set_config(ctx.obj.config)
-
-    app.run(debug=True, port=port, host=host, use_reloader=False)
+    app.run(debug=False, port=port, host=host, use_reloader=False)
 
 
 @cli.command(help="Check database availability and schema")
@@ -194,11 +147,11 @@ def web(ctx, port, host):
 def flightcheck(ctx):
     """Perform a health check on the database."""
     logger.info("Performing flight check...")
-
     config = ctx.obj.config
+    repo = None
     try:
-        repository = create_repository(config)
-        if repository.flightcheck():
+        repo = create_repository(config)
+        if repo.flightcheck():
             logger.info("Database is ready.")
             sys.exit(0)
         else:
@@ -207,70 +160,41 @@ def flightcheck(ctx):
     except Exception as e:
         logger.error(f"An error occurred during flight check: {e}")
         sys.exit(1)
+    finally:
+        if repo:
+            repo.close()
 
 
 @cli.command(help="Synchronize activities with database")
-@click.option('--full-sync', '-f',
-              is_flag=True,
-              help='Perform a full sync. Checks all activities and removes deleted ones from database.')
-@click.option('--fast-sync', '-q',
-              is_flag=True,
-              help='Perform a fast sync. Only checks for new activities since the last sync.')
-@click.option('--period', '-p',
-              help="Limit sync scope to a specific period (e.g., '7d', '2w', '1m', '1y'). Only applies to full sync.")
-@click.option('--enable-strava-cache',
-              is_flag=True,
-              help='Enable caching of Strava API responses.')
-@click.option('--cache-ttl',
-              type=int,
-              default=60,
-              help='Cache time-to-live in minutes (default: 60)')
-@click.option('--clear-cache',
-              is_flag=True,
-              help='Clear the cache before syncing.')
+@click.option('--full-sync', '-f', is_flag=True, help='Perform a full sync.')
+@click.option('--fast-sync', '-q', is_flag=True, help='Perform a fast sync.')
+@click.option('--period', '-p', help="Limit sync scope (e.g., '7d', '2w', '1m').")
+@click.option('--enable-strava-cache', is_flag=True, help='Enable caching of Strava API responses.')
+@click.option('--cache-ttl', type=int, default=60, help='Cache TTL in minutes.')
+@click.option('--clear-cache', is_flag=True, help='Clear the cache before syncing.')
 @click.pass_context
 def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache):
-    """
-    Synchronize activities with database.
-    """
-
+    """Synchronize activities with database."""
     if full_sync and fast_sync:
-        click.echo(click.style("Error: Cannot specify both --full-sync and --fast-sync.", fg="red"), err=True)
-        exit(1)
+        raise click.UsageError("Cannot specify both --full-sync and --fast-sync.")
 
-    is_full_sync = True
-    if fast_sync:
-        is_full_sync = False
-    elif full_sync:
-        is_full_sync = True
-    else:
-        logger.warning("No mode specified, defaulting to Full Sync.")
-        is_full_sync = True
+    is_full_sync = not fast_sync
+    if not full_sync and not fast_sync:
+        logger.info("No sync mode specified, defaulting to full sync.")
 
-    limit_days = 0
-    if period:
-        if not is_full_sync:
-            logger.warning("Period limit is ignored for fast sync.")
-        else:
-            limit_days = parse_period(period)
-            logger.info(f"Sync limited to last {limit_days} days.")
+    limit_days = parse_period(period) if period else 0
+    if limit_days and not is_full_sync:
+        logger.warning("Period limit is ignored for fast sync.")
 
     config = ctx.obj.config
-
-    # Config validation is now handled in cli() via validate_config()
-
     config.enable_strava_cache = enable_strava_cache
     config.cache_ttl = cache_ttl
 
-    # Clear cache if requested
     if clear_cache:
-        cache_manager = CacheManager(config)
-        cache_manager.clear()
+        CacheManager(config).clear()
 
     sync_service = SyncService(config)
-
     try:
-        # Consume the generator to execute the sync process
         for _ in sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days):
             pass
     finally:

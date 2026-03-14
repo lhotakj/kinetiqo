@@ -1,11 +1,6 @@
-import logging
 import os
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
-
-logger = logging.getLogger("kinetiqo")
-
-_factory_logged_full_details = False
 
 def get_version():
     """Reads the version from the version.txt file."""
@@ -19,52 +14,16 @@ def get_version():
         pass
     return "dev"
 
-def create_repository(config: Config, log_full_details: bool = False) -> DatabaseRepository:
+def create_repository(config: Config) -> DatabaseRepository:
     """Factory function to create the appropriate database repository."""
-    global _factory_logged_full_details
-    
-    if log_full_details and not _factory_logged_full_details:
-        version = get_version()
-        db_type = config.database_type.capitalize()
-        
-        repo = None
-        try:
-            if config.database_type == "mysql":
-                from kinetiqo.db.mysql import MySQLRepository
-                repo = MySQLRepository(config)
-                db_version = repo.get_mysql_version()
-                host_info = f"{config.mysql_host}:{config.mysql_port}"
-            elif config.database_type == "postgresql":
-                from kinetiqo.db.postgresql import PostgresqlRepository
-                repo = PostgresqlRepository(config)
-                db_version = repo.get_pg_version()
-                host_info = f"{config.postgresql_host}:{config.postgresql_port}"
-            elif config.database_type == "firebird":
-                from kinetiqo.db.firebird import FirebirdRepository
-                repo = FirebirdRepository(config)
-                db_version = repo.get_firebird_version()
-                host_info = f"{config.firebird_host}:{config.firebird_port}"
-            else:
-                raise ValueError(f"Unsupported database type: {config.database_type}")
-
-            logger.info(f"Connected to {db_type} at {host_info} - {db_version}")
-            _factory_logged_full_details = True
-            return repo
-
-        except Exception as e:
-            if repo:
-                repo.close()
-            raise e
+    if config.database_type == "mysql":
+        from kinetiqo.db.mysql import MySQLRepository
+        return MySQLRepository(config)
+    elif config.database_type == "postgresql":
+        from kinetiqo.db.postgresql import PostgresqlRepository
+        return PostgresqlRepository(config)
+    elif config.database_type == "firebird":
+        from kinetiqo.db.firebird import FirebirdRepository
+        return FirebirdRepository(config)
     else:
-        # For subsequent calls, just create the repository without logging details.
-        if config.database_type == "mysql":
-            from kinetiqo.db.mysql import MySQLRepository
-            return MySQLRepository(config)
-        elif config.database_type == "postgresql":
-            from kinetiqo.db.postgresql import PostgresqlRepository
-            return PostgresqlRepository(config)
-        elif config.database_type == "firebird":
-            from kinetiqo.db.firebird import FirebirdRepository
-            return FirebirdRepository(config)
-        else:
-            raise ValueError(f"Unsupported database type: {config.database_type}")
+        raise ValueError(f"Unsupported database type: {config.database_type}")

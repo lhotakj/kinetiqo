@@ -271,19 +271,94 @@ class SchemaManager:
             return 'pg'
 
     def ensure_schema(self):
-        """Ensures the database schema matches the definition."""
+        """Ensures the database schema matches the definition.
+
+        Safe to call on every startup — existing objects are left
+        untouched.  Tables are created/updated first, then all indexes
+        are verified (and created when missing).  A summary line is
+        logged so operators can tell at a glance what happened.
+        """
         logger.info(f"{self.db_type.upper()}: Checking schema consistency...")
 
         for table_name, definition in SCHEMA_DEFINITION.items():
             self._ensure_table(table_name, definition)
 
+        total_checked = 0
+        total_created = 0
+        total_failed = 0
+
         for table_name, definition in SCHEMA_DEFINITION.items():
             if "indexes" in definition:
-                self._ensure_indexes(table_name, definition["indexes"])
+                checked, created, failed = self._ensure_indexes(table_name, definition["indexes"])
+                total_checked += checked
+                total_created += created
+                total_failed += failed
 
-    def _ensure_indexes(self, table_name: str, indexes: list):
-        """Safely create indexes that don't yet exist. Idempotent."""
+        if total_failed:
+            logger.warning(
+                f"{self.db_type.upper()}: Schema check complete — "
+                f"indexes: {total_checked} checked, {total_created} created, {total_failed} FAILED."
+            )
+        else:
+            logger.info(
+                f"{self.db_type.upper()}: Schema check complete — "
+                f"indexes: {total_checked} checked, {total_created} created."
+            )
+
+    def _get_existing_index_names(self, table_name: str) -> set:
+        """Return a set of index names that currently exist on *table_name*.
+
+        Fetching all indexes in a single query is faster and more
+        reliable than one round-trip per index.
+        """
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == 'mysql':
+                cur.execute(
+                    "SELECT DISTINCT index_name FROM information_schema.statistics "
+                    "WHERE table_schema = DATABASE() AND table_name = %s",
+                    (table_name,)
+                )
+            elif self.db_type == 'postgresql':
+                cur.execute(
+                    "SELECT indexname FROM pg_indexes "
+                    "WHERE schemaname = 'public' AND tablename = %s",
+                    (table_name,)
+                )
+            elif self.db_type == 'firebird':
+                # Tables are created with quoted lowercase identifiers
+                # ("activities"), so RDB$RELATION_NAME stores them in
+                # lowercase.  Do NOT uppercase the table name here.
+                cur.execute(
+                    "SELECT TRIM(RDB$INDEX_NAME) FROM RDB$INDICES "
+                    "WHERE TRIM(RDB$RELATION_NAME) = ?",
+                    (table_name,)
+                )
+            else:
+                return set()
+            return {row[0].lower() if self.db_type == 'firebird' else row[0]
+                    for row in cur.fetchall()}
+        except Exception as e:
+            logger.warning(
+                f"{self.db_type.upper()}: Could not list indexes for '{table_name}': {e}"
+            )
+            return set()
+        finally:
+            cur.close()
+
+    def _ensure_indexes(self, table_name: str, indexes: list) -> tuple:
+        """Verify every defined index exists; create any that are missing.
+
+        :return: Tuple of (checked, created, failed) counts.
+        """
         type_suffix = self._get_type_suffix()
+        checked = 0
+        created = 0
+        failed = 0
+
+        # Fetch all existing indexes for this table in a single query
+        existing = self._get_existing_index_names(table_name)
+
         for idx in indexes:
             idx_name = idx["name"]
             idx_def_key = f"def_{type_suffix}"
@@ -292,35 +367,78 @@ class SchemaManager:
                 continue
 
             idx_sql = idx[idx_def_key]
+            checked += 1
 
-            if self._index_exists(idx_name, table_name):
+            # For Firebird the catalog stores names in uppercase
+            lookup_name = idx_name.lower() if self.db_type == 'firebird' else idx_name
+
+            if lookup_name in existing:
+                logger.debug(
+                    f"{self.db_type.upper()}: Index '{idx_name}' on '{table_name}' — OK."
+                )
                 continue
 
-            cur = self.conn.cursor()
+            logger.info(
+                f"{self.db_type.upper()}: Index '{idx_name}' missing on '{table_name}', creating..."
+            )
+
+            if self._create_index(idx_name, idx_sql, table_name):
+                created += 1
+            else:
+                failed += 1
+
+        return checked, created, failed
+
+    def _create_index(self, idx_name: str, idx_sql: str, table_name: str) -> bool:
+        """Create a single index.  Returns *True* on success."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == 'postgresql':
+                safe_sql = idx_sql.replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ", 1)
+                safe_sql = safe_sql.replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ", 1)
+            else:
+                safe_sql = idx_sql
+
+            cur.execute(safe_sql)
+            self.conn.commit()
+
+            # Verify the index is now visible in the catalog
+            verify = self._get_existing_index_names(table_name)
+            lookup_name = idx_name.lower() if self.db_type == 'firebird' else idx_name
+
+            if lookup_name in verify:
+                logger.info(
+                    f"{self.db_type.upper()}: Index '{idx_name}' on '{table_name}' created successfully."
+                )
+                return True
+            else:
+                logger.error(
+                    f"{self.db_type.upper()}: CREATE INDEX for '{idx_name}' on '{table_name}' "
+                    f"did not raise an error but the index is not visible in the catalog."
+                )
+                return False
+
+        except Exception as e:
             try:
-                if self.db_type == 'postgresql':
-                    safe_sql = idx_sql.replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ", 1)
-                    safe_sql = safe_sql.replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ", 1)
-                else:
-                    safe_sql = idx_sql
-                cur.execute(safe_sql)
-                self.conn.commit()
-                logger.info(f"{self.db_type.upper()}: Created index '{idx_name}' on '{table_name}'.")
-            except Exception as e:
-                try:
-                    self.conn.rollback()
-                except Exception:
-                    pass
-                error_str = str(e).lower()
-                if 'already exists' in error_str or 'duplicate' in error_str:
-                    logger.debug(f"{self.db_type.upper()}: Index '{idx_name}' already exists on '{table_name}'.")
-                else:
-                    logger.warning(f"{self.db_type.upper()}: Could not create index '{idx_name}' on '{table_name}': {e}")
-            finally:
-                cur.close()
+                self.conn.rollback()
+            except Exception:
+                pass
+            error_str = str(e).lower()
+            if 'already exists' in error_str or 'duplicate' in error_str:
+                logger.debug(
+                    f"{self.db_type.upper()}: Index '{idx_name}' already exists on '{table_name}'."
+                )
+                return True
+            else:
+                logger.error(
+                    f"{self.db_type.upper()}: Failed to create index '{idx_name}' on '{table_name}': {e}"
+                )
+                return False
+        finally:
+            cur.close()
 
     def _index_exists(self, index_name: str, table_name: str) -> bool:
-        """Check whether an index already exists in the database."""
+        """Check whether a single index already exists in the database."""
         cur = self.conn.cursor()
         try:
             if self.db_type == 'mysql':
@@ -331,7 +449,8 @@ class SchemaManager:
                 )
             elif self.db_type == 'postgresql':
                 cur.execute(
-                    "SELECT COUNT(*) FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                    "SELECT COUNT(*) FROM pg_indexes "
+                    "WHERE schemaname = 'public' AND tablename = %s AND indexname = %s",
                     (table_name, index_name)
                 )
             elif self.db_type == 'firebird':
@@ -373,7 +492,12 @@ class SchemaManager:
                 cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE TRIM(RDB$RELATION_NAME) = ?",
                             (table_name,))
             else:
-                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_name = %s", (table_name,))
+                # Filter by public schema to avoid false positives from
+                # pg_catalog or information_schema tables with the same name.
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name = %s",
+                    (table_name,))
             return cur.fetchone() is not None
         finally:
             cur.close()
@@ -492,7 +616,10 @@ class SchemaManager:
                             (table_name,))
                 return {row[0].lower() for row in cur.fetchall()}
             else:
-                cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'")
+                cur.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = %s",
+                    (table_name,))
                 return {row[0] for row in cur.fetchall()}
         finally:
             cur.close()
