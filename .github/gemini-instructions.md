@@ -11,11 +11,20 @@ The web UI includes:
 - A **Power Skills** spider chart analyzing best average power over various durations.
 - HTMX-powered reactivity for features like real-time sync progress via SSE.
 
-## 2. Key Technologies & Versions
+## 2. Testing Philosophy: Mocked Unit Tests First
+
+**This is a critical instruction.** The default testing strategy for this project is **fast, isolated unit tests**. All external dependencies, especially the database and the Strava API, **must be mocked**.
+
+- **When asked to create tests, always provide mocked unit tests by default.** Do not create integration tests that require a live database unless specifically requested.
+- **Use `unittest.mock.patch`** to intercept calls to external services. The primary targets for patching are `kinetiqo.sync.create_repository`, `kinetiqo.cli.create_repository`, and `kinetiqo.sync.StravaClient`.
+- **Canonical Example:** The file `tests/test_sync_logic.py` is the gold standard for how tests should be written in this project. Follow its structure (class-level patches, `subTest` for matrix tests) precisely.
+
+## 3. Key Technologies & Versions
 
 | Concern | Technology | Notes |
 |---|---|---|
 | Language | **Python 3.13** | Dockerised on `python:3.13-alpine` |
+| Testing | **unittest** + **unittest.mock** | Core testing framework |
 | Web framework | **Flask 3.1** + **flask-login 0.6** | Jinja2 templates, Gunicorn in production |
 | Frontend | **Tailwind CSS** (CDN), **HTMX 1.9** (SSE), **DataTables 2.x**, **Select2**, **Chart.js 3.x** | No build step; all loaded from CDN |
 | Charting | **Chart.js 3.x** + **chartjs-adapter-moment** | Client-side rendering for Fitness & Power Skills |
@@ -23,123 +32,61 @@ The web UI includes:
 | Database drivers | **psycopg2-binary 2.9**, **mysql-connector-python 9.6**, **firebird-driver 2.0** | Raw SQL — no ORM |
 | HTTP client | **requests 2.32** | For Strava API calls |
 | Data processing | **pandas 3.0** | Used for Fitness (CTL/ATL) calculations |
-| Date handling | **moment.js** (frontend), **python-dateutil** (backend) |
-| WSGI server | **gunicorn 25.1** | Production only (Docker) |
-| Container | **Docker** (multi-stage Alpine build) + **dcron** for scheduled syncs |
 
-## 3. Project Structure
+## 4. Project Structure
 
 ```
 src/
-├── kinetiqo.py             # CLI entry point (calls kinetiqo.cli:cli)
+├── kinetiqo.py             # CLI entry point
 └── kinetiqo/               # Core application package
-    ├── __init__.py
-    ├── cli.py               # Click CLI: version, web, sync, flightcheck commands
-    ├── config.py            # @dataclass Config — all env-var-driven settings
-    ├── strava.py            # StravaClient — token refresh, activities, streams
-    ├── sync.py              # SyncService — orchestrates Strava→DB sync
-    ├── cache.py             # CacheManager — file-based JSON cache
+    ├── cli.py               # Click CLI commands
+    ├── config.py            # Config dataclass (reads env vars)
+    ├── sync.py              # SyncService (core sync logic)
     ├── db/
-    │   ├── repository.py    # DatabaseRepository ABC — defines the contract
-    │   ├── factory.py       # create_repository() — factory for DB backends
-    │   ├── schema.py        # SchemaManager + SCHEMA_DEFINITION dict
-    │   ├── postgresql.py    # PostgresqlRepository
-    │   ├── mysql.py         # MySQLRepository
-    │   └── firebird.py      # FirebirdRepository
+    │   ├── repository.py    # DatabaseRepository ABC
+    │   ├── factory.py       # create_repository() factory
+    │   ├── schema.py        # DDL schema definition
+    │   ├── postgresql.py, mysql.py, firebird.py # Implementations
     └── web/
-        ├── app.py           # Main Flask app — routes, SSE sync, API endpoints
-        ├── auth.py          # Simple user/password auth
-        ├── fitness.py       # Data calculation logic for the Fitness & Freshness chart
-        ├── static/          # Static assets (CSS, JS)
-        └── templates/       # Jinja2: base.html, activities.html, fitness.html, powerskills.html, etc.
-build/
-├── Dockerfile
-└── entrypoint.sh
+        ├── app.py           # Flask app, routes, API endpoints
+        ├── fitness.py       # Logic for Fitness chart
+        └── templates/       # Jinja2 templates
+tests/
+└── test_sync_logic.py      # Canonical example for mocked unit tests
 ```
 
-## 4. Architecture & Design Patterns
+## 5. Architecture & Design Patterns
 
-### 4.1 Repository Pattern (Database)
-- **`DatabaseRepository`** (ABC in `db/repository.py`) defines the contract for all database operations.
-- Three concrete implementations exist for PostgreSQL, MySQL, and Firebird.
-- The **`create_repository()`** factory in `db/factory.py` is the single entry point for creating a database connection. It instantiates the correct repository based on `config.database_type`.
-- All SQL is **raw** (no ORM). Use parameterised queries (`%s` for psycopg2/mysql, `?` for Firebird).
+### 5.1 Repository Pattern (Database)
+- **`DatabaseRepository`** (ABC in `db/repository.py`) defines the contract.
+- The **`create_repository()`** factory in `db/factory.py` is the single entry point for creating a database object. **This is the primary function to mock in tests.**
 
-### 4.2 Web Layer & Data Visualization
+### 5.2 Web Layer & Data Visualization
 - The Flask app in `kinetiqo/web/app.py` defines all routes.
-- Data-heavy pages follow a pattern:
-  1. A route (e.g., `/fitness`) renders a template shell (`fitness.html`).
-  2. The template contains JavaScript that calls a dedicated API endpoint (e.g., `/api/fitness_data`).
-  3. The API endpoint fetches data from the database via the repository and returns it as JSON.
-  4. The JavaScript then uses a client-side library like **Chart.js** to render the visualization.
-- **Fitness Page (`/fitness`):**
-  - Logic is in `kinetiqo/web/fitness.py`.
-  - `calculate_fitness_freshness()` uses `pandas` to calculate Chronic Training Load (CTL), Acute Training Load (ATL), and Training Stress Balance (TSB) from `suffer_score`.
-- **Power Skills Page (`/powerskills`):**
-  - Logic is in the `/powerskills` route in `kinetiqo/web/app.py`.
-  - It calculates the best average power for various durations by fetching `watts` streams and processing them in Python.
+- Data-heavy pages render a template shell, which then calls a JSON API endpoint (e.g., `/api/fitness_data`) to load data for client-side rendering with Chart.js.
 
-### 4.3 Sync Pipeline (Generator / SSE)
-- `SyncService.sync()` is a **generator** that yields HTML-formatted SSE messages for real-time progress updates in the web UI.
-- The web route `/sync/start/<type>` streams these yields as `text/event-stream` for HTMX to consume.
+### 5.3 Logging
+- Use `logging.getLogger("kinetiqo")`.
+- The main `cli.py` script handles the initial, one-time logging of database connection details. The repositories themselves should be silent.
 
-### 4.4 Configuration
-- `Config` is a **`@dataclass`** in `config.py` that reads all settings from **environment variables**.
-- Key env vars: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`, `DATABASE_TYPE`, and DB-specific connection details (`POSTGRESQL_HOST`, etc.).
+## 6. Common Tasks & How-To
 
-### 4.5 Database Tables
-- **`activities`**: Metadata for each activity (name, distance, time, power, etc.). Primary key: `activity_id`.
-- **`streams`**: Time-series data for activities (lat/lng, altitude, watts, etc.).
-- **`logs`**: Audit trail for sync operations.
-
-## 5. Coding Conventions
-
-### Logging
-- Use `logging.getLogger("kinetiqo")`. The default level is `INFO`.
-- **Log-Once Pattern:** The database factory (`db/factory.py`) is responsible for logging connection details. It logs a comprehensive "Connected to..." message with version info only on the *first* call. Subsequent creations of the repository are silent to avoid cluttering logs during web requests.
-- Use `INFO` for key lifecycle events (startup, sync completion) and `ERROR` for failures. `DEBUG` is available for verbose troubleshooting but is off by default.
-
-### Imports & Style
-- **PEP 8** compliance, with type hints on function signatures.
-- Use **relative imports** within the `kinetiqo` package (e.g., `from .config import Config`).
-- Use **absolute imports** in top-level scripts like `cli.py` (e.g., `from kinetiqo.config import Config`).
-
-### Database Code
-- **Always update all three backends.** A change to `DatabaseRepository` must be implemented in `postgresql.py`, `mysql.py`, and `firebird.py`.
-- **Always use parameterised queries** to prevent SQL injection.
-- Schema changes go into `db/schema.py`.
-
-## 6. How to Run
-
-```bash
-# Set required environment variables (Strava + database)
-export STRAVA_CLIENT_ID=...
-export DATABASE_TYPE=postgresql
-export POSTGRESQL_HOST=...
-
-# Run the web UI (from src/ directory)
-python kinetiqo.py web
-```
-
-## 7. Common Tasks & How-To
-
-### Add a new database-backed web page
-1.  **Define the route** in `kinetiqo/web/app.py`. Have it render a new Jinja2 template.
-2.  **Create the template** in `kinetiqo/web/templates/`. Extend `base.html`.
-3.  **Add a data API endpoint** (e.g., `/api/my_new_data`) in `app.py` that fetches data from the database using the `db_repo` object and returns JSON.
-4.  In the template's JavaScript, use `fetch()` to call your new API endpoint and render the data (e.g., using Chart.js).
+### Add a new feature with a web UI
+1.  **Create the data logic** in a new file (e.g., `kinetiqo/web/my_feature.py`).
+2.  **Define the route** in `kinetiqo/web/app.py` to render the template.
+3.  **Add a JSON API endpoint** in `app.py` to provide data for the UI.
+4.  **Create the template** in `kinetiqo/web/templates/`.
+5.  **Write a mocked unit test** for the new logic. Create a new test file in `tests/` that mocks the database and any other external services, following the pattern in `tests/test_sync_logic.py`.
 
 ### Add a new database query
 1.  Add the new method as an `@abstractmethod` in `db/repository.py`.
-2.  Implement the method in all three concrete repositories (`postgresql.py`, `mysql.py`, `firebird.py`), writing the appropriate raw SQL for each dialect.
-3.  Call the new method from your application logic (e.g., from a web route or the sync service).
+2.  Implement the method in all three concrete repositories (`postgresql.py`, `mysql.py`, `firebird.py`).
+3.  **Write a mocked unit test** that verifies the application logic correctly calls your new repository method with the expected arguments.
 
-## 8. Gemini-Specific Behaviour
+## 7. Gemini-Specific Behaviour
 
-When assisting with this project:
-
-- **Mirror existing patterns.** For a new web page, look at `/fitness` and `fitness.py`. For a new DB query, look at existing methods in the repositories.
-- **Always update all three database backends** when changing the database interface.
+- **When asked to create tests, always provide mocked unit tests by default.** Follow the structure in `tests/test_sync_logic.py`.
+- **Always update all three database backends** when changing the `DatabaseRepository` interface.
 - **Use raw, parameterised SQL.** Do not introduce an ORM.
 - **Use `logging.getLogger("kinetiqo")`** for all operational output.
 - **Follow the established import and type-hinting style.**
