@@ -10,6 +10,7 @@ The web UI includes:
 - A **Fitness & Freshness** chart (CTL/ATL/TSB) based on suffer score.
 - A **Power Skills** spider chart analyzing best average power over various durations.
 - HTMX-powered reactivity for features like real-time sync progress via SSE.
+- An asynchronous, cached check for new application versions against GitHub releases.
 
 ## 2. Testing Philosophy: Mocked Unit Tests First
 
@@ -25,13 +26,15 @@ The web UI includes:
 |---|---|---|
 | Language | **Python 3.13** | Dockerised on `python:3.13-alpine` |
 | Testing | **unittest** + **unittest.mock** | Core testing framework |
-| Web framework | **Flask 3.1** + **flask-login 0.6** | Jinja2 templates, Gunicorn in production |
+| Web framework | **Flask[async] 3.1** + **flask-login 0.6** | Jinja2 templates, Gunicorn in production |
 | Frontend | **Tailwind CSS** (CDN), **HTMX 1.9** (SSE), **DataTables 2.x**, **Select2**, **Chart.js 3.x** | No build step; all loaded from CDN |
 | Charting | **Chart.js 3.x** + **chartjs-adapter-moment** | Client-side rendering for Fitness & Power Skills |
 | CLI | **Click 8.3** | Entry point: `python src/kinetiqo.py <command>` |
 | Database drivers | **psycopg2-binary 2.9**, **mysql-connector-python 9.6**, **firebird-driver 2.0** | Raw SQL — no ORM |
-| HTTP client | **requests 2.32** | For Strava API calls |
+| HTTP client | **httpx 0.27** | For async Strava & GitHub API calls |
 | Data processing | **pandas 3.0** | Used for Fitness (CTL/ATL) calculations |
+| Versioning | **packaging 24.1** | For SemVer comparisons |
+| Logging | **loguru 0.7** | For application logging |
 
 ## 4. Project Structure
 
@@ -42,6 +45,7 @@ src/
     ├── cli.py               # Click CLI commands
     ├── config.py            # Config dataclass (reads env vars)
     ├── sync.py              # SyncService (core sync logic)
+    ├── version_check.py     # New version check logic
     ├── db/
     │   ├── repository.py    # DatabaseRepository ABC
     │   ├── factory.py       # create_repository() factory
@@ -62,19 +66,18 @@ tests/
 - The **`create_repository()`** factory in `db/factory.py` is the single entry point for creating a database object. **This is the primary function to mock in tests.**
 
 ### 5.2 Web Layer & Data Visualization
-- The Flask app in `kinetiqo/web/app.py` defines all routes.
+- The Flask app in `kinetiqo/web/app.py` defines all routes. It supports `async` views.
 - Data-heavy pages render a template shell, which then calls a JSON API endpoint (e.g., `/api/fitness_data`) to load data for client-side rendering with Chart.js.
 
 ### 5.3 Logging
-- Use `logging.getLogger("kinetiqo")`.
-- The main `cli.py` script handles the initial, one-time logging of database connection details. The repositories themselves should be silent.
+- Use `loguru.logger` for all new logging. The project is migrating from the standard `logging` module.
 
 ## 6. Common Tasks & How-To
 
 ### Add a new feature with a web UI
 1.  **Create the data logic** in a new file (e.g., `kinetiqo/web/my_feature.py`).
-2.  **Define the route** in `kinetiqo/web/app.py` to render the template.
-3.  **Add a JSON API endpoint** in `app.py` to provide data for the UI.
+2.  **Define the route** in `kinetiqo/web/app.py` to render the template. Use `async def` for new routes.
+3.  **Add a JSON API endpoint** in `app.py` to provide data for the UI. Use `async def`.
 4.  **Create the template** in `kinetiqo/web/templates/`.
 5.  **Write a mocked unit test** for the new logic. Create a new test file in `tests/` that mocks the database and any other external services, following the pattern in `tests/test_sync_logic.py`.
 
@@ -85,9 +88,12 @@ tests/
 
 ## 7. Copilot-Specific Behaviour
 
+- **Provide complete, runnable code snippets.** When editing a file, show the full file content, not just the changed lines.
+- **Focus on one file at a time.** Do not attempt to make changes to multiple files in a single response.
 - **When asked to create tests, always provide mocked unit tests by default.** Follow the structure in `tests/test_sync_logic.py`.
-- **Always update all three database backends** when changing the `DatabaseRepository` interface.
+- **Always update all three database backends** when changing the `DatabaseRepository` interface, but do so in separate, sequential steps.
+- **Use the `packaging.version.parse()` function** for any semantic version comparisons.
 - **Use raw, parameterised SQL.** Do not introduce an ORM.
-- **Use `logging.getLogger("kinetiqo")`** for all operational output.
+- **Use `loguru.logger`** for all operational output.
 - **Follow the established import and type-hinting style.**
 - **New configuration should be added as an environment variable** in the `Config` dataclass.
