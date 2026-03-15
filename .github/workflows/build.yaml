@@ -2,6 +2,15 @@ name: Build and publish Docker image to DockerHub
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Push the Docker image to DockerHub'
+        type: boolean
+        default: true
+      create_release:
+        description: 'Create a GitHub Release'
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -14,32 +23,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -----------------------------------------------------------------------
+      # Determine build flags once so every subsequent step can reference them
+      # cleanly.  Handles both workflow_dispatch and commit-message triggers.
+      # -----------------------------------------------------------------------
+      - name: Determine build flags
+        id: flags
+        run: |
+          EVENT="${{ github.event_name }}"
+          MSG="${{ github.event.head_commit.message }}"
+
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            PROCEED=true
+            PUBLISH="${{ inputs.publish }}"
+            RELEASE="${{ inputs.create_release }}"
+          else
+            # push to main: driven by commit message keywords
+            if echo "$MSG" | grep -qE '/(release|publish)'; then
+              PROCEED=true
+            else
+              PROCEED=false
+            fi
+            echo "$MSG" | grep -q '/publish' && PUBLISH=true || PUBLISH=false
+            echo "$MSG" | grep -q '/release' && RELEASE=true  || RELEASE=false
+          fi
+
+          echo "proceed=$PROCEED"  >> $GITHUB_OUTPUT
+          echo "publish=$PUBLISH"  >> $GITHUB_OUTPUT
+          echo "release=$RELEASE"  >> $GITHUB_OUTPUT
+
       - name: Checkout code
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
-        uses: actions/checkout@v6.0.2
+        if: steps.flags.outputs.proceed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (required for linux/arm64 cross-compilation)
+        if: steps.flags.outputs.proceed == 'true'
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+        if: steps.flags.outputs.proceed == 'true'
         uses: docker/setup-buildx-action@v3.12.0
 
       - name: Log in to Docker Hub
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+        if: steps.flags.outputs.proceed == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # The build script pulls lhotakj/firebird-python:3.13 from DockerHub as
+      # its base image (no Firebird compilation here — that lives in the
+      # separate "Build Firebird Python Base Image" workflow).
       - name: Build Docker image
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+        if: steps.flags.outputs.proceed == 'true'
         run: |
           chmod +x build/build.sh
           cd build
-          if [[ "${{ contains(github.event.head_commit.message, '/publish') }}" == "true" ]]; then
+          if [[ "${{ steps.flags.outputs.publish }}" == "true" ]]; then
             ./build.sh --push
+          else
+            ./build.sh
           fi
 
       - name: Get versions from build
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+        if: steps.flags.outputs.proceed == 'true'
         id: get_version
         run: |
           VERSION=$(cat ./src/version.txt)
@@ -48,7 +95,7 @@ jobs:
           echo "short_version=$SHORT_VERSION" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
-        if: contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')
+        if: steps.flags.outputs.proceed == 'true'
         id: changelog
         uses: actions/github-script@v7
         env:
@@ -84,7 +131,7 @@ jobs:
               .map(c => `- ${c.commit.message.split('\n')[0]}`)
               .join('\n');
 
-            const isPublish = context.payload.head_commit && context.payload.head_commit.message.includes('/publish');
+            const isPublish = '${{ steps.flags.outputs.publish }}' === 'true';
             const version = process.env.VERSION || '';
             const dockerLink = isPublish && version
               ? `\n\n[View Docker image on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${version})`
@@ -94,18 +141,17 @@ jobs:
 
             require('fs').writeFileSync('CHANGELOG.md', fullChangelog);
 
-            // Write multiline output for changelog
             require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `changelog<<EOF\n${fullChangelog}\nEOF\n`);
 
       - name: Upload changelog as artifact
-        if: (contains(github.event.head_commit.message, '/release') || contains(github.event.head_commit.message, '/publish')) && (steps.changelog.outputs.result != '')
+        if: steps.flags.outputs.proceed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: changelog
           path: CHANGELOG.md
 
-      - name: Create GitHub Release (on /release)
-        if: contains(github.event.head_commit.message, '/release')
+      - name: Create GitHub Release
+        if: steps.flags.outputs.release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
@@ -114,8 +160,17 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Add DockerHub link to build summary
-        if: contains(github.event.head_commit.message, '/release') && contains(github.event.head_commit.message, '/publish')
+      - name: Add build summary
+        if: steps.flags.outputs.proceed == 'true'
         run: |
-          echo "### Docker image published" >> $GITHUB_STEP_SUMMARY
-          echo "[View Docker image on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${{ steps.get_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Build complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.get_version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Published | \`${{ steps.flags.outputs.publish }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release created | \`${{ steps.flags.outputs.release }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.flags.outputs.publish }}" == "true" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "[View on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${{ steps.get_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          fi

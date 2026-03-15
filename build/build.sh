@@ -1,4 +1,17 @@
 #!/bin/sh
+# build.sh — Build and (optionally) push the Kinetiqo application image.
+#
+# This script builds the APPLICATION image only. It relies on the pre-built
+# lhotakj/firebird-python base image which already contains the compiled
+# Firebird 5.x client library (~40-minute compilation step is NOT run here).
+#
+# To rebuild the base image (needed only when upgrading Python or Firebird):
+#   ./build-base.sh              # locally
+#   GitHub Actions → "Build Firebird Python Base Image" (manual trigger)
+#
+# Usage:
+#   ./build.sh           # build locally for linux/amd64
+#   ./build.sh --push    # build for amd64+arm64 and push to DockerHub
 
 # Logging functions
 info() {
@@ -33,9 +46,10 @@ do
 done
 
 (
-cd ../src
+cd ../src || exit 1
 info "Reading version ..."
-export VERSION=$(cat ./version.template)
+VERSION=$(cat ./version.template)
+export VERSION
 
 if [ -n "$GITHUB_RUN_NUMBER" ]; then
   info "Using GITHUB_RUN_NUMBER value $GITHUB_RUN_NUMBER"
@@ -55,6 +69,7 @@ if [ -n "$PUSH_FLAG" ]; then
     docker buildx build \
       --platform linux/amd64,linux/arm64 \
       --no-cache \
+      --pull=true \
       --build-arg VERSION=${SHORT_VERSION} \
       -t ${DOCKER_USERNAME}/kinetiqo:latest \
       -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
@@ -63,11 +78,24 @@ if [ -n "$PUSH_FLAG" ]; then
       --push \
       ..
 else
+    # On CI (GITHUB_ACTIONS=true) pull the base image from DockerHub even in
+    # the non-push path (fresh runner has no local image cache).
+    # Locally, use --pull=false so Docker uses the image loaded by build-base.sh
+    # instead of hitting DockerHub before you have published the base image.
+    if [ -n "$GITHUB_ACTIONS" ]; then
+      PULL_FLAG="--pull=true"
+      info "CI environment detected — base image will be pulled from DockerHub."
+    else
+      PULL_FLAG="--pull=false"
+      info "Using locally cached base image (lhotakj/firebird-python:3.13) — run build-base.sh first if missing."
+    fi
+
     info "Building locally version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 ..."
     docker buildx build \
       --platform linux/amd64 \
       --load \
       --no-cache \
+      ${PULL_FLAG} \
       --build-arg VERSION=${SHORT_VERSION} \
       -t ${DOCKER_USERNAME}/kinetiqo:latest \
       -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \

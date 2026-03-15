@@ -17,6 +17,10 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
   - [Web Interface](#web-interface)
+- [Building Docker Images](#building-docker-images)
+  - [Architecture: Two-Phase Build](#architecture-two-phase-build)
+  - [Local Build](#local-build)
+  - [CI/CD Workflows](#cicd-workflows)
 - [Deployment](#deployment)
   - [Docker Run](#docker-run)
   - [Docker Compose](#docker-compose)
@@ -47,10 +51,10 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 
 ### Dependencies
 
-- Python 3.12+
+- Python 3.13+
 - A running instance of PostgreSQL, MySQL/MariaDB, or Firebird.
 - Python package dependencies as listed in `requirements.txt`.
-- For Firebird, you need to install the Firebird client library.
+- For Firebird, the client library is compiled from source inside the Docker base image (see [Building Docker Images](#building-docker-images)). For local (non-Docker) development on Ubuntu, install `libfbclient2`.
 
 ### Local Setup
 
@@ -285,6 +289,91 @@ python kinetiqo.py web
 # Start server on custom port with specific database backend
 python kinetiqo.py --database mysql web --port 8000
 ```
+
+## Building Docker Images
+
+### Architecture: Two-Phase Build
+
+The Docker build is split into **two independent phases** to keep day-to-day builds fast. Compiling the Firebird 5.x client library from source takes ~40 minutes on CI, so it is isolated into a dedicated **base image** that rarely needs rebuilding.
+
+```
+Phase 1 (rare)                          Phase 2 (every release)
+┌──────────────────────────┐            ┌──────────────────────────┐
+│  Dockerfile.firebird-base│            │  Dockerfile              │
+│                          │            │                          │
+│  python:3.13-alpine      │            │  python:3.13-alpine      │ ← pip install only
+│    + compile Firebird    │            │    (builder stage)       │
+│    + runtime libs        │            │                          │
+│           ↓              │            │  lhotakj/firebird-python │ ← FROM base image
+│  lhotakj/firebird-python │ ──────────│    + pip packages        │
+│         :3.13            │  used as   │    + app source          │
+└──────────────────────────┘  base      │           ↓              │
+                                        │  lhotakj/kinetiqo:x.y.z │
+                                        └──────────────────────────┘
+```
+
+| Phase | Image | Dockerfile | Rebuild when… |
+|---|---|---|---|
+| 1 — Base | `lhotakj/firebird-python:3.13` | `build/Dockerfile.firebird-base` | Python or Firebird version changes |
+| 2 — App | `lhotakj/kinetiqo:x.y.z` | `build/Dockerfile` | Application code or dependencies change |
+
+### Local Build
+
+Both phases can be run entirely locally without pushing anything to Docker Hub.
+
+```bash
+# Phase 1 — build the base image (~40 min, one-time)
+cd build
+./build-base.sh
+
+# Phase 2 — build the application image (~2 min)
+./build.sh
+```
+
+`build-base.sh` compiles the Firebird client and loads `lhotakj/firebird-python:3.13` into your local Docker daemon. `build.sh` then uses that local image as its `FROM` target (with `--pull=false` to prevent Docker from reaching out to Docker Hub).
+
+You only need to re-run `build-base.sh` when you change the Python or Firebird version. For day-to-day code changes, `./build.sh` alone is sufficient.
+
+Both scripts accept the `--push` flag to publish to Docker Hub instead:
+
+| Script | Without `--push` | With `--push` |
+|---|---|---|
+| `build-base.sh` | Builds for `linux/amd64`, loads locally | Builds for `linux/amd64` + `linux/arm64`, pushes to DockerHub |
+| `build.sh` | Builds for `linux/amd64`, loads locally | Builds for `linux/amd64` + `linux/arm64`, pushes to DockerHub |
+
+`build-base.sh` also accepts `--python <version>` and `--firebird <version>` to override the defaults (`3.13` and `5.0.3`).
+
+### CI/CD Workflows
+
+Two GitHub Actions workflows mirror the two-phase build:
+
+| Workflow | File | Trigger | Purpose |
+|---|---|---|---|
+| **Build Firebird Python Base Image** | `.github/workflows/build-base-image.yaml` | Manual (`workflow_dispatch`) | Compiles Firebird, pushes `lhotakj/firebird-python` to DockerHub |
+| **Build and publish Docker image** | `.github/workflows/build.yaml` | Manual or push to `main` with `/publish` or `/release` in commit message | Builds the app image, optionally pushes to DockerHub and creates a GitHub Release |
+
+#### Build Firebird Python Base Image
+
+Triggered **manually only** from the GitHub Actions UI. Inputs:
+
+| Input | Default | Description |
+|---|---|---|
+| `python_version` | `3.13` | Python version for the base Alpine image |
+| `firebird_version` | `5.0.3` | Firebird version to compile from source |
+| `platforms` | `linux/amd64,linux/arm64` | Target architectures |
+
+Pushes two tags to DockerHub:
+- `lhotakj/firebird-python:3.13`
+- `lhotakj/firebird-python:3.13-firebird5.0.3`
+
+#### Build and publish Docker image
+
+Triggered **manually** (with `publish` and `create_release` boolean inputs) or automatically on push to `main` when the commit message contains `/publish` and/or `/release`.
+
+| Commit commands | Effect |
+|---|---|
+| `/publish` | Build and push the Docker image to DockerHub |
+| `/release` | Create a GitHub Release with an auto-generated changelog |
 
 ## Deployment
 

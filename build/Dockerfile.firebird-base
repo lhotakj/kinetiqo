@@ -1,0 +1,90 @@
+# =============================================================================
+# Firebird Python Base Image
+# =============================================================================
+# Builds a minimal Python Alpine image with the Firebird 5.x client library
+# pre-compiled and installed. This image is intended to be used as the base
+# for the Kinetiqo application image so that the ~40-minute Firebird
+# compilation step does not block every application build.
+#
+# Published to Docker Hub as: lhotakj/firebird-python:<python_version>
+# Example: lhotakj/firebird-python:3.13
+# =============================================================================
+
+ARG PYTHON_VERSION=3.13
+ARG FIREBIRD_VERSION=5.0.3
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder — compile Firebird client-only from source
+# -----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-alpine AS builder
+
+ARG FIREBIRD_VERSION
+
+# Build toolchain + Firebird build-time dependencies
+RUN apk add --no-cache \
+        build-base \
+        icu-dev \
+        zlib-dev \
+        wget \
+        tar \
+        autoconf \
+        automake \
+        libtool \
+        pkgconf \
+        libtommath-dev \
+        ncurses-dev
+
+# Download, configure and compile the Firebird client library.
+# Notes:
+#   --disable-server      → we only need the client shared library
+#   --enable-client-only  → skip all server-side components
+#   --with-builtin-tomcrypt → bundle cryptography, no external dep needed
+#   sed removes the -p flag from generated makefiles which is incompatible
+#   with Alpine's musl libc on ARM64.
+# The compiled .so files are collected into /firebird-lib for easy COPY
+# into the final stage.
+RUN mkdir -p /firebird-lib \
+    && wget -q "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz" \
+    && tar xzf "v${FIREBIRD_VERSION}.tar.gz" \
+    && cd "firebird-${FIREBIRD_VERSION}" \
+    && chmod +x ./autogen.sh \
+    && ./autogen.sh --with-builtin-tomcrypt \
+    && ./configure \
+           --disable-server \
+           --enable-client-only \
+           --with-builtin-tomcrypt \
+    && sed -i 's/ -p / /g' gen/make.platform \
+    && make -j"$(nproc)" \
+    && cp ./gen/Release/firebird/lib/* /firebird-lib/
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime — minimal Python Alpine + Firebird client only
+# -----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-alpine
+
+ARG PYTHON_VERSION
+ARG FIREBIRD_VERSION
+
+LABEL maintainer="jarda@lhotak.net" \
+      description="Python ${PYTHON_VERSION} Alpine base image with Firebird ${FIREBIRD_VERSION} client library" \
+      org.opencontainers.image.source="https://github.com/lhotakj/kinetiqo"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/lib \
+    FIREBIRD_LIB=/usr/local/lib/libfbclient.so
+
+# Runtime-only system libraries required by the Firebird client and psycopg2
+RUN apk add --no-cache \
+        libtommath \
+        libgcc \
+        libpq
+
+# Copy the compiled Firebird client shared library from the builder stage
+COPY --from=builder /firebird-lib/ /usr/local/lib/
+
+# Sanity check — fails the build if the library is missing
+RUN ls -la /usr/local/lib/libfbclient.so* \
+    && echo "Firebird client library installed successfully."
+
+
