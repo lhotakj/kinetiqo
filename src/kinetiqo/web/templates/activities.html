@@ -549,14 +549,42 @@ var table = null;
         let selectedActivities = new Set();
 
         // 1. Load Filters immediately
+        // Dynamic presets whose date range must be recalculated on every page
+        // load so that "This Year" always means Jan 1 → today, not the stale
+        // date stored in localStorage the last time the preset was chosen.
+        var DYNAMIC_PRESETS = {
+            'Today':          function () { return { s: moment(),                                        e: moment()                                        }; },
+            'Yesterday':      function () { return { s: moment().subtract(1, 'days'),                    e: moment().subtract(1, 'days')                    }; },
+            'This Week':      function () { return { s: moment().startOf('isoWeek'),                     e: moment()                                        }; },
+            'Last 7 Days':    function () { return { s: moment().subtract(6, 'days'),                    e: moment()                                        }; },
+            'Last 14 Days':   function () { return { s: moment().subtract(13, 'days'),                   e: moment()                                        }; },
+            'This Month':     function () { return { s: moment().startOf('month'),                       e: moment()                                        }; },
+            'This Year':      function () { return { s: moment().startOf('year'),                        e: moment()                                        }; },
+            'Last 12 Months': function () { return { s: moment().subtract(1, 'year'),                    e: moment()                                        }; },
+            'Last Week':      function () { return { s: moment().subtract(1,'week').startOf('isoWeek'),  e: moment().subtract(1,'week').endOf('isoWeek')    }; },
+            'Last Month':     function () { return { s: moment().subtract(1,'month').startOf('month'),   e: moment().subtract(1,'month').endOf('month')     }; },
+            'Last Year':      function () { return { s: moment().subtract(1,'year').startOf('year'),     e: moment().subtract(1,'year').endOf('year')       }; }
+        };
+
         function loadFilters() {
             try {
                 const filters = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || '{}');
                 if (filters.types) $('#activityTypeFilter').val(filters.types);
-                if (filters.startDate) $('#startDate').val(filters.startDate);
-                if (filters.endDate) $('#endDate').val(filters.endDate);
                 if (filters.search) $('#customSearch').val(filters.search);
                 if (filters.datePreset) currentDatePreset = filters.datePreset;
+
+                // If the saved preset is dynamic, recalculate dates so they
+                // always reflect "now" instead of the stale stored values.
+                // Trim because $(button).text() may include template whitespace.
+                var presetFn = DYNAMIC_PRESETS[(currentDatePreset || '').trim()];
+                if (presetFn) {
+                    var range = presetFn();
+                    filters.startDate = range.s.format('YYYY-MM-DD');
+                    filters.endDate   = range.e.format('YYYY-MM-DD');
+                }
+
+                if (filters.startDate) $('#startDate').val(filters.startDate);
+                if (filters.endDate) $('#endDate').val(filters.endDate);
                 return filters;
             } catch (e) {
                 return {};
