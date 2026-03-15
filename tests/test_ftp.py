@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -137,6 +138,95 @@ class TestComputeBestAveragePower(unittest.TestCase):
         """Should return 0.0 for an empty stream."""
         result = _compute_best_average_power([], 1800)
         self.assertEqual(result, 0.0)
+
+
+class TestFTPHistoryAPI(unittest.TestCase):
+    """Mocked unit tests for the /api/ftp_history endpoint."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        self.client = app.test_client()
+
+    @patch('kinetiqo.web.app.get_db')
+    @patch('flask_login.utils._get_user')
+    def test_ftp_history_returns_per_ride_values(self, mock_get_user, mock_get_db):
+        """The API should return an FTP value for each ride with sufficient data."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_repo.get_activity_ids_by_types.return_value = MOCK_CYCLING_ACTIVITIES
+        mock_repo.get_watts_streams_for_activities.return_value = {
+            '2001': MOCK_WATTS_2001,
+            '2002': MOCK_WATTS_2002,
+            '2003': MOCK_WATTS_2003,  # too short — should be excluded
+        }
+        mock_get_db.return_value = mock_repo
+
+        response = self.client.get('/api/ftp_history?period=all')
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        # Only 2001 and 2002 have ≥1200 samples
+        self.assertEqual(len(data['dates']), 2)
+        self.assertEqual(len(data['ftp_values']), 2)
+        self.assertEqual(len(data['activity_names']), 2)
+        # Sorted chronologically: 2001 (Jun 15) before 2002 (Jul 20)
+        self.assertEqual(data['dates'][0], '2025-06-15')
+        self.assertEqual(data['dates'][1], '2025-07-20')
+        # 250 * 0.95 = 237.5 and 280 * 0.95 = 266.0
+        self.assertAlmostEqual(data['ftp_values'][0], 237.5, places=1)
+        self.assertAlmostEqual(data['ftp_values'][1], 266.0, places=1)
+
+    @patch('kinetiqo.web.app.get_db')
+    @patch('flask_login.utils._get_user')
+    def test_ftp_history_no_activities(self, mock_get_user, mock_get_db):
+        """The API should return empty arrays when no cycling activities exist."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_repo.get_activity_ids_by_types.return_value = []
+        mock_get_db.return_value = mock_repo
+
+        response = self.client.get('/api/ftp_history?period=all')
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        self.assertEqual(data['dates'], [])
+        self.assertEqual(data['ftp_values'], [])
+
+    @patch('kinetiqo.web.app.get_db')
+    @patch('flask_login.utils._get_user')
+    def test_ftp_history_period_filter(self, mock_get_user, mock_get_db):
+        """The API should exclude activities outside the requested period."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        # One recent activity and one old one
+        activities = [
+            {"id": 4001, "name": "Old Ride", "start_date": "2020-01-01T08:00:00+00:00"},
+            {"id": 4002, "name": "Recent Ride", "start_date": "2026-03-10T08:00:00+00:00"},
+        ]
+        mock_repo = MagicMock()
+        mock_repo.get_activity_ids_by_types.return_value = activities
+        mock_repo.get_watts_streams_for_activities.return_value = {
+            '4002': [260.0] * 1200,
+        }
+        mock_get_db.return_value = mock_repo
+
+        # Last 30 days should only include the recent ride
+        response = self.client.get('/api/ftp_history?period=30')
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.data)
+        # Only the recent ride should be queried (4002)
+        called_ids = mock_repo.get_watts_streams_for_activities.call_args[0][0]
+        self.assertNotIn('4001', called_ids)
+        self.assertIn('4002', called_ids)
 
 
 if __name__ == '__main__':

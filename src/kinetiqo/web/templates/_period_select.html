@@ -1,0 +1,11 @@
+<label for="period-select" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show&nbsp;period:</label>
+<select id="period-select" class="block w-full px-3 py-2 bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">
+    <option value="14" {% if current_period == '14' %}selected{% endif %}>Last 2 weeks</option>
+    <option value="30" {% if current_period == '30' %}selected{% endif %}>Last 30 days</option>
+    <option value="60" {% if current_period == '60' %}selected{% endif %}>Last 60 days</option>
+    <option value="90" {% if current_period == '90' %}selected{% endif %}>Last 90 days</option>
+    <option value="120" {% if current_period == '120' %}selected{% endif %}>Last 120 days</option>
+    <option value="365" {% if current_period == '365' %}selected{% endif %}>Last 365 days</option>
+    <option value="all" {% if current_period == 'all' %}selected{% endif %}>All time</option>
+</select>
+

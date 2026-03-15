@@ -1,11 +1,24 @@
 {% extends "base.html" %}
 
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0"></script>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8">
-    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">⚡ {{ title }}</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400">
-        Estimated as 95 % of the best 20-minute average power across <strong>{{ activity_count }}</strong> cycling activit{{ "y" if activity_count == 1 else "ies" }}.
-    </p>
+    <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">⚡ {{ title }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Estimated as 95 % of the best 20-minute average power across <strong>{{ activity_count }}</strong> cycling activit{{ "y" if activity_count == 1 else "ies" }}.
+            </p>
+        </div>
+        <div class="flex items-center space-x-2">
+            {% include '_period_select.html' %}
+        </div>
+    </div>
 </div>
 
 {% if error_message %}
@@ -71,12 +84,150 @@
         </div>
     </div>
 
+    <!-- FTP History Chart -->
+    <div class="mt-8 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div id="chart-container" class="relative h-[400px] w-full">
+            <canvas id="ftpHistoryChart"></canvas>
+            <div id="chart-overlay" class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75 z-10">
+                <p class="text-lg text-gray-600 dark:text-gray-400">Loading chart data...</p>
+            </div>
+        </div>
+    </div>
+
     <div class="mt-6">
         <a href="{{ url_for('activities') }}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
             ← Back to Activities
         </a>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('ftpHistoryChart').getContext('2d');
+    const chartOverlay = document.getElementById('chart-overlay');
+    const overlayText = chartOverlay.querySelector('p');
+    const isDark = document.documentElement.classList.contains('dark');
+
+    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    const tickColor = isDark ? '#9ca3af' : '#6b7280';
+    const legendColor = isDark ? '#e5e7eb' : '#374151';
+
+    const chartConfig = {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'FTP (W)',
+                data: [],
+                borderColor: 'rgb(249, 115, 22)',
+                backgroundColor: 'rgba(249, 115, 22, 0.15)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: 'rgb(249, 115, 22)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: legendColor }
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        afterLabel: function(context) {
+                            var idx = context.dataIndex;
+                            var names = context.chart._activityNames;
+                            return names && names[idx] ? names[idx] : '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        parser: 'YYYY-MM-DD',
+                        unit: 'day',
+                        displayFormats: { day: 'MMM D' },
+                        tooltipFormat: 'll'
+                    },
+                    grid: { color: gridColor },
+                    ticks: { color: tickColor, source: 'auto' }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'FTP (Watts)', color: tickColor },
+                    grid: { color: gridColor },
+                    ticks: { color: tickColor }
+                }
+            }
+        }
+    };
+
+    var ftpChart = new Chart(ctx, chartConfig);
+
+    function showOverlay(msg) {
+        overlayText.textContent = msg;
+        chartOverlay.style.display = 'flex';
+    }
+
+    function hideOverlay() {
+        chartOverlay.style.display = 'none';
+    }
+
+    function fetchAndRenderChart(period) {
+        showOverlay('Loading chart data...');
+
+        fetch('/api/ftp_history?period=' + period)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    showOverlay('Error: ' + data.error);
+                    return;
+                }
+                if (!data.dates || data.dates.length === 0) {
+                    showOverlay('No FTP data for the selected period.');
+                    ftpChart.data.labels = [];
+                    ftpChart.data.datasets[0].data = [];
+                    ftpChart.update();
+                } else {
+                    hideOverlay();
+                    ftpChart.data.labels = data.dates;
+                    ftpChart.data.datasets[0].data = data.ftp_values;
+                    ftpChart._activityNames = data.activity_names;
+                    ftpChart.update();
+                }
+            })
+            .catch(function(err) {
+                console.error('Error loading FTP history:', err);
+                showOverlay('Failed to load chart data.');
+            });
+    }
+
+    // Initial load
+    var initialPeriod = document.getElementById('period-select').value;
+    fetchAndRenderChart(initialPeriod);
+
+    // Handle dropdown change — update both URL and chart
+    document.getElementById('period-select').addEventListener('change', function() {
+        var selected = this.value;
+        var newUrl = new URL(window.location);
+        newUrl.searchParams.set('period', selected);
+        window.history.pushState({ path: newUrl.href }, '', newUrl.href);
+        fetchAndRenderChart(selected);
+    });
+});
+</script>
 {% endif %}
 {% endblock %}
-

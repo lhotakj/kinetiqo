@@ -535,6 +535,9 @@ def powerskills():
     )
 
 
+# Period options shared across pages with a history chart
+SUPPORTED_PERIODS = ["14", "30", "60", "90", "120", "365", "all"]
+
 # Strava sport types considered as cycling
 CYCLING_SPORT_TYPES = [
     'Ride', 'VirtualRide', 'EBikeRide', 'EMountainBikeRide',
@@ -547,10 +550,31 @@ FTP_DURATION_SECONDS = 1200  # 20 minutes
 FTP_FACTOR = 0.95
 
 
+def _build_activity_map(cycling_activities):
+    """Build a lightweight lookup {activity_id_str → {name, date, start_date_iso}} from raw activity rows."""
+    activity_map = {}
+    for a in cycling_activities:
+        try:
+            dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+            date_str = dt.strftime(config.date_format)
+        except Exception:
+            date_str = a['start_date']
+        activity_map[str(a['id'])] = {
+            'name': a.get('name', f"Activity {a['id']}"),
+            'date': date_str,
+            'start_date_iso': a['start_date'],
+        }
+    return activity_map
+
+
 @app.route('/ftp')
 @login_required
 def ftp():
     """Estimate FTP as 95 % of the best 20-minute average power across all cycling activities."""
+    period = request.args.get('period', 'all')
+    if period not in SUPPORTED_PERIODS:
+        period = "all"
+
     ftp_watts = 0
     best_20min_watts = 0
     activity_name = None
@@ -568,19 +592,7 @@ def ftp():
 
         if cycling_activities:
             activity_ids = [str(a['id']) for a in cycling_activities]
-
-            # Build a quick lookup for metadata
-            activity_map = {}
-            for a in cycling_activities:
-                try:
-                    dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
-                    date_str = dt.strftime(config.date_format)
-                except Exception:
-                    date_str = a['start_date']
-                activity_map[str(a['id'])] = {
-                    'name': a.get('name', f"Activity {a['id']}"),
-                    'date': date_str,
-                }
+            activity_map = _build_activity_map(cycling_activities)
 
             # Fetch watts streams and find the best 20-min power
             watts_data = repo.get_watts_streams_for_activities(activity_ids)
@@ -609,21 +621,79 @@ def ftp():
         activity_id=activity_id,
         activity_count=activity_count,
         error_message=error_message,
+        current_period=period,
     )
+
+
+@app.route('/api/ftp_history')
+@login_required
+def ftp_history():
+    """Return per-ride FTP estimates as a JSON time-series for the chart."""
+    try:
+        period = request.args.get('period', 'all')
+        if period not in SUPPORTED_PERIODS:
+            period = "all"
+
+        repo = get_db()
+        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+
+        if not cycling_activities:
+            return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
+
+        activity_map = _build_activity_map(cycling_activities)
+
+        # Apply period filter (Python-side) based on start_date
+        if period != 'all':
+            from datetime import timedelta, timezone as tz
+            cutoff = datetime.now(tz.utc) - timedelta(days=int(period))
+            filtered_ids = []
+            for aid_str, meta in activity_map.items():
+                try:
+                    dt = datetime.fromisoformat(meta['start_date_iso'].replace('Z', '+00:00'))
+                    if dt >= cutoff:
+                        filtered_ids.append(aid_str)
+                except Exception:
+                    filtered_ids.append(aid_str)
+        else:
+            filtered_ids = list(activity_map.keys())
+
+        if not filtered_ids:
+            return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
+
+        watts_data = repo.get_watts_streams_for_activities(filtered_ids)
+
+        # Compute per-ride FTP and collect results
+        results = []
+        for aid, watts_list in watts_data.items():
+            avg = _compute_best_average_power(watts_list, FTP_DURATION_SECONDS)
+            if avg > 0 and aid in activity_map:
+                ftp_val = round(avg * FTP_FACTOR, 1)
+                results.append({
+                    'date': activity_map[aid]['start_date_iso'][:10],
+                    'ftp': ftp_val,
+                    'name': activity_map[aid]['name'],
+                })
+
+        # Sort chronologically
+        results.sort(key=lambda r: r['date'])
+
+        return jsonify({
+            'dates': [r['date'] for r in results],
+            'ftp_values': [r['ftp'] for r in results],
+            'activity_names': [r['name'] for r in results],
+        })
+
+    except Exception as e:
+        logger.error(f"Error computing FTP history: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/fitness')
 @login_required
 def fitness():
     """Render the Fitness & Freshness chart page."""
-    # Supported periods
-    supported_periods = ["14", "30", "60", "90", "120", "365", "all"]
-    
-    # Get period from query parameter, default to "14"
     period = request.args.get('period', '14')
-    
-    # Validate period
-    if period not in supported_periods:
+    if period not in SUPPORTED_PERIODS:
         period = "14"
         
     return render_template('fitness.html', title="Fitness & Freshness", current_period=period)
@@ -634,14 +704,8 @@ def fitness():
 def fitness_data():
     """API endpoint to get fitness, fatigue, and form data."""
     try:
-        # Supported periods
-        supported_periods = ["14", "30", "60", "90", "120", "365", "all"]
-        
-        # Get period from query parameter, default to "14"
         period = request.args.get('period', '14')
-        
-        # Validate period
-        if period not in supported_periods:
+        if period not in SUPPORTED_PERIODS:
             period = "14"
         
         data = calculate_fitness_freshness(get_db(), period)
