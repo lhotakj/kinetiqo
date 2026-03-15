@@ -200,6 +200,7 @@
                 <a href="https://github.com/lhotakj/kinetiqo" style="vertical-align: middle;"
                    title="Visit Github to see the source code" target="_new">Github</a>
             </span>
+        <div id="new-version-container" class="text-center text-xs text-gray-600 mt-2 hidden"></div>
         <br>
         &copy; 2026 Jaroslav Lhoták<br>
         <a href="mailto:jarda@lhotak.net">jarda@lhotak.net</a>
@@ -260,6 +261,20 @@
 
     themeToggleBtn.addEventListener('click', () => {
         setTheme(!document.documentElement.classList.contains('dark'));
+    });
+
+    // Fetch latest version
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/latest-version')
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    const container = document.getElementById('new-version-container');
+                    container.textContent = data.message;
+                    container.classList.remove('hidden');
+                }
+            })
+            .catch(error => console.error('Error fetching latest version:', error));
     });
 </script>
 

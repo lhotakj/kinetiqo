@@ -899,6 +899,13 @@ def stop_sync():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/latest-version')
+async def latest_version():
+    from kinetiqo.version_check import check_for_new_version
+    message = await check_for_new_version()
+    return jsonify({'message': message})
+
+
 # Context processor to inject version into all templates
 @app.context_processor
 def inject_version():
