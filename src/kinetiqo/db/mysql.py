@@ -719,6 +719,29 @@ class MySQLRepository(DatabaseRepository):
 
         return result
 
+    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
+        """Get lightweight activity records filtered by sport type."""
+        if not types:
+            return []
+
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            placeholders = ', '.join(['%s'] * len(types))
+            cur.execute(f"""
+                SELECT activity_id AS id, name, start_date
+                FROM activities
+                WHERE sport IN ({placeholders})
+                ORDER BY start_date DESC
+            """, types)
+
+            activities = []
+            for row in cur.fetchall():
+                activity = dict(row)
+                if isinstance(activity['start_date'], datetime):
+                    activity['start_date'] = activity['start_date'].isoformat()
+                activities.append(activity)
+            return activities
+
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         self._ensure_connected()

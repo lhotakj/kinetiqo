@@ -776,6 +776,31 @@ class FirebirdRepository(DatabaseRepository):
 
         return result
 
+    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
+        """Get lightweight activity records filtered by sport type."""
+        if not types:
+            return []
+
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            placeholders = ', '.join(['?'] * len(types))
+            cur.execute(f"""
+                SELECT "activity_id", "name", "start_date"
+                FROM "activities"
+                WHERE "sport" IN ({placeholders})
+                ORDER BY "start_date" DESC
+            """, types)
+
+            activities = []
+            for row in cur.fetchall():
+                activity = {
+                    'id': row[0],
+                    'name': row[1],
+                    'start_date': row[2].isoformat() if isinstance(row[2], datetime) else row[2]
+                }
+                activities.append(activity)
+            return activities
+
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         self._ensure_connected()

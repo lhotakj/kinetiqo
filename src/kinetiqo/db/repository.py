@@ -139,6 +139,18 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
+        """Get lightweight activity records filtered by sport type.
+
+        Returns a list of dicts with ``id``, ``name``, and ``start_date`` keys,
+        ordered by ``start_date DESC``.
+
+        :param types: List of sport-type strings to filter on (e.g. ``["Ride", "VirtualRide"]``).
+        :return: List of matching activity summary dicts.
+        """
+        pass
+
+    @abstractmethod
     def get_table_record_counts(self) -> Dict[str, int]:
         """Return a dict of table names and their record counts."""
         pass

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">⚡ {{ title }}</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        Estimated as 95 % of the best 20-minute average power across <strong>{{ activity_count }}</strong> cycling activit{{ "y" if activity_count == 1 else "ies" }}.
+    </p>
+</div>
+
+{% if error_message %}
+<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+    <p class="text-red-800 dark:text-red-200 text-lg font-medium">⚠ Error</p>
+    <p class="text-red-700 dark:text-red-300 text-sm mt-2">{{ error_message }}</p>
+</div>
+
+{% elif ftp_watts == 0 %}
+<div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 text-center">
+    <p class="text-yellow-800 dark:text-yellow-200 text-lg font-medium">⚠ No Power Data</p>
+    <p class="text-yellow-700 dark:text-yellow-300 text-sm mt-2">
+        No 20-minute power data found across your cycling activities.<br>
+        FTP estimation requires at least one ride recorded with a power meter lasting 20 minutes or more.
+    </p>
+    <a href="{{ url_for('activities') }}" class="inline-block mt-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
+        ← Back to Activities
+    </a>
+</div>
+
+{% else %}
+<div class="flex flex-col items-center">
+
+    <!-- FTP Card -->
+    <div class="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <!-- Header band -->
+        <div class="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4">
+            <p class="text-white text-sm font-semibold uppercase tracking-wider">Functional Threshold Power</p>
+        </div>
+
+        <!-- Big number -->
+        <div class="px-6 py-10 text-center">
+            <span class="text-7xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">{{ ftp_watts }}</span>
+            <span class="text-2xl font-medium text-gray-500 dark:text-gray-400 ml-1">W</span>
+        </div>
+
+        <!-- Details -->
+        <div class="border-t border-gray-100 dark:border-gray-700 px-6 py-5 space-y-3">
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Based on</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">95 % of best 20-min avg power</span>
+            </div>
+            {% if activity_name %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Activity</span>
+                {% if activity_id %}
+                <a href="https://www.strava.com/activities/{{ activity_id }}" target="_blank"
+                   class="font-medium text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[220px]"
+                   title="{{ activity_name }}">
+                    {{ activity_name }}
+                </a>
+                {% else %}
+                <span class="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[220px]">{{ activity_name }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if activity_date %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Date</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ activity_date }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-6">
+        <a href="{{ url_for('activities') }}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
+            ← Back to Activities
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+

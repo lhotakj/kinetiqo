@@ -535,6 +535,83 @@ def powerskills():
     )
 
 
+# Strava sport types considered as cycling
+CYCLING_SPORT_TYPES = [
+    'Ride', 'VirtualRide', 'EBikeRide', 'EMountainBikeRide',
+    'GravelRide', 'MountainBikeRide', 'Velomobile', 'Handcycle',
+]
+
+# FTP is estimated as 95 % of the best 20-minute average power (the standard
+# "20-Minute Test" protocol).
+FTP_DURATION_SECONDS = 1200  # 20 minutes
+FTP_FACTOR = 0.95
+
+
+@app.route('/ftp')
+@login_required
+def ftp():
+    """Estimate FTP as 95 % of the best 20-minute average power across all cycling activities."""
+    ftp_watts = 0
+    best_20min_watts = 0
+    activity_name = None
+    activity_date = None
+    activity_id = None
+    activity_count = 0
+    error_message = None
+
+    try:
+        repo = get_db()
+
+        # Get all cycling activity IDs
+        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+        activity_count = len(cycling_activities)
+
+        if cycling_activities:
+            activity_ids = [str(a['id']) for a in cycling_activities]
+
+            # Build a quick lookup for metadata
+            activity_map = {}
+            for a in cycling_activities:
+                try:
+                    dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                    date_str = dt.strftime(config.date_format)
+                except Exception:
+                    date_str = a['start_date']
+                activity_map[str(a['id'])] = {
+                    'name': a.get('name', f"Activity {a['id']}"),
+                    'date': date_str,
+                }
+
+            # Fetch watts streams and find the best 20-min power
+            watts_data = repo.get_watts_streams_for_activities(activity_ids)
+
+            for aid, watts_list in watts_data.items():
+                avg = _compute_best_average_power(watts_list, FTP_DURATION_SECONDS)
+                if avg > best_20min_watts:
+                    best_20min_watts = avg
+                    activity_id = aid
+                    if aid in activity_map:
+                        activity_name = activity_map[aid]['name']
+                        activity_date = activity_map[aid]['date']
+
+            ftp_watts = int(round(best_20min_watts * FTP_FACTOR))
+
+    except Exception as e:
+        logger.error(f"Error computing FTP: {e}")
+        error_message = str(e)
+
+    return render_template(
+        'ftp.html',
+        title="FTP Estimate",
+        ftp_watts=ftp_watts,
+        activity_name=activity_name,
+        activity_date=activity_date,
+        activity_id=activity_id,
+        activity_count=activity_count,
+        error_message=error_message,
+    )
+
+
 @app.route('/fitness')
 @login_required
 def fitness():
