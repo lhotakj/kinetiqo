@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import os
 import time
@@ -11,6 +12,7 @@ from kinetiqo.db.factory import get_version
 CACHE_FILE = Path("latest_version.txt")
 CACHE_DURATION = 3600  # 1 hour
 
+logger = logging.getLogger("kinetiqo")
 
 async def get_latest_version():
     now = time.time()
@@ -38,13 +40,14 @@ async def get_latest_version():
 
 async def check_for_new_version():
     current_version_str = get_version()
-    
+    latest_version_str = await get_latest_version()
+    logger.info("Current version: " + current_version_str + "Latest version: " + latest_version_str)
+
     # If we are in dev mode or version is not standard, we skip the check
     if not current_version_str or current_version_str.lower() == "dev":
         return None
 
-    latest_version_str = await get_latest_version()
-    
+
     if not latest_version_str:
         return None
 
