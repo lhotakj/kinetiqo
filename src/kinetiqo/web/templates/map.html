@@ -255,7 +255,8 @@
         }
         tileLayer = L.tileLayer(provider.url, {
             attribution: provider.attr,
-            maxZoom: provider.maxZoom || 19
+            maxZoom: provider.maxZoom || 19,
+            referrerPolicy: "no-referrer-when-downgrade"
         }).addTo(leafletMap);
     }
 
