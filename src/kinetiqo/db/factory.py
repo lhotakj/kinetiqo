@@ -5,11 +5,20 @@ from kinetiqo.db.repository import DatabaseRepository
 def get_version():
     """Reads the version from the version.txt file."""
     try:
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Calculate base directory (src/kinetiqo/db/factory.py -> src/)
+        # Up 3 levels: db -> kinetiqo -> src
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         version_path = os.path.join(base_dir, "version.txt")
+        
         if os.path.exists(version_path):
             with open(version_path, "r") as vf:
                 return vf.read().strip()
+        
+        # Explicit fallback for container environment
+        if os.path.exists("/app/version.txt"):
+            with open("/app/version.txt", "r") as vf:
+                return vf.read().strip()
+
     except Exception:
         pass
     return "dev"

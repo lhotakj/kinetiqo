@@ -41,7 +41,7 @@ async def get_latest_version():
 async def check_for_new_version():
     current_version_str = get_version()
     latest_version_str = await get_latest_version()
-    logger.info("Current version: " + current_version_str + " Latest version: " + latest_version_str)
+    logger.debug("Current version: " + current_version_str + " Latest version: " + latest_version_str)
 
     # If we are in dev mode or version is not standard, we skip the check
     if not current_version_str or current_version_str.lower() == "dev":
@@ -56,7 +56,7 @@ async def check_for_new_version():
         latest_version = parse_version(latest_version_str)
 
         if latest_version > current_version:
-            return f"New version {latest_version_str} available"
+            return f"🆕 New version {latest_version_str} available"
             
     except Exception as e:
         logger.warning(f"Version parsing failed: {e}")
