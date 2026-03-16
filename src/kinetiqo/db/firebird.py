@@ -848,6 +848,40 @@ class FirebirdRepository(DatabaseRepository):
     def __enter__(self):
         return self
 
+    # ------------------------------------------------------------------
+    # Map Explorer cache
+    # ------------------------------------------------------------------
+
+    def get_mapexplorer_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                'SELECT "result_json", "created_at" FROM "mapexplorer_cache" WHERE "cache_key" = ?',
+                (cache_key,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            return {"result_json": row[0], "created_at": row[1]}
+
+    def set_mapexplorer_cache(self, cache_key: str, activity_ids_json: str,
+                              paved_only: bool, result_json: str) -> None:
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                UPDATE OR INSERT INTO "mapexplorer_cache"
+                    ("cache_key", "activity_ids", "paved_only", "result_json", "created_at")
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                MATCHING ("cache_key")
+            """, (cache_key, activity_ids_json, int(paved_only), result_json))
+            self.conn.commit()
+
+    def delete_mapexplorer_cache(self, cache_key: str) -> None:
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute('DELETE FROM "mapexplorer_cache" WHERE "cache_key" = ?', (cache_key,))
+            self.conn.commit()
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 

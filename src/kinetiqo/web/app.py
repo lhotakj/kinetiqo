@@ -312,6 +312,56 @@ def map_view():
                            tile_providers=TILE_PROVIDERS)
 
 
+@app.route('/mapexplorer', methods=['GET', 'POST'])
+@login_required
+def mapexplorer():
+    """Render the Map Explorer page shell. Data is loaded via /api/mapexplorer/data."""
+    if request.method == 'POST':
+        activity_ids = request.form.getlist('activity_ids[]')
+    else:
+        ids_param = request.args.get('ids', '')
+        activity_ids = [aid.strip() for aid in ids_param.split(',') if aid.strip()]
+
+    if not activity_ids:
+        flash("No activities selected.", "warning")
+        return redirect(url_for('activities'))
+
+    return render_template(
+        'mapexplorer.html',
+        title="Map Explorer",
+        activity_ids=activity_ids,
+        activity_ids_json=json_module.dumps(activity_ids),
+    )
+
+
+@app.route('/api/mapexplorer/data', methods=['POST'])
+@login_required
+def mapexplorer_data():
+    """API endpoint returning road coverage stats as JSON."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid request body'}), 400
+
+        activity_ids = data.get('activity_ids', [])
+        paved_only = data.get('paved_only', False)
+        force_refresh = data.get('force_refresh', False)
+
+        if not activity_ids:
+            return jsonify({'error': 'No activity IDs provided'}), 400
+
+        from kinetiqo.geo import MapExplorerService
+        service = MapExplorerService(config)
+        result = service.get_ridden_roads_stats(
+            activity_ids, paved_only=paved_only, force_refresh=force_refresh,
+        )
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Map Explorer API error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/map/data', methods=['POST'])
 @login_required
 def map_data_api():
