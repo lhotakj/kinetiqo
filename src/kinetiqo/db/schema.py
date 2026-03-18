@@ -253,7 +253,7 @@ SCHEMA_DEFINITION = {
         ],
         "engine_mysql": "ENGINE=InnoDB"
     },
-    "mapexplorer_cache": {
+    "pathfinder_cache": {
         "columns": [
             {"name": "cache_key", "type_mysql": "VARCHAR(64) PRIMARY KEY",
              "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},

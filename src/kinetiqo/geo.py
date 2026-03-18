@@ -101,7 +101,7 @@ def _osm_name(row) -> str | None:
     return None
 
 
-class MapExplorerService:
+class PathfinderService:
     """Analyse road coverage from cycling activities against OSM data."""
 
     def __init__(self, config: Config):
@@ -120,7 +120,7 @@ class MapExplorerService:
         Results are cached in the database.  On subsequent calls with the
         same activities and paved_only flag the cached JSON is returned
         instantly unless the cache entry is older than
-        ``config.mapexplorer_cache_ttl_days`` or *force_refresh* is set.
+        ``config.pathfinder_cache_ttl_days`` or *force_refresh* is set.
 
         :param activity_ids: Strava activity IDs whose GPS tracks to analyse.
         :param paved_only:   If ``True``, exclude unpaved road surfaces.
@@ -132,12 +132,12 @@ class MapExplorerService:
         repo = create_repository(self.config)
         try:
             cache_key = self._cache_key(activity_ids, paved_only)
-            ttl_days = self.config.mapexplorer_cache_ttl_days
+            ttl_days = self.config.pathfinder_cache_ttl_days
 
             # --- try cache (unless disabled or forced refresh) ---------------
             if ttl_days > 0 and not force_refresh:
                 try:
-                    hit = repo.get_mapexplorer_cache(cache_key)
+                    hit = repo.get_pathfinder_cache(cache_key)
                     if hit is not None:
                         from datetime import datetime, timezone, timedelta
                         created = hit["created_at"]
@@ -146,7 +146,7 @@ class MapExplorerService:
                         age = datetime.now(timezone.utc) - created
                         if age < timedelta(days=ttl_days):
                             logger.info(
-                                f"Map Explorer: cache hit (age {age.days}d, "
+                                f"Pathfinder: cache hit (age {age.days}d, "
                                 f"TTL {ttl_days}d)"
                             )
                             result = json_module.loads(hit["result_json"])
@@ -154,11 +154,11 @@ class MapExplorerService:
                             return result
                         else:
                             logger.info(
-                                f"Map Explorer: cache stale (age {age.days}d, "
+                                f"Pathfinder: cache stale (age {age.days}d, "
                                 f"TTL {ttl_days}d) — recomputing"
                             )
                 except Exception as exc:
-                    logger.warning(f"Map Explorer: cache read failed, computing fresh: {exc}")
+                    logger.warning(f"Pathfinder: cache read failed, computing fresh: {exc}")
 
             # --- compute fresh -----------------------------------------------
             result = self._analyse(repo, activity_ids, paved_only)
@@ -166,21 +166,21 @@ class MapExplorerService:
             # --- store in cache (only successful results) --------------------
             if "error" not in result and ttl_days > 0:
                 try:
-                    repo.set_mapexplorer_cache(
+                    repo.set_pathfinder_cache(
                         cache_key,
                         json_module.dumps(sorted(activity_ids)),
                         paved_only,
                         json_module.dumps(result),
                     )
-                    logger.info("Map Explorer: result cached")
+                    logger.info("Pathfinder: result cached")
                 except Exception as exc:
-                    logger.warning(f"Map Explorer: failed to write cache: {exc}")
+                    logger.warning(f"Pathfinder: failed to write cache: {exc}")
 
             result["cached"] = False
             return result
 
         except Exception as e:
-            logger.error(f"Map Explorer error: {e}", exc_info=True)
+            logger.error(f"Pathfinder error: {e}", exc_info=True)
             return {"error": str(e)}
         finally:
             repo.close()
@@ -248,7 +248,7 @@ class MapExplorerService:
             }
 
         logger.info(
-            f"Map Explorer: {len(activity_ids)} activities, "
+            f"Pathfinder: {len(activity_ids)} activities, "
             f"coverage area {area_km2:,.1f} km²"
         )
 
@@ -308,7 +308,7 @@ class MapExplorerService:
         pct      = (ridden_m / total_m * 100) if total_m > 0 else 0
 
         logger.info(
-            f"Map Explorer: {ridden_m / 1000:.1f} km ridden / "
+            f"Pathfinder: {ridden_m / 1000:.1f} km ridden / "
             f"{total_m / 1000:.1f} km total = {pct:.1f}%"
         )
 
@@ -396,7 +396,7 @@ class MapExplorerService:
                 if len(touching) > MAX_BOUNDARIES_PER_LEVEL:
                     # Too many at this level — try the next coarser level
                     logger.info(
-                        f"Map Explorer: {len(touching)} boundaries at "
+                        f"Pathfinder: {len(touching)} boundaries at "
                         f"admin_level={target_level} — trying coarser level"
                     )
                     continue
@@ -412,14 +412,14 @@ class MapExplorerService:
                     .iloc[0]
                 )
                 logger.info(
-                    f"Map Explorer: coverage polygon from {len(touching)} "
+                    f"Pathfinder: coverage polygon from {len(touching)} "
                     f"admin_level={target_level} boundaries "
                     f"({area_km2:,.1f} km²)"
                 )
                 return polygon, area_km2
 
         # Fallback: buffer tracks by TRACK_ANALYSIS_BUFFER_M
-        logger.info("Map Explorer: falling back to track buffer for coverage")
+        logger.info("Pathfinder: falling back to track buffer for coverage")
         buffered = unary_union(ridden_utm.buffer(TRACK_ANALYSIS_BUFFER_M))
         area_km2 = buffered.area / 1_000_000
         simplified = buffered.simplify(TRACK_SIMPLIFY_TOLERANCE_M).buffer(0)
@@ -499,12 +499,12 @@ class MapExplorerService:
             if entries:
                 level_entries[level_name] = entries
                 logger.info(
-                    f"Map Explorer: {len(entries)} {level_name} "
+                    f"Pathfinder: {len(entries)} {level_name} "
                     f"boundaries with data"
                 )
                 if len(entries) > MAX_BOUNDARIES_PER_LEVEL:
                     logger.info(
-                        f"Map Explorer: skipping finer admin levels "
+                        f"Pathfinder: skipping finer admin levels "
                         f"(>{MAX_BOUNDARIES_PER_LEVEL} {level_name} entries)"
                     )
                     break

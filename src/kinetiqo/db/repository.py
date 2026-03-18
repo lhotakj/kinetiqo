@@ -167,12 +167,12 @@ class DatabaseRepository(ABC):
         pass
 
     # ------------------------------------------------------------------
-    # Map Explorer cache
+    # Pathfinder cache
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def get_mapexplorer_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a cached Map Explorer result.
+    def get_pathfinder_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a cached Pathfinder result.
 
         :param cache_key: SHA-256 hex digest used as the primary key.
         :return: Dict with ``result_json`` (str) and ``created_at`` (datetime),
@@ -181,9 +181,9 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def set_mapexplorer_cache(self, cache_key: str, activity_ids_json: str,
+    def set_pathfinder_cache(self, cache_key: str, activity_ids_json: str,
                               paved_only: bool, result_json: str) -> None:
-        """Insert or update a cached Map Explorer result.
+        """Insert or update a cached Pathfinder result.
 
         :param cache_key: SHA-256 hex digest.
         :param activity_ids_json: JSON-serialised list of activity IDs (for diagnostics).
@@ -193,8 +193,8 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def delete_mapexplorer_cache(self, cache_key: str) -> None:
-        """Delete a single Map Explorer cache entry.
+    def delete_pathfinder_cache(self, cache_key: str) -> None:
+        """Delete a single Pathfinder cache entry.
 
         :param cache_key: SHA-256 hex digest of the entry to remove.
         """

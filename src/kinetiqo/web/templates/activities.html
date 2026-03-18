@@ -206,9 +206,9 @@
                     class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Display the selected activities on a map">Display on map
             </button>
-            <button id="mapExplorerBtn"
+            <button id="pathfinderBtn"
                     class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Analyze road coverage for selected activities">🗺️ Map Explorer
+                    disabled title="Analyze road coverage for selected activities">🗺️ Pathfinder
             </button>
             <button id="powerSkillsBtn"
                     class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
@@ -1302,13 +1302,13 @@ var table = null;
             if (count > 0) {
                 $('#deleteSelectedBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-red-500');
                 $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
-                $('#mapExplorerBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-green-600');
+                $('#pathfinderBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-green-600');
                 $('#powerSkillsBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-purple-600');
                 $('#exportCsvBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-blue-600');
             } else {
                 $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
                 $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
-                $('#mapExplorerBtn').prop('disabled', true).removeClass('bg-green-600').addClass('bg-gray-400');
+                $('#pathfinderBtn').prop('disabled', true).removeClass('bg-green-600').addClass('bg-gray-400');
                 $('#powerSkillsBtn').prop('disabled', true).removeClass('bg-purple-600').addClass('bg-gray-400');
                 $('#exportCsvBtn').prop('disabled', true).removeClass('bg-blue-600').addClass('bg-gray-400');
             }
@@ -1469,14 +1469,14 @@ var table = null;
             form.remove();
         });
 
-        // Map Explorer
-        $('#mapExplorerBtn').on('click', function () {
+        // Pathfinder
+        $('#pathfinderBtn').on('click', function () {
             if (selectedActivities.size === 0) return;
 
             // Create a hidden form
             const form = $('<form>', {
                 method: 'POST',
-                action: '/mapexplorer',
+                action: '/pathfinder',
                 target: '_blank' // Open in new tab
             }).hide();
 

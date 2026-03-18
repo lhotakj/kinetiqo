@@ -312,10 +312,10 @@ def map_view():
                            tile_providers=TILE_PROVIDERS)
 
 
-@app.route('/mapexplorer', methods=['GET', 'POST'])
+@app.route('/pathfinder', methods=['GET', 'POST'])
 @login_required
-def mapexplorer():
-    """Render the Map Explorer page shell. Data is loaded via /api/mapexplorer/data."""
+def pathfinder():
+    """Render the Pathfinder page shell. Data is loaded via /api/pathfinder/data."""
     if request.method == 'POST':
         activity_ids = request.form.getlist('activity_ids[]')
     else:
@@ -327,16 +327,16 @@ def mapexplorer():
         return redirect(url_for('activities'))
 
     return render_template(
-        'mapexplorer.html',
-        title="Map Explorer",
+        'pathfinder.html',
+        title="Pathfinder",
         activity_ids=activity_ids,
         activity_ids_json=json_module.dumps(activity_ids),
     )
 
 
-@app.route('/api/mapexplorer/data', methods=['POST'])
+@app.route('/api/pathfinder/data', methods=['POST'])
 @login_required
-def mapexplorer_data():
+def pathfinder_data():
     """API endpoint returning road coverage stats as JSON."""
     try:
         data = request.get_json()
@@ -350,15 +350,15 @@ def mapexplorer_data():
         if not activity_ids:
             return jsonify({'error': 'No activity IDs provided'}), 400
 
-        from kinetiqo.geo import MapExplorerService
-        service = MapExplorerService(config)
+        from kinetiqo.geo import PathfinderService
+        service = PathfinderService(config)
         result = service.get_ridden_roads_stats(
             activity_ids, paved_only=paved_only, force_refresh=force_refresh,
         )
 
         return jsonify(result)
     except Exception as e:
-        logger.error(f"Map Explorer API error: {e}")
+        logger.error(f"Pathfinder API error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
