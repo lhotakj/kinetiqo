@@ -757,6 +757,37 @@ class PostgresqlRepository(DatabaseRepository):
     def __enter__(self):
         return self
 
+    # ------------------------------------------------------------------
+    # Pathfinder cache
+    # ------------------------------------------------------------------
+
+    def get_pathfinder_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        self._ensure_connected()
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT result_json, created_at FROM pathfinder_cache WHERE cache_key = %s",
+                (cache_key,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def set_pathfinder_cache(self, cache_key: str, activity_ids_json: str,
+                              paved_only: bool, result_json: str) -> None:
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO pathfinder_cache (cache_key, activity_ids, paved_only, result_json, created_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (cache_key) DO UPDATE
+                    SET result_json = EXCLUDED.result_json,
+                        created_at  = NOW()
+            """, (cache_key, activity_ids_json, paved_only, result_json))
+
+    def delete_pathfinder_cache(self, cache_key: str) -> None:
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("DELETE FROM pathfinder_cache WHERE cache_key = %s", (cache_key,))
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 

@@ -252,6 +252,23 @@ SCHEMA_DEFINITION = {
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
+    },
+    "pathfinder_cache": {
+        "columns": [
+            {"name": "cache_key", "type_mysql": "VARCHAR(64) PRIMARY KEY",
+             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "activity_ids", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "paved_only", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
+             "type_firebird": "SMALLINT"},
+            {"name": "result_json", "type_mysql": "LONGTEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+             "type_pg": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP",
+             "type_firebird": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB"
     }
 }
 

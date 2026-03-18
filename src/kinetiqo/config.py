@@ -19,6 +19,9 @@ class Config:
     cache_ttl: int = 60  # minutes
     cache_dir: Path = Path(".cache")
 
+    # Pathfinder — OSM data cache TTL in days (0 = disable caching)
+    pathfinder_cache_ttl_days: int = int(os.getenv("pathfinder_cache_ttl_days", "30"))
+
     # Database - Common
     database_type: str = os.getenv("DATABASE_TYPE", "postgresql").lower()  # mysql, postgresql, or firebird
 

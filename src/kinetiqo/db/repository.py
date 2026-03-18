@@ -165,3 +165,38 @@ class DatabaseRepository(ABC):
         :return: List of activity records with a positive suffer_score.
         """
         pass
+
+    # ------------------------------------------------------------------
+    # Pathfinder cache
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    def get_pathfinder_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a cached Pathfinder result.
+
+        :param cache_key: SHA-256 hex digest used as the primary key.
+        :return: Dict with ``result_json`` (str) and ``created_at`` (datetime),
+                 or ``None`` on cache miss.
+        """
+        pass
+
+    @abstractmethod
+    def set_pathfinder_cache(self, cache_key: str, activity_ids_json: str,
+                              paved_only: bool, result_json: str) -> None:
+        """Insert or update a cached Pathfinder result.
+
+        :param cache_key: SHA-256 hex digest.
+        :param activity_ids_json: JSON-serialised list of activity IDs (for diagnostics).
+        :param paved_only: Whether the result was computed with paved-only roads.
+        :param result_json: The full JSON result blob to cache.
+        """
+        pass
+
+    @abstractmethod
+    def delete_pathfinder_cache(self, cache_key: str) -> None:
+        """Delete a single Pathfinder cache entry.
+
+        :param cache_key: SHA-256 hex digest of the entry to remove.
+        """
+        pass
+

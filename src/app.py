@@ -7,6 +7,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask import render_template
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from mock_data import get_mock_activities
+from kinetiqo.config import Config
+from kinetiqo.geo import PathfinderService
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_demo_only'
@@ -62,6 +64,20 @@ def activities():
     # Load mocked Strava data
     data = get_mock_activities()
     return render_template('activities.html', title="Activities", activities=data)
+
+
+@app.route('/pathfinder', methods=['POST'])
+@login_required
+def pathfinder():
+    activity_ids = request.form.getlist('activity_ids[]')
+    paved_only = request.form.get('paved_only') == 'on'
+
+    config = Config()
+    map_explorer = PathfinderService(config)
+    stats = map_explorer.get_ridden_roads_stats(activity_ids, paved_only)
+    map_explorer.close()
+
+    return render_template('pathfinder.html', title="Pathfinder", stats=stats, activity_ids=activity_ids, paved_only=paved_only)
 
 
 @app.route('/fullsync')

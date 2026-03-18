@@ -11,3 +11,6 @@ gunicorn==25.1.0
 folium==0.20.0
 httpx==0.28.1
 packaging==26.0
+osmnx==1.9.3
+geopandas==0.14.4
+loguru
