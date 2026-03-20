@@ -69,6 +69,12 @@ def set_static_headers(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
+    # Ensure the browser sends a Referer header on cross-origin requests
+    # (e.g. OSM tile fetches).  Modern browsers default to
+    # "strict-origin-when-cross-origin" which may strip or omit the
+    # referrer in certain conditions; OSM tiles require it.
+    response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+
     return response
 
 
