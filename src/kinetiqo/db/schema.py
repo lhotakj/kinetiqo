@@ -252,6 +252,20 @@ SCHEMA_DEFINITION = {
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
+    },
+    "profile": {
+        "columns": [
+            {"name": "athlete_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY",
+             "type_firebird": "BIGINT PRIMARY KEY"},
+            {"name": "first_name", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
+            {"name": "last_name", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
+            {"name": "weight", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
+             "type_firebird": "DOUBLE PRECISION"},
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB"
     }
 }
 

@@ -7,6 +7,39 @@
         <p class="text-gray-500 dark:text-gray-400">View system configuration and schedules.</p>
     </div>
 
+    <!-- Athlete Profile -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Athlete</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava. Changes are saved automatically.</p>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                    <input type="text" id="profile-first-name"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                </div>
+                <div>
+                    <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                    <input type="text" id="profile-last-name"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                </div>
+                <div>
+                    <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Weight (kg)</label>
+                    <input type="text" id="profile-weight" inputmode="decimal"
+                           pattern="[0-9]*\.?[0-9]*"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                    <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
+                </div>
+            </div>
+            <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
+        </div>
+    </div>
+
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
             <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules</h2>
@@ -72,6 +105,101 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+
+        // --- Athlete Profile ---
+        const firstNameInput = document.getElementById('profile-first-name');
+        const lastNameInput = document.getElementById('profile-last-name');
+        const weightInput = document.getElementById('profile-weight');
+        const weightError = document.getElementById('profile-weight-error');
+        const profileStatus = document.getElementById('profile-status');
+
+        function showStatus(msg, isError) {
+            profileStatus.textContent = msg;
+            profileStatus.className = 'text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
+            if (!isError) setTimeout(() => { profileStatus.textContent = ''; }, 3000);
+        }
+
+        // Snapshot of the last-saved values so we only PUT on actual changes
+        let savedProfile = { first_name: '', last_name: '', weight: '' };
+
+        // Load profile
+        fetch('/api/profile')
+            .then(r => r.json())
+            .then(data => {
+                firstNameInput.value = data.first_name || '';
+                lastNameInput.value = data.last_name || '';
+                weightInput.value = data.weight || '';
+                firstNameInput.placeholder = '';
+                lastNameInput.placeholder = '';
+                weightInput.placeholder = '';
+                savedProfile = {
+                    first_name: firstNameInput.value,
+                    last_name: lastNameInput.value,
+                    weight: weightInput.value
+                };
+            })
+            .catch(() => showStatus('Failed to load profile.', true));
+
+        function validateWeight(value) {
+            if (value === '' || value === '0') return true;
+            return /^\d+(\.\d+)?$/.test(value) && parseFloat(value) >= 0;
+        }
+
+        function hasProfileChanged() {
+            return firstNameInput.value !== savedProfile.first_name
+                || lastNameInput.value !== savedProfile.last_name
+                || weightInput.value !== savedProfile.weight;
+        }
+
+        function saveProfile() {
+            if (!hasProfileChanged()) return;
+
+            const w = weightInput.value.trim();
+            if (w !== '' && !validateWeight(w)) {
+                weightError.textContent = 'Must be a positive number.';
+                weightError.classList.remove('hidden');
+                return;
+            }
+            weightError.classList.add('hidden');
+
+            const payload = {
+                first_name: firstNameInput.value.trim(),
+                last_name: lastNameInput.value.trim(),
+                weight: w === '' ? 0 : parseFloat(w)
+            };
+
+            fetch('/api/profile', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            })
+            .then(r => {
+                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
+                return r.json();
+            })
+            .then(() => {
+                savedProfile = {
+                    first_name: firstNameInput.value,
+                    last_name: lastNameInput.value,
+                    weight: weightInput.value
+                };
+                showStatus('Saved ✓', false);
+            })
+            .catch(err => showStatus(err.message, true));
+        }
+
+        firstNameInput.addEventListener('blur', saveProfile);
+        lastNameInput.addEventListener('blur', saveProfile);
+        weightInput.addEventListener('blur', saveProfile);
+
+        // Client-side: block non-numeric keys in weight field
+        weightInput.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which || e.keyCode);
+            if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
+            if (!/[\d.]/.test(char)) { e.preventDefault(); }
+        });
+
+        // --- Settings (existing) ---
         fetch('/api/settings')
             .then(response => response.json())
             .then(data => {

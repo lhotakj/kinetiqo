@@ -137,9 +137,57 @@ def version():
 def web(ctx, port, host):
     """Start the web interface."""
     logger.info(f"Starting web server on {host}:{port}")
+
+    # Seed athlete profile from Strava before starting the web server
+    _seed_profile(ctx.obj.config)
+
     from kinetiqo.web.app import app, set_config
     set_config(ctx.obj.config)
     app.run(debug=False, port=port, host=host, use_reloader=False)
+
+
+def _seed_profile(config):
+    """Fetch athlete profile from Strava and persist it in the database.
+
+    Runs once at web startup.  Failures are logged but never block the
+    web server from starting.
+    """
+    from kinetiqo.strava import StravaClient
+    repo = None
+    try:
+        strava = StravaClient(config)
+        athlete = strava.get_athlete()
+        athlete_id = int(athlete.get("id", 0))
+        if athlete_id <= 0:
+            logger.warning("Strava athlete profile has no valid ID — skipping profile seed.")
+            return
+
+        first_name = athlete.get("firstname", "") or ""
+        last_name = athlete.get("lastname", "") or ""
+        strava_weight = float(athlete.get("weight", 0) or 0)
+
+        repo = create_repository(config)
+
+        # Preserve the existing DB weight when Strava returns null/0
+        existing = repo.get_profile()
+        if strava_weight > 0:
+            weight = strava_weight
+        elif existing:
+            weight = float(existing.get("weight", 0) or 0)
+        else:
+            weight = 0.0
+
+        repo.upsert_profile(athlete_id, first_name, last_name, weight)
+        logger.info(f"Profile seeded from Strava: {first_name} {last_name}, {weight} kg"
+                     + (" (weight kept from DB — Strava returned 0)" if strava_weight <= 0 and weight > 0 else ""))
+    except Exception as e:
+        logger.warning(f"Could not seed profile from Strava (non-fatal): {e}")
+    finally:
+        if repo:
+            try:
+                repo.close()
+            except Exception:
+                pass
 
 
 @cli.command(help="Check database availability and schema")

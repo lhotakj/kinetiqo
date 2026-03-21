@@ -165,3 +165,23 @@ class DatabaseRepository(ABC):
         :return: List of activity records with a positive suffer_score.
         """
         pass
+
+    @abstractmethod
+    def get_profile(self) -> Optional[Dict[str, Any]]:
+        """Return the first athlete profile row, or ``None`` if the table is empty.
+
+        :return: Dict with ``athlete_id``, ``first_name``, ``last_name``, ``weight`` keys.
+        """
+        pass
+
+    @abstractmethod
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float) -> None:
+        """Insert or update the athlete profile row.
+
+        :param athlete_id: Strava athlete ID (primary key).
+        :param first_name: Athlete first name.
+        :param last_name: Athlete last name.
+        :param weight: Athlete body weight in kilograms.
+        """
+        pass
+

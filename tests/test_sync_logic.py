@@ -66,7 +66,10 @@ class TestSyncMatrix(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(result.exit_code, 0)
-                self.assertEqual(mock_repo.write_activity.call_count, 1) # Only activity 1002 is new
+                # 1 existing (1001 metadata update) + 1 new (1002 full sync) = 2 writes
+                self.assertEqual(mock_repo.write_activity.call_count, 2)
+                # Only 1 new activity fetches streams
+                self.assertEqual(mock_strava_instance.get_streams.call_count, 1)
                 mock_repo.delete_activities.assert_called_once_with(['9999'])
 
     @patch('kinetiqo.sync.StravaClient')
@@ -116,7 +119,8 @@ class TestSyncMatrix(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(result.exit_code, 0)
-                self.assertEqual(mock_repo.write_activity.call_count, 2) # Adds the two recent activities
+                # 1 existing (901 metadata update) + 2 new (1001, 1002 full sync) = 3 writes
+                self.assertEqual(mock_repo.write_activity.call_count, 3)
                 mock_repo.delete_activities.assert_not_called() # Should not delete the old activity 901
 
     @patch('kinetiqo.sync.StravaClient')
@@ -140,5 +144,7 @@ class TestSyncMatrix(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(result.exit_code, 0)
-                mock_repo.write_activity.assert_not_called()
+                # Both activities are existing — metadata updated, no streams fetched
+                self.assertEqual(mock_repo.write_activity.call_count, 2)
+                mock_strava_instance.get_streams.assert_not_called()
                 mock_repo.delete_activities.assert_not_called()

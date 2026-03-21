@@ -845,6 +845,35 @@ class FirebirdRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_profile(self):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                'SELECT "athlete_id", "first_name", "last_name", "weight" '
+                'FROM "profile" ROWS 1'
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            return {
+                'athlete_id': row[0],
+                'first_name': row[1],
+                'last_name': row[2],
+                'weight': row[3],
+            }
+
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                'UPDATE OR INSERT INTO "profile" '
+                '("athlete_id", "first_name", "last_name", "weight") '
+                'VALUES (?, ?, ?, ?) '
+                'MATCHING ("athlete_id")',
+                (athlete_id, first_name, last_name, weight)
+            )
+        self.conn.commit()
+
     def __enter__(self):
         return self
 

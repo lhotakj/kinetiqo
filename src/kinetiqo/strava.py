@@ -148,6 +148,40 @@ class StravaClient:
 
         result_container.extend(activities)
 
+    def get_athlete(self) -> dict:
+        """Fetch the authenticated athlete's profile from Strava.
+
+        The returned dict includes fields such as ``weight`` (kg),
+        ``firstname``, ``lastname``, etc.
+
+        :return: Athlete profile dictionary.
+        """
+        cached = self.cache.get("athlete")
+        if cached is not None:
+            logger.debug("Using cached athlete profile")
+            return cached
+
+        url = f"{self.BASE_URL}/athlete"
+        logger.debug(f"GET {url}")
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = requests.get(url, headers=self._headers(), timeout=self.request_timeout)
+                r.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Strava athlete request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.error(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+
+        data = r.json()
+        self.cache.set("athlete", data)
+        return data
+
     def get_streams(self, activity_id: int) -> dict:
         """Fetch detailed streams for an activity."""
         # Check cache first

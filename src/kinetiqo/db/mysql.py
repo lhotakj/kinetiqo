@@ -785,6 +785,24 @@ class MySQLRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_profile(self):
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT athlete_id, first_name, last_name, weight FROM profile LIMIT 1")
+            return cur.fetchone()
+
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO profile (athlete_id, first_name, last_name, weight)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    first_name = VALUES(first_name),
+                    last_name  = VALUES(last_name),
+                    weight     = VALUES(weight)
+            """, (athlete_id, first_name, last_name, weight))
+
     def __enter__(self):
         return self
 

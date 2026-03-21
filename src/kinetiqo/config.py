@@ -48,6 +48,9 @@ class Config:
     # Firebird port needs to be parsed in __post_init__ to handle errors properly
     firebird_port: int = 3050
 
+    # Athlete
+    athlete_weight: float = 0.0  # kg — set via ATHLETE_WEIGHT env var for VO2max estimation
+
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
@@ -76,6 +79,13 @@ class Config:
                 self.firebird_port = int(os.getenv("FIREBIRD_PORT"))
             except ValueError:
                 logger.error(f"Environment variable FIREBIRD_PORT should be a number")
+                sys.exit(1)
+
+        if os.getenv("ATHLETE_WEIGHT"):
+            try:
+                self.athlete_weight = float(os.getenv("ATHLETE_WEIGHT"))
+            except ValueError:
+                logger.error("Environment variable ATHLETE_WEIGHT should be a number (kg)")
                 sys.exit(1)
 
     database_connect_verbose: bool = True  # Show verbose output in init

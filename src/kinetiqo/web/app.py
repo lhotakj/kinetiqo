@@ -12,6 +12,10 @@ from kinetiqo.db.factory import create_repository
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
 from kinetiqo.web.fitness import calculate_fitness_freshness
+from kinetiqo.web.vo2max import (
+    estimate_vo2max, classify_vo2max, smooth_vo2max_history,
+    filter_qualifying_rides, MIN_WATTS_SAMPLES,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -555,6 +559,10 @@ CYCLING_SPORT_TYPES = [
 FTP_DURATION_SECONDS = 1200  # 20 minutes
 FTP_FACTOR = 0.95
 
+# VO2max MAP (Maximal Aerobic Power) is approximated from the best 5-minute
+# average power — the same sliding-window function used by Power Skills.
+VO2MAX_MAP_DURATION_SECONDS = 300  # 5 minutes
+
 
 def _build_activity_map(cycling_activities):
     """Build a lightweight lookup {activity_id_str → {name, date, start_date_iso}} from raw activity rows."""
@@ -571,6 +579,28 @@ def _build_activity_map(cycling_activities):
             'start_date_iso': a['start_date'],
         }
     return activity_map
+
+
+def _get_athlete_weight() -> tuple[float, str]:
+    """Resolve athlete weight from the ``profile`` database table.
+
+    Returns a ``(weight_kg, source)`` tuple.  *source* is a human-readable
+    label such as ``"profile"`` or ``"ATHLETE_WEIGHT env var"``.
+    """
+    try:
+        profile = get_db().get_profile()
+        if profile:
+            w = float(profile.get("weight", 0) or 0)
+            if w > 0:
+                return w, "profile"
+    except Exception as e:
+        logger.warning(f"Could not read athlete weight from profile table: {e}")
+
+    # Fall back to env-var / config value
+    if config.athlete_weight > 0:
+        return config.athlete_weight, "ATHLETE_WEIGHT env var"
+
+    return 0.0, ""
 
 
 @app.route('/ftp')
@@ -721,6 +751,153 @@ def fitness_data():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/vo2max')
+@login_required
+def vo2max():
+    """Render the VO2max estimation page."""
+    period = request.args.get('period', 'all')
+    if period not in SUPPORTED_PERIODS:
+        period = "all"
+
+    vo2max_value = 0.0
+    classification = "N/A"
+    best_5min_watts = 0.0
+    activity_name = None
+    activity_date = None
+    activity_id = None
+    activity_count = 0
+    error_message = None
+    weight, weight_source = _get_athlete_weight()
+    logger.info(f"VO2max page: athlete weight={weight}, source='{weight_source}'")
+
+    if weight <= 0:
+        error_message = (
+            "Athlete weight is not configured. "
+            "Go to Settings → Athlete to set your weight, "
+            "or set the ATHLETE_WEIGHT environment variable (in kg)."
+        )
+    else:
+        try:
+            repo = get_db()
+
+            cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+            activity_count = len(cycling_activities)
+
+            if cycling_activities:
+                activity_ids = [str(a['id']) for a in cycling_activities]
+                activity_map = _build_activity_map(cycling_activities)
+
+                watts_data = repo.get_watts_streams_for_activities(activity_ids)
+
+                for aid, watts_list in watts_data.items():
+                    avg = _compute_best_average_power(watts_list, VO2MAX_MAP_DURATION_SECONDS)
+                    if avg > best_5min_watts:
+                        best_5min_watts = avg
+                        activity_id = aid
+                        if aid in activity_map:
+                            activity_name = activity_map[aid]['name']
+                            activity_date = activity_map[aid]['date']
+
+                vo2max_value = round(estimate_vo2max(best_5min_watts, weight), 1)
+                classification = classify_vo2max(vo2max_value)
+
+
+        except Exception as e:
+            logger.error(f"Error computing VO2max: {e}")
+            error_message = str(e)
+
+    return render_template(
+        'vo2max.html',
+        title="VO₂max Estimate",
+        vo2max_value=vo2max_value,
+        classification=classification,
+        best_5min_watts=int(round(best_5min_watts)),
+        athlete_weight=weight,
+        weight_source=weight_source,
+        activity_name=activity_name,
+        activity_date=activity_date,
+        activity_id=activity_id,
+        activity_count=activity_count,
+        error_message=error_message,
+        current_period=period,
+    )
+
+
+@app.route('/api/vo2max_history')
+@login_required
+def vo2max_history():
+    """Return per-ride VO2max estimates as a JSON time-series for the chart."""
+    try:
+        period = request.args.get('period', 'all')
+        if period not in SUPPORTED_PERIODS:
+            period = "all"
+
+        weight, _ = _get_athlete_weight()
+        if weight <= 0:
+            return jsonify({'error': 'Athlete weight not configured. Set it in Settings → Athlete or via ATHLETE_WEIGHT env var.'}), 400
+
+        repo = get_db()
+        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+
+        if not cycling_activities:
+            return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
+
+        activity_map = _build_activity_map(cycling_activities)
+
+        # Apply period filter (Python-side) based on start_date
+        if period != 'all':
+            from datetime import timedelta, timezone as tz
+            cutoff = datetime.now(tz.utc) - timedelta(days=int(period))
+            filtered_ids = []
+            for aid_str, meta in activity_map.items():
+                try:
+                    dt = datetime.fromisoformat(meta['start_date_iso'].replace('Z', '+00:00'))
+                    if dt >= cutoff:
+                        filtered_ids.append(aid_str)
+                except Exception:
+                    filtered_ids.append(aid_str)
+        else:
+            filtered_ids = list(activity_map.keys())
+
+        if not filtered_ids:
+            return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
+
+        watts_data = repo.get_watts_streams_for_activities(filtered_ids)
+
+        results = []
+        for aid, watts_list in watts_data.items():
+            # Skip rides with insufficient power data (< 20 min)
+            if len(watts_list) < MIN_WATTS_SAMPLES:
+                continue
+            best_5min = _compute_best_average_power(watts_list, VO2MAX_MAP_DURATION_SECONDS)
+            if best_5min > 0 and aid in activity_map:
+                vo2 = round(estimate_vo2max(best_5min, weight), 1)
+                results.append({
+                    'date': activity_map[aid]['start_date_iso'][:10],
+                    'vo2max': vo2,
+                    'name': activity_map[aid]['name'],
+                })
+
+        results.sort(key=lambda r: r['date'])
+
+        # Filter to qualifying rides (best per day, outlier rejection)
+        qualified = filter_qualifying_rides(results)
+
+        # Apply Firstbeat-style asymmetric EWMA smoothing
+        smoothed = smooth_vo2max_history(qualified)
+
+        return jsonify({
+            'dates': [r['date'] for r in qualified],
+            'vo2max_values': smoothed,
+            'vo2max_raw': [r['vo2max'] for r in qualified],
+            'activity_names': [r['name'] for r in qualified],
+        })
+
+    except Exception as e:
+        logger.error(f"Error computing VO2max history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/logs')
 def logs():
     try:
@@ -805,6 +982,61 @@ def get_settings():
             'table_counts': table_counts
         }
     })
+
+
+@app.route('/api/profile', methods=['GET'])
+@login_required
+def get_profile_api():
+    """Return the athlete profile as JSON."""
+    try:
+        profile = get_db().get_profile()
+        if not profile:
+            return jsonify({'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0})
+        return jsonify(profile)
+    except Exception as e:
+        logger.error(f"Error fetching profile: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/profile', methods=['PUT'])
+@login_required
+def update_profile_api():
+    """Update individual profile fields.  Validates that *weight* is a positive number."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid request body'}), 400
+
+        repo = get_db()
+        existing = repo.get_profile()
+        if not existing:
+            return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+
+        first_name = data.get('first_name', existing['first_name'])
+        last_name = data.get('last_name', existing['last_name'])
+
+        # Validate weight: must be a positive number (allow 0 to clear)
+        if 'weight' in data:
+            try:
+                weight = float(data['weight'])
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Weight must be a number.'}), 422
+            if weight < 0:
+                return jsonify({'error': 'Weight must be zero or positive.'}), 422
+        else:
+            weight = existing['weight']
+
+        repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight)
+
+        return jsonify({
+            'athlete_id': existing['athlete_id'],
+            'first_name': first_name,
+            'last_name': last_name,
+            'weight': weight,
+        })
+    except Exception as e:
+        logger.error(f"Error updating profile: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/activities', methods=['GET', 'DELETE'])

@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">🫁 {{ title }}</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Estimated from the best 5-minute power (MAP) across <strong>{{ activity_count }}</strong> cycling activit{{ "y" if activity_count == 1 else "ies" }}
+                using the Storer-Davis equation.
+            </p>
+        </div>
+        <div class="flex items-center space-x-2">
+            {% include '_period_select.html' %}
+        </div>
+    </div>
+</div>
+
+{% if error_message %}
+<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+    <p class="text-red-800 dark:text-red-200 text-lg font-medium">⚠ Configuration Required</p>
+    <p class="text-red-700 dark:text-red-300 text-sm mt-2">{{ error_message }}</p>
+    <p class="text-red-600 dark:text-red-400 text-xs mt-3">
+        Go to <a href="{{ url_for('settings') }}" class="underline font-medium">Settings → Athlete</a> to set your weight,
+        or use the environment variable:
+        <code class="bg-red-100 dark:bg-red-900/40 px-2 py-1 rounded">ATHLETE_WEIGHT=75</code> (in kilograms)
+    </p>
+</div>
+
+{% elif vo2max_value == 0 %}
+<div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 text-center">
+    <p class="text-yellow-800 dark:text-yellow-200 text-lg font-medium">⚠ No Power Data</p>
+    <p class="text-yellow-700 dark:text-yellow-300 text-sm mt-2">
+        No 5-minute power data found across your cycling activities.<br>
+        VO₂max estimation requires at least one ride recorded with a power meter lasting 5 minutes or more.
+    </p>
+    <a href="{{ url_for('activities') }}" class="inline-block mt-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
+        ← Back to Activities
+    </a>
+</div>
+
+{% else %}
+<div class="flex flex-col items-center">
+
+    <!-- VO2max Card -->
+    <div class="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <!-- Header band -->
+        <div class="bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-4">
+            <p class="text-white text-sm font-semibold uppercase tracking-wider">VO₂max Estimate</p>
+        </div>
+
+        <!-- Big number -->
+        <div class="px-6 py-10 text-center">
+            <span class="text-7xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">{{ vo2max_value }}</span>
+            <span class="text-xl font-medium text-gray-500 dark:text-gray-400 ml-1">ml/kg/min</span>
+        </div>
+
+        <!-- Classification badge -->
+        <div class="text-center pb-6">
+            <span class="inline-block px-4 py-1.5 rounded-full text-sm font-semibold
+                {% if classification == 'Superior' %}bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300
+                {% elif classification == 'Excellent' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300
+                {% elif classification == 'Good' %}bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300
+                {% elif classification == 'Fair' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300
+                {% elif classification == 'Poor' %}bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300
+                {% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300
+                {% endif %}">
+                {{ classification }}
+            </span>
+        </div>
+
+        <!-- Details -->
+        <div class="border-t border-gray-100 dark:border-gray-700 px-6 py-5 space-y-3">
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Method</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">Storer-Davis (best 5-min power)</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Best 5-min power (MAP)</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ best_5min_watts }} W</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Athlete weight</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">
+                    {{ athlete_weight }} kg
+                    {% if weight_source == 'profile' %}
+                    <a href="{{ url_for('settings') }}" class="text-xs text-blue-500 dark:text-blue-400 hover:underline ml-1">({{ weight_source }})</a>
+                    {% elif weight_source %}
+                    <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">({{ weight_source }})</span>
+                    {% endif %}
+                </span>
+            </div>
+            {% if activity_name %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Activity</span>
+                {% if activity_id %}
+                <a href="https://www.strava.com/activities/{{ activity_id }}" target="_blank"
+                   class="font-medium text-blue-600 dark:text-blue-400 hover:underline truncate max-w-[220px]"
+                   title="{{ activity_name }}">
+                    {{ activity_name }}
+                </a>
+                {% else %}
+                <span class="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[220px]">{{ activity_name }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if activity_date %}
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-gray-500 dark:text-gray-400">Date</span>
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ activity_date }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Collapsible methodology info (?) -->
+    <details class="mt-6 w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 group">
+        <summary class="flex items-center gap-2 px-5 py-3.5 cursor-pointer select-none list-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">How is VO₂max computed?</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-auto text-gray-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </summary>
+
+        <div class="px-5 pb-5 text-sm text-gray-600 dark:text-gray-300 space-y-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+
+            <!-- 1. Formula -->
+            <div>
+                <p class="font-semibold text-gray-800 dark:text-gray-200 mb-1">1. Storer-Davis equation</p>
+                <p>
+                    Each qualifying ride's best 5-minute average power (MAP) is converted to a VO₂max estimate:
+                </p>
+                <p class="my-2">
+                    <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">VO₂max = (10.8 × MAP / weight) + 7</code>
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    Storer, T.W., Davis, J.A., &amp; Caiozzo, V.J. (1990).
+                    <em>Medicine and Science in Sports and Exercise</em>, 22(5), 704-712.
+                </p>
+            </div>
+
+            <!-- 2. Qualifying rides -->
+            <div>
+                <p class="font-semibold text-gray-800 dark:text-gray-200 mb-1">2. Qualifying ride filters</p>
+                <p>Not every ride is used — only efforts that represent genuine fitness are kept, similar to Garmin/Firstbeat:</p>
+                <ul class="list-disc list-inside mt-1 space-y-0.5 text-gray-600 dark:text-gray-300">
+                    <li><strong>Minimum duration</strong> — at least 20 minutes of power data.</li>
+                    <li><strong>Best per day</strong> — if you ride twice on the same day, only the highest VO₂max counts.</li>
+                    <li><strong>Outlier rejection</strong> — rides below 75 % of the median are excluded (recovery / easy rides).</li>
+                </ul>
+            </div>
+
+            <!-- 3. Headline value -->
+            <div>
+                <p class="font-semibold text-gray-800 dark:text-gray-200 mb-1">3. Headline value</p>
+                <p>
+                    The large number shown above is the <strong>best raw VO₂max</strong> from the single ride with the highest 5-minute power
+                    across all your cycling activities.
+                </p>
+            </div>
+
+            <!-- 4. Chart smoothing -->
+            <div>
+                <p class="font-semibold text-gray-800 dark:text-gray-200 mb-1">4. Chart trend line (Firstbeat-style)</p>
+                <p>The chart shows two layers:</p>
+                <ul class="list-disc list-inside mt-1 space-y-0.5 text-gray-600 dark:text-gray-300">
+                    <li><strong>Faded dots</strong> — raw per-ride VO₂max (after filtering).</li>
+                    <li><strong>Solid line</strong> — an asymmetric Exponentially Weighted Moving Average (EWMA):</li>
+                </ul>
+                <ul class="list-none mt-1 ml-6 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    <li>↗ <strong>Rise α = 0.3</strong> — improvements are absorbed in ~3 rides.</li>
+                    <li>↘ <strong>Fall α = 0.07</strong> — a single bad ride barely moves the line.</li>
+                    <li>⏸ <strong>Daily decay = 0.1 %</strong> — inactivity slowly reduces the estimate (~3 % after 30 idle days).</li>
+                </ul>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Inspired by: Firstbeat Technologies (2014). <em>VO₂max Estimation — White Paper.</em>
+                </p>
+            </div>
+
+        </div>
+    </details>
+
+    <!-- VO2max History Chart -->
+    <div class="mt-6 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div id="chart-container" class="relative h-[400px] w-full">
+            <canvas id="vo2maxHistoryChart"></canvas>
+            <div id="chart-overlay" class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75 z-10">
+                <p class="text-lg text-gray-600 dark:text-gray-400">Loading chart data...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-6">
+        <a href="{{ url_for('activities') }}" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded text-sm font-medium transition">
+            ← Back to Activities
+        </a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var ctx = document.getElementById('vo2maxHistoryChart').getContext('2d');
+    var chartOverlay = document.getElementById('chart-overlay');
+    var overlayText = chartOverlay.querySelector('p');
+    var isDark = document.documentElement.classList.contains('dark');
+
+    var gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    var tickColor = isDark ? '#9ca3af' : '#6b7280';
+    var legendColor = isDark ? '#e5e7eb' : '#374151';
+
+    var chartConfig = {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'VO₂max smoothed (ml/kg/min)',
+                    data: [],
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgb(16, 185, 129)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'VO₂max per ride',
+                    data: [],
+                    borderColor: 'rgba(16, 185, 129, 0.25)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                    borderWidth: 0,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgba(16, 185, 129, 0.35)',
+                    pointStyle: 'circle',
+                    fill: false,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: legendColor }
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        afterLabel: function(context) {
+                            var idx = context.dataIndex;
+                            var names = context.chart._activityNames;
+                            return names && names[idx] ? names[idx] : '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        parser: 'YYYY-MM-DD',
+                        unit: 'day',
+                        displayFormats: { day: 'MMM D' },
+                        tooltipFormat: 'll'
+                    },
+                    grid: { color: gridColor },
+                    ticks: { color: tickColor, source: 'auto' }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'VO₂max (ml/kg/min)', color: tickColor },
+                    grid: { color: gridColor },
+                    ticks: { color: tickColor }
+                }
+            }
+        }
+    };
+
+    var vo2maxChart = new Chart(ctx, chartConfig);
+
+    function showOverlay(msg) {
+        overlayText.textContent = msg;
+        chartOverlay.style.display = 'flex';
+    }
+
+    function hideOverlay() {
+        chartOverlay.style.display = 'none';
+    }
+
+    function fetchAndRenderChart(period) {
+        showOverlay('Loading chart data...');
+
+        fetch('/api/vo2max_history?period=' + period)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    showOverlay('Error: ' + data.error);
+                    return;
+                }
+                if (!data.dates || data.dates.length === 0) {
+                    showOverlay('No VO₂max data for the selected period.');
+                    vo2maxChart.data.labels = [];
+                    vo2maxChart.data.datasets[0].data = [];
+                    vo2maxChart.data.datasets[1].data = [];
+                    vo2maxChart.update();
+                } else {
+                    hideOverlay();
+                    vo2maxChart.data.labels = data.dates;
+                    vo2maxChart.data.datasets[0].data = data.vo2max_values;
+                    vo2maxChart.data.datasets[1].data = data.vo2max_raw || data.vo2max_values;
+                    vo2maxChart._activityNames = data.activity_names;
+                    vo2maxChart.update();
+                }
+            })
+            .catch(function(err) {
+                console.error('Error loading VO2max history:', err);
+                showOverlay('Failed to load chart data.');
+            });
+    }
+
+    // Initial load
+    var initialPeriod = document.getElementById('period-select').value;
+    fetchAndRenderChart(initialPeriod);
+
+    // Handle dropdown change
+    document.getElementById('period-select').addEventListener('change', function() {
+        var selected = this.value;
+        var newUrl = new URL(window.location);
+        newUrl.searchParams.set('period', selected);
+        window.history.pushState({ path: newUrl.href }, '', newUrl.href);
+        fetchAndRenderChart(selected);
+    });
+});
+</script>
+{% endif %}
+{% endblock %}
+

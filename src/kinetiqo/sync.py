@@ -40,6 +40,7 @@ class SyncService:
         sync_type_str = 'full' if full_sync else 'fast'
         action = 'full-sync' if full_sync else 'fast-sync'
         added_count = 0
+        updated_count = 0
         removed_count = 0
         success = True
         stopped = False
@@ -132,7 +133,8 @@ class SyncService:
             yield yield_log(f"Found {len(activities)} activities from Strava.")
 
             new_activities = [a for a in activities if str(a["id"]) not in synced_ids]
-            yield yield_log(f"Identified {len(new_activities)} new activities to sync.")
+            existing_activities = [a for a in activities if str(a["id"]) in synced_ids]
+            yield yield_log(f"Identified {len(new_activities)} new and {len(existing_activities)} existing activities.")
 
             ids_to_delete = set()
             if full_sync and limit_days == 0:
@@ -150,6 +152,23 @@ class SyncService:
                 yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
                 return
 
+            # --- Phase 1: Update metadata for existing activities ---
+            if existing_activities:
+                yield yield_log(f"Updating metadata for {len(existing_activities)} existing activities...")
+                for activity in existing_activities:
+                    try:
+                        self.db.write_activity(activity)
+                        updated_count += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to update activity {activity['id']}: {e}")
+                yield yield_log(f"Updated {updated_count} existing activities (metadata only, streams unchanged).")
+
+            if self._check_stop_signal():
+                stopped = True
+                yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                return
+
+            # --- Phase 2: Sync new activities (metadata + streams) ---
             total_new = len(new_activities)
             for i, activity in enumerate(new_activities, 1):
                 if self._check_stop_signal():
@@ -183,7 +202,7 @@ class SyncService:
                 except Exception as e:
                     yield yield_log(f"Error deleting activities: {e}")
 
-            yield yield_log("Sync complete.", final=True)
+            yield yield_log(f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.", final=True)
 
         except Exception as e:
             success = False
