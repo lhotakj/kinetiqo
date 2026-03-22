@@ -380,11 +380,15 @@
         if (tileLayer) {
             leafletMap.removeLayer(tileLayer);
         }
-        tileLayer = L.tileLayer(provider.url, {
+        const opts = {
             attribution: provider.attr,
-            maxZoom: provider.maxZoom || 19,
-            referrerPolicy: "no-referrer-when-downgrade"
-        }).addTo(leafletMap);
+            maxZoom: provider.maxZoom || 19
+        };
+        if (provider.subdomains) {
+            opts.subdomains = provider.subdomains;
+        }
+        // Do not override referrer policy; let the browser send origin per server header
+        tileLayer = L.tileLayer(provider.url, opts).addTo(leafletMap);
     }
 
     // --- Render polylines from cached data ---

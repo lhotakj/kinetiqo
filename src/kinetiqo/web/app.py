@@ -73,11 +73,9 @@ def set_static_headers(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
-    # Ensure the browser sends a Referer header on cross-origin requests
-    # (e.g. OSM tile fetches).  Modern browsers default to
-    # "strict-origin-when-cross-origin" which may strip or omit the
-    # referrer in certain conditions; OSM tiles require it.
-    response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+    # Send an origin referrer on cross-origin requests (including tile fetches)
+    # to comply with OSM's "Referer required" policy without leaking path.
+    response.headers['Referrer-Policy'] = 'origin-when-cross-origin'
 
     return response
 
@@ -270,9 +268,10 @@ def activities():
 TILE_PROVIDERS = {
     'openstreetmap': {
         'name': 'OpenStreetMap',
-        'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'url': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        'maxZoom': 19
+        'maxZoom': 19,
+        'subdomains': ['a', 'b', 'c']
     },
     'cartodbpositron': {
         'name': 'CartoDB Positron',
