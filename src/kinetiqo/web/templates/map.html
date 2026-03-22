@@ -380,6 +380,9 @@
         if (tileLayer) {
             leafletMap.removeLayer(tileLayer);
         }
+        // OSM tiles are served via our own /tiles/osm/... proxy route so the
+        // browser never talks directly to tile.openstreetmap.org — no Referer
+        // or crossOrigin option needed here.
         const opts = {
             attribution: provider.attr,
             maxZoom: provider.maxZoom || 19
@@ -387,7 +390,6 @@
         if (provider.subdomains) {
             opts.subdomains = provider.subdomains;
         }
-        // Do not override referrer policy; let the browser send origin per server header
         tileLayer = L.tileLayer(provider.url, opts).addTo(leafletMap);
     }
 

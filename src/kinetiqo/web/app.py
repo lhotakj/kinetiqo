@@ -4,6 +4,8 @@ import os
 import mimetypes
 from datetime import datetime
 
+import httpx
+
 import json as json_module
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -39,7 +41,6 @@ mimetypes.add_type('font/ttf', '.ttf')
 @app.after_request
 def set_static_headers(response):
     """Set proper headers for static content and caching."""
-    # Only apply to static files
     if request.path.startswith('/static/'):
         # Set appropriate Cache-Control headers based on file type
         if request.path.endswith('.css') or request.path.endswith('.js'):
@@ -65,6 +66,14 @@ def set_static_headers(response):
         # Add additional security headers for static content
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Access-Control-Allow-Origin'] = '*'
+
+    elif request.path.startswith('/tiles/'):
+        # Tile proxy responses: let the browser cache map tiles for 24 h to
+        # avoid redundant round-trips to OSM while keeping the map snappy.
+        # Do NOT set no-store here — that would defeat the purpose of the proxy.
+        response.headers['Cache-Control'] = 'public, max-age=86400'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+
     else:
         # Prevent browser caching of API responses and dynamic pages.
         # This ensures that data freshly synced (e.g. new activities) is
@@ -73,9 +82,8 @@ def set_static_headers(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
-    # Send an origin referrer on cross-origin requests (including tile fetches)
-    # to comply with OSM's "Referer required" policy without leaking path.
-    response.headers['Referrer-Policy'] = 'origin-when-cross-origin'
+    # Standard referrer policy for all page responses.
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
 
     return response
 
@@ -268,10 +276,13 @@ def activities():
 TILE_PROVIDERS = {
     'openstreetmap': {
         'name': 'OpenStreetMap',
-        'url': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        # Tiles are fetched through our own proxy so the server can attach a
+        # valid Referer and User-Agent header as required by OSM's tile usage
+        # policy (https://operations.osmfoundation.org/policies/tiles/).
+        # The browser only ever talks to our own origin — no Referer needed.
+        'url': '/tiles/osm/{z}/{x}/{y}.png',
         'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        'maxZoom': 19,
-        'subdomains': ['a', 'b', 'c']
+        'maxZoom': 19
     },
     'cartodbpositron': {
         'name': 'CartoDB Positron',
@@ -292,6 +303,60 @@ TILE_PROVIDERS = {
         'maxZoom': 18
     }
 }
+
+# OSM tile subdomain pool — distribute load across a/b/c as recommended.
+_OSM_SUBDOMAINS = ('a', 'b', 'c')
+
+
+@app.route('/tiles/osm/<int:z>/<int:x>/<int:y>.png')
+@login_required
+async def osm_tile_proxy(z: int, x: int, y: int):
+    """Server-side proxy for OpenStreetMap raster tiles.
+
+    Fetches tiles from tile.openstreetmap.org with a proper ``Referer`` and
+    ``User-Agent`` header, satisfying OSM's tile usage policy:
+    https://operations.osmfoundation.org/policies/tiles/
+
+    Because the browser requests tiles from our own origin the
+    ``Referer`` the browser sends is irrelevant — our server controls what
+    OSM actually sees, completely eliminating the 403r "Access blocked" tile.
+    """
+    if not (0 <= z <= 19):
+        return Response('', status=400)
+
+    # Distribute requests across the a/b/c OSM subdomains
+    subdomain = _OSM_SUBDOMAINS[(x + y + z) % 3]
+    tile_url = f"https://{subdomain}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+    # Identify ourselves to OSM as required by their policy
+    app_referer = request.host_url.rstrip('/')
+    user_agent = 'Kinetiqo/1.0 (personal fitness dashboard; +https://github.com/kinetiqo/kinetiqo)'
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            osm_resp = await client.get(
+                tile_url,
+                headers={
+                    'User-Agent': user_agent,
+                    'Referer': app_referer,
+                },
+                follow_redirects=True,
+            )
+
+        # Forward the tile (or the error status) straight to the browser.
+        # The after_request hook will add Cache-Control: public, max-age=86400.
+        return Response(
+            osm_resp.content,
+            status=osm_resp.status_code,
+            mimetype=osm_resp.headers.get('content-type', 'image/png'),
+        )
+
+    except httpx.TimeoutException:
+        logger.warning(f"OSM tile proxy timeout: z={z} x={x} y={y}")
+        return Response('', status=504)
+    except Exception as e:
+        logger.error(f"OSM tile proxy error for z={z} x={x} y={y}: {e}")
+        return Response('', status=502)
 
 
 @app.route('/map', methods=['GET', 'POST'])
