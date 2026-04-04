@@ -137,6 +137,12 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_gear ON activities (gear_id)",
                 "def_pg": "CREATE INDEX idx_activities_gear ON activities (gear_id) WHERE gear_id IS NOT NULL",
                 "def_firebird": 'CREATE INDEX idx_activities_gear ON "activities" ("gear_id")'
+            },
+            {
+                "name": "idx_activities_fitness_trends",
+                "def_mysql": "CREATE INDEX idx_activities_fitness_trends ON activities (suffer_score, start_date)",
+                "def_pg": "CREATE INDEX idx_activities_fitness_trends ON activities (start_date) INCLUDE (suffer_score) WHERE suffer_score > 0",
+                "def_firebird": 'CREATE INDEX idx_activities_fitness_trends ON "activities" ("suffer_score", "start_date")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -212,6 +218,30 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_streams_activity_watts ON streams (activity_id, watts)",
                 "def_pg": "CREATE INDEX idx_streams_activity_watts ON streams (activity_id, watts) WHERE watts IS NOT NULL",
                 "def_firebird": 'CREATE INDEX idx_streams_activity_watts ON "streams" ("activity_id", "watts")'
+            },
+            {
+                # Covering ordered index for get_watts_streams_for_activities:
+                #   SELECT activity_id, watts FROM streams
+                #   WHERE activity_id IN (...) AND watts IS NOT NULL
+                #   ORDER BY activity_id, ts
+                #
+                # PostgreSQL: (activity_id, ts) key eliminates the sort step;
+                #   INCLUDE(watts) enables an index-only scan; partial WHERE keeps
+                #   the index compact by excluding NULL-watts rows entirely.
+                #
+                # MySQL: (activity_id, ts, watts) — three-column covering index;
+                #   the engine can satisfy the projection from the index leaf pages.
+                #
+                # Firebird: (activity_id, ts, watts) — three-column composite.
+                #   Firebird has no INCLUDE or partial-index syntax, but storing
+                #   watts as the third key column means the leaf page already
+                #   contains the watts value, reducing random heap I/O per row.
+                #   The (activity_id, ts) prefix also eliminates the sort step,
+                #   which is a real win over the plain idx_streams_activity_ts index.
+                "name": "idx_streams_activity_ts_watts",
+                "def_mysql": "CREATE INDEX idx_streams_activity_ts_watts ON streams (activity_id, ts, watts)",
+                "def_pg": "CREATE INDEX idx_streams_activity_ts_watts ON streams (activity_id, ts) INCLUDE (watts) WHERE watts IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_ts_watts ON "streams" ("activity_id", "ts", "watts")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"

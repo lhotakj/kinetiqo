@@ -497,23 +497,14 @@ def map_data_api():
 def _compute_best_average_power(watts_series: list, duration_seconds: int) -> float:
     """Compute the best (max) average power over a sliding window for a single activity.
 
+    Delegates to the canonical O(N) implementation in ``kinetiqo.db.repository``.
+
     :param watts_series: List of float watts values (1 sample/sec).
     :param duration_seconds: Window size in seconds.
     :return: Best average power as float, or 0.0 if insufficient data.
     """
-    n = len(watts_series)
-    if n < duration_seconds:
-        return 0.0
-
-    window_sum = sum(watts_series[:duration_seconds])
-    max_sum = window_sum
-
-    for i in range(1, n - duration_seconds + 1):
-        window_sum += watts_series[i + duration_seconds - 1] - watts_series[i - 1]
-        if window_sum > max_sum:
-            max_sum = window_sum
-
-    return max_sum / duration_seconds
+    from kinetiqo.db.repository import compute_best_average_power
+    return compute_best_average_power(watts_series, duration_seconds)
 
 
 # Power Skills durations matching Strava's spider chart
@@ -709,19 +700,32 @@ def ftp():
     try:
         repo = get_db()
 
-        # Get all cycling activity IDs
-        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+        # Push the date cut-off to SQL so the DB returns only the relevant rows.
+        # The composite index idx_activities_sport_start_date (sport, start_date DESC)
+        # covers both the sport filter and the date predicate efficiently.
+        from datetime import timedelta, timezone as tz
+        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+        # Get cycling activity IDs (filtered at DB level when period != 'all').
+        # watts_only=True restricts to activities that actually have power-meter
+        # data, which can be a 5-10× reduction vs. all cycling activities and
+        # dramatically cuts the number of stream rows loaded next.
+        cycling_activities = repo.get_activity_ids_by_types(
+            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+        )
         activity_count = len(cycling_activities)
 
         if cycling_activities:
             activity_ids = [str(a['id']) for a in cycling_activities]
             activity_map = _build_activity_map(cycling_activities)
 
-            # Fetch watts streams and find the best 20-min power
-            watts_data = repo.get_watts_streams_for_activities(activity_ids)
+            # Compute best 20-min power via SQL window functions — returns one
+            # row per activity instead of transferring all raw stream rows.
+            best_power = repo.get_best_power_per_activity(
+                activity_ids, FTP_DURATION_SECONDS,
+            )
 
-            for aid, watts_list in watts_data.items():
-                avg = _compute_best_average_power(watts_list, FTP_DURATION_SECONDS)
+            for aid, avg in best_power.items():
                 if avg > best_20min_watts:
                     best_20min_watts = avg
                     activity_id = aid
@@ -758,37 +762,32 @@ def ftp_history():
             period = "all"
 
         repo = get_db()
-        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+
+        # Push the date cut-off to SQL — avoids loading the full activity list
+        # into Python just to discard old rows.
+        from datetime import timedelta, timezone as tz
+        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+        cycling_activities = repo.get_activity_ids_by_types(
+            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+        )
 
         if not cycling_activities:
             return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
 
         activity_map = _build_activity_map(cycling_activities)
-
-        # Apply period filter (Python-side) based on start_date
-        if period != 'all':
-            from datetime import timedelta, timezone as tz
-            cutoff = datetime.now(tz.utc) - timedelta(days=int(period))
-            filtered_ids = []
-            for aid_str, meta in activity_map.items():
-                try:
-                    dt = datetime.fromisoformat(meta['start_date_iso'].replace('Z', '+00:00'))
-                    if dt >= cutoff:
-                        filtered_ids.append(aid_str)
-                except Exception:
-                    filtered_ids.append(aid_str)
-        else:
-            filtered_ids = list(activity_map.keys())
+        filtered_ids = list(activity_map.keys())
 
         if not filtered_ids:
             return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
 
-        watts_data = repo.get_watts_streams_for_activities(filtered_ids)
+        # Compute per-ride FTP via SQL window functions — one row per activity.
+        best_power = repo.get_best_power_per_activity(
+            filtered_ids, FTP_DURATION_SECONDS,
+        )
 
-        # Compute per-ride FTP and collect results
         results = []
-        for aid, watts_list in watts_data.items():
-            avg = _compute_best_average_power(watts_list, FTP_DURATION_SECONDS)
+        for aid, avg in best_power.items():
             if avg > 0 and aid in activity_map:
                 ftp_val = round(avg * FTP_FACTOR, 1)
                 results.append({
@@ -867,17 +866,26 @@ def vo2max():
         try:
             repo = get_db()
 
-            cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+            # Push the date cut-off to SQL — the idx_activities_sport_start_date
+            # index covers the combined (sport, start_date) predicate efficiently.
+            from datetime import timedelta, timezone as tz
+            since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+            cycling_activities = repo.get_activity_ids_by_types(
+                CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+            )
             activity_count = len(cycling_activities)
 
             if cycling_activities:
                 activity_ids = [str(a['id']) for a in cycling_activities]
                 activity_map = _build_activity_map(cycling_activities)
 
-                watts_data = repo.get_watts_streams_for_activities(activity_ids)
+                # Compute best 5-min power via SQL window functions.
+                best_power = repo.get_best_power_per_activity(
+                    activity_ids, VO2MAX_MAP_DURATION_SECONDS,
+                )
 
-                for aid, watts_list in watts_data.items():
-                    avg = _compute_best_average_power(watts_list, VO2MAX_MAP_DURATION_SECONDS)
+                for aid, avg in best_power.items():
                     if avg > best_5min_watts:
                         best_5min_watts = avg
                         activity_id = aid
@@ -924,39 +932,39 @@ def vo2max_history():
             return jsonify({'error': 'Athlete weight not configured. Set it in Settings → Athlete or via ATHLETE_WEIGHT env var.'}), 400
 
         repo = get_db()
-        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+
+        # Push the date cut-off to SQL — avoids loading the full activity list
+        # into Python just to discard old rows.
+        from datetime import timedelta, timezone as tz
+        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+        cycling_activities = repo.get_activity_ids_by_types(
+            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+        )
 
         if not cycling_activities:
             return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
 
         activity_map = _build_activity_map(cycling_activities)
-
-        # Apply period filter (Python-side) based on start_date
-        if period != 'all':
-            from datetime import timedelta, timezone as tz
-            cutoff = datetime.now(tz.utc) - timedelta(days=int(period))
-            filtered_ids = []
-            for aid_str, meta in activity_map.items():
-                try:
-                    dt = datetime.fromisoformat(meta['start_date_iso'].replace('Z', '+00:00'))
-                    if dt >= cutoff:
-                        filtered_ids.append(aid_str)
-                except Exception:
-                    filtered_ids.append(aid_str)
-        else:
-            filtered_ids = list(activity_map.keys())
+        filtered_ids = list(activity_map.keys())
 
         if not filtered_ids:
             return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
 
-        watts_data = repo.get_watts_streams_for_activities(filtered_ids)
+        # Compute best 5-min power per activity via SQL window functions.
+        # min_total_samples=MIN_WATTS_SAMPLES requires ≥20 min of power data
+        # per activity.  This uses COUNT(*) OVER (PARTITION BY activity_id)
+        # with NO frame clause — so it counts ALL rows in the partition, not
+        # just the rolling-window frame.  Unlike the previous (buggy) attempt,
+        # total_cnt can reach the true sample count (e.g. 7200 for a 2-hour
+        # ride), making the ≥1200 filter achievable.
+        best_power = repo.get_best_power_per_activity(
+            filtered_ids, VO2MAX_MAP_DURATION_SECONDS,
+            min_total_samples=MIN_WATTS_SAMPLES,
+        )
 
         results = []
-        for aid, watts_list in watts_data.items():
-            # Skip rides with insufficient power data (< 20 min)
-            if len(watts_list) < MIN_WATTS_SAMPLES:
-                continue
-            best_5min = _compute_best_average_power(watts_list, VO2MAX_MAP_DURATION_SECONDS)
+        for aid, best_5min in best_power.items():
             if best_5min > 0 and aid in activity_map:
                 vo2 = round(estimate_vo2max(best_5min, weight), 1)
                 results.append({

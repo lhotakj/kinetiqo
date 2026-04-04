@@ -749,47 +749,112 @@ class FirebirdRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+
     def get_watts_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[float]]:
-        """Get watts time-series for a list of activity IDs."""
+        """Get watts time-series for a list of activity IDs.
+
+        Requests are batched in groups of ``_FB_BATCH_SIZE`` to keep each IN
+        clause short and let Firebird's optimizer plan each batch efficiently.
+        The ``idx_streams_activity_ts_watts`` index on ``(activity_id, ts, watts)``
+        eliminates the ORDER BY sort step and allows Firebird to read watts
+        values directly from the index leaf pages.
+        """
         if not activity_ids:
             return {}
 
         self._ensure_connected()
-        result = {}
+        result: Dict[str, List[float]] = {}
         int_ids = [int(aid) for aid in activity_ids]
 
-        with self.conn.cursor() as cur:
-            placeholders = ', '.join(['?'] * len(int_ids))
-            cur.execute(f"""
-                SELECT "activity_id", "watts"
-                FROM "streams"
-                WHERE "activity_id" IN ({placeholders})
-                  AND "watts" IS NOT NULL
-                ORDER BY "activity_id", "ts"
-            """, int_ids)
+        _FB_BATCH_SIZE = 50
 
-            for row in cur.fetchall():
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append(float(row[1]))
+        for batch_start in range(0, len(int_ids), _FB_BATCH_SIZE):
+            batch = int_ids[batch_start: batch_start + _FB_BATCH_SIZE]
+            placeholders = ', '.join(['?'] * len(batch))
+
+            with self.conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT "activity_id", "watts"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "watts" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, batch)
+
+                for row in cur.fetchall():
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append(float(row[1]))
 
         return result
 
-    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
-        """Get lightweight activity records filtered by sport type."""
+    def get_best_power_per_activity(
+        self,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Compute best rolling-average power per activity.
+
+        Firebird 4.0 implements ``AVG() OVER (ROWS BETWEEN K PRECEDING …)``
+        with **O(N×K) naive recomputation** — it re-sums K values for every
+        row rather than maintaining a sliding accumulator.  For FTP (K=1199)
+        over ~500 K rows this means ~600 M arithmetic operations and the query
+        never finishes.
+
+        Instead we fetch the raw watts via ``get_watts_streams_for_activities``
+        (which is already batched and uses the ``idx_streams_activity_ts_watts``
+        covering index on ``(activity_id, ts, watts)``) and compute the
+        sliding-window maximum in Python using the O(N)
+        ``compute_best_power_per_activity`` helper.
+        """
+        from kinetiqo.db.repository import compute_best_power_per_activity
+        watts_data = self.get_watts_streams_for_activities(activity_ids)
+        return compute_best_power_per_activity(watts_data, duration_seconds, min_total_samples)
+
+    def get_activity_ids_by_types(
+        self,
+        types: List[str],
+        since_date=None,
+        watts_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get lightweight activity records filtered by sport type.
+
+        When *since_date* is provided the date predicate is pushed to SQL.
+        The composite index ``idx_activities_sport_start_date`` covers both
+        the filter and the sort.
+
+        When *watts_only* is ``True``, only activities with measured power data
+        (``average_watts IS NOT NULL``) are returned.  This is especially
+        important for Firebird: every extra activity_id passed to the subsequent
+        ``get_watts_streams_for_activities`` query triggers an additional index
+        range scan on the (large) streams table, so trimming the ID list early
+        has an outsized effect on total query time.
+        """
         if not types:
             return []
 
         self._ensure_connected()
+        extra = ' AND "average_watts" IS NOT NULL' if watts_only else ""
         with self.conn.cursor() as cur:
             placeholders = ', '.join(['?'] * len(types))
-            cur.execute(f"""
-                SELECT "activity_id", "name", "start_date"
-                FROM "activities"
-                WHERE "sport" IN ({placeholders})
-                ORDER BY "start_date" DESC
-            """, types)
+            if since_date is not None:
+                params = list(types) + [since_date]
+                cur.execute(f"""
+                    SELECT "activity_id", "name", "start_date"
+                    FROM "activities"
+                    WHERE "sport" IN ({placeholders})
+                      AND "start_date" >= ?{extra}
+                    ORDER BY "start_date" DESC
+                """, params)
+            else:
+                cur.execute(f"""
+                    SELECT "activity_id", "name", "start_date"
+                    FROM "activities"
+                    WHERE "sport" IN ({placeholders}){extra}
+                    ORDER BY "start_date" DESC
+                """, types)
 
             activities = []
             for row in cur.fetchall():
