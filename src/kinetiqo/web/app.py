@@ -1,8 +1,12 @@
 import gzip
+import hashlib
 import logging
 import os
 import mimetypes
+import threading
+import time as _time
 from datetime import datetime
+from typing import Dict, List
 
 import httpx
 
@@ -681,6 +685,89 @@ def _get_athlete_weight() -> tuple[float, str]:
     return 0.0, ""
 
 
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for expensive power computations
+# ---------------------------------------------------------------------------
+# The FTP / VO₂max pages and their chart-data API endpoints both call
+# ``repo.get_best_power_per_activity()`` with the *same* parameters within
+# seconds of each other (page render, then AJAX chart load).  On Firebird
+# this query takes ~5 s because the pure-Python driver must transfer ~1.8 M
+# raw watts rows.
+#
+# The cache stores the result keyed by ``(activity_ids_hash, duration,
+# min_total_samples)`` with a configurable TTL (default 5 min).  This means:
+#   • The chart API reuses the result the page just computed → 0 s.
+#   • Navigating back to the page within the TTL is instant.
+#   • After a sync adds new activities the cache expires naturally.
+# ---------------------------------------------------------------------------
+
+class _PowerCache:
+    """Process-level TTL cache for ``get_best_power_per_activity`` results."""
+
+    _DEFAULT_TTL: int = 300          # 5 minutes
+
+    def __init__(self) -> None:
+        self._store: Dict[str, tuple] = {}   # key → (timestamp, result)
+        self._lock = threading.Lock()
+        self._ttl = self._DEFAULT_TTL
+
+    # -- public API ----------------------------------------------------------
+
+    def get_best_power(
+        self,
+        repo,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Return cached result or compute, cache, and return."""
+        key = self._make_key(activity_ids, duration_seconds, min_total_samples)
+        now = _time.monotonic()
+
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is not None:
+                ts, result = entry
+                if (now - ts) < self._ttl:
+                    logger.debug("PowerCache HIT  (dur=%d, min=%d)", duration_seconds, min_total_samples)
+                    return result
+
+        # Cache miss — compute (outside the lock so other threads aren't blocked)
+        result = repo.get_best_power_per_activity(
+            activity_ids, duration_seconds, min_total_samples,
+        )
+
+        with self._lock:
+            self._store[key] = (_time.monotonic(), result)
+            # Lazy eviction: drop stale entries when the cache grows
+            if len(self._store) > 50:
+                self._evict(now)
+
+        logger.debug("PowerCache MISS (dur=%d, min=%d, results=%d)", duration_seconds, min_total_samples, len(result))
+        return result
+
+    def invalidate(self) -> None:
+        """Drop all cached entries (e.g. after a sync)."""
+        with self._lock:
+            self._store.clear()
+
+    # -- internals -----------------------------------------------------------
+
+    @staticmethod
+    def _make_key(activity_ids: List[str], duration: int, min_total: int) -> str:
+        ids_hash = hashlib.md5(",".join(sorted(activity_ids)).encode()).hexdigest()
+        return f"{ids_hash}:{duration}:{min_total}"
+
+    def _evict(self, now: float) -> None:
+        """Remove entries older than TTL.  Caller must hold ``_lock``."""
+        stale = [k for k, (ts, _) in self._store.items() if (now - ts) >= self._ttl]
+        for k in stale:
+            del self._store[k]
+
+
+_power_cache = _PowerCache()
+
+
 @app.route('/ftp')
 @login_required
 def ftp():
@@ -719,10 +806,10 @@ def ftp():
             activity_ids = [str(a['id']) for a in cycling_activities]
             activity_map = _build_activity_map(cycling_activities)
 
-            # Compute best 20-min power via SQL window functions — returns one
-            # row per activity instead of transferring all raw stream rows.
-            best_power = repo.get_best_power_per_activity(
-                activity_ids, FTP_DURATION_SECONDS,
+            # Compute best 20-min power.  The result is cached so the
+            # subsequent /api/ftp_history AJAX call is instant.
+            best_power = _power_cache.get_best_power(
+                repo, activity_ids, FTP_DURATION_SECONDS,
             )
 
             for aid, avg in best_power.items():
@@ -781,9 +868,10 @@ def ftp_history():
         if not filtered_ids:
             return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
 
-        # Compute per-ride FTP via SQL window functions — one row per activity.
-        best_power = repo.get_best_power_per_activity(
-            filtered_ids, FTP_DURATION_SECONDS,
+        # Compute per-ride FTP — typically a cache HIT from the /ftp page
+        # render that fired moments ago with the same activity IDs.
+        best_power = _power_cache.get_best_power(
+            repo, filtered_ids, FTP_DURATION_SECONDS,
         )
 
         results = []
@@ -880,9 +968,10 @@ def vo2max():
                 activity_ids = [str(a['id']) for a in cycling_activities]
                 activity_map = _build_activity_map(cycling_activities)
 
-                # Compute best 5-min power via SQL window functions.
-                best_power = repo.get_best_power_per_activity(
-                    activity_ids, VO2MAX_MAP_DURATION_SECONDS,
+                # Compute best 5-min power.  The result is cached so the
+                # subsequent /api/vo2max_history AJAX call is instant.
+                best_power = _power_cache.get_best_power(
+                    repo, activity_ids, VO2MAX_MAP_DURATION_SECONDS,
                 )
 
                 for aid, avg in best_power.items():
@@ -951,15 +1040,11 @@ def vo2max_history():
         if not filtered_ids:
             return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
 
-        # Compute best 5-min power per activity via SQL window functions.
+        # Compute best 5-min power per activity.
         # min_total_samples=MIN_WATTS_SAMPLES requires ≥20 min of power data
-        # per activity.  This uses COUNT(*) OVER (PARTITION BY activity_id)
-        # with NO frame clause — so it counts ALL rows in the partition, not
-        # just the rolling-window frame.  Unlike the previous (buggy) attempt,
-        # total_cnt can reach the true sample count (e.g. 7200 for a 2-hour
-        # ride), making the ≥1200 filter achievable.
-        best_power = repo.get_best_power_per_activity(
-            filtered_ids, VO2MAX_MAP_DURATION_SECONDS,
+        # per activity so that short / incomplete rides are excluded.
+        best_power = _power_cache.get_best_power(
+            repo, filtered_ids, VO2MAX_MAP_DURATION_SECONDS,
             min_total_samples=MIN_WATTS_SAMPLES,
         )
 
@@ -1445,6 +1530,9 @@ def sync_stream(type):
             yield f"data: <strong>Error:</strong> {str(e)}\n\n"
         finally:
             sync_service.close()
+            # Invalidate the power cache so that FTP / VO₂max pages
+            # reflect any newly synced activities immediately.
+            _power_cache.invalidate()
 
     return Response(generate(), mimetype='text/event-stream')
 

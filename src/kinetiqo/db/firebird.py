@@ -706,39 +706,61 @@ class FirebirdRepository(DatabaseRepository):
                         [int(aid) for aid in activity_ids])
             self.conn.commit()
 
+    # -----------------------------------------------------------------
+    # Chunked IN-clause helpers
+    # -----------------------------------------------------------------
+    # Firebird's Global Temporary Tables (GTT) have zero persistent
+    # statistics — RDB$RECORD_COUNT is always 0.  The cost-based
+    # optimizer therefore treats a GTT JOIN as if the driving table is
+    # empty, and falls back to scanning the entire streams index (7 M+
+    # rows) while probing the GTT per row.  This is catastrophically
+    # slow for the watts / GPS queries.
+    #
+    # Replacing the GTT JOIN with a plain ``IN (?, ?, …)`` clause gives
+    # the optimizer explicit cardinality information.  It can then do
+    # targeted index range scans on ``idx_streams_activity_ts_watts``
+    # per activity_id — the same plan MySQL uses with its pure-Python
+    # driver, which is proven fast.
+    #
+    # _IN_CHUNK_SIZE caps the number of parameters per query to stay
+    # well within Firebird's protocol limits (~1 500 params) while
+    # keeping the number of round-trips minimal.
+    # -----------------------------------------------------------------
+    _IN_CHUNK_SIZE: int = 500
+
     def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """Get GPS streams (lat, lng) for a list of activity IDs."""
         if not activity_ids:
             return {}
 
         self._ensure_connected()
-        result = {}
-        int_ids = [(int(aid),) for aid in activity_ids]
+        result: Dict[str, List[Dict[str, Any]]] = {}
+        int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor() as cur:
-            cur.execute('DELETE FROM "gtt_activity_ids"')
-            cur.executemany('INSERT INTO "gtt_activity_ids" ("activity_id") VALUES (?)', int_ids)
-            
             cur.prefetch = 10000
-            cur.execute("""
-                SELECT s."activity_id", s."lat", s."lng"
-                FROM "streams" s
-                INNER JOIN "gtt_activity_ids" g ON s."activity_id" = g."activity_id"
-                WHERE s."lat" IS NOT NULL
-                  AND s."lng" IS NOT NULL
-                ORDER BY s."activity_id", s."ts"
-            """)
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT "activity_id", "lat", "lng"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "lat" IS NOT NULL
+                      AND "lng" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, chunk)
 
-            for row in cur:
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append({
-                    'lat': float(row[1]),
-                    'lng': float(row[2])
-                })
+                for row in cur:
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append({
+                        'lat': float(row[1]),
+                        'lng': float(row[2])
+                    })
 
-            return result
+        return result
 
     def get_streams_coords_for_activities(self, activity_ids: List[str]) -> Dict[str, List[List[float]]]:
         """Get GPS coordinate arrays for a list of activity IDs as compact [lat, lng] pairs."""
@@ -747,29 +769,29 @@ class FirebirdRepository(DatabaseRepository):
 
         self._ensure_connected()
         result: Dict[str, List[List[float]]] = {}
-        int_ids = [(int(aid),) for aid in activity_ids]
+        int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor() as cur:
-            cur.execute('DELETE FROM "gtt_activity_ids"')
-            cur.executemany('INSERT INTO "gtt_activity_ids" ("activity_id") VALUES (?)', int_ids)
-
             cur.prefetch = 10000
-            cur.execute("""
-                SELECT s."activity_id", s."lat", s."lng"
-                FROM "streams" s
-                INNER JOIN "gtt_activity_ids" g ON s."activity_id" = g."activity_id"
-                WHERE s."lat" IS NOT NULL
-                  AND s."lng" IS NOT NULL
-                ORDER BY s."activity_id", s."ts"
-            """)
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT "activity_id", "lat", "lng"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "lat" IS NOT NULL
+                      AND "lng" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, chunk)
 
-            for row in cur:
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append([float(row[1]), float(row[2])])
+                for row in cur:
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append([float(row[1]), float(row[2])])
 
-            return result
+        return result
 
     def get_streams_bounds_for_activities(self, activity_ids: List[str]) -> Optional[Tuple[float, float, float, float]]:
         """Get GPS bounding box for a list of activity IDs via SQL aggregation."""
@@ -777,23 +799,31 @@ class FirebirdRepository(DatabaseRepository):
             return None
 
         self._ensure_connected()
-        int_ids = [(int(aid),) for aid in activity_ids]
+        int_ids = [int(aid) for aid in activity_ids]
+        min_lat = min_lng = float('inf')
+        max_lat = max_lng = float('-inf')
+        found = False
 
         with self.conn.cursor() as cur:
-            cur.execute('DELETE FROM "gtt_activity_ids"')
-            cur.executemany('INSERT INTO "gtt_activity_ids" ("activity_id") VALUES (?)', int_ids)
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT MIN("lat"), MIN("lng"), MAX("lat"), MAX("lng")
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "lat" IS NOT NULL
+                      AND "lng" IS NOT NULL
+                """, chunk)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    found = True
+                    min_lat = min(min_lat, float(row[0]))
+                    min_lng = min(min_lng, float(row[1]))
+                    max_lat = max(max_lat, float(row[2]))
+                    max_lng = max(max_lng, float(row[3]))
 
-            cur.execute("""
-                SELECT MIN(s."lat"), MIN(s."lng"), MAX(s."lat"), MAX(s."lng")
-                FROM "streams" s
-                INNER JOIN "gtt_activity_ids" g ON s."activity_id" = g."activity_id"
-                WHERE s."lat" IS NOT NULL
-                  AND s."lng" IS NOT NULL
-            """)
-            row = cur.fetchone()
-            if row and row[0] is not None:
-                return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
-            return None
+        return (min_lat, min_lng, max_lat, max_lng) if found else None
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
@@ -840,32 +870,38 @@ class FirebirdRepository(DatabaseRepository):
 
 
     def get_watts_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[float]]:
-        """Get watts time-series for a list of activity IDs."""
+        """Get watts time-series for a list of activity IDs.
+
+        Uses chunked ``IN (?, …)`` clauses instead of a GTT JOIN so that
+        Firebird's optimizer has explicit cardinality information and can
+        do targeted index range scans on ``idx_streams_activity_ts_watts``
+        per activity_id.
+        """
         if not activity_ids:
             return {}
 
         self._ensure_connected()
         result: Dict[str, List[float]] = {}
-        int_ids = [(int(aid),) for aid in activity_ids]
+        int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor() as cur:
-            cur.execute('DELETE FROM "gtt_activity_ids"')
-            cur.executemany('INSERT INTO "gtt_activity_ids" ("activity_id") VALUES (?)', int_ids)
-
             cur.prefetch = 10000
-            cur.execute("""
-                SELECT s."activity_id", s."watts"
-                FROM "streams" s
-                INNER JOIN "gtt_activity_ids" g ON s."activity_id" = g."activity_id"
-                WHERE s."watts" IS NOT NULL
-                ORDER BY s."activity_id", s."ts"
-            """)
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT "activity_id", "watts"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "watts" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, chunk)
 
-            for row in cur:
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append(float(row[1]))
+                for row in cur:
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append(float(row[1]))
 
         return result
 
@@ -877,17 +913,23 @@ class FirebirdRepository(DatabaseRepository):
     ) -> Dict[str, float]:
         """Compute best rolling-average power per activity.
 
-        Firebird implements ``AVG() OVER (ROWS BETWEEN K PRECEDING …)`` with
-        **O(N×K) naive recomputation** — it re-sums K values for every row
-        rather than maintaining a sliding accumulator.  For FTP (K=1199) over
-        ~500 K rows this means ~600 M arithmetic operations and the query
-        takes minutes.
+        Uses the **Python sliding-window** path (same as MySQL): fetches raw
+        watts via ``get_watts_streams_for_activities`` and computes the O(N)
+        rolling maximum in Python with ``compute_best_power_per_activity``.
 
-        Instead we fetch the raw watts via ``get_watts_streams_for_activities``
-        (which uses the GTT join pattern + the ``idx_streams_activity_ts_watts``
-        covering index + ``prefetch=10000`` efficiently) and compute the
-        sliding-window maximum in Python using the O(N)
-        ``compute_best_power_per_activity`` helper.
+        **Why not SQL window functions?**
+        Firebird **materialises CTEs** into temporary tables.  The cumulative-
+        SUM + LAG approach generates two intermediate result sets of ~1.8 M
+        rows each, which Firebird writes to temp storage and reads back.  On a
+        typical setup this takes 10–15 s — slower than the ~5 s needed to
+        transfer the raw watts through the pure-Python ``firebird-driver`` and
+        compute the sliding window in Python.
+
+        The ``get_watts_streams_for_activities`` method uses chunked ``IN (?)``
+        clauses with ``prefetch = 10 000`` so the data transfer is I/O-
+        efficient.  Combined with the application-level cache in the web layer
+        (which makes subsequent loads instant), this approach keeps Firebird
+        competitive with the other backends.
         """
         from kinetiqo.db.repository import compute_best_power_per_activity
         watts_data = self.get_watts_streams_for_activities(activity_ids)

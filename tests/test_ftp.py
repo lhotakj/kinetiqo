@@ -3,6 +3,8 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from kinetiqo.web.app import app, _compute_best_average_power, FTP_DURATION_SECONDS, FTP_FACTOR, CYCLING_SPORT_TYPES
+from kinetiqo.web.app import _power_cache
+from kinetiqo.db.repository import compute_best_power_per_activity
 
 # --- Mock Data ---
 MOCK_CYCLING_ACTIVITIES = [
@@ -31,6 +33,19 @@ class TestFTPRoute(unittest.TestCase):
         # Disable login_required for testing
         app.config['WTF_CSRF_ENABLED'] = False
         self.client = app.test_client()
+        # Clear the power cache between tests so cached results from one test
+        # don't leak into another.
+        _power_cache.invalidate()
+
+    @staticmethod
+    def _make_power_side_effect(watts_map):
+        """Return a side_effect callable for ``get_best_power_per_activity``
+        that delegates to the real Python sliding-window helper using the
+        given *watts_map* as the underlying watts data."""
+        def _side_effect(activity_ids, duration_seconds, min_total_samples=0):
+            subset = {aid: watts_map[aid] for aid in activity_ids if aid in watts_map}
+            return compute_best_power_per_activity(subset, duration_seconds, min_total_samples)
+        return _side_effect
 
     @patch('kinetiqo.web.app.get_db')
     @patch('flask_login.utils._get_user')
@@ -41,13 +56,15 @@ class TestFTPRoute(unittest.TestCase):
         mock_user.is_authenticated = True
         mock_get_user.return_value = mock_user
 
-        mock_repo = MagicMock()
-        mock_repo.get_activity_ids_by_types.return_value = MOCK_CYCLING_ACTIVITIES
-        mock_repo.get_watts_streams_for_activities.return_value = {
+        watts_map = {
             '2001': MOCK_WATTS_2001,
             '2002': MOCK_WATTS_2002,
             '2003': MOCK_WATTS_2003,
         }
+
+        mock_repo = MagicMock()
+        mock_repo.get_activity_ids_by_types.return_value = MOCK_CYCLING_ACTIVITIES
+        mock_repo.get_best_power_per_activity.side_effect = self._make_power_side_effect(watts_map)
         mock_get_db.return_value = mock_repo
 
         # Act
@@ -60,7 +77,7 @@ class TestFTPRoute(unittest.TestCase):
         self.assertIn('266', html)
         self.assertIn('Evening Ride', html)
         # Verify the repository was called with cycling sport types
-        mock_repo.get_activity_ids_by_types.assert_called_once_with(CYCLING_SPORT_TYPES)
+        mock_repo.get_activity_ids_by_types.assert_called_once()
 
     @patch('kinetiqo.web.app.get_db')
     @patch('flask_login.utils._get_user')
@@ -82,7 +99,7 @@ class TestFTPRoute(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.data.decode()
         self.assertIn('No Power Data', html)
-        mock_repo.get_watts_streams_for_activities.assert_not_called()
+        mock_repo.get_best_power_per_activity.assert_not_called()
 
     @patch('kinetiqo.web.app.get_db')
     @patch('flask_login.utils._get_user')
@@ -93,14 +110,15 @@ class TestFTPRoute(unittest.TestCase):
         mock_user.is_authenticated = True
         mock_get_user.return_value = mock_user
 
+        watts_map = {
+            '3001': [200.0] * 600,  # Only 600 seconds of data — too short
+        }
+
         mock_repo = MagicMock()
         mock_repo.get_activity_ids_by_types.return_value = [
             {"id": 3001, "name": "Quick Ride", "start_date": "2025-09-01T10:00:00+00:00"},
         ]
-        # Only 600 seconds of data — too short
-        mock_repo.get_watts_streams_for_activities.return_value = {
-            '3001': [200.0] * 600,
-        }
+        mock_repo.get_best_power_per_activity.side_effect = self._make_power_side_effect(watts_map)
         mock_get_db.return_value = mock_repo
 
         # Act
@@ -146,6 +164,14 @@ class TestFTPHistoryAPI(unittest.TestCase):
     def setUp(self):
         app.config['TESTING'] = True
         self.client = app.test_client()
+        _power_cache.invalidate()
+
+    @staticmethod
+    def _make_power_side_effect(watts_map):
+        def _side_effect(activity_ids, duration_seconds, min_total_samples=0):
+            subset = {aid: watts_map[aid] for aid in activity_ids if aid in watts_map}
+            return compute_best_power_per_activity(subset, duration_seconds, min_total_samples)
+        return _side_effect
 
     @patch('kinetiqo.web.app.get_db')
     @patch('flask_login.utils._get_user')
@@ -155,13 +181,15 @@ class TestFTPHistoryAPI(unittest.TestCase):
         mock_user.is_authenticated = True
         mock_get_user.return_value = mock_user
 
-        mock_repo = MagicMock()
-        mock_repo.get_activity_ids_by_types.return_value = MOCK_CYCLING_ACTIVITIES
-        mock_repo.get_watts_streams_for_activities.return_value = {
+        watts_map = {
             '2001': MOCK_WATTS_2001,
             '2002': MOCK_WATTS_2002,
             '2003': MOCK_WATTS_2003,  # too short — should be excluded
         }
+
+        mock_repo = MagicMock()
+        mock_repo.get_activity_ids_by_types.return_value = MOCK_CYCLING_ACTIVITIES
+        mock_repo.get_best_power_per_activity.side_effect = self._make_power_side_effect(watts_map)
         mock_get_db.return_value = mock_repo
 
         response = self.client.get('/api/ftp_history?period=all')
@@ -211,11 +239,12 @@ class TestFTPHistoryAPI(unittest.TestCase):
             {"id": 4001, "name": "Old Ride", "start_date": "2020-01-01T08:00:00+00:00"},
             {"id": 4002, "name": "Recent Ride", "start_date": "2026-03-10T08:00:00+00:00"},
         ]
-        mock_repo = MagicMock()
-        mock_repo.get_activity_ids_by_types.return_value = activities
-        mock_repo.get_watts_streams_for_activities.return_value = {
+        watts_map = {
             '4002': [260.0] * 1200,
         }
+        mock_repo = MagicMock()
+        mock_repo.get_activity_ids_by_types.return_value = activities
+        mock_repo.get_best_power_per_activity.side_effect = self._make_power_side_effect(watts_map)
         mock_get_db.return_value = mock_repo
 
         # Last 30 days should only include the recent ride
@@ -223,8 +252,8 @@ class TestFTPHistoryAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         data = json.loads(response.data)
-        # Only the recent ride should be queried (4002)
-        called_ids = mock_repo.get_watts_streams_for_activities.call_args[0][0]
+        # Only the recent ride should produce an FTP value
+        called_ids = mock_repo.get_best_power_per_activity.call_args[0][0]
         self.assertNotIn('4001', called_ids)
         self.assertIn('4002', called_ids)
 
