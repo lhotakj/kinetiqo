@@ -73,8 +73,8 @@ def set_static_headers(response):
         response.headers['Access-Control-Allow-Origin'] = '*'
 
     elif request.path.startswith('/tiles/'):
-        # Tile proxy responses: let the browser cache map tiles for 24 h to
-        # avoid redundant round-trips to OSM while keeping the map snappy.
+        # OSM tile proxy responses: let the browser cache tiles for 24 h to
+        # avoid redundant round-trips while keeping the map snappy.
         # Do NOT set no-store here — that would defeat the purpose of the proxy.
         response.headers['Cache-Control'] = 'public, max-age=86400'
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -281,37 +281,82 @@ def activities():
     return render_template('activities.html', title="Activities", activities=data)
 
 
-# Available base map tile providers with Leaflet-compatible URL templates
-TILE_PROVIDERS = {
-    'openstreetmap': {
-        'name': 'OpenStreetMap',
-        # Tiles are fetched through our own proxy so the server can attach a
-        # valid Referer and User-Agent header as required by OSM's tile usage
-        # policy (https://operations.osmfoundation.org/policies/tiles/).
-        # The browser only ever talks to our own origin — no Referer needed.
-        'url': '/tiles/osm/{z}/{x}/{y}.png',
-        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        'maxZoom': 19
-    },
-    'cartodbpositron': {
-        'name': 'CartoDB Positron',
-        'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-        'maxZoom': 20
-    },
-    'cartodbdark': {
-        'name': 'CartoDB Dark',
-        'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-        'maxZoom': 20
-    },
-    'esriworldimagery': {
-        'name': 'Esri World Imagery',
-        'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'attr': '&copy; Esri, Maxar, Earthstar Geographics',
-        'maxZoom': 18
+# Available base map tile providers with Leaflet-compatible URL templates.
+# Mapy.cz providers are always listed so the dropdown can show them as
+# disabled when no MAPY_API_KEY is configured (free key from
+# https://developer.mapy.cz).  Tiles are loaded directly by the browser.
+def _build_tile_providers() -> dict:
+    providers = {
+        'openstreetmap': {
+            'name': 'OpenStreetMap',
+            # Tiles are fetched through our own proxy so the server can attach a
+            # valid Referer and User-Agent header as required by OSM's tile usage
+            # policy (https://operations.osmfoundation.org/policies/tiles/).
+            'url': '/tiles/osm/{z}/{x}/{y}.png',
+            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            'maxZoom': 19
+        },
     }
-}
+
+    # Mapy.cz – use the official public API (no proxy required).
+    # The API key is appended as a query-string parameter; Leaflet's
+    # L.tileLayer() passes the URL through verbatim.
+    api_key = config.mapy_api_key
+    mapy_attr = ('&copy; <a href="https://www.seznam.cz/">Seznam.cz, a.s.</a>, '
+                 '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
+    if api_key:
+        providers['mapy_outdoor'] = {
+            'name': 'Mapy.cz Outdoor',
+            'url': f'https://api.mapy.cz/v1/maptiles/outdoor/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+        providers['mapy_base'] = {
+            'name': 'Mapy.cz Base',
+            'url': f'https://api.mapy.cz/v1/maptiles/basic/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+    else:
+        # No API key — include entries as disabled so the UI can show them
+        # greyed-out with a hint that a key is needed.
+        providers['mapy_outdoor'] = {
+            'name': 'Mapy.cz Outdoor',
+            'disabled': True,
+            'url': '',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+        providers['mapy_base'] = {
+            'name': 'Mapy.cz Base',
+            'disabled': True,
+            'url': '',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+
+    providers.update({
+        'cartodbpositron': {
+            'name': 'CartoDB Positron',
+            'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            'maxZoom': 20
+        },
+        'cartodbdark': {
+            'name': 'CartoDB Dark',
+            'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            'maxZoom': 20
+        },
+        'esriworldimagery': {
+            'name': 'Esri World Imagery',
+            'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            'attr': '&copy; Esri, Maxar, Earthstar Geographics',
+            'maxZoom': 18
+        }
+    })
+
+    return providers
 
 # OSM tile subdomain pool — distribute load across a/b/c as recommended.
 _OSM_SUBDOMAINS = ('a', 'b', 'c')
@@ -392,7 +437,7 @@ def map_view():
                            current_width=width,
                            current_opacity=opacity,
                            current_basemap=basemap,
-                           tile_providers=TILE_PROVIDERS)
+                           tile_providers=_build_tile_providers())
 
 
 @app.route('/api/map/data', methods=['POST'])
@@ -1115,6 +1160,12 @@ def logs():
 @login_required
 def settings():
     return render_template('settings.html', title="Settings")
+
+
+@app.route('/license')
+@login_required
+def license_page():
+    return render_template('license.html', title="License & Credits")
 
 
 @app.route('/api/settings')

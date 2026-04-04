@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ title }}</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        Open-source licenses, map tile attributions, and third-party credits.
+    </p>
+</div>
+
+<!-- ─── Kinetiqo MIT License ─── -->
+<div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Kinetiqo — MIT License
+    </h2>
+    <pre class="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-zinc-900 rounded-lg p-4 border border-gray-100 dark:border-zinc-700">MIT License
+
+Copyright (c) 2026 Jaroslav Lhoták
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+</div>
+
+<!-- ─── Map Tile Providers ─── -->
+<div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+        </svg>
+        Map Tile Providers
+    </h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Kinetiqo displays map tiles from the following providers. Each provider's attribution is shown on the map itself; additional licensing details are listed below.
+    </p>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                    <th class="py-3 pr-4">Provider</th>
+                    <th class="py-3 pr-4">License / Terms</th>
+                    <th class="py-3 pr-4">Required Attribution</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700 dark:text-gray-300">
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-3 pr-4 font-medium">
+                        <a href="https://www.openstreetmap.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OpenStreetMap</a>
+                    </td>
+                    <td class="py-3 pr-4">
+                        Data: <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">ODbL 1.0</a><br>
+                        Tiles: <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">CC BY-SA 2.0</a><br>
+                        <a href="https://operations.osmfoundation.org/policies/tiles/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">Tile Usage Policy</a>
+                    </td>
+                    <td class="py-3 pr-4">&copy; OpenStreetMap contributors</td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-3 pr-4 font-medium">
+                        <a href="https://mapy.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Mapy.cz</a>
+                        <span class="text-xs text-gray-400">(Seznam.cz, a.s.)</span>
+                    </td>
+                    <td class="py-3 pr-4">
+                        <a href="https://developer.mapy.com/terms-and-conditions/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Mapy.cz Developer Terms &amp; Conditions</a><br>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            Free tier for non-commercial / personal use.
+                            Map data may not be used for competing map services.
+                            The logo or text attribution must be visible on the map.
+                        </span>
+                    </td>
+                    <td class="py-3 pr-4">&copy; Seznam.cz, a.s. &amp; &copy; OpenStreetMap</td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-3 pr-4 font-medium">
+                        <a href="https://carto.com/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">CARTO</a>
+                        <span class="text-xs text-gray-400">(Positron &amp; Dark Matter)</span>
+                    </td>
+                    <td class="py-3 pr-4">
+                        <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">CC BY 3.0</a>
+                    </td>
+                    <td class="py-3 pr-4">&copy; OpenStreetMap contributors &amp; &copy; CARTO</td>
+                </tr>
+                <tr>
+                    <td class="py-3 pr-4 font-medium">
+                        <a href="https://www.esri.com/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Esri World Imagery</a>
+                    </td>
+                    <td class="py-3 pr-4">
+                        <a href="https://www.esri.com/en-us/legal/terms/full-master-agreement" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Esri Master License Agreement</a>
+                    </td>
+                    <td class="py-3 pr-4">&copy; Esri, Maxar, Earthstar Geographics</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ─── Frontend Libraries (CDN) ─── -->
+<div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+        </svg>
+        Frontend Libraries
+    </h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Client-side libraries loaded from CDN. No build step is required.
+    </p>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                    <th class="py-3 pr-4">Library</th>
+                    <th class="py-3 pr-4">Version</th>
+                    <th class="py-3 pr-4">License</th>
+                    <th class="py-3">Homepage</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700 dark:text-gray-300">
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Tailwind CSS</td>
+                    <td class="py-2 pr-4">CDN (play)</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://tailwindcss.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">tailwindcss.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">HTMX</td>
+                    <td class="py-2 pr-4">1.9</td>
+                    <td class="py-2 pr-4">BSD 2-Clause</td>
+                    <td class="py-2"><a href="https://htmx.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">htmx.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Leaflet.js</td>
+                    <td class="py-2 pr-4">1.9</td>
+                    <td class="py-2 pr-4">BSD 2-Clause</td>
+                    <td class="py-2"><a href="https://leafletjs.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">leafletjs.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">jQuery</td>
+                    <td class="py-2 pr-4">3.7</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://jquery.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">jquery.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">DataTables</td>
+                    <td class="py-2 pr-4">2.x</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://datatables.net" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">datatables.net</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Select2</td>
+                    <td class="py-2 pr-4">4.1</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://select2.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">select2.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Chart.js</td>
+                    <td class="py-2 pr-4">3.x / 4.x</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://www.chartjs.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">chartjs.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">chartjs-adapter-moment</td>
+                    <td class="py-2 pr-4">1.0</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://github.com/chartjs/chartjs-adapter-moment" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">chartjs-adapter-date-fns</td>
+                    <td class="py-2 pr-4">3.0</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://github.com/chartjs/chartjs-adapter-date-fns" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Moment.js</td>
+                    <td class="py-2 pr-4">2.29</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://momentjs.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">momentjs.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Date Range Picker</td>
+                    <td class="py-2 pr-4">latest</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://www.daterangepicker.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">daterangepicker.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">JSZip</td>
+                    <td class="py-2 pr-4">3.10</td>
+                    <td class="py-2 pr-4">MIT or GPLv3</td>
+                    <td class="py-2"><a href="https://stuk.github.io/jszip/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">stuk.github.io/jszip</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">SortableJS</td>
+                    <td class="py-2 pr-4">1.15</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://sortablejs.github.io/Sortable/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">sortablejs.github.io</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">html2canvas</td>
+                    <td class="py-2 pr-4">1.4</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://html2canvas.hertzen.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">html2canvas.hertzen.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Inter (font)</td>
+                    <td class="py-2 pr-4">Variable</td>
+                    <td class="py-2 pr-4">OFL 1.1</td>
+                    <td class="py-2"><a href="https://rsms.me/inter/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">rsms.me/inter</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">Italiana (font)</td>
+                    <td class="py-2 pr-4">—</td>
+                    <td class="py-2 pr-4">OFL 1.1</td>
+                    <td class="py-2"><a href="https://fonts.google.com/specimen/Italiana" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ─── Python Dependencies ─── -->
+<div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+        Python Dependencies
+    </h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Server-side packages from <code class="text-xs bg-gray-100 dark:bg-zinc-900 px-1 py-0.5 rounded">requirements.txt</code>.
+    </p>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                    <th class="py-3 pr-4">Package</th>
+                    <th class="py-3 pr-4">Version</th>
+                    <th class="py-3 pr-4">License</th>
+                    <th class="py-3">Homepage</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700 dark:text-gray-300">
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Flask</td>
+                    <td class="py-2 pr-4">3.1</td>
+                    <td class="py-2 pr-4">BSD 3-Clause</td>
+                    <td class="py-2"><a href="https://flask.palletsprojects.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">flask.palletsprojects.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">flask-login</td>
+                    <td class="py-2 pr-4">0.6</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://github.com/maxcountryman/flask-login" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Click</td>
+                    <td class="py-2 pr-4">8.3</td>
+                    <td class="py-2 pr-4">BSD 3-Clause</td>
+                    <td class="py-2"><a href="https://click.palletsprojects.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">click.palletsprojects.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">httpx</td>
+                    <td class="py-2 pr-4">0.28</td>
+                    <td class="py-2 pr-4">BSD 3-Clause</td>
+                    <td class="py-2"><a href="https://www.python-httpx.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">python-httpx.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">pandas</td>
+                    <td class="py-2 pr-4">3.0</td>
+                    <td class="py-2 pr-4">BSD 3-Clause</td>
+                    <td class="py-2"><a href="https://pandas.pydata.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">pandas.pydata.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">Gunicorn</td>
+                    <td class="py-2 pr-4">25.1</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://gunicorn.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">gunicorn.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">psycopg2-binary</td>
+                    <td class="py-2 pr-4">2.9</td>
+                    <td class="py-2 pr-4">LGPL 3.0</td>
+                    <td class="py-2"><a href="https://www.psycopg.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">psycopg.org</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">mysql-connector-python</td>
+                    <td class="py-2 pr-4">9.6</td>
+                    <td class="py-2 pr-4">GPLv2 (with FOSS exception)</td>
+                    <td class="py-2"><a href="https://dev.mysql.com/doc/connector-python/en/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">dev.mysql.com</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">firebird-driver</td>
+                    <td class="py-2 pr-4">2.0</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://github.com/FirebirdSQL/python3-driver" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">packaging</td>
+                    <td class="py-2 pr-4">26.0</td>
+                    <td class="py-2 pr-4">Apache 2.0 / BSD 2-Clause</td>
+                    <td class="py-2"><a href="https://packaging.pypa.io" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">packaging.pypa.io</a></td>
+                </tr>
+                <tr class="border-b border-gray-100 dark:border-zinc-700/50">
+                    <td class="py-2 pr-4 font-medium">requests</td>
+                    <td class="py-2 pr-4">2.32</td>
+                    <td class="py-2 pr-4">Apache 2.0</td>
+                    <td class="py-2"><a href="https://requests.readthedocs.io" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">requests.readthedocs.io</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">python-dateutil</td>
+                    <td class="py-2 pr-4">2.9</td>
+                    <td class="py-2 pr-4">Apache 2.0 / BSD</td>
+                    <td class="py-2"><a href="https://github.com/dateutil/dateutil" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+

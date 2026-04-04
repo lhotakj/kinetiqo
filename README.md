@@ -19,6 +19,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - [4. Web Interface Configuration](#4-web-interface-configuration)
     - [5. Athlete Configuration](#5-athlete-configuration)
     - [6. Display Configuration](#6-display-configuration)
+    - [7. Map Configuration](#7-map-configuration)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
@@ -31,6 +32,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - [Docker Run](#docker-run)
   - [Docker Compose](#docker-compose)
 - [License](#license)
+  - [Map Tile Attributions](#map-tile-attributions)
 
 ## Features
 
@@ -253,6 +255,11 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATE_FORMAT` | Date format string (Python `strftime` syntax). | `%b %d, %Y` |
+
+#### 7. Map Configuration
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MAPY_API_KEY` | API key for Mapy.cz tile layers (Outdoor & Base). Obtain a free key at [developer.mapy.com](https://developer.mapy.com). When not set, Mapy.cz layers are hidden from the map selector. | _(empty)_ |
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
@@ -502,3 +509,17 @@ docker-compose up -d
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+### Map Tile Attributions
+
+Kinetiqo displays map tiles from the following third-party providers. Their respective licenses and required attributions are listed below.
+
+| Provider | License / Terms | Required Attribution |
+|----------|----------------|----------------------|
+| [OpenStreetMap](https://www.openstreetmap.org) | Data: [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) · Tiles: [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) · [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) | © OpenStreetMap contributors |
+| [Mapy.cz](https://mapy.com) (Seznam.cz, a.s.) | [Mapy.cz Developer Terms & Conditions](https://developer.mapy.com/terms-and-conditions/) — free tier for non-commercial / personal use; map data may not be used for competing map services | © Seznam.cz, a.s. · © OpenStreetMap |
+| [CARTO](https://carto.com/) (Positron & Dark Matter) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | © OpenStreetMap contributors · © CARTO |
+| [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | © Esri, Maxar, Earthstar Geographics |
+
+> **Mapy.cz API key:** To enable the Mapy.cz Outdoor and Base map layers, obtain a free API key from [developer.mapy.com](https://developer.mapy.com) and set the `MAPY_API_KEY` environment variable. Without a key, the Mapy.cz layers are hidden from the map selector.
+

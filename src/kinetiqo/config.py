@@ -51,6 +51,9 @@ class Config:
     # Athlete
     athlete_weight: float = 0.0  # kg — set via ATHLETE_WEIGHT env var for VO2max estimation
 
+    # Map API keys
+    mapy_api_key: str = ""
+
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
@@ -61,11 +64,6 @@ class Config:
             except ValueError:
                 logger.error(f"Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
-
-        if os.path.exists(os.getenv("MYSQL_PORT",
-                                    "")):  # Check if env var exists before converting, though getenv returns string or None.
-            # Wait, os.getenv returns string.
-            pass
 
         if os.getenv("MYSQL_PORT"):
             try:

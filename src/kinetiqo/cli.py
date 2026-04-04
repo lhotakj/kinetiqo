@@ -116,6 +116,16 @@ def cli(ctx, database):
             logger.info(f"DB Version: {db_version}")
             
             repo.initialize_schema()
+
+            # Mapy.cz API key — free, obtain at https://developer.mapy.cz
+            if os.getenv("MAPY_API_KEY"):
+                config.mapy_api_key = os.getenv("MAPY_API_KEY", "")
+            if config.mapy_api_key == "":
+                logger.warning("No mapy.com key provided, base map provider won't be available")
+            else:
+                logger.info("API key for mapy.com provided")
+
+
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}", exc_info=True)
             sys.exit(1)
