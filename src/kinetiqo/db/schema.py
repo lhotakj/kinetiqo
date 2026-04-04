@@ -11,7 +11,7 @@ SCHEMA_DEFINITION = {
              "type_firebird": "TIMESTAMP"},
             {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY",
              "type_firebird": "BIGINT PRIMARY KEY"},
-            {"name": "name", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "name", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "VARCHAR(500)"},
             {"name": "sport", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
             {"name": "athlete_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
             {"name": "distance", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
@@ -318,6 +318,13 @@ SCHEMA_DEFINITION = {
                 "def_pg":       "CONSTRAINT pk_activity_goals PRIMARY KEY (athlete_id, activity_type_id)",
                 "def_firebird": 'CONSTRAINT pk_activity_goals PRIMARY KEY ("athlete_id", "activity_type_id")',
             }
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB"
+    },
+    "gtt_activity_ids": {
+        "columns": [
+            {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"}
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
