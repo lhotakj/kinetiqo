@@ -1,0 +1,80 @@
+<!-- Activity Type Filter with Buttons -->
+<div class="flex flex-col md:flex-row gap-4 items-end w-full">
+    <div class="w-full flex-grow">
+        <label for="activityTypeFilter" class="block text-sm font-medium text-gray-700 mb-1">Activities Types</label>
+        <select id="activityTypeFilter" class="w-full" multiple="multiple">
+            <optgroup label="Cycling activities">
+                <option value="GravelRide" selected>GravelRide</option>
+                <option value="Ride" selected>Ride</option>
+                <option value="MountainBikeRide" selected>MountainBikeRide</option>
+                <option value="VirtualRide" selected>VirtualRide</option>
+            </optgroup>
+            <optgroup label="Walking activities">
+                <option value="Hike" selected>Hike</option>
+                <option value="Walk" selected>Walk</option>
+            </optgroup>
+            <optgroup label="Skiing activities">
+                <option value="AlpineSki" selected>AlpineSki</option>
+                <option value="BackcountrySki" selected>BackcountrySki</option>
+                <option value="NordicSki" selected>NordicSki</option>
+            </optgroup>
+            <optgroup label="Running activities">
+                <option value="Run" selected>Run</option>
+                <option value="VirtualRun" selected>VirtualRun</option>
+            </optgroup>
+            <optgroup label="Other">
+                <option value="Badminton" selected>Badminton</option>
+                <option value="Canoeing" selected>Canoeing</option>
+                <option value="Crossfit" selected>Crossfit</option>
+                <option value="EBikeRide" selected>EBikeRide</option>
+                <option value="Elliptical" selected>Elliptical</option>
+                <option value="EMountainBikeRide" selected>EMountainBikeRide</option>
+                <option value="Golf" selected>Golf</option>
+                <option value="Handcycle" selected>Handcycle</option>
+                <option value="HighIntensityIntervalTraining" selected>HighIntensityIntervalTraining</option>
+                <option value="IceSkate" selected>IceSkate</option>
+                <option value="InlineSkate" selected>InlineSkate</option>
+                <option value="Kayaking" selected>Kayaking</option>
+                <option value="Kitesurf" selected>Kitesurf</option>
+                <option value="Pickleball" selected>Pickleball</option>
+                <option value="Pilates" selected>Pilates</option>
+                <option value="Racquetball" selected>Racquetball</option>
+                <option value="RockClimbing" selected>RockClimbing</option>
+                <option value="RollerSki" selected>RollerSki</option>
+                <option value="Rowing" selected>Rowing</option>
+                <option value="Sail" selected>Sail</option>
+                <option value="Skateboard" selected>Skateboard</option>
+                <option value="Snowboard" selected>Snowboard</option>
+                <option value="Snowshoe" selected>Snowshoe</option>
+                <option value="Soccer" selected>Soccer</option>
+                <option value="Squash" selected>Squash</option>
+                <option value="StairStepper" selected>StairStepper</option>
+                <option value="StandUpPaddling" selected>StandUpPaddling</option>
+                <option value="Surfing" selected>Surfing</option>
+                <option value="Swim" selected>Swim</option>
+                <option value="TableTennis" selected>TableTennis</option>
+                <option value="Tennis" selected>Tennis</option>
+                <option value="TrailRun" selected>TrailRun</option>
+                <option value="Velomobile" selected>Velomobile</option>
+                <option value="VirtualRow" selected>VirtualRow</option>
+                <option value="WeightTraining" selected>WeightTraining</option>
+                <option value="Wheelchair" selected>Wheelchair</option>
+                <option value="Windsurf" selected>Windsurf</option>
+                <option value="Workout" selected>Workout</option>
+                <option value="Yoga" selected>Yoga</option>
+            </optgroup>
+        </select>
+    </div>
+
+    <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center flex-shrink-0">
+        <button id="selectAllBtn"
+                class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activity types">
+            Select All
+        </button>
+        <button id="deselectAllBtn"
+                class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Deselect all activity types">
+            Deselect All
+        </button>
+        {% block extra_toggles %}{% endblock %}
+    </div>
+</div>

@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block head %}
+<!-- Styles -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
+
+<!-- Scripts -->
+<!-- jQuery is already included in base.html -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+<!-- App Scripts -->
+<script src="{{ url_for('static', filename='js/activities_filter.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
+</div>
+
+<div class="mb-4">
+    <!-- ── Primary filter: activity-group pills ───────────────────── -->
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="text-sm font-medium text-gray-500 whitespace-nowrap">Group:</span>
+        <div id="goalTypePills" class="flex flex-wrap gap-2">
+            <!-- populated by JS after /api/goals returns -->
+        </div>
+    </div>
+    <!-- ── Secondary filter: individual activity-type selector ──────── -->
+    {% include "_activity_type_selector.html" %}
+</div>
+
+<div class="space-y-6 mt-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold mb-4">Cumulative Progress (Distance)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Week</h3>
+                <div class="h-64 relative w-full"><canvas id="chartWeekDist"></canvas></div>
+                <div id="info-chartWeekDist" class="mt-2 text-center min-h-[2.5rem]"></div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Month</h3>
+                <div class="h-64 relative w-full"><canvas id="chartMonthDist"></canvas></div>
+                <div id="info-chartMonthDist" class="mt-2 text-center min-h-[2.5rem]"></div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Year</h3>
+                <div class="h-64 relative w-full"><canvas id="chartYearDist"></canvas></div>
+                <div id="info-chartYearDist" class="mt-2 text-center min-h-[2.5rem]"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold mb-4">Cumulative Progress (Elevation)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Week</h3>
+                <div class="h-64 relative w-full"><canvas id="chartWeekElev"></canvas></div>
+                <div id="info-chartWeekElev" class="mt-2 text-center min-h-[2.5rem]"></div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Month</h3>
+                <div class="h-64 relative w-full"><canvas id="chartMonthElev"></canvas></div>
+                <div id="info-chartMonthElev" class="mt-2 text-center min-h-[2.5rem]"></div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Year</h3>
+                <div class="h-64 relative w-full"><canvas id="chartYearElev"></canvas></div>
+                <div id="info-chartYearElev" class="mt-2 text-center min-h-[2.5rem]"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── "Show Entire Period" toggle – injected into _activity_type_selector ──
+    const toggleHtml = `
+        <div class="flex items-center ml-4">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="entirePeriodToggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300
+                          rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white
+                          after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white
+                          after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5
+                          after:transition-all peer-checked:bg-blue-600"></div>
+              <span class="ml-3 text-sm font-medium text-gray-900">Show Entire Period</span>
+            </label>
+        </div>`;
+    const btnGroup = document.querySelector('#custom-buttons-wrapper');
+    if (btnGroup) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = toggleHtml;
+        btnGroup.appendChild(tmp.firstElementChild);
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let charts = {};
+    /** goalsData keyed by activity_type_id string.
+     *  Each entry: { name, icon, strava_types, weekly_distance_goal, … }
+     *  strava_types is the authoritative list from ACTIVITY_GOALS_TYPES in app.py. */
+    let goalsData = {};
+
+    /** Active goal-type pill ID (string).  '' = All Activities, '1' = Cycling, etc.
+     *  Persisted in localStorage so the selection survives page reloads. */
+    let activeGoalTypeId = localStorage.getItem('kinetiqoProgressGoalType') || '';
+
+    // ── Goal-type pills ────────────────────────────────────────────────────
+    const pillsContainer = document.getElementById('goalTypePills');
+
+    /** Build / rebuild the pill row from the loaded goalsData. */
+    function buildGoalTypePills() {
+        pillsContainer.innerHTML = '';
+        pillsContainer.appendChild(_makePill('', 'All Activities'));
+
+        Object.keys(goalsData)
+            .map(Number).sort((a, b) => a - b)
+            .forEach(id => {
+                const g = goalsData[String(id)];
+                pillsContainer.appendChild(_makePill(String(id), `${g.icon} ${g.name}`));
+            });
+
+        _refreshPillStyles();
+    }
+
+    function _makePill(typeId, label) {
+        const btn = document.createElement('button');
+        btn.dataset.typeId = typeId;
+        btn.textContent    = label;
+        btn.addEventListener('click', () => onGoalTypePillClick(typeId));
+        return btn;
+    }
+
+    function _refreshPillStyles() {
+        pillsContainer.querySelectorAll('[data-type-id]').forEach(btn => {
+            const active = btn.dataset.typeId === activeGoalTypeId;
+            btn.className = 'goal-type-pill px-3 py-1.5 rounded text-sm font-medium transition-colors '
+                + (active
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
+        });
+    }
+
+    /**
+     * Pill click handler.
+     *  1. Persists & highlights the new selection.
+     *  2. Pre-selects the relevant Strava types in the activity-type Select2.
+     *  3. Triggering Select2 "change" fires onFilterChange → fetchDataAndUpdateCharts.
+     */
+    function onGoalTypePillClick(typeId) {
+        activeGoalTypeId = typeId;
+        localStorage.setItem('kinetiqoProgressGoalType', typeId);
+        _refreshPillStyles();
+
+        const $select = $('#activityTypeFilter');
+        if (!typeId) {
+            // All Activities → select every option
+            $select.find('option').prop('selected', true);
+        } else {
+            const stravaTypes = (goalsData[typeId] || {}).strava_types || [];
+            $select.find('option').prop('selected', false);
+            stravaTypes.forEach(t => $select.find(`option[value="${t}"]`).prop('selected', true));
+        }
+        $select.trigger('change');   // → onFilterChange → fetchDataAndUpdateCharts
+    }
+
+    // ── Goal lookup ────────────────────────────────────────────────────────
+    /**
+     * Return the configured goal for the active goal type, period and metric.
+     * Returns null (= no pace line drawn) when:
+     *   • "All Activities" is active (no meaningful single goal)
+     *   • The goal has not been set for this period/metric combination
+     */
+    function getActiveGoal(period, metric) {
+        if (!activeGoalTypeId) return null;
+        const row = goalsData[activeGoalTypeId];
+        if (!row) return null;
+        const val = row[`${period}_${metric}_goal`];
+        return (val != null && val > 0) ? val : null;
+    }
+
+    // ── Period helpers ─────────────────────────────────────────────────────
+    function getPeriodStart(periodType) {
+        const now = new Date();
+        if (periodType === 'week') {
+            const dow = now.getDay() || 7;        // Mon=1 … Sun=7
+            const d = new Date(now);
+            d.setDate(now.getDate() - dow + 1);   // rewind to Monday
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+        if (periodType === 'month') return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        if (periodType === 'year')  return new Date(now.getFullYear(), 0,             1, 0, 0, 0, 0);
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    function getPeriodEnd(periodType) {
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        if (periodType === 'week') {
+            const d = new Date(now);
+            d.setDate(now.getDate() + (7 - (now.getDay() || 7)));
+            d.setHours(23, 59, 59, 999);
+            return d;
+        }
+        if (periodType === 'month') { const d = new Date(y, m + 1, 0); d.setHours(23,59,59,999); return d; }
+        if (periodType === 'year')  { const d = new Date(y, 11,   31); d.setHours(23,59,59,999); return d; }
+        return now;
+    }
+
+    function _toDateStr(d) { return d.toISOString().slice(0, 10); }
+
+    // ── Dataset builders ───────────────────────────────────────────────────
+    function getCumulative(values) {
+        let s = 0;
+        return values.map(v => s += v);
+    }
+
+    /**
+     * Diagonal "pace" line: (period_start, 0) → (period_end, goalValue).
+     *
+     * The line represents the constant rate needed to reach the goal exactly
+     * by the last day of the period.  When the actual cumulative line is
+     * above the pace line the user is ahead of target; below = behind.
+     *
+     * Returns null when goalValue is not set → no line is drawn.
+     */
+    function buildPaceDataset(periodType, goalValue, unit) {
+        if (!goalValue || goalValue <= 0) return null;
+        return {
+            label: `Target: ${goalValue} ${unit}`,
+            data: [
+                { x: _toDateStr(getPeriodStart(periodType)), y: 0         },
+                { x: _toDateStr(getPeriodEnd(periodType)),   y: goalValue },
+            ],
+            borderColor: '#9CA3AF',
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            backgroundColor: 'transparent',
+            fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            order: 1,
+        };
+    }
+
+    // ── Pace-at-today helper ───────────────────────────────────────────────
+    /**
+     * Return what the cumulative value *should* be at this exact moment if the
+     * user were progressing at a perfectly constant daily rate toward the goal.
+     * Mirrors the pace dataset's linear interpolation at t = now.
+     */
+    function getPaceAtToday(periodType, goalValue) {
+        if (!goalValue || goalValue <= 0) return 0;
+        const now   = new Date();
+        const start = getPeriodStart(periodType);
+        const end   = getPeriodEnd(periodType);
+        const totalMs   = end.getTime()   - start.getTime();
+        if (totalMs <= 0) return 0;
+        const elapsedMs = Math.max(0, now.getTime() - start.getTime());
+        return goalValue * Math.min(1, elapsedMs / totalMs);
+    }
+
+    // ── Chart info panel ───────────────────────────────────────────────────
+    /**
+     * Write the "Current / goal status" text under a chart tile.
+     *
+     * @param {string} canvasId   - matches the <canvas> id
+     * @param {number} current    - cumulative value at today (last item in array)
+     * @param {string} unit       - 'km' or 'm'
+     * @param {number|null} goal  - user's goal for this period+metric (null = not set)
+     * @param {string} periodType - 'week' | 'month' | 'year'
+     */
+    function renderChartInfo(canvasId, current, unit, goal, periodType) {
+        const el = document.getElementById('info-' + canvasId);
+        if (!el) return;
+
+        // Format helper: comma thousands, 1 decimal for km, 0 for m
+        const decimals = unit === 'km' ? 1 : 0;
+        const fmt = v => new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: decimals,
+        }).format(v);
+
+        // ── Line 1: current total (always shown) ──
+        const currentHtml =
+            `<p class="text-sm font-semibold text-gray-700 dark:text-gray-300">` +
+            `Current: ${fmt(current)}\u00a0${unit}</p>`;
+
+        // ── Line 2: goal status (only when a goal is configured) ──
+        let statusHtml = '';
+        if (goal && goal > 0) {
+            const pct      = Math.round((current / goal) * 100);
+            const pace     = getPaceAtToday(periodType, goal);
+            const diff     = current - pace;
+            // "on track" band: ±5 % of today's expected pace (min 0.1 unit)
+            const tolerance = Math.max(0.1, pace * 0.05);
+
+            let msg, color;
+
+            if (pct >= 100) {
+                // Goal already smashed
+                msg   = `🏆 Incredible — goal smashed at ${pct}%! You're ${fmt(current - goal)}\u00a0${unit} above target.`;
+                color = 'text-green-600 dark:text-green-400';
+            } else if (pace < 0.01) {
+                // Period barely started — no meaningful pace to compare against
+                msg   = `${pct}% of goal — ${fmt(goal - current)}\u00a0${unit} still to go this period.`;
+                color = 'text-gray-500 dark:text-gray-400';
+            } else if (Math.abs(diff) <= tolerance) {
+                msg   = `🎯 You've so far achieved ${pct}% of the goal — great, you're right on track!`;
+                color = 'text-green-600 dark:text-green-400';
+            } else if (diff > 0) {
+                msg   = `🚀 Awesome! You've so far achieved ${pct}% of the goal and are ${fmt(diff)}\u00a0${unit} ahead of the plan.`;
+                color = 'text-green-600 dark:text-green-400';
+            } else {
+                msg   = `💪 You've achieved ${pct}% of the goal, ${fmt(-diff)}\u00a0${unit} behind the plan — keep pushing!`;
+                color = 'text-orange-500 dark:text-orange-400';
+            }
+
+            statusHtml = `<p class="text-sm ${color} mt-0.5 leading-snug">${msg}</p>`;
+        }
+
+        el.innerHTML = currentHtml + statusHtml;
+    }
+
+    // ── Chart create / update ──────────────────────────────────────────────
+    function createOrUpdateChart(canvasId, label, dates, values, color, unit, showEntirePeriod, goalValue) {
+        const cumulative = getCumulative(values);
+        const chartData  = dates.map((d, i) => ({ x: d, y: cumulative[i] }));
+
+        let periodType = '';
+        if      (canvasId.includes('Week'))  periodType = 'week';
+        else if (canvasId.includes('Month')) periodType = 'month';
+        else if (canvasId.includes('Year'))  periodType = 'year';
+
+        const maxX        = showEntirePeriod ? getPeriodEnd(periodType) : undefined;
+        const paceDataset = buildPaceDataset(periodType, goalValue, unit);
+
+        if (charts[canvasId]) {
+            const chart = charts[canvasId];
+            chart.data.labels           = dates;
+            chart.data.datasets[0].data = chartData;
+            chart.options.scales.x.max  = maxX;
+
+            if (paceDataset) {
+                if (chart.data.datasets.length > 1) {
+                    chart.data.datasets[1].data  = paceDataset.data;
+                    chart.data.datasets[1].label = paceDataset.label;
+                } else {
+                    chart.data.datasets.push(paceDataset);
+                }
+            } else if (chart.data.datasets.length > 1) {
+                chart.data.datasets.splice(1);
+            }
+            chart.update();
+        } else {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            charts[canvasId] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        {
+                            label, data: chartData,
+                            borderColor: color, backgroundColor: color + '20',
+                            fill: true, tension: 0.1,
+                            pointRadius: 0, pointHoverRadius: 4,
+                            order: 0,
+                        },
+                        ...(paceDataset ? [paceDataset] : []),
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'day', tooltipFormat: 'MMM d, yyyy', displayFormats: { day: 'MMM d' } },
+                            title: { display: false },
+                            max: maxX,
+                        },
+                        y: { beginAtZero: true, title: { display: true, text: unit } },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { mode: 'index', intersect: false },
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                },
+            });
+        }
+
+        // ── Info panel below the chart ─────────────────────────────────────
+        const currentTotal = cumulative.length > 0 ? cumulative[cumulative.length - 1] : 0;
+        renderChartInfo(canvasId, currentTotal, unit, goalValue, periodType);
+    }
+
+    // ── Main data fetch ────────────────────────────────────────────────────
+    function fetchDataAndUpdateCharts() {
+        const types = $('#activityTypeFilter').val() || [];
+        const showEntirePeriod = $('#entirePeriodToggle').is(':checked');
+
+        $.ajax({
+            url: '/api/progress_data',
+            data: { types: types.length ? types : ['_NO_MATCH_'] },
+            success: function (data) {
+                createOrUpdateChart('chartWeekDist',  'Distance',  data.week.dates,  data.week.distance,   '#FC4C02', 'km', showEntirePeriod, getActiveGoal('weekly',  'distance'));
+                createOrUpdateChart('chartMonthDist', 'Distance',  data.month.dates, data.month.distance,  '#FC4C02', 'km', showEntirePeriod, getActiveGoal('monthly', 'distance'));
+                createOrUpdateChart('chartYearDist',  'Distance',  data.year.dates,  data.year.distance,   '#FC4C02', 'km', showEntirePeriod, getActiveGoal('yearly',  'distance'));
+                createOrUpdateChart('chartWeekElev',  'Elevation', data.week.dates,  data.week.elevation,  '#4C02FC', 'm',  showEntirePeriod, getActiveGoal('weekly',  'elevation'));
+                createOrUpdateChart('chartMonthElev', 'Elevation', data.month.dates, data.month.elevation, '#4C02FC', 'm',  showEntirePeriod, getActiveGoal('monthly', 'elevation'));
+                createOrUpdateChart('chartYearElev',  'Elevation', data.year.dates,  data.year.elevation,  '#4C02FC', 'm',  showEntirePeriod, getActiveGoal('yearly',  'elevation'));
+            },
+        });
+    }
+
+    // ── Bootstrap ──────────────────────────────────────────────────────────
+    fetch('/api/goals')
+        .then(r => r.json())
+        .then(data => { if (!data.error) goalsData = data; })
+        .catch(() => { /* goals optional — charts still render without them */ })
+        .finally(() => {
+            // Build pill row from the fetched goal-type metadata
+            buildGoalTypePills();
+
+            // Init Select2, date-pickers and the onFilterChange wiring.
+            // This also restores the last saved activity-type selection from localStorage.
+            if (typeof initActivityFilters === 'function') {
+                initActivityFilters({
+                    onFilterChange: fetchDataAndUpdateCharts,
+                    storagePrefix:  'kinetiqoProgressFilters',
+                });
+            }
+
+            // When "Select All" or "Deselect All" is clicked the Select2 changes but
+            // the pill preset is no longer valid — reset it to "All Activities".
+            $('#selectAllBtn, #deselectAllBtn').on('click.progressPill', function () {
+                activeGoalTypeId = '';
+                localStorage.setItem('kinetiqoProgressGoalType', '');
+                _refreshPillStyles();
+                // charts are re-rendered by the Select2 "change" handler wired above
+            });
+
+            $(document).on('change', '#entirePeriodToggle', fetchDataAndUpdateCharts);
+
+            // Initial render using the restored Select2 state
+            fetchDataAndUpdateCharts();
+        });
+});
+</script>
+{% endblock %}

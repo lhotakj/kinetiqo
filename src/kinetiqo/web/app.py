@@ -11,6 +11,7 @@ from flask import Flask, g, render_template, request, redirect, url_for, flash, 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
+from kinetiqo.db.repository import STRAVA_TYPE_TO_GOAL_TYPE
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
 from kinetiqo.web.fitness import calculate_fitness_freshness
@@ -227,6 +228,10 @@ def get_dynamic_limit_days():
 
 
 # --- Routes ---
+
+# Import additional routes from modules
+from kinetiqo.web.progress import bp as progress_bp
+app.register_blueprint(progress_bp)
 
 @app.route('/')
 def index():
@@ -608,6 +613,24 @@ def powerskills():
         power_data_json=json_module.dumps(power_data),
     )
 
+
+# Ordered list of activity-goal categories surfaced in the Settings / Progress UI.
+# Extend this list to support additional sport categories.
+ACTIVITY_GOALS_TYPES = {
+    1: {
+        "name": "Cycling",
+        "icon": "🚴",
+        "strava_types": [
+            "Ride", "VirtualRide", "EBikeRide", "EMountainBikeRide",
+            "GravelRide", "MountainBikeRide", "Velomobile", "Handcycle",
+        ],
+    },
+    2: {
+        "name": "Walking",
+        "icon": "🥾",
+        "strava_types": ["Walk", "Hike"],
+    },
+}
 
 # Period options shared across pages with a history chart
 SUPPORTED_PERIODS = ["14", "30", "60", "90", "120", "365", "all"]
@@ -1100,6 +1123,96 @@ def update_profile_api():
         })
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Activity Goals API
+# ---------------------------------------------------------------------------
+
+def _build_goals_response(goals_rows: list) -> dict:
+    """Merge DB rows with the ACTIVITY_GOALS_TYPES catalogue into a JSON-ready dict.
+
+    Each entry includes ``strava_types`` so the client can drive Select2
+    filtering without maintaining a duplicate mapping.
+    """
+    goals_by_type = {int(g['activity_type_id']): g for g in goals_rows}
+    result = {}
+    for type_id, meta in ACTIVITY_GOALS_TYPES.items():
+        row = goals_by_type.get(type_id, {})
+        result[str(type_id)] = {
+            'activity_type_id': type_id,
+            'name':             meta['name'],
+            'icon':             meta['icon'],
+            'strava_types':     meta['strava_types'],   # needed by client pill/filter logic
+            'weekly_distance_goal':  row.get('weekly_distance_goal'),
+            'monthly_distance_goal': row.get('monthly_distance_goal'),
+            'yearly_distance_goal':  row.get('yearly_distance_goal'),
+            'weekly_elevation_goal':  row.get('weekly_elevation_goal'),
+            'monthly_elevation_goal': row.get('monthly_elevation_goal'),
+            'yearly_elevation_goal':  row.get('yearly_elevation_goal'),
+        }
+    return result
+
+
+@app.route('/api/goals', methods=['GET'])
+@login_required
+def get_goals_api():
+    """Return activity goals for the authenticated athlete."""
+    try:
+        profile = get_db().get_profile()
+        if not profile:
+            return jsonify(_build_goals_response([]))
+        return jsonify(_build_goals_response(get_db().get_goals(profile['athlete_id'])))
+    except Exception as e:
+        logger.error(f"Error fetching goals: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/goals', methods=['PUT'])
+@login_required
+def update_goals_api():
+    """Upsert activity goals. Request body: list of goal objects."""
+    try:
+        data = request.get_json()
+        if not data or not isinstance(data, list):
+            return jsonify({'error': 'Expected a JSON array of goal objects'}), 400
+
+        profile = get_db().get_profile()
+        if not profile:
+            return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+
+        athlete_id = profile['athlete_id']
+
+        def _parse(val):
+            """Convert user input to a positive float or None (= unset)."""
+            if val is None or val == '':
+                return None
+            try:
+                v = float(val)
+                return v if v > 0 else None
+            except (TypeError, ValueError):
+                return None
+
+        repo = get_db()
+        for item in data:
+            type_id = int(item.get('activity_type_id', 0))
+            if type_id not in ACTIVITY_GOALS_TYPES:
+                continue
+            repo.upsert_goal(
+                athlete_id=athlete_id,
+                activity_type_id=type_id,
+                weekly_distance_goal=_parse(item.get('weekly_distance_goal')),
+                monthly_distance_goal=_parse(item.get('monthly_distance_goal')),
+                yearly_distance_goal=_parse(item.get('yearly_distance_goal')),
+                weekly_elevation_goal=_parse(item.get('weekly_elevation_goal')),
+                monthly_elevation_goal=_parse(item.get('monthly_elevation_goal')),
+                yearly_elevation_goal=_parse(item.get('yearly_elevation_goal')),
+            )
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating goals: {e}")
         return jsonify({'error': str(e)}), 500
 
 

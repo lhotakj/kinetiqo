@@ -125,6 +125,15 @@
             VO₂max
         </a>
 
+        <a href="{{ url_for('progress.progress_page') }}"
+           class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/progress' %}active{% endif %}">
+            <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+            Progress
+        </a>
+
         <a href="{{ url_for('fullsync') }}"
            class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/fullsync' %}active{% endif %}">
             <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

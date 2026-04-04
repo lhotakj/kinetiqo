@@ -266,6 +266,31 @@ SCHEMA_DEFINITION = {
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
+    },
+    # One row per (athlete_id, activity_type_id).
+    # activity_type_id: 1=Cycling, 2=Walking (extensible — add rows for new types).
+    # Distance goals in km; elevation goals in metres.
+    "activity_goals": {
+        "columns": [
+            {"name": "athlete_id",             "type_mysql": "BIGINT NOT NULL",  "type_pg": "BIGINT NOT NULL",  "type_firebird": "BIGINT NOT NULL"},
+            {"name": "activity_type_id",        "type_mysql": "INTEGER NOT NULL", "type_pg": "INTEGER NOT NULL", "type_firebird": "INTEGER NOT NULL"},
+            {"name": "weekly_distance_goal",    "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+            {"name": "monthly_distance_goal",   "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+            {"name": "yearly_distance_goal",    "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+            {"name": "weekly_elevation_goal",   "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+            {"name": "monthly_elevation_goal",  "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+            {"name": "yearly_elevation_goal",   "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+        ],
+        "constraints": [
+            {
+                "name": "pk_activity_goals",
+                "def_mysql":    "CONSTRAINT pk_activity_goals PRIMARY KEY (athlete_id, activity_type_id)",
+                "def_pg":       "CONSTRAINT pk_activity_goals PRIMARY KEY (athlete_id, activity_type_id)",
+                "def_firebird": 'CONSTRAINT pk_activity_goals PRIMARY KEY ("athlete_id", "activity_type_id")',
+            }
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB"
     }
 }
 

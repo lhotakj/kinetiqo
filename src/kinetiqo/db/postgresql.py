@@ -773,6 +773,45 @@ class PostgresqlRepository(DatabaseRepository):
                         weight     = EXCLUDED.weight
             """, (athlete_id, first_name, last_name, weight))
 
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    def get_goals(self, athlete_id: int):
+        self._ensure_connected()
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT activity_type_id,
+                       weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                       weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal
+                FROM activity_goals
+                WHERE athlete_id = %s
+                ORDER BY activity_type_id
+            """, (athlete_id,))
+            return [dict(row) for row in cur.fetchall()]
+
+    def upsert_goal(self, athlete_id, activity_type_id,
+                    weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                    weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO activity_goals
+                    (athlete_id, activity_type_id,
+                     weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                     weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (athlete_id, activity_type_id) DO UPDATE SET
+                    weekly_distance_goal  = EXCLUDED.weekly_distance_goal,
+                    monthly_distance_goal = EXCLUDED.monthly_distance_goal,
+                    yearly_distance_goal  = EXCLUDED.yearly_distance_goal,
+                    weekly_elevation_goal  = EXCLUDED.weekly_elevation_goal,
+                    monthly_elevation_goal = EXCLUDED.monthly_elevation_goal,
+                    yearly_elevation_goal  = EXCLUDED.yearly_elevation_goal
+            """, (athlete_id, activity_type_id,
+                  weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                  weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
+
     def __enter__(self):
         return self
 

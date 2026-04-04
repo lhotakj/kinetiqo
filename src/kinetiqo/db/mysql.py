@@ -803,6 +803,45 @@ class MySQLRepository(DatabaseRepository):
                     weight     = VALUES(weight)
             """, (athlete_id, first_name, last_name, weight))
 
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    def get_goals(self, athlete_id: int):
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT activity_type_id,
+                       weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                       weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal
+                FROM activity_goals
+                WHERE athlete_id = %s
+                ORDER BY activity_type_id
+            """, (athlete_id,))
+            return list(cur.fetchall())
+
+    def upsert_goal(self, athlete_id, activity_type_id,
+                    weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                    weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO activity_goals
+                    (athlete_id, activity_type_id,
+                     weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                     weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    weekly_distance_goal  = VALUES(weekly_distance_goal),
+                    monthly_distance_goal = VALUES(monthly_distance_goal),
+                    yearly_distance_goal  = VALUES(yearly_distance_goal),
+                    weekly_elevation_goal  = VALUES(weekly_elevation_goal),
+                    monthly_elevation_goal = VALUES(monthly_elevation_goal),
+                    yearly_elevation_goal  = VALUES(yearly_elevation_goal)
+            """, (athlete_id, activity_type_id,
+                  weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                  weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
+
     def __enter__(self):
         return self
 

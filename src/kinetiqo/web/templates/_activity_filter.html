@@ -1,0 +1,169 @@
+<!-- Filter activities control box -->
+<div class="bg-white rounded-lg p-4 mb-4 border border-gray-200">
+    <div class="flex flex-col md:flex-row gap-4 items-end">
+        <!-- Custom Search Input -->
+        <div class="w-full md:w-64">
+            <label for="customSearch" class="block text-sm font-medium text-gray-700 mb-1">Filter activities</label>
+            <input type="text" id="customSearch" placeholder="Search by name..."
+                   class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
+                   style="min-height: 42px;">
+        </div>
+
+        <!-- Date Filter Dropdown -->
+        <div class="w-full md:w-64">
+            <label for="dateFilter" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <div class="relative">
+                <button id="dateFilter"
+                        class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-left focus:outline-none focus:ring-1 focus:ring-gray-300 text-sm"
+                        style="min-height: 42px;">
+                    <span>All time</span>
+                </button>
+                <div id="dateFilterDropdown"
+                     class="hidden absolute z-10 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+                    <!-- Presets -->
+                    <div class="mb-4">
+                        <h4 class="font-semibold text-sm mb-2">Presets</h4>
+                        <div class="grid grid-cols-1 gap-2">
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="today">Today
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="yesterday">Yesterday
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_week">This Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="7_days">Last 7 Days
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="last_week">Last Week
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="14_days">Last 14 Days
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_month">This Month
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="last_month">Last Month
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="this_year">This Year
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="last_year">Last Year
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="year">Last 12 Months
+                            </button>
+                            <button class="date-preset-btn text-left px-2 py-1 hover:bg-gray-100 rounded text-sm"
+                                    data-preset="all_time">All Time
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Date Pickers -->
+                    <div>
+                        <div class="flex flex-col gap-2">
+                            <div>
+                                <label for="startDate" class="block text-xs font-medium text-gray-700 mb-1">Start
+                                    Date</label>
+                                <input type="text" id="startDate"
+                                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label for="endDate" class="block text-xs font-medium text-gray-700 mb-1">End
+                                    Date</label>
+                                <input type="text" id="endDate"
+                                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activities Types Dropdown -->
+        <div class="w-full md:w-1/2">
+            <label for="activityTypeFilter" class="block text-sm font-medium text-gray-700 mb-1">Activities
+                Types</label>
+            <select id="activityTypeFilter" class="w-full" multiple="multiple">
+                <optgroup label="Cycling activities">
+                    <option value="GravelRide" selected>GravelRide</option>
+                    <option value="Ride" selected>Ride</option>
+                    <option value="MountainBikeRide" selected>MountainBikeRide</option>
+                    <option value="VirtualRide" selected>VirtualRide</option>
+                </optgroup>
+                <optgroup label="Walking activities">
+                    <option value="Hike" selected>Hike</option>
+                    <option value="Walk" selected>Walk</option>
+                </optgroup>
+                <optgroup label="Skiing activities">
+                    <option value="AlpineSki" selected>AlpineSki</option>
+                    <option value="BackcountrySki" selected>BackcountrySki</option>
+                    <option value="NordicSki" selected>NordicSki</option>
+                </optgroup>
+                <optgroup label="Running activities">
+                    <option value="Run" selected>Run</option>
+                    <option value="VirtualRun" selected>VirtualRun</option>
+                </optgroup>
+                <optgroup label="Other">
+                    <option value="Badminton" selected>Badminton</option>
+                    <option value="Canoeing" selected>Canoeing</option>
+                    <option value="Crossfit" selected>Crossfit</option>
+                    <option value="EBikeRide" selected>EBikeRide</option>
+                    <option value="Elliptical" selected>Elliptical</option>
+                    <option value="EMountainBikeRide" selected>EMountainBikeRide</option>
+                    <option value="Golf" selected>Golf</option>
+                    <option value="Handcycle" selected>Handcycle</option>
+                    <option value="HighIntensityIntervalTraining" selected>HighIntensityIntervalTraining</option>
+                    <option value="IceSkate" selected>IceSkate</option>
+                    <option value="InlineSkate" selected>InlineSkate</option>
+                    <option value="Kayaking" selected>Kayaking</option>
+                    <option value="Kitesurf" selected>Kitesurf</option>
+                    <option value="Pickleball" selected>Pickleball</option>
+                    <option value="Pilates" selected>Pilates</option>
+                    <option value="Racquetball" selected>Racquetball</option>
+                    <option value="RockClimbing" selected>RockClimbing</option>
+                    <option value="RollerSki" selected>RollerSki</option>
+                    <option value="Rowing" selected>Rowing</option>
+                    <option value="Sail" selected>Sail</option>
+                    <option value="Skateboard" selected>Skateboard</option>
+                    <option value="Snowboard" selected>Snowboard</option>
+                    <option value="Snowshoe" selected>Snowshoe</option>
+                    <option value="Soccer" selected>Soccer</option>
+                    <option value="Squash" selected>Squash</option>
+                    <option value="StairStepper" selected>StairStepper</option>
+                    <option value="StandUpPaddling" selected>StandUpPaddling</option>
+                    <option value="Surfing" selected>Surfing</option>
+                    <option value="Swim" selected>Swim</option>
+                    <option value="TableTennis" selected>TableTennis</option>
+                    <option value="Tennis" selected>Tennis</option>
+                    <option value="TrailRun" selected>TrailRun</option>
+                    <option value="Velomobile" selected>Velomobile</option>
+                    <option value="VirtualRow" selected>VirtualRow</option>
+                    <option value="WeightTraining" selected>WeightTraining</option>
+                    <option value="Wheelchair" selected>Wheelchair</option>
+                    <option value="Windsurf" selected>Windsurf</option>
+                    <option value="Workout" selected>Workout</option>
+                    <option value="Yoga" selected>Yoga</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex-grow"></div>
+        <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
+            {% block extra_buttons %}{% endblock %}
+            <button id="selectAllBtn"
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activity types">
+                Select All
+            </button>
+            <button id="deselectAllBtn"
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Deselect all activity types">
+                Deselect All
+            </button>
+        </div>
+    </div>
+    {% block extra_controls %}{% endblock %}
+</div>

@@ -874,6 +874,46 @@ class FirebirdRepository(DatabaseRepository):
             )
         self.conn.commit()
 
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    def get_goals(self, athlete_id: int):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT "activity_type_id",
+                       "weekly_distance_goal", "monthly_distance_goal", "yearly_distance_goal",
+                       "weekly_elevation_goal", "monthly_elevation_goal", "yearly_elevation_goal"
+                FROM "activity_goals"
+                WHERE "athlete_id" = ?
+                ORDER BY "activity_type_id"
+            """, (athlete_id,))
+            cols = [
+                'activity_type_id',
+                'weekly_distance_goal', 'monthly_distance_goal', 'yearly_distance_goal',
+                'weekly_elevation_goal', 'monthly_elevation_goal', 'yearly_elevation_goal',
+            ]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def upsert_goal(self, athlete_id, activity_type_id,
+                    weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                    weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                'UPDATE OR INSERT INTO "activity_goals" '
+                '("athlete_id", "activity_type_id", '
+                '"weekly_distance_goal", "monthly_distance_goal", "yearly_distance_goal", '
+                '"weekly_elevation_goal", "monthly_elevation_goal", "yearly_elevation_goal") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
+                'MATCHING ("athlete_id", "activity_type_id")',
+                (athlete_id, activity_type_id,
+                 weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                 weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal)
+            )
+        self.conn.commit()
+
     def __enter__(self):
         return self
 

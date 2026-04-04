@@ -13,6 +13,12 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - [Dependencies](#dependencies)
   - [Local Setup](#local-setup)
   - [Configuration](#configuration)
+    - [1. Strava API Credentials](#1-strava-api-credentials)
+    - [2. Database Configuration](#2-database-configuration)
+    - [3. Scheduling (Cron)](#3-scheduling-cron)
+    - [4. Web Interface Configuration](#4-web-interface-configuration)
+    - [5. Athlete Configuration](#5-athlete-configuration)
+    - [6. Display Configuration](#6-display-configuration)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
@@ -30,7 +36,9 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 
 - 📊 **Advanced Visualization**: A streamlined web interface for daily monitoring and comprehensive Grafana dashboards for in-depth analysis.
 - ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s to 1h) with a Strava-like spider chart.
-- 🗺️ **Interactive Maps**: View your activities on an interactive map with customizable styles, filtering, and performance optimizations for large datasets.
+- 🏋️ **FTP Estimation**: Automatically estimates your Functional Threshold Power (95 % of best 20-minute average power) from your recorded power-meter data, with a per-ride history chart.
+- 🫁 **VO2max Estimation**: Estimates your VO2max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
+- 🗺️ **Interactive Maps**: View your activities on an interactive map with customizable styles, filtering, and performance optimizations for large datasets. Tiles are served through a server-side proxy that satisfies the OSM usage policy.
 - 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
 - 📝 **Audit Logging**: Records all synchronization operations and data modifications, providing a complete audit trail within the Web UI.
 - 🔄 **Intelligent Synchronization**:
@@ -157,7 +165,7 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `POSTGRESQL_HOST` | Database server hostname. | Required |
-| `POSTGRESQL_PORT` | Database server port. | `5432` |
+| `POSTGRESQL_PORT` | Database server port. Override via env var. | `5432` |
 | `POSTGRESQL_USER` | Database username. | Required |
 | `POSTGRESQL_PASSWORD` | Database password. | Required |
 | `POSTGRESQL_DATABASE` | Database name. | Required |
@@ -168,7 +176,7 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MYSQL_HOST` | Database server hostname. | Required |
-| `MYSQL_PORT` | Database server port. | `3306` |
+| `MYSQL_PORT` | Database server port. Override via env var. | `3306` |
 | `MYSQL_USER` | Database username. | Required |
 | `MYSQL_PASSWORD` | Database password. | Required |
 | `MYSQL_DATABASE` | Database name. | Required |
@@ -181,7 +189,7 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `FIREBIRD_HOST` | Database server hostname. | Required |
-| `FIREBIRD_PORT` | Database server port. | `3050` |
+| `FIREBIRD_PORT` | Database server port. Override via env var. | `3050` |
 | `FIREBIRD_USER` | Database username. | Required |
 | `FIREBIRD_PASSWORD` | Database password. | Required |
 | `FIREBIRD_DATABASE` | Database file path or alias. | Required |
@@ -236,7 +244,12 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 | `WEB_LOGIN` | Username for web access. | `admin` |
 | `WEB_PASSWORD` | Password for web access. | `admin123` |
 
-#### 5. Display Configuration
+#### 5. Athlete Configuration
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ATHLETE_WEIGHT` | Athlete body weight in kilograms, used for VO2max estimation. Can also be set from the **Settings → Athlete** page in the Web UI. | `0` (not set) |
+
+#### 6. Display Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATE_FORMAT` | Date format string (Python `strftime` syntax). | `%b %d, %Y` |

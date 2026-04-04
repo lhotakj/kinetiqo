@@ -40,6 +40,50 @@
         </div>
     </div>
 
+    <!-- Training Goals -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Training Goals</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Set distance (km) and elevation (m) targets per activity type. Changes are saved automatically on blur.
+            </p>
+        </div>
+        <div class="p-6">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 dark:border-zinc-700">
+                            <th class="py-2 pr-4 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Activity</th>
+                            <!-- Distance group -->
+                            <th colspan="3" class="py-2 px-2 text-center font-medium text-orange-600 dark:text-orange-400 border-l border-gray-200 dark:border-zinc-600">
+                                📏 Distance Goal (km)
+                            </th>
+                            <!-- Elevation group -->
+                            <th colspan="3" class="py-2 px-2 text-center font-medium text-indigo-600 dark:text-indigo-400 border-l border-gray-200 dark:border-zinc-600">
+                                ⛰️ Elevation Goal (m)
+                            </th>
+                        </tr>
+                        <tr class="border-b border-gray-200 dark:border-zinc-700 text-xs text-gray-500 dark:text-gray-400">
+                            <th class="py-1 pr-4"></th>
+                            <th class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
+                            <th class="py-1 px-2 font-medium text-center">Monthly</th>
+                            <th class="py-1 px-2 font-medium text-center">Yearly</th>
+                            <th class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
+                            <th class="py-1 px-2 font-medium text-center">Monthly</th>
+                            <th class="py-1 px-2 font-medium text-center">Yearly</th>
+                        </tr>
+                    </thead>
+                    <tbody id="goals-tbody" class="divide-y divide-gray-100 dark:divide-zinc-700">
+                        <tr>
+                            <td colspan="7" class="py-3 text-center text-gray-400 dark:text-gray-500 text-xs">Loading…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="goals-status" class="mt-3 text-xs text-gray-400 dark:text-gray-500 h-4"></div>
+        </div>
+    </div>
+
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
             <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules</h2>
@@ -198,6 +242,154 @@
             if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
             if (!/[\d.]/.test(char)) { e.preventDefault(); }
         });
+
+        // ----------------------------------------------------------------
+        // Training Goals
+        // ----------------------------------------------------------------
+        const goalsTbody    = document.getElementById('goals-tbody');
+        const goalsStatus   = document.getElementById('goals-status');
+        let savedGoals      = {};   // { "1": { weekly_distance_goal: …, … }, … }
+
+        const GOAL_FIELDS = [
+            { key: 'weekly_distance_goal',   group: 'dist' },
+            { key: 'monthly_distance_goal',  group: 'dist' },
+            { key: 'yearly_distance_goal',   group: 'dist' },
+            { key: 'weekly_elevation_goal',  group: 'elev' },
+            { key: 'monthly_elevation_goal', group: 'elev' },
+            { key: 'yearly_elevation_goal',  group: 'elev' },
+        ];
+
+        function showGoalStatus(msg, isError) {
+            goalsStatus.textContent = msg;
+            goalsStatus.className = 'mt-3 text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
+            if (!isError) setTimeout(() => { goalsStatus.textContent = ''; }, 3000);
+        }
+
+        // ── Number formatting helpers ──────────────────────────────────────
+        /** Format a positive number with thousands separators, ≤1 decimal place. */
+        function formatGoalNum(val) {
+            if (val == null || val <= 0) return '';
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 1,
+            }).format(val);
+        }
+
+        /** Parse a (potentially formatted) string → positive float or null. */
+        function parseGoalNum(str) {
+            if (!str || str.trim() === '') return null;
+            const v = parseFloat(str.replace(/,/g, ''));   // strip thousands separators
+            return (!isNaN(v) && v > 0) ? v : null;
+        }
+
+        function buildGoalInput(typeId, fieldKey, currentVal) {
+            // Display as formatted text; raw value restored on focus for editing.
+            const display = (currentVal != null && currentVal > 0) ? formatGoalNum(currentVal) : '';
+            const borderClass = fieldKey.includes('dist')
+                ? 'focus:ring-orange-400 focus:border-orange-400'
+                : 'focus:ring-indigo-400 focus:border-indigo-400';
+            return `<input type="text" inputmode="decimal"
+                        data-type-id="${typeId}" data-field="${fieldKey}"
+                        class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
+                               text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
+                               block p-1.5 text-center"
+                        value="${display}" placeholder="—">`;
+        }
+
+        function renderGoalsTable(goalsData) {
+            savedGoals = goalsData;
+            let html = '';
+            const typeIds = Object.keys(goalsData).map(Number).sort((a, b) => a - b);
+            for (const typeId of typeIds) {
+                const g = goalsData[String(typeId)];
+                html += `<tr class="hover:bg-gray-50 dark:hover:bg-zinc-700/40">
+                    <td class="py-2 pr-4 font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                        <span class="mr-1">${g.icon}</span>${g.name}
+                    </td>`;
+                GOAL_FIELDS.forEach((f, i) => {
+                    const borderLeft = (i === 0 || i === 3) ? 'border-l border-gray-200 dark:border-zinc-600' : '';
+                    html += `<td class="py-2 px-2 ${borderLeft}">${buildGoalInput(typeId, f.key, g[f.key])}</td>`;
+                });
+                html += '</tr>';
+            }
+            goalsTbody.innerHTML = html || '<tr><td colspan="7" class="py-3 text-center text-gray-400 text-xs">No goal types defined.</td></tr>';
+
+            // Attach event handlers for each goal input
+            goalsTbody.querySelectorAll('.goal-input').forEach(inp => {
+                // Strip formatting on focus so the user edits a plain number
+                inp.addEventListener('focus', function () {
+                    const raw = parseGoalNum(this.value);
+                    this.value = raw !== null ? String(raw) : '';
+                });
+                inp.addEventListener('blur', onGoalInputBlur);
+                // Allow digits and one decimal dot; commas are stripped on parse
+                inp.addEventListener('keypress', function (e) {
+                    const char = String.fromCharCode(e.which || e.keyCode);
+                    if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
+                    if (!/[\d.]/.test(char)) e.preventDefault();
+                });
+            });
+        }
+
+        function onGoalInputBlur() {
+            const typeId    = parseInt(this.dataset.typeId);
+            const fieldKey  = this.dataset.field;
+            const newVal    = parseGoalNum(this.value);   // handles formatted or raw strings
+            const typeIdStr = String(typeId);
+
+            // Compare against saved value
+            const prevVal  = savedGoals[typeIdStr] ? savedGoals[typeIdStr][fieldKey] : null;
+            const prevNorm = (prevVal == null || prevVal <= 0) ? null : prevVal;
+            const newNorm  = newVal;   // parseGoalNum already returns null for ≤0
+            if (prevNorm === newNorm) {
+                // No change — just reformat the display in case user typed equivalent value
+                this.value = newNorm !== null ? formatGoalNum(newNorm) : '';
+                return;
+            }
+
+            // Collect current row values for a full upsert
+            const row = savedGoals[typeIdStr] || {};
+            const payload = { activity_type_id: typeId };
+            GOAL_FIELDS.forEach(f => {
+                const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
+                const v = inp ? parseGoalNum(inp.value) : row[f.key];
+                payload[f.key] = v;   // parseGoalNum already returns null for empty/invalid
+            });
+
+            fetch('/api/goals', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify([payload])
+            })
+            .then(r => {
+                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
+                return r.json();
+            })
+            .then(() => {
+                // Update the full row snapshot and reformat all non-focused inputs in the row
+                if (!savedGoals[typeIdStr]) savedGoals[typeIdStr] = {};
+                GOAL_FIELDS.forEach(f => {
+                    savedGoals[typeIdStr][f.key] = payload[f.key] != null ? payload[f.key] : null;
+                    const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
+                    if (inp && inp !== document.activeElement) {
+                        inp.value = payload[f.key] != null ? formatGoalNum(payload[f.key]) : '';
+                    }
+                });
+                showGoalStatus('Saved ✓', false);
+            })
+            .catch(err => showGoalStatus(err.message, true));
+        }
+
+        // Load goals
+        fetch('/api/goals')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                renderGoalsTable(data);
+            })
+            .catch(err => {
+                goalsTbody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-red-500 text-xs">${err.message}</td></tr>`;
+            });
 
         // --- Settings (existing) ---
         fetch('/api/settings')

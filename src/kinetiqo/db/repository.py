@@ -1,6 +1,27 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Set, List, Dict, Any, Tuple
 
+# ---------------------------------------------------------------------------
+# Activity-type constants used for the activity_goals table.
+# New sport categories can be added here — the database stores the integer ID.
+# ---------------------------------------------------------------------------
+GOAL_TYPE_CYCLING = 1   # Ride, VirtualRide, EBikeRide, GravelRide, …
+GOAL_TYPE_WALKING = 2   # Walk, Hike
+
+# Mapping from Strava sport-type strings to GOAL_TYPE_* IDs
+STRAVA_TYPE_TO_GOAL_TYPE: Dict[str, int] = {
+    "Ride": GOAL_TYPE_CYCLING,
+    "VirtualRide": GOAL_TYPE_CYCLING,
+    "EBikeRide": GOAL_TYPE_CYCLING,
+    "EMountainBikeRide": GOAL_TYPE_CYCLING,
+    "GravelRide": GOAL_TYPE_CYCLING,
+    "MountainBikeRide": GOAL_TYPE_CYCLING,
+    "Velomobile": GOAL_TYPE_CYCLING,
+    "Handcycle": GOAL_TYPE_CYCLING,
+    "Walk": GOAL_TYPE_WALKING,
+    "Hike": GOAL_TYPE_WALKING,
+}
+
 
 class DatabaseRepository(ABC):
     """Abstract base class for database operations."""
@@ -182,6 +203,41 @@ class DatabaseRepository(ABC):
         :param first_name: Athlete first name.
         :param last_name: Athlete last name.
         :param weight: Athlete body weight in kilograms.
+        """
+        pass
+
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    def get_goals(self, athlete_id: int) -> List[Dict[str, Any]]:
+        """Return all goal rows for *athlete_id*, ordered by activity_type_id.
+
+        Each dict has the keys:
+          activity_type_id, weekly_distance_goal, monthly_distance_goal,
+          yearly_distance_goal, weekly_elevation_goal, monthly_elevation_goal,
+          yearly_elevation_goal.
+        Any unset goal field is ``None``.
+        Distance goals are stored in **km**; elevation goals in **metres**.
+        """
+        pass
+
+    @abstractmethod
+    def upsert_goal(
+        self,
+        athlete_id: int,
+        activity_type_id: int,
+        weekly_distance_goal: Optional[float],
+        monthly_distance_goal: Optional[float],
+        yearly_distance_goal: Optional[float],
+        weekly_elevation_goal: Optional[float],
+        monthly_elevation_goal: Optional[float],
+        yearly_elevation_goal: Optional[float],
+    ) -> None:
+        """Insert or update a single activity-type goal row for *athlete_id*.
+
+        Pass ``None`` for any goal that should be cleared / left unset.
         """
         pass
 
