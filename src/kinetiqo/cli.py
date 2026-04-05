@@ -123,9 +123,17 @@ def cli(ctx, database):
             if os.getenv("MAPY_API_KEY"):
                 config.mapy_api_key = os.getenv("MAPY_API_KEY", "")
             if config.mapy_api_key == "":
-                logger.warning("No mapy.com key provided, base map provider won't be available")
+                logger.warning("No mapy.com key provided, Mapy.cz map layers won't be available")
             else:
                 logger.info("API key for mapy.com provided")
+
+            # Thunderforest API key — free tier at https://manage.thunderforest.com
+            if os.getenv("THUNDERFOREST_API_KEY"):
+                config.thunderforest_api_key = os.getenv("THUNDERFOREST_API_KEY", "")
+            if config.thunderforest_api_key == "":
+                logger.warning("No Thunderforest key provided, Thunderforest map layers won't be available")
+            else:
+                logger.info("API key for Thunderforest provided")
 
 
         except Exception as e:

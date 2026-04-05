@@ -53,6 +53,7 @@ class Config:
 
     # Map API keys
     mapy_api_key: str = ""
+    thunderforest_api_key: str = ""
 
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")

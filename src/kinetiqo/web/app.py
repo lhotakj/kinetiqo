@@ -335,6 +335,40 @@ def _build_tile_providers() -> dict:
             'maxZoom': 19
         }
 
+    # Thunderforest – use the official tile API (no proxy required).
+    # Free tier key from https://manage.thunderforest.com
+    tf_key = config.thunderforest_api_key
+    tf_attr = ('Maps &copy; <a href="https://www.thunderforest.com/">Thunderforest</a>, '
+               'Data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
+    if tf_key:
+        providers['thunderforest_cycle'] = {
+            'name': 'Thunderforest (OpenCycleMap)',
+            'url': f'https://tile.thunderforest.com/cycle/{{z}}/{{x}}/{{y}}.png?apikey={tf_key}',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+        providers['thunderforest_outdoors'] = {
+            'name': 'Thunderforest (Outdoors)',
+            'url': f'https://tile.thunderforest.com/outdoors/{{z}}/{{x}}/{{y}}.png?apikey={tf_key}',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+    else:
+        providers['thunderforest_cycle'] = {
+            'name': 'Thunderforest (OpenCycleMap)',
+            'disabled': True,
+            'url': '',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+        providers['thunderforest_outdoors'] = {
+            'name': 'Thunderforest (Outdoors)',
+            'disabled': True,
+            'url': '',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+
     providers.update({
         'cartodbpositron': {
             'name': 'CartoDB Positron',

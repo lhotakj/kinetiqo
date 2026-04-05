@@ -259,7 +259,8 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 #### 7. Map Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MAPY_API_KEY` | API key for Mapy.cz tile layers (Outdoor & Base). Obtain a free key at [developer.mapy.com](https://developer.mapy.com). When not set, Mapy.cz layers are hidden from the map selector. | _(empty)_ |
+| `MAPY_API_KEY` | API key for Mapy.cz tile layers (Basic & Outdoor). Obtain a free key at [developer.mapy.com](https://developer.mapy.com). When not set, Mapy.cz layers are hidden from the map selector. | _(empty)_ |
+| `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers (OpenCycleMap & Outdoors). Obtain a free key at [manage.thunderforest.com](https://manage.thunderforest.com). When not set, Thunderforest layers are hidden from the map selector. | _(empty)_ |
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
@@ -518,9 +519,10 @@ Kinetiqo displays map tiles from the following third-party providers. Their resp
 |----------|----------------|----------------------|
 | [OpenStreetMap](https://www.openstreetmap.org) | Data: [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) · Tiles: [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) · [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) | © OpenStreetMap contributors |
 | [Mapy.cz](https://mapy.com) (Seznam.cz, a.s.) | [Mapy.cz Developer Terms & Conditions](https://developer.mapy.com/terms-and-conditions/) — free tier for non-commercial / personal use; map data may not be used for competing map services | © Seznam.cz, a.s. · © OpenStreetMap |
+| [Thunderforest](https://www.thunderforest.com/) | [Thunderforest Terms](https://www.thunderforest.com/terms/) — free tier available for low-traffic / personal use | Maps © Thunderforest · Data © OpenStreetMap contributors |
 | [CARTO](https://carto.com/) (Positron & Dark Matter) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | © OpenStreetMap contributors · © CARTO |
 | [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | © Esri, Maxar, Earthstar Geographics |
 
-> **Mapy.cz API key:** To enable the Mapy.cz Outdoor and Base map layers, obtain a free API key from [developer.mapy.com](https://developer.mapy.com) and set the `MAPY_API_KEY` environment variable. Without a key, the Mapy.cz layers are hidden from the map selector.
+> **Mapy.cz API key:** To enable the Mapy.cz Basic and Outdoor map layers, obtain a free API key from [developer.mapy.com](https://developer.mapy.com) and set the `MAPY_API_KEY` environment variable. Without a key, the Mapy.cz layers are hidden from the map selector.
 
-+ https://manage.thunderforest.com/dashboard
+> **Thunderforest API key:** To enable the Thunderforest OpenCycleMap and Outdoors map layers, obtain a free API key from [manage.thunderforest.com](https://manage.thunderforest.com) and set the `THUNDERFOREST_API_KEY` environment variable. Without a key, the Thunderforest layers are hidden from the map selector.
