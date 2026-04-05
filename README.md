@@ -523,3 +523,4 @@ Kinetiqo displays map tiles from the following third-party providers. Their resp
 
 > **Mapy.cz API key:** To enable the Mapy.cz Outdoor and Base map layers, obtain a free API key from [developer.mapy.com](https://developer.mapy.com) and set the `MAPY_API_KEY` environment variable. Without a key, the Mapy.cz layers are hidden from the map selector.
 
++ https://manage.thunderforest.com/dashboard

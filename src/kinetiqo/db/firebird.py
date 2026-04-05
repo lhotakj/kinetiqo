@@ -295,6 +295,14 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute('SELECT "activity_id" FROM "activities"')
             return {str(row[0]) for row in cur.fetchall()}
 
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*."""
+        self._ensure_connected()
+        dt = datetime.fromtimestamp(after_epoch, tz=timezone.utc)
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "activity_id" FROM "activities" WHERE "start_date" >= ?', (dt,))
+            return {str(row[0]) for row in cur.fetchall()}
+
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         self._ensure_connected()

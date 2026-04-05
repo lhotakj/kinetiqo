@@ -305,30 +305,30 @@ def _build_tile_providers() -> dict:
     mapy_attr = ('&copy; <a href="https://www.seznam.cz/">Seznam.cz, a.s.</a>, '
                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
     if api_key:
-        providers['mapy_outdoor'] = {
-            'name': 'Mapy.cz Outdoor',
-            'url': f'https://api.mapy.cz/v1/maptiles/outdoor/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
+        providers['mapy_basic'] = {
+            'name': 'Mapy.cz (Basic)',
+            'url': f'https://api.mapy.cz/v1/maptiles/basic/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
             'attr': mapy_attr,
             'maxZoom': 19
         }
-        providers['mapy_base'] = {
-            'name': 'Mapy.cz Base',
-            'url': f'https://api.mapy.cz/v1/maptiles/basic/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
+        providers['mapy_outdoor'] = {
+            'name': 'Mapy.cz (Outdoor)',
+            'url': f'https://api.mapy.cz/v1/maptiles/outdoor/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
             'attr': mapy_attr,
             'maxZoom': 19
         }
     else:
         # No API key — include entries as disabled so the UI can show them
         # greyed-out with a hint that a key is needed.
-        providers['mapy_outdoor'] = {
-            'name': 'Mapy.cz Outdoor',
+        providers['mapy_basic'] = {
+            'name': 'Mapy.cz (Basic)',
             'disabled': True,
             'url': '',
             'attr': mapy_attr,
             'maxZoom': 19
         }
-        providers['mapy_base'] = {
-            'name': 'Mapy.cz Base',
+        providers['mapy_outdoor'] = {
+            'name': 'Mapy.cz (Outdoor)',
             'disabled': True,
             'url': '',
             'attr': mapy_attr,

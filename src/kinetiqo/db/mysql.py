@@ -172,6 +172,16 @@ class MySQLRepository(DatabaseRepository):
             logger.debug(f"Retrieved {len(synced_ids)} synced IDs from MySQL.")
         return synced_ids
 
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*."""
+        self._ensure_connected()
+        dt = datetime.fromtimestamp(after_epoch, tz=timezone.utc)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT activity_id FROM activities WHERE start_date >= %s", (dt,))
+            synced_ids = {str(row[0]) for row in cur.fetchall()}
+            logger.debug(f"Retrieved {len(synced_ids)} synced IDs from MySQL since {dt}.")
+        return synced_ids
+
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         self._ensure_connected()

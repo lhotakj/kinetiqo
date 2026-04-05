@@ -14,7 +14,7 @@ CACHE_DURATION = 3600  # 1 hour
 
 logger = logging.getLogger("kinetiqo")
 
-async def get_latest_version():
+async def get_latest_version() -> str|None:
     now = time.time()
 
     if CACHE_FILE.exists():
@@ -41,12 +41,13 @@ async def get_latest_version():
 async def check_for_new_version():
     current_version_str = get_version()
     latest_version_str = await get_latest_version()
-    logger.debug("Current version: " + current_version_str + " Latest version: " + latest_version_str)
+    if not latest_version_str:
+        return None
+    logger.debug(f"Current version: {current_version_str} Latest version: {latest_version_str or 'N/A'}")
 
     # If we are in dev mode or version is not standard, we skip the check
     if not current_version_str or current_version_str.lower() == "dev":
         return None
-
 
     if not latest_version_str:
         return None

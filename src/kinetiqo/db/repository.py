@@ -108,6 +108,20 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*.
+
+        Used by time-scoped syncs (fast sync, period-limited full sync) to
+        determine which database activities fall inside the fetched window so
+        that deletions are only applied to that window — not to older
+        activities that were never re-fetched from Strava.
+
+        :param after_epoch: Unix epoch timestamp (seconds).
+        :return: Set of activity ID strings with ``start_date >= after_epoch``.
+        """
+        pass
+
+    @abstractmethod
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         pass

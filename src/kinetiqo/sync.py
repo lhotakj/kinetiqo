@@ -137,15 +137,16 @@ class SyncService:
             yield yield_log(f"Identified {len(new_activities)} new and {len(existing_activities)} existing activities.")
 
             ids_to_delete = set()
-            if full_sync and limit_days == 0:
-                strava_ids = {str(a["id"]) for a in activities}
+            strava_ids = {str(a["id"]) for a in activities}
+            if after is None:
                 ids_to_delete = synced_ids - strava_ids
-                if ids_to_delete:
-                    yield yield_log(f"Found {len(ids_to_delete)} activities in database that are missing from Strava.")
-                else:
-                    yield yield_log("No activities to delete.")
             else:
-                yield yield_log("Skipping deletion check (not in unlimited full sync mode).")
+                scoped_synced_ids = self.db.get_synced_activity_ids_since(after)
+                ids_to_delete = scoped_synced_ids - strava_ids
+            if ids_to_delete:
+                yield yield_log(f"Found {len(ids_to_delete)} activities in database that are missing from Strava.")
+            else:
+                yield yield_log("No activities to delete.")
 
             if self._check_stop_signal():
                 stopped = True
