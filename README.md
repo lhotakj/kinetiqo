@@ -1,5 +1,7 @@
 # Kinetiqo
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lhotakj_kinetiqo)
+
 Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**), providing full ownership and control over your fitness history.
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
