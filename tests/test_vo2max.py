@@ -9,6 +9,7 @@ from kinetiqo.web.vo2max import (
     smooth_vo2max_history,
     filter_qualifying_rides,
 )
+from kinetiqo.db.repository import compute_best_power_per_activity
 
 
 class TestEstimateVo2max(unittest.TestCase):
@@ -163,9 +164,11 @@ class TestFilterQualifyingRides(unittest.TestCase):
 
 def _setup_app(cfg):
     """Import the Flask app, apply *cfg*, and return a logged-in test client."""
-    from kinetiqo.web.app import app, set_config
+    from kinetiqo.web.app import app, set_config, _power_cache
     set_config(cfg)
     app.config['TESTING'] = True
+    # Clear the power cache so results from a previous test don't leak.
+    _power_cache.invalidate()
     client = app.test_client()
     client.post('/login', data={'username': 'admin', 'password': 'admin123'})
     return client
@@ -190,13 +193,19 @@ MOCK_PROFILE = {
 
 def _mock_repo_with_rides(profile=None):
     """Return a mock repository with one cycling ride and an optional profile."""
+    watts_map = {
+        '1001': [250.0] * 600,
+    }
+
+    def _power_side_effect(activity_ids, duration_seconds, min_total_samples=0):
+        subset = {aid: watts_map[aid] for aid in activity_ids if aid in watts_map}
+        return compute_best_power_per_activity(subset, duration_seconds, min_total_samples)
+
     mock_repo = MagicMock()
     mock_repo.get_activity_ids_by_types.return_value = [
         {'id': '1001', 'name': 'Test Ride', 'start_date': '2025-06-15T10:00:00Z'},
     ]
-    mock_repo.get_watts_streams_for_activities.return_value = {
-        '1001': [250.0] * 600,
-    }
+    mock_repo.get_best_power_per_activity.side_effect = _power_side_effect
     mock_repo.get_profile.return_value = profile
     return mock_repo
 
@@ -290,16 +299,22 @@ class TestVo2maxHistoryAPI(unittest.TestCase):
     @patch('kinetiqo.web.app.create_repository')
     def test_history_returns_json(self, mock_create_repo):
         """The API returns a valid JSON time-series."""
+        watts_map = {
+            '2001': [280.0] * 1500,
+            '2002': [320.0] * 1500,
+        }
+
+        def _power_side_effect(activity_ids, duration_seconds, min_total_samples=0):
+            subset = {aid: watts_map[aid] for aid in activity_ids if aid in watts_map}
+            return compute_best_power_per_activity(subset, duration_seconds, min_total_samples)
+
         mock_repo = MagicMock()
         mock_repo.get_profile.return_value = {**MOCK_PROFILE, 'weight': 75.0}
         mock_repo.get_activity_ids_by_types.return_value = [
             {'id': '2001', 'name': 'Ride A', 'start_date': '2025-07-01T08:00:00Z'},
             {'id': '2002', 'name': 'Ride B', 'start_date': '2025-07-10T09:00:00Z'},
         ]
-        mock_repo.get_watts_streams_for_activities.return_value = {
-            '2001': [280.0] * 1500,
-            '2002': [320.0] * 1500,
-        }
+        mock_repo.get_best_power_per_activity.side_effect = _power_side_effect
         mock_create_repo.return_value = mock_repo
 
         client = _setup_app(_make_config(athlete_weight=0.0))
@@ -329,14 +344,20 @@ class TestVo2maxHistoryAPI(unittest.TestCase):
     @patch('kinetiqo.web.app.create_repository')
     def test_history_uses_profile_weight(self, mock_create_repo):
         """The API uses profile weight for VO2max computation."""
+        watts_map = {
+            '3001': [300.0] * 1500,
+        }
+
+        def _power_side_effect(activity_ids, duration_seconds, min_total_samples=0):
+            subset = {aid: watts_map[aid] for aid in activity_ids if aid in watts_map}
+            return compute_best_power_per_activity(subset, duration_seconds, min_total_samples)
+
         mock_repo = MagicMock()
         mock_repo.get_profile.return_value = {**MOCK_PROFILE, 'weight': 80.0}
         mock_repo.get_activity_ids_by_types.return_value = [
             {'id': '3001', 'name': 'Ride C', 'start_date': '2025-08-01T07:00:00Z'},
         ]
-        mock_repo.get_watts_streams_for_activities.return_value = {
-            '3001': [300.0] * 1500,
-        }
+        mock_repo.get_best_power_per_activity.side_effect = _power_side_effect
         mock_create_repo.return_value = mock_repo
 
         client = _setup_app(_make_config(athlete_weight=0.0))

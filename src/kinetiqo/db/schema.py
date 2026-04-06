@@ -2,6 +2,11 @@ import logging
 
 logger = logging.getLogger("kinetiqo")
 
+# Reusable SQL type literals to avoid duplication.
+_BIGINT_NOT_NULL = "BIGINT NOT NULL"
+_INTEGER_NOT_NULL = "INTEGER NOT NULL"
+_DOUBLE_PRECISION = "DOUBLE PRECISION"
+
 # Define the schema in a database-agnostic way where possible,
 # or provide specific types for each dialect.
 SCHEMA_DEFINITION = {
@@ -11,51 +16,51 @@ SCHEMA_DEFINITION = {
              "type_firebird": "TIMESTAMP"},
             {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY",
              "type_firebird": "BIGINT PRIMARY KEY"},
-            {"name": "name", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "name", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "VARCHAR(500)"},
             {"name": "sport", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
             {"name": "athlete_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
-            {"name": "distance", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "distance", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "moving_time", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "elapsed_time", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
-            {"name": "total_elevation_gain", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "average_speed", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "max_speed", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "total_elevation_gain", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "average_speed", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "max_speed", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "average_heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "max_heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
-            {"name": "average_cadence", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "average_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "max_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "average_cadence", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "average_watts", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "max_watts", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "achievement_count", "type_mysql": "INTEGER", "type_pg": "INTEGER",
              "type_firebird": "INTEGER"},
-            {"name": "average_temp", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "calories", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "average_temp", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "calories", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "device_watts", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
              "type_firebird": "SMALLINT"},
-            {"name": "elev_high", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "elev_low", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "elev_high", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "elev_low", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "gear_id", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(255)"},
             {"name": "has_heartrate", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN",
              "type_firebird": "SMALLINT"},
-            {"name": "kilojoules", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "kilojoules", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "pr_count", "type_mysql": "INTEGER", "type_pg": "INTEGER",
              "type_firebird": "INTEGER"},
             {"name": "suffer_score", "type_mysql": "INTEGER", "type_pg": "INTEGER",
              "type_firebird": "INTEGER"},
-            {"name": "weighted_average_watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "weighted_average_watts", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "workout_type", "type_mysql": "INTEGER", "type_pg": "INTEGER",
              "type_firebird": "INTEGER"},
         ],
@@ -137,6 +142,12 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_gear ON activities (gear_id)",
                 "def_pg": "CREATE INDEX idx_activities_gear ON activities (gear_id) WHERE gear_id IS NOT NULL",
                 "def_firebird": 'CREATE INDEX idx_activities_gear ON "activities" ("gear_id")'
+            },
+            {
+                "name": "idx_activities_fitness_trends",
+                "def_mysql": "CREATE INDEX idx_activities_fitness_trends ON activities (suffer_score, start_date)",
+                "def_pg": "CREATE INDEX idx_activities_fitness_trends ON activities (start_date) INCLUDE (suffer_score) WHERE suffer_score > 0",
+                "def_firebird": 'CREATE INDEX idx_activities_fitness_trends ON "activities" ("suffer_score", "start_date")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -148,24 +159,16 @@ SCHEMA_DEFINITION = {
             {"name": "activity_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
             {"name": "sport", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
             {"name": "athlete_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
-            {"name": "lat", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "lng", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "altitude", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "lat", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
+            {"name": "lng", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
+            {"name": "altitude", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
             {"name": "heartrate", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
             {"name": "cadence", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
-            {"name": "speed", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "distance", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "watts", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "temp", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
-            {"name": "grade_smooth", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "speed", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
+            {"name": "distance", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
+            {"name": "watts", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
+            {"name": "temp", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
+            {"name": "grade_smooth", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION, "type_firebird": _DOUBLE_PRECISION},
             {"name": "moving", "type_mysql": "BOOLEAN", "type_pg": "BOOLEAN", "type_firebird": "SMALLINT"}
         ],
         "constraints": [
@@ -212,6 +215,30 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_streams_activity_watts ON streams (activity_id, watts)",
                 "def_pg": "CREATE INDEX idx_streams_activity_watts ON streams (activity_id, watts) WHERE watts IS NOT NULL",
                 "def_firebird": 'CREATE INDEX idx_streams_activity_watts ON "streams" ("activity_id", "watts")'
+            },
+            {
+                # Covering ordered index for get_watts_streams_for_activities:
+                #   SELECT activity_id, watts FROM streams
+                #   WHERE activity_id IN (...) AND watts IS NOT NULL
+                #   ORDER BY activity_id, ts
+                #
+                # PostgreSQL: (activity_id, ts) key eliminates the sort step;
+                #   INCLUDE(watts) enables an index-only scan; partial WHERE keeps
+                #   the index compact by excluding NULL-watts rows entirely.
+                #
+                # MySQL: (activity_id, ts, watts) — three-column covering index;
+                #   the engine can satisfy the projection from the index leaf pages.
+                #
+                # Firebird: (activity_id, ts, watts) — three-column composite.
+                #   Firebird has no INCLUDE or partial-index syntax, but storing
+                #   watts as the third key column means the leaf page already
+                #   contains the watts value, reducing random heap I/O per row.
+                #   The (activity_id, ts) prefix also eliminates the sort step,
+                #   which is a real win over the plain idx_streams_activity_ts index.
+                "name": "idx_streams_activity_ts_watts",
+                "def_mysql": "CREATE INDEX idx_streams_activity_ts_watts ON streams (activity_id, ts, watts)",
+                "def_pg": "CREATE INDEX idx_streams_activity_ts_watts ON streams (activity_id, ts) INCLUDE (watts) WHERE watts IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_ts_watts ON "streams" ("activity_id", "ts", "watts")'
             }
         ],
         "engine_mysql": "ENGINE=InnoDB"
@@ -261,8 +288,40 @@ SCHEMA_DEFINITION = {
              "type_firebird": "VARCHAR(255)"},
             {"name": "last_name", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(255)"},
-            {"name": "weight", "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION",
-             "type_firebird": "DOUBLE PRECISION"},
+            {"name": "weight", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB"
+    },
+    # One row per (athlete_id, activity_type_id).
+    # activity_type_id: 1=Cycling, 2=Walking (extensible — add rows for new types).
+    # Distance goals in km; elevation goals in metres.
+    "activity_goals": {
+        "columns": [
+            {"name": "athlete_id",             "type_mysql": _BIGINT_NOT_NULL,   "type_pg": _BIGINT_NOT_NULL,   "type_firebird": _BIGINT_NOT_NULL},
+            {"name": "activity_type_id",        "type_mysql": _INTEGER_NOT_NULL,  "type_pg": _INTEGER_NOT_NULL,  "type_firebird": _INTEGER_NOT_NULL},
+            {"name": "weekly_distance_goal",    "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "monthly_distance_goal",   "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "yearly_distance_goal",    "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weekly_elevation_goal",   "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "monthly_elevation_goal",  "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "yearly_elevation_goal",   "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+        ],
+        "constraints": [
+            {
+                "name": "pk_activity_goals",
+                "def_mysql":    "CONSTRAINT pk_activity_goals PRIMARY KEY (athlete_id, activity_type_id)",
+                "def_pg":       "CONSTRAINT pk_activity_goals PRIMARY KEY (athlete_id, activity_type_id)",
+                "def_firebird": 'CONSTRAINT pk_activity_goals PRIMARY KEY ("athlete_id", "activity_type_id")',
+            }
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB"
+    },
+    "gtt_activity_ids": {
+        "columns": [
+            {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"}
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"

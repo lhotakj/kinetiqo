@@ -159,6 +159,16 @@ class PostgresqlRepository(DatabaseRepository):
             logger.debug(f"Retrieved {len(synced_ids)} synced IDs from PostgreSQL.")
         return synced_ids
 
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*."""
+        self._ensure_connected()
+        dt = datetime.fromtimestamp(after_epoch, tz=timezone.utc)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT activity_id FROM activities WHERE start_date >= %s", (dt,))
+            synced_ids = {str(row[0]) for row in cur.fetchall()}
+            logger.debug(f"Retrieved {len(synced_ids)} synced IDs from PostgreSQL since {dt}.")
+        return synced_ids
+
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         self._ensure_connected()
@@ -689,19 +699,95 @@ class PostgresqlRepository(DatabaseRepository):
 
         return result
 
-    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
-        """Get lightweight activity records filtered by sport type."""
+    def get_best_power_per_activity(
+        self,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Compute best rolling-average power per activity via SQL window functions.
+
+        Uses ``idx_streams_activity_ts_watts`` partial covering index.
+        Returns one row per activity instead of thousands of raw stream rows.
+        """
+        if not activity_ids:
+            return {}
+
+        self._ensure_connected()
+        rows_back = duration_seconds - 1
+        min_total = min_total_samples if min_total_samples > 0 else duration_seconds
+        int_ids = [int(aid) for aid in activity_ids]
+
+        with self.conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT activity_id, MAX(rolling_avg) AS best_avg
+                FROM (
+                    SELECT activity_id,
+                           AVG(watts) OVER (
+                               PARTITION BY activity_id
+                               ORDER BY ts
+                               ROWS BETWEEN {rows_back} PRECEDING AND CURRENT ROW
+                           ) AS rolling_avg,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY activity_id
+                               ORDER BY ts
+                           ) AS rn,
+                           COUNT(*) OVER (
+                               PARTITION BY activity_id
+                           ) AS total_cnt
+                    FROM streams
+                    WHERE activity_id = ANY(%s)
+                      AND watts IS NOT NULL
+                ) sub
+                WHERE rn >= {duration_seconds}
+                  AND total_cnt >= {min_total}
+                GROUP BY activity_id
+            """, (int_ids,))
+
+            return {str(row[0]): float(row[1]) for row in cur.fetchall()}
+
+    def get_activity_ids_by_types(
+        self,
+        types: List[str],
+        since_date=None,
+        watts_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get lightweight activity records filtered by sport type.
+
+        When *since_date* is provided the date predicate is pushed to SQL so
+        only qualifying rows are transferred from the database.  The composite
+        index ``idx_activities_sport_start_date`` on ``(sport, start_date DESC)``
+        covers both the filter and the sort without a heap scan.
+
+        When *watts_only* is ``True``, only activities with measured power data
+        (``average_watts IS NOT NULL``) are returned.  This shrinks the activity
+        list fed to subsequent stream queries, dramatically cutting I/O on the
+        streams table for VO2max / FTP calculations.
+        """
         if not types:
             return []
 
         self._ensure_connected()
+        extra = ""
+        if watts_only:
+            extra += " AND average_watts IS NOT NULL"
+
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT activity_id AS id, name, start_date
-                FROM activities
-                WHERE sport = ANY (%s)
-                ORDER BY start_date DESC
-            """, (types,))
+            if since_date is not None:
+                cur.execute(f"""
+                    SELECT activity_id AS id, name, start_date
+                    FROM activities
+                    WHERE sport = ANY (%s)
+                      AND start_date >= %s{extra}
+                    ORDER BY start_date DESC
+                """, (types, since_date))
+            else:
+                cur.execute(f"""
+                    SELECT activity_id AS id, name, start_date
+                    FROM activities
+                    WHERE sport = ANY (%s){extra}
+                    ORDER BY start_date DESC
+                """, (types,))
 
             activities = []
             for row in cur.fetchall():
@@ -772,6 +858,45 @@ class PostgresqlRepository(DatabaseRepository):
                         last_name  = EXCLUDED.last_name,
                         weight     = EXCLUDED.weight
             """, (athlete_id, first_name, last_name, weight))
+
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    def get_goals(self, athlete_id: int):
+        self._ensure_connected()
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT activity_type_id,
+                       weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                       weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal
+                FROM activity_goals
+                WHERE athlete_id = %s
+                ORDER BY activity_type_id
+            """, (athlete_id,))
+            return [dict(row) for row in cur.fetchall()]
+
+    def upsert_goal(self, athlete_id, activity_type_id,
+                    weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                    weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO activity_goals
+                    (athlete_id, activity_type_id,
+                     weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                     weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (athlete_id, activity_type_id) DO UPDATE SET
+                    weekly_distance_goal  = EXCLUDED.weekly_distance_goal,
+                    monthly_distance_goal = EXCLUDED.monthly_distance_goal,
+                    yearly_distance_goal  = EXCLUDED.yearly_distance_goal,
+                    weekly_elevation_goal  = EXCLUDED.weekly_elevation_goal,
+                    monthly_elevation_goal = EXCLUDED.monthly_elevation_goal,
+                    yearly_elevation_goal  = EXCLUDED.yearly_elevation_goal
+            """, (athlete_id, activity_type_id,
+                  weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                  weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
 
     def __enter__(self):
         return self

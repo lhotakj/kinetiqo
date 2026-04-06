@@ -172,6 +172,16 @@ class MySQLRepository(DatabaseRepository):
             logger.debug(f"Retrieved {len(synced_ids)} synced IDs from MySQL.")
         return synced_ids
 
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*."""
+        self._ensure_connected()
+        dt = datetime.fromtimestamp(after_epoch, tz=timezone.utc)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT activity_id FROM activities WHERE start_date >= %s", (dt,))
+            synced_ids = {str(row[0]) for row in cur.fetchall()}
+            logger.debug(f"Retrieved {len(synced_ids)} synced IDs from MySQL since {dt}.")
+        return synced_ids
+
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         self._ensure_connected()
@@ -719,20 +729,68 @@ class MySQLRepository(DatabaseRepository):
 
         return result
 
-    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
-        """Get lightweight activity records filtered by sport type."""
+    def get_best_power_per_activity(
+        self,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Compute best rolling-average power per activity.
+
+        MySQL 8.0 implements ``AVG() OVER (ROWS BETWEEN K PRECEDING …)`` with
+        **O(N×K) naive recomputation** — it re-sums K values for every row
+        rather than maintaining a sliding accumulator.  For FTP (K=1199) over
+        ~500 K rows this means ~600 M arithmetic operations and the query
+        never finishes.
+
+        Instead we fetch the raw watts via ``get_watts_streams_for_activities``
+        (which uses the ``idx_streams_activity_ts_watts`` covering index
+        efficiently) and compute the sliding-window maximum in Python using
+        the O(N) ``compute_best_power_per_activity`` helper.
+        """
+        from kinetiqo.db.repository import compute_best_power_per_activity
+        watts_data = self.get_watts_streams_for_activities(activity_ids)
+        return compute_best_power_per_activity(watts_data, duration_seconds, min_total_samples)
+
+    def get_activity_ids_by_types(
+        self,
+        types: List[str],
+        since_date=None,
+        watts_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get lightweight activity records filtered by sport type.
+
+        When *since_date* is provided the date predicate is pushed to SQL.
+        The composite index ``idx_activities_sport_start_date`` on
+        ``(sport, start_date DESC)`` covers both the filter and the sort.
+
+        When *watts_only* is ``True``, only activities with measured power data
+        (``average_watts IS NOT NULL``) are returned, cutting the stream I/O
+        for VO2max / FTP calculations.
+        """
         if not types:
             return []
 
         self._ensure_connected()
+        extra = " AND average_watts IS NOT NULL" if watts_only else ""
         with self.conn.cursor(dictionary=True) as cur:
             placeholders = ', '.join(['%s'] * len(types))
-            cur.execute(f"""
-                SELECT activity_id AS id, name, start_date
-                FROM activities
-                WHERE sport IN ({placeholders})
-                ORDER BY start_date DESC
-            """, types)
+            if since_date is not None:
+                params = list(types) + [since_date]
+                cur.execute(f"""
+                    SELECT activity_id AS id, name, start_date
+                    FROM activities
+                    WHERE sport IN ({placeholders})
+                      AND start_date >= %s{extra}
+                    ORDER BY start_date DESC
+                """, params)
+            else:
+                cur.execute(f"""
+                    SELECT activity_id AS id, name, start_date
+                    FROM activities
+                    WHERE sport IN ({placeholders}){extra}
+                    ORDER BY start_date DESC
+                """, types)
 
             activities = []
             for row in cur.fetchall():
@@ -802,6 +860,45 @@ class MySQLRepository(DatabaseRepository):
                     last_name  = VALUES(last_name),
                     weight     = VALUES(weight)
             """, (athlete_id, first_name, last_name, weight))
+
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    def get_goals(self, athlete_id: int):
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT activity_type_id,
+                       weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                       weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal
+                FROM activity_goals
+                WHERE athlete_id = %s
+                ORDER BY activity_type_id
+            """, (athlete_id,))
+            return list(cur.fetchall())
+
+    def upsert_goal(self, athlete_id, activity_type_id,
+                    weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                    weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO activity_goals
+                    (athlete_id, activity_type_id,
+                     weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                     weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    weekly_distance_goal  = VALUES(weekly_distance_goal),
+                    monthly_distance_goal = VALUES(monthly_distance_goal),
+                    yearly_distance_goal  = VALUES(yearly_distance_goal),
+                    weekly_elevation_goal  = VALUES(weekly_elevation_goal),
+                    monthly_elevation_goal = VALUES(monthly_elevation_goal),
+                    yearly_elevation_goal  = VALUES(yearly_elevation_goal)
+            """, (athlete_id, activity_type_id,
+                  weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                  weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
 
     def __enter__(self):
         return self

@@ -1,16 +1,21 @@
-import gzip
+import hashlib
 import logging
 import os
 import mimetypes
+import threading
+import time as _time
 from datetime import datetime
+from typing import Dict, List
 
 import httpx
 
 import json as json_module
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask_compress import Compress
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
+from kinetiqo.db.repository import STRAVA_TYPE_TO_GOAL_TYPE
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
 from kinetiqo.web.fitness import calculate_fitness_freshness
@@ -26,6 +31,9 @@ logger = logging.getLogger("kinetiqo.web")
 app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
+
+# --- Response Compression (gzip / brotli) ---
+Compress(app)
 
 # --- Static Files MIME Type Configuration ---
 # Add custom MIME types for common files if not already registered
@@ -68,8 +76,8 @@ def set_static_headers(response):
         response.headers['Access-Control-Allow-Origin'] = '*'
 
     elif request.path.startswith('/tiles/'):
-        # Tile proxy responses: let the browser cache map tiles for 24 h to
-        # avoid redundant round-trips to OSM while keeping the map snappy.
+        # OSM tile proxy responses: let the browser cache tiles for 24 h to
+        # avoid redundant round-trips while keeping the map snappy.
         # Do NOT set no-store here — that would defeat the purpose of the proxy.
         response.headers['Cache-Control'] = 'public, max-age=86400'
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -228,6 +236,10 @@ def get_dynamic_limit_days():
 
 # --- Routes ---
 
+# Import additional routes from modules
+from kinetiqo.web.progress import bp as progress_bp
+app.register_blueprint(progress_bp)
+
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -272,37 +284,116 @@ def activities():
     return render_template('activities.html', title="Activities", activities=data)
 
 
-# Available base map tile providers with Leaflet-compatible URL templates
-TILE_PROVIDERS = {
-    'openstreetmap': {
-        'name': 'OpenStreetMap',
-        # Tiles are fetched through our own proxy so the server can attach a
-        # valid Referer and User-Agent header as required by OSM's tile usage
-        # policy (https://operations.osmfoundation.org/policies/tiles/).
-        # The browser only ever talks to our own origin — no Referer needed.
-        'url': '/tiles/osm/{z}/{x}/{y}.png',
-        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        'maxZoom': 19
-    },
-    'cartodbpositron': {
-        'name': 'CartoDB Positron',
-        'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-        'maxZoom': 20
-    },
-    'cartodbdark': {
-        'name': 'CartoDB Dark',
-        'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-        'maxZoom': 20
-    },
-    'esriworldimagery': {
-        'name': 'Esri World Imagery',
-        'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'attr': '&copy; Esri, Maxar, Earthstar Geographics',
-        'maxZoom': 18
+# Available base map tile providers with Leaflet-compatible URL templates.
+# Mapy.cz providers are always listed so the dropdown can show them as
+# disabled when no MAPY_API_KEY is configured (free key from
+# https://developer.mapy.cz).  Tiles are loaded directly by the browser.
+def _build_tile_providers() -> dict:
+    providers = {
+        'openstreetmap': {
+            'name': 'OpenStreetMap',
+            # Tiles are fetched through our own proxy so the server can attach a
+            # valid Referer and User-Agent header as required by OSM's tile usage
+            # policy (https://operations.osmfoundation.org/policies/tiles/).
+            'url': '/tiles/osm/{z}/{x}/{y}.png',
+            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            'maxZoom': 19
+        },
     }
-}
+
+    # Mapy.cz – use the official public API (no proxy required).
+    # The API key is appended as a query-string parameter; Leaflet's
+    # L.tileLayer() passes the URL through verbatim.
+    api_key = config.mapy_api_key
+    mapy_attr = ('&copy; <a href="https://www.seznam.cz/">Seznam.cz, a.s.</a>, '
+                 '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
+    if api_key:
+        providers['mapy_basic'] = {
+            'name': 'Mapy.cz (Basic)',
+            'url': f'https://api.mapy.cz/v1/maptiles/basic/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+        providers['mapy_outdoor'] = {
+            'name': 'Mapy.cz (Outdoor)',
+            'url': f'https://api.mapy.cz/v1/maptiles/outdoor/256/{{z}}/{{x}}/{{y}}?apikey={api_key}',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+    else:
+        # No API key — include entries as disabled so the UI can show them
+        # greyed-out with a hint that a key is needed.
+        providers['mapy_basic'] = {
+            'name': 'Mapy.cz (Basic)',
+            'disabled': True,
+            'url': '',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+        providers['mapy_outdoor'] = {
+            'name': 'Mapy.cz (Outdoor)',
+            'disabled': True,
+            'url': '',
+            'attr': mapy_attr,
+            'maxZoom': 19
+        }
+
+    # Thunderforest – use the official tile API (no proxy required).
+    # Free tier key from https://manage.thunderforest.com
+    tf_key = config.thunderforest_api_key
+    tf_attr = ('Maps &copy; <a href="https://www.thunderforest.com/">Thunderforest</a>, '
+               'Data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
+    if tf_key:
+        providers['thunderforest_cycle'] = {
+            'name': 'Thunderforest (OpenCycleMap)',
+            'url': f'https://tile.thunderforest.com/cycle/{{z}}/{{x}}/{{y}}.png?apikey={tf_key}',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+        providers['thunderforest_outdoors'] = {
+            'name': 'Thunderforest (Outdoors)',
+            'url': f'https://tile.thunderforest.com/outdoors/{{z}}/{{x}}/{{y}}.png?apikey={tf_key}',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+    else:
+        providers['thunderforest_cycle'] = {
+            'name': 'Thunderforest (OpenCycleMap)',
+            'disabled': True,
+            'url': '',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+        providers['thunderforest_outdoors'] = {
+            'name': 'Thunderforest (Outdoors)',
+            'disabled': True,
+            'url': '',
+            'attr': tf_attr,
+            'maxZoom': 22
+        }
+
+    providers.update({
+        'cartodbpositron': {
+            'name': 'CartoDB Positron',
+            'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            'maxZoom': 20
+        },
+        'cartodbdark': {
+            'name': 'CartoDB Dark',
+            'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            'maxZoom': 20
+        },
+        'esriworldimagery': {
+            'name': 'Esri World Imagery',
+            'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            'attr': '&copy; Esri, Maxar, Earthstar Geographics',
+            'maxZoom': 18
+        }
+    })
+
+    return providers
 
 # OSM tile subdomain pool — distribute load across a/b/c as recommended.
 _OSM_SUBDOMAINS = ('a', 'b', 'c')
@@ -383,17 +474,17 @@ def map_view():
                            current_width=width,
                            current_opacity=opacity,
                            current_basemap=basemap,
-                           tile_providers=TILE_PROVIDERS)
+                           tile_providers=_build_tile_providers())
 
 
 @app.route('/api/map/data', methods=['POST'])
 @login_required
 def map_data_api():
-    """API endpoint returning raw coordinate arrays as gzip-compressed JSON.
+    """API endpoint returning raw coordinate arrays as JSON.
 
-    Replaces the old Folium-based /api/map/generate endpoint.  The server
-    sends only compact [lat, lng] arrays and SQL-computed bounds; the client
-    renders polylines directly with Leaflet's Canvas renderer.
+    The server sends only compact [lat, lng] arrays and SQL-computed bounds;
+    the client renders polylines directly with Leaflet's Canvas renderer.
+    Response compression is handled automatically by flask-compress.
 
     Request JSON body::
 
@@ -401,7 +492,7 @@ def map_data_api():
             "activity_ids": ["123", "456", ...]
         }
 
-    Response JSON (gzip-compressed)::
+    Response JSON::
 
         {
             "activities": {
@@ -463,19 +554,13 @@ def map_data_api():
             'point_count': total_points
         }
 
-        # Serialize and gzip-compress for efficient transfer
+        # Serialize to compact JSON; flask-compress handles gzip/brotli
+        # automatically so we no longer compress manually here.
         json_bytes = json_module.dumps(payload, separators=(',', ':')).encode('utf-8')
         uncompressed_len = len(json_bytes)
-        accepts_gzip = 'gzip' in request.headers.get('Accept-Encoding', '')
 
-        if accepts_gzip:
-            compressed = gzip.compress(json_bytes, compresslevel=6)
-            response = Response(compressed, mimetype='application/json')
-            response.headers['Content-Encoding'] = 'gzip'
-            response.headers['Content-Length'] = len(compressed)
-        else:
-            response = Response(json_bytes, mimetype='application/json')
-            response.headers['Content-Length'] = uncompressed_len
+        response = Response(json_bytes, mimetype='application/json')
+        response.headers['Content-Length'] = uncompressed_len
 
         # Custom header for client-side download progress tracking.
         # Browsers strip Content-Length when transparently decompressing gzip,
@@ -492,23 +577,14 @@ def map_data_api():
 def _compute_best_average_power(watts_series: list, duration_seconds: int) -> float:
     """Compute the best (max) average power over a sliding window for a single activity.
 
+    Delegates to the canonical O(N) implementation in ``kinetiqo.db.repository``.
+
     :param watts_series: List of float watts values (1 sample/sec).
     :param duration_seconds: Window size in seconds.
     :return: Best average power as float, or 0.0 if insufficient data.
     """
-    n = len(watts_series)
-    if n < duration_seconds:
-        return 0.0
-
-    window_sum = sum(watts_series[:duration_seconds])
-    max_sum = window_sum
-
-    for i in range(1, n - duration_seconds + 1):
-        window_sum += watts_series[i + duration_seconds - 1] - watts_series[i - 1]
-        if window_sum > max_sum:
-            max_sum = window_sum
-
-    return max_sum / duration_seconds
+    from kinetiqo.db.repository import compute_best_average_power
+    return compute_best_average_power(watts_series, duration_seconds)
 
 
 # Power Skills durations matching Strava's spider chart
@@ -609,6 +685,24 @@ def powerskills():
     )
 
 
+# Ordered list of activity-goal categories surfaced in the Settings / Progress UI.
+# Extend this list to support additional sport categories.
+ACTIVITY_GOALS_TYPES = {
+    1: {
+        "name": "Cycling",
+        "icon": "🚴",
+        "strava_types": [
+            "Ride", "VirtualRide", "EBikeRide", "EMountainBikeRide",
+            "GravelRide", "MountainBikeRide", "Velomobile", "Handcycle",
+        ],
+    },
+    2: {
+        "name": "Walking",
+        "icon": "🥾",
+        "strava_types": ["Walk", "Hike"],
+    },
+}
+
 # Period options shared across pages with a history chart
 SUPPORTED_PERIODS = ["14", "30", "60", "90", "120", "365", "all"]
 
@@ -667,6 +761,89 @@ def _get_athlete_weight() -> tuple[float, str]:
     return 0.0, ""
 
 
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for expensive power computations
+# ---------------------------------------------------------------------------
+# The FTP / VO₂max pages and their chart-data API endpoints both call
+# ``repo.get_best_power_per_activity()`` with the *same* parameters within
+# seconds of each other (page render, then AJAX chart load).  On Firebird
+# this query takes ~5 s because the pure-Python driver must transfer ~1.8 M
+# raw watts rows.
+#
+# The cache stores the result keyed by ``(activity_ids_hash, duration,
+# min_total_samples)`` with a configurable TTL (default 5 min).  This means:
+#   • The chart API reuses the result the page just computed → 0 s.
+#   • Navigating back to the page within the TTL is instant.
+#   • After a sync adds new activities the cache expires naturally.
+# ---------------------------------------------------------------------------
+
+class _PowerCache:
+    """Process-level TTL cache for ``get_best_power_per_activity`` results."""
+
+    _DEFAULT_TTL: int = 300          # 5 minutes
+
+    def __init__(self) -> None:
+        self._store: Dict[str, tuple] = {}   # key → (timestamp, result)
+        self._lock = threading.Lock()
+        self._ttl = self._DEFAULT_TTL
+
+    # -- public API ----------------------------------------------------------
+
+    def get_best_power(
+        self,
+        repo,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Return cached result or compute, cache, and return."""
+        key = self._make_key(activity_ids, duration_seconds, min_total_samples)
+        now = _time.monotonic()
+
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is not None:
+                ts, result = entry
+                if (now - ts) < self._ttl:
+                    logger.debug("PowerCache HIT  (dur=%d, min=%d)", duration_seconds, min_total_samples)
+                    return result
+
+        # Cache miss — compute (outside the lock so other threads aren't blocked)
+        result = repo.get_best_power_per_activity(
+            activity_ids, duration_seconds, min_total_samples,
+        )
+
+        with self._lock:
+            self._store[key] = (_time.monotonic(), result)
+            # Lazy eviction: drop stale entries when the cache grows
+            if len(self._store) > 50:
+                self._evict(now)
+
+        logger.debug("PowerCache MISS (dur=%d, min=%d, results=%d)", duration_seconds, min_total_samples, len(result))
+        return result
+
+    def invalidate(self) -> None:
+        """Drop all cached entries (e.g. after a sync)."""
+        with self._lock:
+            self._store.clear()
+
+    # -- internals -----------------------------------------------------------
+
+    @staticmethod
+    def _make_key(activity_ids: List[str], duration: int, min_total: int) -> str:
+        ids_hash = hashlib.md5(",".join(sorted(activity_ids)).encode()).hexdigest()
+        return f"{ids_hash}:{duration}:{min_total}"
+
+    def _evict(self, now: float) -> None:
+        """Remove entries older than TTL.  Caller must hold ``_lock``."""
+        stale = [k for k, (ts, _) in self._store.items() if (now - ts) >= self._ttl]
+        for k in stale:
+            del self._store[k]
+
+
+_power_cache = _PowerCache()
+
+
 @app.route('/ftp')
 @login_required
 def ftp():
@@ -686,19 +863,32 @@ def ftp():
     try:
         repo = get_db()
 
-        # Get all cycling activity IDs
-        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+        # Push the date cut-off to SQL so the DB returns only the relevant rows.
+        # The composite index idx_activities_sport_start_date (sport, start_date DESC)
+        # covers both the sport filter and the date predicate efficiently.
+        from datetime import timedelta, timezone as tz
+        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+        # Get cycling activity IDs (filtered at DB level when period != 'all').
+        # watts_only=True restricts to activities that actually have power-meter
+        # data, which can be a 5-10× reduction vs. all cycling activities and
+        # dramatically cuts the number of stream rows loaded next.
+        cycling_activities = repo.get_activity_ids_by_types(
+            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+        )
         activity_count = len(cycling_activities)
 
         if cycling_activities:
             activity_ids = [str(a['id']) for a in cycling_activities]
             activity_map = _build_activity_map(cycling_activities)
 
-            # Fetch watts streams and find the best 20-min power
-            watts_data = repo.get_watts_streams_for_activities(activity_ids)
+            # Compute best 20-min power.  The result is cached so the
+            # subsequent /api/ftp_history AJAX call is instant.
+            best_power = _power_cache.get_best_power(
+                repo, activity_ids, FTP_DURATION_SECONDS,
+            )
 
-            for aid, watts_list in watts_data.items():
-                avg = _compute_best_average_power(watts_list, FTP_DURATION_SECONDS)
+            for aid, avg in best_power.items():
                 if avg > best_20min_watts:
                     best_20min_watts = avg
                     activity_id = aid
@@ -735,37 +925,33 @@ def ftp_history():
             period = "all"
 
         repo = get_db()
-        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+
+        # Push the date cut-off to SQL — avoids loading the full activity list
+        # into Python just to discard old rows.
+        from datetime import timedelta, timezone as tz
+        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+        cycling_activities = repo.get_activity_ids_by_types(
+            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+        )
 
         if not cycling_activities:
             return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
 
         activity_map = _build_activity_map(cycling_activities)
-
-        # Apply period filter (Python-side) based on start_date
-        if period != 'all':
-            from datetime import timedelta, timezone as tz
-            cutoff = datetime.now(tz.utc) - timedelta(days=int(period))
-            filtered_ids = []
-            for aid_str, meta in activity_map.items():
-                try:
-                    dt = datetime.fromisoformat(meta['start_date_iso'].replace('Z', '+00:00'))
-                    if dt >= cutoff:
-                        filtered_ids.append(aid_str)
-                except Exception:
-                    filtered_ids.append(aid_str)
-        else:
-            filtered_ids = list(activity_map.keys())
+        filtered_ids = list(activity_map.keys())
 
         if not filtered_ids:
             return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
 
-        watts_data = repo.get_watts_streams_for_activities(filtered_ids)
+        # Compute per-ride FTP — typically a cache HIT from the /ftp page
+        # render that fired moments ago with the same activity IDs.
+        best_power = _power_cache.get_best_power(
+            repo, filtered_ids, FTP_DURATION_SECONDS,
+        )
 
-        # Compute per-ride FTP and collect results
         results = []
-        for aid, watts_list in watts_data.items():
-            avg = _compute_best_average_power(watts_list, FTP_DURATION_SECONDS)
+        for aid, avg in best_power.items():
             if avg > 0 and aid in activity_map:
                 ftp_val = round(avg * FTP_FACTOR, 1)
                 results.append({
@@ -844,17 +1030,27 @@ def vo2max():
         try:
             repo = get_db()
 
-            cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+            # Push the date cut-off to SQL — the idx_activities_sport_start_date
+            # index covers the combined (sport, start_date) predicate efficiently.
+            from datetime import timedelta, timezone as tz
+            since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+            cycling_activities = repo.get_activity_ids_by_types(
+                CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+            )
             activity_count = len(cycling_activities)
 
             if cycling_activities:
                 activity_ids = [str(a['id']) for a in cycling_activities]
                 activity_map = _build_activity_map(cycling_activities)
 
-                watts_data = repo.get_watts_streams_for_activities(activity_ids)
+                # Compute best 5-min power.  The result is cached so the
+                # subsequent /api/vo2max_history AJAX call is instant.
+                best_power = _power_cache.get_best_power(
+                    repo, activity_ids, VO2MAX_MAP_DURATION_SECONDS,
+                )
 
-                for aid, watts_list in watts_data.items():
-                    avg = _compute_best_average_power(watts_list, VO2MAX_MAP_DURATION_SECONDS)
+                for aid, avg in best_power.items():
                     if avg > best_5min_watts:
                         best_5min_watts = avg
                         activity_id = aid
@@ -901,39 +1097,35 @@ def vo2max_history():
             return jsonify({'error': 'Athlete weight not configured. Set it in Settings → Athlete or via ATHLETE_WEIGHT env var.'}), 400
 
         repo = get_db()
-        cycling_activities = repo.get_activity_ids_by_types(CYCLING_SPORT_TYPES)
+
+        # Push the date cut-off to SQL — avoids loading the full activity list
+        # into Python just to discard old rows.
+        from datetime import timedelta, timezone as tz
+        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
+
+        cycling_activities = repo.get_activity_ids_by_types(
+            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+        )
 
         if not cycling_activities:
             return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
 
         activity_map = _build_activity_map(cycling_activities)
-
-        # Apply period filter (Python-side) based on start_date
-        if period != 'all':
-            from datetime import timedelta, timezone as tz
-            cutoff = datetime.now(tz.utc) - timedelta(days=int(period))
-            filtered_ids = []
-            for aid_str, meta in activity_map.items():
-                try:
-                    dt = datetime.fromisoformat(meta['start_date_iso'].replace('Z', '+00:00'))
-                    if dt >= cutoff:
-                        filtered_ids.append(aid_str)
-                except Exception:
-                    filtered_ids.append(aid_str)
-        else:
-            filtered_ids = list(activity_map.keys())
+        filtered_ids = list(activity_map.keys())
 
         if not filtered_ids:
             return jsonify({'dates': [], 'vo2max_values': [], 'activity_names': []})
 
-        watts_data = repo.get_watts_streams_for_activities(filtered_ids)
+        # Compute best 5-min power per activity.
+        # min_total_samples=MIN_WATTS_SAMPLES requires ≥20 min of power data
+        # per activity so that short / incomplete rides are excluded.
+        best_power = _power_cache.get_best_power(
+            repo, filtered_ids, VO2MAX_MAP_DURATION_SECONDS,
+            min_total_samples=MIN_WATTS_SAMPLES,
+        )
 
         results = []
-        for aid, watts_list in watts_data.items():
-            # Skip rides with insufficient power data (< 20 min)
-            if len(watts_list) < MIN_WATTS_SAMPLES:
-                continue
-            best_5min = _compute_best_average_power(watts_list, VO2MAX_MAP_DURATION_SECONDS)
+        for aid, best_5min in best_power.items():
             if best_5min > 0 and aid in activity_map:
                 vo2 = round(estimate_vo2max(best_5min, weight), 1)
                 results.append({
@@ -999,6 +1191,12 @@ def logs():
 @login_required
 def settings():
     return render_template('settings.html', title="Settings")
+
+
+@app.route('/license', methods=['GET'])
+@login_required
+def license_page():
+    return render_template('license.html', title="License & Credits")
 
 
 @app.route('/api/settings')
@@ -1100,6 +1298,96 @@ def update_profile_api():
         })
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Activity Goals API
+# ---------------------------------------------------------------------------
+
+def _build_goals_response(goals_rows: list) -> dict:
+    """Merge DB rows with the ACTIVITY_GOALS_TYPES catalogue into a JSON-ready dict.
+
+    Each entry includes ``strava_types`` so the client can drive Select2
+    filtering without maintaining a duplicate mapping.
+    """
+    goals_by_type = {int(g['activity_type_id']): g for g in goals_rows}
+    result = {}
+    for type_id, meta in ACTIVITY_GOALS_TYPES.items():
+        row = goals_by_type.get(type_id, {})
+        result[str(type_id)] = {
+            'activity_type_id': type_id,
+            'name':             meta['name'],
+            'icon':             meta['icon'],
+            'strava_types':     meta['strava_types'],   # needed by client pill/filter logic
+            'weekly_distance_goal':  row.get('weekly_distance_goal'),
+            'monthly_distance_goal': row.get('monthly_distance_goal'),
+            'yearly_distance_goal':  row.get('yearly_distance_goal'),
+            'weekly_elevation_goal':  row.get('weekly_elevation_goal'),
+            'monthly_elevation_goal': row.get('monthly_elevation_goal'),
+            'yearly_elevation_goal':  row.get('yearly_elevation_goal'),
+        }
+    return result
+
+
+@app.route('/api/goals', methods=['GET'])
+@login_required
+def get_goals_api():
+    """Return activity goals for the authenticated athlete."""
+    try:
+        profile = get_db().get_profile()
+        if not profile:
+            return jsonify(_build_goals_response([]))
+        return jsonify(_build_goals_response(get_db().get_goals(profile['athlete_id'])))
+    except Exception as e:
+        logger.error(f"Error fetching goals: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/goals', methods=['PUT'])
+@login_required
+def update_goals_api():
+    """Upsert activity goals. Request body: list of goal objects."""
+    try:
+        data = request.get_json()
+        if not data or not isinstance(data, list):
+            return jsonify({'error': 'Expected a JSON array of goal objects'}), 400
+
+        profile = get_db().get_profile()
+        if not profile:
+            return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+
+        athlete_id = profile['athlete_id']
+
+        def _parse(val):
+            """Convert user input to a positive float or None (= unset)."""
+            if val is None or val == '':
+                return None
+            try:
+                v = float(val)
+                return v if v > 0 else None
+            except (TypeError, ValueError):
+                return None
+
+        repo = get_db()
+        for item in data:
+            type_id = int(item.get('activity_type_id', 0))
+            if type_id not in ACTIVITY_GOALS_TYPES:
+                continue
+            repo.upsert_goal(
+                athlete_id=athlete_id,
+                activity_type_id=type_id,
+                weekly_distance_goal=_parse(item.get('weekly_distance_goal')),
+                monthly_distance_goal=_parse(item.get('monthly_distance_goal')),
+                yearly_distance_goal=_parse(item.get('yearly_distance_goal')),
+                weekly_elevation_goal=_parse(item.get('weekly_elevation_goal')),
+                monthly_elevation_goal=_parse(item.get('monthly_elevation_goal')),
+                yearly_elevation_goal=_parse(item.get('yearly_elevation_goal')),
+            )
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating goals: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -1324,6 +1612,9 @@ def sync_stream(type):
             yield f"data: <strong>Error:</strong> {str(e)}\n\n"
         finally:
             sync_service.close()
+            # Invalidate the power cache so that FTP / VO₂max pages
+            # reflect any newly synced activities immediately.
+            _power_cache.invalidate()
 
     return Response(generate(), mimetype='text/event-stream')
 

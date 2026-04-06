@@ -75,14 +75,16 @@ class TestSyncMatrix(unittest.TestCase):
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')
     @patch('kinetiqo.sync.create_repository')
-    def test_fast_sync_adds_but_never_deletes(self, mock_sync_repo, mock_cli_repo, mock_strava_client):
-        """Fast sync should add new activities but never delete stale ones."""
+    def test_fast_sync_deletes_stale_activities_in_scope(self, mock_sync_repo, mock_cli_repo, mock_strava_client):
+        """Fast sync should delete activities that are in the fetched time window but missing from Strava."""
         for db_type in DB_TYPES:
             with self.subTest(db_type=db_type):
                 # Arrange
                 mock_repo = MagicMock()
-                mock_repo.get_synced_activity_ids.return_value = {'9999'} # Stale activity
+                mock_repo.get_synced_activity_ids.return_value = {'1001', '9999'}
                 mock_repo.get_latest_activity_time.return_value = 1700000000 # A time before our mock activities
+                # 9999 falls inside the scoped window — it should be deleted
+                mock_repo.get_synced_activity_ids_since.return_value = {'1001', '9999'}
                 mock_cli_repo.return_value = mock_sync_repo.return_value = mock_repo
 
                 mock_strava_instance = mock_strava_client.return_value
@@ -94,19 +96,21 @@ class TestSyncMatrix(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(result.exit_code, 0)
-                self.assertEqual(mock_repo.write_activity.call_count, 2) # Adds both new activities
-                mock_repo.delete_activities.assert_not_called() # Crucially, does not delete 9999
+                self.assertEqual(mock_repo.write_activity.call_count, 2)
+                mock_repo.delete_activities.assert_called_once_with(['9999'])
 
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')
     @patch('kinetiqo.sync.create_repository')
-    def test_full_sync_with_period_limit_does_not_delete(self, mock_sync_repo, mock_cli_repo, mock_strava_client):
+    def test_full_sync_with_period_limit_does_not_delete_outside_scope(self, mock_sync_repo, mock_cli_repo, mock_strava_client):
         """Full sync with a --period limit should NOT delete activities outside that period."""
         for db_type in DB_TYPES:
             with self.subTest(db_type=db_type):
                 # Arrange
                 mock_repo = MagicMock()
                 mock_repo.get_synced_activity_ids.return_value = {'901'} # A very old activity
+                # 901 is outside the scoped window — get_synced_activity_ids_since returns empty
+                mock_repo.get_synced_activity_ids_since.return_value = set()
                 mock_cli_repo.return_value = mock_sync_repo.return_value = mock_repo
 
                 mock_strava_instance = mock_strava_client.return_value

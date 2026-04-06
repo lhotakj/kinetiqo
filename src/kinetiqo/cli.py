@@ -23,6 +23,8 @@ logger.setLevel(logging.INFO)
 # Reduce noise from libraries
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def print_version():
@@ -77,6 +79,37 @@ class State:
         self.config = None
 
 
+def _get_db_info(config, repo):
+    """Return (db_version, host_info) for the configured database backend."""
+    db_type = config.database_type.capitalize()
+    if db_type == 'Postgresql':
+        return repo.get_pg_version(), f"{config.postgresql_host}:{config.postgresql_port}"
+    if db_type == 'Mysql':
+        return repo.get_mysql_version(), f"{config.mysql_host}:{config.mysql_port}"
+    if db_type == 'Firebird':
+        return repo.get_firebird_version(), f"{config.firebird_host}:{config.firebird_port}"
+    return "Unknown", "Unknown"
+
+
+def _load_api_keys(config):
+    """Read optional map API keys from the environment into *config*."""
+    mapy_key = os.getenv("MAPY_API_KEY", "")
+    if mapy_key:
+        config.mapy_api_key = mapy_key
+    if config.mapy_api_key:
+        logger.info("API key for mapy.com provided")
+    else:
+        logger.warning("No mapy.com key provided, Mapy.cz map layers won't be available")
+
+    tf_key = os.getenv("THUNDERFOREST_API_KEY", "")
+    if tf_key:
+        config.thunderforest_api_key = tf_key
+    if config.thunderforest_api_key:
+        logger.info("API key for Thunderforest provided")
+    else:
+        logger.warning("No Thunderforest key provided, Thunderforest map layers won't be available")
+
+
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--database', '-d',
               type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
@@ -95,27 +128,16 @@ def cli(ctx, database):
         validate_config(config)
         repo = None
         try:
-            # This is the single point for startup logging.
             repo = create_repository(config)
-            
+
+            db_version, host_info = _get_db_info(config, repo)
             db_type = config.database_type.capitalize()
-            db_version = "Unknown"
-            host_info = "Unknown"
-
-            if db_type == 'Postgresql':
-                db_version = repo.get_pg_version()
-                host_info = f"{config.postgresql_host}:{config.postgresql_port}"
-            elif db_type == 'Mysql':
-                db_version = repo.get_mysql_version()
-                host_info = f"{config.mysql_host}:{config.mysql_port}"
-            elif db_type == 'Firebird':
-                db_version = repo.get_firebird_version()
-                host_info = f"{config.firebird_host}:{config.firebird_port}"
-
             logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
             logger.info(f"DB Version: {db_version}")
-            
+
             repo.initialize_schema()
+            _load_api_keys(config)
+
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}", exc_info=True)
             sys.exit(1)

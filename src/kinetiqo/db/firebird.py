@@ -1,5 +1,6 @@
 import logging
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
@@ -13,10 +14,19 @@ logger = logging.getLogger("kinetiqo")
 
 
 class FirebirdRepository(DatabaseRepository):
+    # Minimum seconds between active connection probes.  Within this window
+    # only a cheap ``is_closed()`` check is performed.  The web layer creates
+    # a fresh connection per request (lifetime < 1 s), so the probe is
+    # effectively skipped for every web call.  The CLI, which keeps a single
+    # repository alive for minutes, will re-probe after the interval expires.
+    _VERIFY_INTERVAL: float = 30.0
+
     def __init__(self, config: Config):
         self.config = config
+        self._last_verified: float = 0.0
         try:
             self.conn = self._connect()
+            self._last_verified = time.monotonic()
         except Exception as err:
             logger.warning(f"Cannot connect to Firebird: {err}")
             sys.exit(1)
@@ -34,15 +44,7 @@ class FirebirdRepository(DatabaseRepository):
         return timestamp
 
     def _connect(self):
-        """Helper to connect to the Firebird database.
-
-        The connection's default transaction is switched to READ COMMITTED
-        (record version) so that every query sees the latest data committed
-        by other connections — e.g. activities written by a CLI sync while
-        Gunicorn serves web requests.  Firebird's default SNAPSHOT isolation
-        pins a stable view at transaction start, which causes stale reads
-        when the web UI and CLI operate concurrently.
-        """
+        """Helper to connect to the Firebird database."""
         try:
             dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
 
@@ -53,9 +55,8 @@ class FirebirdRepository(DatabaseRepository):
                 charset='UTF8'
             )
 
-            # Switch the default transaction to READ COMMITTED so every
-            # statement sees the latest committed rows instead of a stale
-            # SNAPSHOT taken when the transaction was first opened.
+            # READ COMMITTED RECORD VERSION ensures we see the latest committed data
+            # without the overhead of SNAPSHOT isolation.
             rc_tpb = tpb(isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
                          access_mode=TraAccessMode.WRITE)
             conn.main_transaction.default_tpb = rc_tpb
@@ -68,24 +69,27 @@ class FirebirdRepository(DatabaseRepository):
     def _ensure_connected(self):
         """Verify the connection is alive; transparently reconnect if not.
 
-        Long-running Gunicorn workers or CLI syncs may hold connections that
-        the server has closed due to idle timeout or network disruption.
-
-        The health-check ``SELECT 1`` implicitly opens a Firebird transaction.
-        We **must** commit it before returning so the caller's next statement
-        begins a brand-new transaction that sees all data committed by other
-        connections (e.g. a CLI sync or a web DELETE).  Without this commit
-        the caller would inherit a stale SNAPSHOT and miss recent changes.
+        Uses a time-based check to avoid redundant network round-trips.
+        The connection is only actively probed when more than
+        ``_VERIFY_INTERVAL`` seconds have elapsed since the last successful
+        verification.  For per-request web connections (lifetime < 1 s)
+        the probe is effectively skipped — only a cheap ``is_closed()``
+        check runs.
         """
+        now = time.monotonic()
+        if (now - self._last_verified) < self._VERIFY_INTERVAL:
+            # Connection was recently verified — skip the expensive probe.
+            if not self.conn.is_closed():
+                return
         try:
             if self.conn.is_closed():
                 raise ConnectionError("Connection is closed")
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM RDB$DATABASE")
                 cur.fetchone()
-            # Close the implicit transaction so the next operation starts
-            # fresh — critical for seeing recently committed data.
-            self.conn.commit()
+            # Do NOT commit — the read-only check doesn't need it and
+            # commit() adds an extra network round-trip.
+            self._last_verified = now
         except Exception:
             logger.warning("Firebird connection lost, reconnecting...")
             try:
@@ -94,6 +98,7 @@ class FirebirdRepository(DatabaseRepository):
                 except Exception:
                     pass
                 self.conn = self._connect()
+                self._last_verified = time.monotonic()
             except Exception as e:
                 logger.error(f"Failed to reconnect to Firebird: {e}")
                 raise
@@ -104,12 +109,6 @@ class FirebirdRepository(DatabaseRepository):
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM RDB$DATABASE")
                 cur.fetchone()
-            # Commit to close the implicit transaction opened by the health
-            # check above.  Without this, the SNAPSHOT (or READ COMMITTED
-            # record-version) started here would be held open until the
-            # first explicit commit, and subsequent reads could miss data
-            # committed by other connections in the meantime.
-            self.conn.commit()
         except Exception as e:
             logger.warning(f"Database check failed: {e}")
             try:
@@ -136,6 +135,74 @@ class FirebirdRepository(DatabaseRepository):
             result = cur.fetchone()
             return result[0] if result else "Unknown"
 
+    def _migrate_blob_columns(self):
+        """Convert BLOB SUB_TYPE TEXT columns to VARCHAR for performance.
+
+        Firebird stores BLOBs out-of-line on separate pages.  The pure-Python
+        ``firebird-driver`` must make 3 extra protocol round-trips per row to
+        fetch each BLOB value (open → read segments → close).  With 2 000
+        activities loaded by DataTables this adds ~6 000 round-trips (~30 s)
+        **just for the name field**.
+
+        Converting to ``VARCHAR(500)`` stores the value inline on the data
+        page so it is returned in the normal row-fetch buffer with zero
+        extra protocol calls.
+
+        The migration uses a temporary column because Firebird does not
+        support ``ALTER COLUMN … TYPE`` from BLOB to VARCHAR directly.
+        """
+        migrations = [
+            ("activities", "name", "VARCHAR(500)"),
+        ]
+        for table, column, new_type in migrations:
+            try:
+                with self.conn.cursor() as cur:
+                    # Check current field type: RDB$FIELD_TYPE 261 = BLOB
+                    cur.execute("""
+                        SELECT f.RDB$FIELD_TYPE
+                        FROM RDB$RELATION_FIELDS rf
+                        JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
+                        WHERE TRIM(rf.RDB$RELATION_NAME) = ?
+                          AND TRIM(rf.RDB$FIELD_NAME) = ?
+                    """, (table, column))
+                    row = cur.fetchone()
+                    if not row or row[0] != 261:
+                        # Not a BLOB — nothing to migrate.
+                        continue
+
+                    logger.info(
+                        f"Migrating {table}.{column} from BLOB to {new_type} "
+                        f"(eliminates per-row blob round-trips)..."
+                    )
+                    tmp = f"{column}_tmp"
+                    cur.execute(
+                        f'ALTER TABLE "{table}" ADD "{tmp}" {new_type}'
+                    )
+                    self.conn.commit()
+
+                    cur.execute(
+                        f'UPDATE "{table}" SET "{tmp}" = CAST("{column}" AS {new_type})'
+                    )
+                    self.conn.commit()
+
+                    cur.execute(f'ALTER TABLE "{table}" DROP "{column}"')
+                    self.conn.commit()
+
+                    cur.execute(
+                        f'ALTER TABLE "{table}" ALTER COLUMN "{tmp}" TO "{column}"'
+                    )
+                    self.conn.commit()
+                    logger.info(f"Migrated {table}.{column} to {new_type} successfully.")
+            except Exception as e:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                logger.warning(
+                    f"Could not migrate {table}.{column} from BLOB to VARCHAR: {e}. "
+                    f"Queries will use CAST as a fallback."
+                )
+
     def initialize_schema(self):
         """Create or update the database schema."""
         self._ensure_connected()
@@ -146,14 +213,34 @@ class FirebirdRepository(DatabaseRepository):
                 cur.execute("CREATE SEQUENCE logs_id_seq")
                 self.conn.commit()
             except Exception:
-                # Sequence already exists — rollback the failed DDL so the
-                # connection's transaction is clean for subsequent operations.
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+
+            try:
+                cur.execute("""
+                    CREATE GLOBAL TEMPORARY TABLE "gtt_activity_ids" (
+                        "activity_id" BIGINT NOT NULL PRIMARY KEY
+                    ) ON COMMIT DELETE ROWS
+                """)
+                self.conn.commit()
+            except Exception:
                 try:
                     self.conn.rollback()
                 except Exception:
                     pass
 
         schema_manager.ensure_schema()
+
+        # --- Migration: BLOB → VARCHAR for the name column ----------------
+        # Firebird stores BLOBs out-of-line.  The pure-Python firebird-driver
+        # must open / read-segments / close each BLOB value individually,
+        # adding ~3 network round-trips per row.  With 2 000 activities this
+        # means ~6 000 extra round-trips just for the name field.
+        # Converting to VARCHAR(500) stores the value inline on the data
+        # page so it arrives with the row fetch buffer — zero extra trips.
+        self._migrate_blob_columns()
 
         with self.conn.cursor() as cur:
             try:
@@ -187,13 +274,7 @@ class FirebirdRepository(DatabaseRepository):
                 return False
 
     def get_latest_activity_time(self) -> Optional[int]:
-        """Get the start timestamp of the most recent activity by date.
-
-        Used by fast sync to ask Strava for activities newer than this.
-        We use ``MAX(start_date)`` — not ``MAX(activity_id)`` — because
-        Strava IDs are not guaranteed to be sequential in chronological
-        order (e.g. a manual upload of an old ride gets a high ID).
-        """
+        """Get the start timestamp of the most recent activity by date."""
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute('SELECT MAX("start_date") FROM "activities"')
@@ -214,6 +295,14 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute('SELECT "activity_id" FROM "activities"')
             return {str(row[0]) for row in cur.fetchall()}
 
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*."""
+        self._ensure_connected()
+        dt = datetime.fromtimestamp(after_epoch, tz=timezone.utc)
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "activity_id" FROM "activities" WHERE "start_date" >= ?', (dt,))
+            return {str(row[0]) for row in cur.fetchall()}
+
     def get_activities(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get a list of activities for display."""
         self._ensure_connected()
@@ -221,7 +310,7 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute(f"""
                 SELECT FIRST {limit}
                     "activity_id" as id,
-                    "name",
+                    CAST("name" AS VARCHAR(500)) as "name",
                     "sport" as type,
                     "distance",
                     "moving_time",
@@ -321,7 +410,7 @@ class FirebirdRepository(DatabaseRepository):
         query = f"""
             SELECT FIRST {limit} SKIP {offset}
                 "activity_id" as id,
-                "name",
+                CAST("name" AS VARCHAR(500)) as "name",
                 "sport" as type,
                 "distance",
                 "moving_time",
@@ -396,7 +485,7 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute(f"""
                 SELECT 
                     "activity_id" as id,
-                    "name",
+                    CAST("name" AS VARCHAR(500)) as "name",
                     "sport" as type,
                     "distance",
                     "moving_time",
@@ -625,36 +714,61 @@ class FirebirdRepository(DatabaseRepository):
                         [int(aid) for aid in activity_ids])
             self.conn.commit()
 
+    # -----------------------------------------------------------------
+    # Chunked IN-clause helpers
+    # -----------------------------------------------------------------
+    # Firebird's Global Temporary Tables (GTT) have zero persistent
+    # statistics — RDB$RECORD_COUNT is always 0.  The cost-based
+    # optimizer therefore treats a GTT JOIN as if the driving table is
+    # empty, and falls back to scanning the entire streams index (7 M+
+    # rows) while probing the GTT per row.  This is catastrophically
+    # slow for the watts / GPS queries.
+    #
+    # Replacing the GTT JOIN with a plain ``IN (?, ?, …)`` clause gives
+    # the optimizer explicit cardinality information.  It can then do
+    # targeted index range scans on ``idx_streams_activity_ts_watts``
+    # per activity_id — the same plan MySQL uses with its pure-Python
+    # driver, which is proven fast.
+    #
+    # _IN_CHUNK_SIZE caps the number of parameters per query to stay
+    # well within Firebird's protocol limits (~1 500 params) while
+    # keeping the number of round-trips minimal.
+    # -----------------------------------------------------------------
+    _IN_CHUNK_SIZE: int = 500
+
     def get_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """Get GPS streams (lat, lng) for a list of activity IDs."""
         if not activity_ids:
             return {}
 
         self._ensure_connected()
-        result = {}
+        result: Dict[str, List[Dict[str, Any]]] = {}
         int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor() as cur:
-            placeholders = ', '.join(['?'] * len(int_ids))
-            cur.execute(f"""
-                SELECT "activity_id", "lat", "lng"
-                FROM "streams"
-                WHERE "activity_id" IN ({placeholders})
-                  AND "lat" IS NOT NULL
-                  AND "lng" IS NOT NULL
-                ORDER BY "activity_id", "ts"
-            """, int_ids)
+            cur.prefetch = 10000
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT "activity_id", "lat", "lng"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "lat" IS NOT NULL
+                      AND "lng" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, chunk)
 
-            for row in cur.fetchall():
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append({
-                    'lat': float(row[1]),
-                    'lng': float(row[2])
-                })
+                for row in cur:
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append({
+                        'lat': float(row[1]),
+                        'lng': float(row[2])
+                    })
 
-            return result
+        return result
 
     def get_streams_coords_for_activities(self, activity_ids: List[str]) -> Dict[str, List[List[float]]]:
         """Get GPS coordinate arrays for a list of activity IDs as compact [lat, lng] pairs."""
@@ -664,25 +778,28 @@ class FirebirdRepository(DatabaseRepository):
         self._ensure_connected()
         result: Dict[str, List[List[float]]] = {}
         int_ids = [int(aid) for aid in activity_ids]
-        placeholders = ', '.join(['?'] * len(int_ids))
 
         with self.conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT "activity_id", "lat", "lng"
-                FROM "streams"
-                WHERE "activity_id" IN ({placeholders})
-                  AND "lat" IS NOT NULL
-                  AND "lng" IS NOT NULL
-                ORDER BY "activity_id", "ts"
-            """, int_ids)
+            cur.prefetch = 10000
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT "activity_id", "lat", "lng"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "lat" IS NOT NULL
+                      AND "lng" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, chunk)
 
-            for row in cur:
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append([float(row[1]), float(row[2])])
+                for row in cur:
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append([float(row[1]), float(row[2])])
 
-            return result
+        return result
 
     def get_streams_bounds_for_activities(self, activity_ids: List[str]) -> Optional[Tuple[float, float, float, float]]:
         """Get GPS bounding box for a list of activity IDs via SQL aggregation."""
@@ -691,26 +808,36 @@ class FirebirdRepository(DatabaseRepository):
 
         self._ensure_connected()
         int_ids = [int(aid) for aid in activity_ids]
-        placeholders = ', '.join(['?'] * len(int_ids))
+        min_lat = min_lng = float('inf')
+        max_lat = max_lng = float('-inf')
+        found = False
 
         with self.conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT MIN("lat"), MIN("lng"), MAX("lat"), MAX("lng")
-                FROM "streams"
-                WHERE "activity_id" IN ({placeholders})
-                  AND "lat" IS NOT NULL
-                  AND "lng" IS NOT NULL
-            """, int_ids)
-            row = cur.fetchone()
-            if row and row[0] is not None:
-                return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
-            return None
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT MIN("lat"), MIN("lng"), MAX("lat"), MAX("lng")
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "lat" IS NOT NULL
+                      AND "lng" IS NOT NULL
+                """, chunk)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    found = True
+                    min_lat = min(min_lat, float(row[0]))
+                    min_lng = min(min_lng, float(row[1]))
+                    max_lat = max(max_lat, float(row[2]))
+                    max_lng = max(max_lng, float(row[3]))
+
+        return (min_lat, min_lng, max_lat, max_lng) if found else None
 
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
         self._ensure_connected()
         with self.conn.cursor() as cur:
-            cur.execute('SELECT "name" FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
+            cur.execute('SELECT CAST("name" AS VARCHAR(500)) FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
 
@@ -749,47 +876,103 @@ class FirebirdRepository(DatabaseRepository):
                 logs.append(log)
             return logs
 
+
     def get_watts_streams_for_activities(self, activity_ids: List[str]) -> Dict[str, List[float]]:
-        """Get watts time-series for a list of activity IDs."""
+        """Get watts time-series for a list of activity IDs.
+
+        Uses chunked ``IN (?, …)`` clauses instead of a GTT JOIN so that
+        Firebird's optimizer has explicit cardinality information and can
+        do targeted index range scans on ``idx_streams_activity_ts_watts``
+        per activity_id.
+        """
         if not activity_ids:
             return {}
 
         self._ensure_connected()
-        result = {}
+        result: Dict[str, List[float]] = {}
         int_ids = [int(aid) for aid in activity_ids]
 
         with self.conn.cursor() as cur:
-            placeholders = ', '.join(['?'] * len(int_ids))
-            cur.execute(f"""
-                SELECT "activity_id", "watts"
-                FROM "streams"
-                WHERE "activity_id" IN ({placeholders})
-                  AND "watts" IS NOT NULL
-                ORDER BY "activity_id", "ts"
-            """, int_ids)
+            cur.prefetch = 10000
+            for i in range(0, len(int_ids), self._IN_CHUNK_SIZE):
+                chunk = int_ids[i:i + self._IN_CHUNK_SIZE]
+                placeholders = ', '.join(['?'] * len(chunk))
+                cur.execute(f"""
+                    SELECT "activity_id", "watts"
+                    FROM "streams"
+                    WHERE "activity_id" IN ({placeholders})
+                      AND "watts" IS NOT NULL
+                    ORDER BY "activity_id", "ts"
+                """, chunk)
 
-            for row in cur.fetchall():
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append(float(row[1]))
+                for row in cur:
+                    aid = str(row[0])
+                    if aid not in result:
+                        result[aid] = []
+                    result[aid].append(float(row[1]))
 
         return result
 
-    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
+    def get_best_power_per_activity(
+        self,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Compute best rolling-average power per activity.
+
+        Uses the **Python sliding-window** path (same as MySQL): fetches raw
+        watts via ``get_watts_streams_for_activities`` and computes the O(N)
+        rolling maximum in Python with ``compute_best_power_per_activity``.
+
+        **Why not SQL window functions?**
+        Firebird **materialises CTEs** into temporary tables.  The cumulative-
+        SUM + LAG approach generates two intermediate result sets of ~1.8 M
+        rows each, which Firebird writes to temp storage and reads back.  On a
+        typical setup this takes 10–15 s — slower than the ~5 s needed to
+        transfer the raw watts through the pure-Python ``firebird-driver`` and
+        compute the sliding window in Python.
+
+        The ``get_watts_streams_for_activities`` method uses chunked ``IN (?)``
+        clauses with ``prefetch = 10 000`` so the data transfer is I/O-
+        efficient.  Combined with the application-level cache in the web layer
+        (which makes subsequent loads instant), this approach keeps Firebird
+        competitive with the other backends.
+        """
+        from kinetiqo.db.repository import compute_best_power_per_activity
+        watts_data = self.get_watts_streams_for_activities(activity_ids)
+        return compute_best_power_per_activity(watts_data, duration_seconds, min_total_samples)
+
+    def get_activity_ids_by_types(
+        self,
+        types: List[str],
+        since_date=None,
+        watts_only: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Get lightweight activity records filtered by sport type."""
         if not types:
             return []
 
         self._ensure_connected()
+        extra = ' AND "average_watts" IS NOT NULL' if watts_only else ""
         with self.conn.cursor() as cur:
             placeholders = ', '.join(['?'] * len(types))
-            cur.execute(f"""
-                SELECT "activity_id", "name", "start_date"
-                FROM "activities"
-                WHERE "sport" IN ({placeholders})
-                ORDER BY "start_date" DESC
-            """, types)
+            if since_date is not None:
+                params = list(types) + [since_date]
+                cur.execute(f"""
+                    SELECT "activity_id", CAST("name" AS VARCHAR(500)) AS "name", "start_date"
+                    FROM "activities"
+                    WHERE "sport" IN ({placeholders})
+                      AND "start_date" >= ?{extra}
+                    ORDER BY "start_date" DESC
+                """, params)
+            else:
+                cur.execute(f"""
+                    SELECT "activity_id", CAST("name" AS VARCHAR(500)) AS "name", "start_date"
+                    FROM "activities"
+                    WHERE "sport" IN ({placeholders}){extra}
+                    ORDER BY "start_date" DESC
+                """, types)
 
             activities = []
             for row in cur.fetchall():
@@ -871,6 +1054,42 @@ class FirebirdRepository(DatabaseRepository):
                 'VALUES (?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight)
+            )
+        self.conn.commit()
+
+    def get_goals(self, athlete_id: int):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT "activity_type_id",
+                       "weekly_distance_goal", "monthly_distance_goal", "yearly_distance_goal",
+                       "weekly_elevation_goal", "monthly_elevation_goal", "yearly_elevation_goal"
+                FROM "activity_goals"
+                WHERE "athlete_id" = ?
+                ORDER BY "activity_type_id"
+            """, (athlete_id,))
+            cols = [
+                'activity_type_id',
+                'weekly_distance_goal', 'monthly_distance_goal', 'yearly_distance_goal',
+                'weekly_elevation_goal', 'monthly_elevation_goal', 'yearly_elevation_goal',
+            ]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def upsert_goal(self, athlete_id, activity_type_id,
+                    weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                    weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal):
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                'UPDATE OR INSERT INTO "activity_goals" '
+                '("athlete_id", "activity_type_id", '
+                '"weekly_distance_goal", "monthly_distance_goal", "yearly_distance_goal", '
+                '"weekly_elevation_goal", "monthly_elevation_goal", "yearly_elevation_goal") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
+                'MATCHING ("athlete_id", "activity_type_id")',
+                (athlete_id, activity_type_id,
+                 weekly_distance_goal, monthly_distance_goal, yearly_distance_goal,
+                 weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal)
             )
         self.conn.commit()
 

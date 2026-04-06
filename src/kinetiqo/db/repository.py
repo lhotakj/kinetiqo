@@ -1,6 +1,84 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Set, List, Dict, Any, Tuple
 
+# ---------------------------------------------------------------------------
+# Activity-type constants used for the activity_goals table.
+# New sport categories can be added here — the database stores the integer ID.
+# ---------------------------------------------------------------------------
+GOAL_TYPE_CYCLING = 1   # Ride, VirtualRide, EBikeRide, GravelRide, …
+GOAL_TYPE_WALKING = 2   # Walk, Hike
+
+
+def compute_best_average_power(watts_series: List[float], duration_seconds: int) -> float:
+    """O(N) sliding-window maximum average power for a single activity.
+
+    This is the canonical, backend-agnostic implementation used by MySQL and
+    Firebird (where SQL window functions are O(N×K) and unusable for large K).
+    PostgreSQL uses its own O(N) SQL window-function path instead.
+
+    :param watts_series: List of watts values ordered by timestamp (1 sample/sec).
+    :param duration_seconds: Window size in seconds.
+    :return: Best average power as float, or 0.0 if insufficient data.
+    """
+    n = len(watts_series)
+    if n < duration_seconds:
+        return 0.0
+
+    window_sum = sum(watts_series[:duration_seconds])
+    max_sum = window_sum
+
+    for i in range(1, n - duration_seconds + 1):
+        window_sum += watts_series[i + duration_seconds - 1] - watts_series[i - 1]
+        if window_sum > max_sum:
+            max_sum = window_sum
+
+    return max_sum / duration_seconds
+
+
+def compute_best_power_per_activity(
+    watts_data: Dict[str, List[float]],
+    duration_seconds: int,
+    min_total_samples: int = 0,
+) -> Dict[str, float]:
+    """Compute best rolling-average power for each activity from raw watts data.
+
+    Wraps :func:`compute_best_average_power` with the ``min_total_samples``
+    filter so that MySQL and Firebird repositories can delegate to this after
+    fetching raw watts via ``get_watts_streams_for_activities``.
+
+    :param watts_data: Dict mapping activity_id → list of watts values.
+    :param duration_seconds: Rolling-window size in seconds.
+    :param min_total_samples: Minimum total non-NULL watts samples required
+        per activity.  Activities with fewer samples are omitted.  Defaults to
+        ``duration_seconds`` when ≤ 0.
+    :return: Dict mapping activity_id → best average watts (float).
+    """
+    min_total = min_total_samples if min_total_samples > 0 else duration_seconds
+    result: Dict[str, float] = {}
+
+    for aid, watts_list in watts_data.items():
+        if len(watts_list) < min_total:
+            continue
+        best = compute_best_average_power(watts_list, duration_seconds)
+        if best > 0:
+            result[aid] = best
+
+    return result
+
+# Mapping from Strava sport-type strings to GOAL_TYPE_* IDs
+STRAVA_TYPE_TO_GOAL_TYPE: Dict[str, int] = {
+    "Ride": GOAL_TYPE_CYCLING,
+    "VirtualRide": GOAL_TYPE_CYCLING,
+    "EBikeRide": GOAL_TYPE_CYCLING,
+    "EMountainBikeRide": GOAL_TYPE_CYCLING,
+    "GravelRide": GOAL_TYPE_CYCLING,
+    "MountainBikeRide": GOAL_TYPE_CYCLING,
+    "Velomobile": GOAL_TYPE_CYCLING,
+    "Handcycle": GOAL_TYPE_CYCLING,
+    "Walk": GOAL_TYPE_WALKING,
+    "Hike": GOAL_TYPE_WALKING,
+}
+
 
 class DatabaseRepository(ABC):
     """Abstract base class for database operations."""
@@ -27,6 +105,20 @@ class DatabaseRepository(ABC):
     @abstractmethod
     def get_synced_activity_ids(self) -> Set[str]:
         """Get all activity IDs already in the database."""
+        pass
+
+    @abstractmethod
+    def get_synced_activity_ids_since(self, after_epoch: int) -> Set[str]:
+        """Get activity IDs whose start_date is at or after *after_epoch*.
+
+        Used by time-scoped syncs (fast sync, period-limited full sync) to
+        determine which database activities fall inside the fetched window so
+        that deletions are only applied to that window — not to older
+        activities that were never re-fetched from Strava.
+
+        :param after_epoch: Unix epoch timestamp (seconds).
+        :return: Set of activity ID strings with ``start_date >= after_epoch``.
+        """
         pass
 
     @abstractmethod
@@ -139,13 +231,66 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def get_activity_ids_by_types(self, types: List[str]) -> List[Dict[str, Any]]:
+    def get_best_power_per_activity(
+        self,
+        activity_ids: List[str],
+        duration_seconds: int,
+        min_total_samples: int = 0,
+    ) -> Dict[str, float]:
+        """Return the best (maximum) sliding-window average power for each activity.
+
+        **Implementation strategy varies by backend:**
+
+        * **PostgreSQL** — uses SQL ``AVG() OVER (ROWS BETWEEN …)`` window
+          functions.  PostgreSQL implements these with an O(N) sliding
+          accumulator and the partial covering index
+          ``(activity_id, ts) INCLUDE (watts) WHERE watts IS NOT NULL``
+          enables index-only scans, making this very fast.
+
+        * **MySQL / Firebird** — fetches raw watts via
+          ``get_watts_streams_for_activities`` and computes the sliding-window
+          maximum in Python using :func:`compute_best_power_per_activity`.
+          MySQL 8.0 and Firebird 4.0 implement ``AVG() OVER (ROWS BETWEEN K
+          PRECEDING …)`` with **O(N×K) naive recomputation** (re-summing K
+          values for every row), which makes the SQL approach unusable for
+          large K (e.g. 1 200 for FTP).  The Python path is O(N) and proven
+          fast by the Power Skills spider chart.
+
+        :param activity_ids: Activity IDs to process.
+        :param duration_seconds: Rolling-window size in seconds
+            (e.g. 300 for VO2max MAP, 1200 for FTP).
+        :param min_total_samples: Minimum number of non-NULL watts samples an
+            activity must have **in total** to be included.  Defaults to
+            ``duration_seconds`` (at least one full window).
+        :return: Dict mapping activity_id string to best average watts (float).
+            Activities with insufficient data are omitted.
+        """
+        pass
+
+    @abstractmethod
+    def get_activity_ids_by_types(
+        self,
+        types: List[str],
+        since_date: Optional[Any] = None,
+        watts_only: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Get lightweight activity records filtered by sport type.
 
         Returns a list of dicts with ``id``, ``name``, and ``start_date`` keys,
         ordered by ``start_date DESC``.
 
         :param types: List of sport-type strings to filter on (e.g. ``["Ride", "VirtualRide"]``).
+        :param since_date: Optional datetime (aware or naive UTC). When provided, only
+            activities whose ``start_date >= since_date`` are returned.  Pushing the
+            date cut-off to SQL avoids loading the full activity list into Python just
+            to discard old rows — the existing ``idx_activities_sport_start_date``
+            index on ``(sport, start_date DESC)`` covers this filter efficiently.
+        :param watts_only: When ``True``, only activities with ``average_watts IS NOT NULL``
+            are returned.  This pre-filters the activity list to those that actually have
+            power-meter data, dramatically reducing the number of stream rows the caller
+            must load for VO2max / FTP calculations.  Particularly important for Firebird
+            where each extra activity_id in the subsequent IN clause adds a separate
+            index range scan on the streams table.
         :return: List of matching activity summary dicts.
         """
         pass
@@ -182,6 +327,41 @@ class DatabaseRepository(ABC):
         :param first_name: Athlete first name.
         :param last_name: Athlete last name.
         :param weight: Athlete body weight in kilograms.
+        """
+        pass
+
+    # ------------------------------------------------------------------
+    # Activity goals
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    def get_goals(self, athlete_id: int) -> List[Dict[str, Any]]:
+        """Return all goal rows for *athlete_id*, ordered by activity_type_id.
+
+        Each dict has the keys:
+          activity_type_id, weekly_distance_goal, monthly_distance_goal,
+          yearly_distance_goal, weekly_elevation_goal, monthly_elevation_goal,
+          yearly_elevation_goal.
+        Any unset goal field is ``None``.
+        Distance goals are stored in **km**; elevation goals in **metres**.
+        """
+        pass
+
+    @abstractmethod
+    def upsert_goal(
+        self,
+        athlete_id: int,
+        activity_type_id: int,
+        weekly_distance_goal: Optional[float],
+        monthly_distance_goal: Optional[float],
+        yearly_distance_goal: Optional[float],
+        weekly_elevation_goal: Optional[float],
+        monthly_elevation_goal: Optional[float],
+        yearly_elevation_goal: Optional[float],
+    ) -> None:
+        """Insert or update a single activity-type goal row for *athlete_id*.
+
+        Pass ``None`` for any goal that should be cleared / left unset.
         """
         pass
 

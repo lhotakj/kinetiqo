@@ -1,0 +1,132 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold mb-4">Cumulative Progress (Distance)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Week</h3>
+                <div class="h-64">
+                    <canvas id="chartWeekDist"></canvas>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Month</h3>
+                <div class="h-64">
+                    <canvas id="chartMonthDist"></canvas>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Year</h3>
+                <div class="h-64">
+                    <canvas id="chartYearDist"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold mb-4">Cumulative Progress (Elevation)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Week</h3>
+                <div class="h-64">
+                    <canvas id="chartWeekElev"></canvas>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Month</h3>
+                <div class="h-64">
+                    <canvas id="chartMonthElev"></canvas>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-center mb-2">This Year</h3>
+                <div class="h-64">
+                    <canvas id="chartYearElev"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Chart.js and Adapter -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const rawData = {{ progress_data | tojson }};
+
+        function renderChart(canvasId, labels, values, color, yLabel) {
+            // Calculate cumulative sum
+            const cumulative = [];
+            values.reduce((acc, curr, i) => cumulative[i] = acc + curr, 0);
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels, // Dates as strings
+                    datasets: [{
+                        label: yLabel,
+                        data: cumulative,
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                tooltipFormat: 'MMM d, yyyy',
+                                displayFormats: {
+                                    day: 'MMM d'
+                                }
+                            },
+                            title: { display: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: yLabel }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // --- Distance Charts ---
+        renderChart('chartWeekDist', rawData.week.dates, rawData.week.distance, '#FC4C02', 'km');
+        renderChart('chartMonthDist', rawData.month.dates, rawData.month.distance, '#FC4C02', 'km');
+        renderChart('chartYearDist', rawData.year.dates, rawData.year.distance, '#FC4C02', 'km');
+
+        // --- Elevation Charts ---
+        renderChart('chartWeekElev', rawData.week.dates, rawData.week.elevation, '#4C02FC', 'm');
+        renderChart('chartMonthElev', rawData.month.dates, rawData.month.elevation, '#4C02FC', 'm');
+        renderChart('chartYearElev', rawData.year.dates, rawData.year.elevation, '#4C02FC', 'm');
+    });
+</script>
+{% endblock %}
