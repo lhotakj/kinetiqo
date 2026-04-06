@@ -17,8 +17,8 @@ The `development` directory contains a script to configure `direnv` for automate
     ```
 
 2.  **Allow direnv:**
-    Upon configuration, `direnv` will ask for permission. Run `direnv allow` in the project root.
-    
+    After configuration, `direnv` will ask for permission. Run `direnv allow` in the project root.
+
     Now, `direnv` will automatically load the environment variables and activate the virtual environment when entering the project directory.
 
 ## Secure Secret Storage with GPG
@@ -38,3 +38,8 @@ For enhanced security, environment files can be encrypted using GPG. The include
     gpg -r <your-key-id> -o secrets/development.gpg -e .env.development
     ```
     Ensure the unencrypted source file (`.env.development`) is included in `.gitignore`.
+
+## Tips
+- Use `direnv` to avoid manual activation of virtual environments and loading of secrets.
+- For more on configuration, see [Configuration](configuration.md).
+- For local development, see [Local Development](local-dev.md).
