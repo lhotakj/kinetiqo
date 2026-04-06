@@ -148,7 +148,7 @@
 </div>
 
 <script>
-    // ── Number formatting helpers (outer scope for SonarCloud) ────────────
+    // ── Number formatting helpers (outer scope for SonarCloud) ───────────────
     /** Format a positive number with thousands separators, ≤1 decimal place. */
     function formatGoalNum(val) {
         if (val == null || val <= 0) return '';
@@ -162,7 +162,7 @@
     function parseGoalNum(str) {
         if (!str || str.trim() === '') return null;
         const v = Number.parseFloat(str.replaceAll(',', ''));   // strip thousands separators
-        return (!isNaN(v) && v > 0) ? v : null;
+        return (!Number.isNaN(v) && v > 0) ? v : null;
     }
 
     document.addEventListener('DOMContentLoaded', function () {

@@ -79,7 +79,7 @@
 </div>
 
 <script>
-// ── Pure helper functions (outer scope) ──────────────────────────────────
+// ── Pure helper functions (outer scope) ──────────────────────────────────────────────
 function getPeriodStart(periodType) {
     const now = new Date();
     if (periodType === 'week') {
@@ -113,6 +113,37 @@ function _toDateStr(d) { return d.toISOString().slice(0, 10); }
 function getCumulative(values) {
     let s = 0;
     return values.map(v => s += v);
+}
+
+// ── buildPaceDataset and getPaceAtToday moved to outer scope for SonarCloud ──
+function buildPaceDataset(periodType, goalValue, unit) {
+    if (!goalValue || goalValue <= 0) return null;
+    return {
+        label: `Target: ${goalValue} ${unit}`,
+        data: [
+            { x: _toDateStr(getPeriodStart(periodType)), y: 0         },
+            { x: _toDateStr(getPeriodEnd(periodType)),   y: goalValue },
+        ],
+        borderColor: '#9CA3AF',
+        borderDash: [6, 4],
+        borderWidth: 1.5,
+        backgroundColor: 'transparent',
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        order: 1,
+    };
+}
+
+function getPaceAtToday(periodType, goalValue) {
+    if (!goalValue || goalValue <= 0) return 0;
+    const now   = new Date();
+    const start = getPeriodStart(periodType);
+    const end   = getPeriodEnd(periodType);
+    const totalMs   = end.getTime()   - start.getTime();
+    if (totalMs <= 0) return 0;
+    const elapsedMs = Math.max(0, now.getTime() - start.getTime());
+    return goalValue * Math.min(1, elapsedMs / totalMs);
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -196,13 +227,13 @@ document.addEventListener('DOMContentLoaded', function () {
         _refreshPillStyles();
 
         const $select = $('#activityTypeFilter');
-        if (!typeId) {
-            // All Activities → select every option
-            $select.find('option').prop('selected', true);
-        } else {
+        if (typeId) {
             const stravaTypes = (goalsData[typeId] || {}).strava_types || [];
             $select.find('option').prop('selected', false);
             stravaTypes.forEach(t => $select.find(`option[value="${t}"]`).prop('selected', true));
+        } else {
+            // All Activities → select every option
+            $select.find('option').prop('selected', true);
         }
         $select.trigger('change');   // → onFilterChange → fetchDataAndUpdateCharts
     }
@@ -223,34 +254,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ── Period helpers & dataset builders — see outer scope ─────────────
-
-    /**
-     * Diagonal "pace" line: (period_start, 0) → (period_end, goalValue).
-     *
-     * The line represents the constant rate needed to reach the goal exactly
-     * by the last day of the period.  When the actual cumulative line is
-     * above the pace line the user is ahead of target; below = behind.
-     *
-     * Returns null when goalValue is not set → no line is drawn.
-     */
-    function buildPaceDataset(periodType, goalValue, unit) {
-        if (!goalValue || goalValue <= 0) return null;
-        return {
-            label: `Target: ${goalValue} ${unit}`,
-            data: [
-                { x: _toDateStr(getPeriodStart(periodType)), y: 0         },
-                { x: _toDateStr(getPeriodEnd(periodType)),   y: goalValue },
-            ],
-            borderColor: '#9CA3AF',
-            borderDash: [6, 4],
-            borderWidth: 1.5,
-            backgroundColor: 'transparent',
-            fill: false,
-            pointRadius: 0,
-            pointHoverRadius: 0,
-            order: 1,
-        };
-    }
 
     // ── Pace-at-today helper ───────────────────────────────────────────────
     /**
@@ -346,8 +349,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const maxX        = showEntirePeriod ? getPeriodEnd(periodType) : undefined;
         const paceDataset = buildPaceDataset(periodType, goalValue, unit);
 
-        if (charts[canvasId]) {
-            const chart = charts[canvasId];
+        function updateChart(chart, chartData, paceDataset, maxX) {
             chart.data.labels           = dates;
             chart.data.datasets[0].data = chartData;
             chart.options.scales.x.max  = maxX;
@@ -363,6 +365,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 chart.data.datasets.splice(1);
             }
             chart.update();
+        }
+
+        if (charts[canvasId]) {
+            updateChart(charts[canvasId], chartData, paceDataset, maxX);
         } else {
             const ctx = document.getElementById(canvasId).getContext('2d');
             charts[canvasId] = new Chart(ctx, {
