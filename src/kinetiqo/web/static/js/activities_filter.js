@@ -1,6 +1,6 @@
-function initActivityFilters(options) {
-    var options = options || {};
-    var onFilterChange = options.onFilterChange || function() {};
+function initActivityFilters(opts) {
+    const options = opts || {};
+    const onFilterChange = options.onFilterChange || function() {};
 
     // Use specific keys for progress page vs activities page
     // We can check if we are on activities page or progress page
@@ -9,11 +9,11 @@ function initActivityFilters(options) {
     // The request implies reusing the control, so likely we want filters to persist across?
     // Actually, usually users expect filters to be page-specific unless specified.
     // Let's use a prefix if provided, else default.
-    var storagePrefix = options.storagePrefix || 'kinetiqoActivityFilters';
-    var FILTER_STORAGE_KEY = storagePrefix;
+    const storagePrefix = options.storagePrefix || 'kinetiqoActivityFilters';
+    const FILTER_STORAGE_KEY = storagePrefix;
     let currentDatePreset = 'custom';
 
-    var DYNAMIC_PRESETS = {
+    const DYNAMIC_PRESETS = {
         'Today':          function () { return { s: moment(),                                        e: moment()                                        }; },
         'Yesterday':      function () { return { s: moment().subtract(1, 'days'),                    e: moment().subtract(1, 'days')                    }; },
         'This Week':      function () { return { s: moment().startOf('isoWeek'),                     e: moment()                                        }; },
@@ -34,9 +34,9 @@ function initActivityFilters(options) {
             if (filters.search) $('#customSearch').val(filters.search);
             if (filters.datePreset) currentDatePreset = filters.datePreset;
 
-            var presetFn = DYNAMIC_PRESETS[(currentDatePreset || '').trim()];
+            const presetFn = DYNAMIC_PRESETS[(currentDatePreset || '').trim()];
             if (presetFn) {
-                var range = presetFn();
+                const range = presetFn();
                 filters.startDate = range.s.format('YYYY-MM-DD');
                 filters.endDate   = range.e.format('YYYY-MM-DD');
             }
@@ -49,10 +49,10 @@ function initActivityFilters(options) {
         }
     }
 
-    const savedFilters = loadFilters();
+    loadFilters();
 
     // Initialize Select2
-    var $select = $('#activityTypeFilter').select2({
+    const $select = $('#activityTypeFilter').select2({
         placeholder: "",
         width: '100%',
         closeOnSelect: false,
@@ -62,15 +62,15 @@ function initActivityFilters(options) {
         }
     });
 
-    var $container = $select.next('.select2-container').find('.select2-selection--multiple');
+    const $container = $select.next('.select2-container').find('.select2-selection--multiple');
     if ($container.find('.select2-selection__summary').length === 0) {
         $container.prepend('<div class="select2-selection__summary"></div>');
     }
 
     function updateSummary() {
-        var count = $('#activityTypeFilter').select2('data').length;
-        var total = $('#activityTypeFilter option').length;
-        var summaryText = "";
+        const count = $('#activityTypeFilter').select2('data').length;
+        const total = $('#activityTypeFilter option').length;
+        let summaryText = "";
         if (count === 0) {
             summaryText = "No activities selected";
         } else if (count === total) {
@@ -88,8 +88,8 @@ function initActivityFilters(options) {
             $('#dateFilter span').text(presetName);
             return;
         }
-        var startDate = $('#startDate').val();
-        var endDate = $('#endDate').val();
+        const startDate = $('#startDate').val();
+        const endDate = $('#endDate').val();
         if (startDate && endDate) {
             let startFmt = moment(startDate).format('MMM D, YYYY');
             let endFmt = moment(endDate).format('MMM D, YYYY');
@@ -121,8 +121,8 @@ function initActivityFilters(options) {
     }
 
     function initDatePicker(element) {
-        var currentVal = $(element).val();
-        var options = {
+        const currentVal = $(element).val();
+        const pickerOpts = {
             singleDatePicker: true,
             showDropdowns: true,
             autoUpdateInput: false,
@@ -130,10 +130,10 @@ function initActivityFilters(options) {
         };
 
         if (currentVal) {
-            options.startDate = currentVal;
+            pickerOpts.startDate = currentVal;
         }
 
-        $(element).daterangepicker(options).on('apply.daterangepicker', function (ev, picker) {
+        $(element).daterangepicker(pickerOpts).on('apply.daterangepicker', function (ev, picker) {
             $(this).val(picker.startDate.format('YYYY-MM-DD'));
             updateDateFilterDisplay('custom');
             saveFilters('custom');
@@ -179,17 +179,17 @@ function initActivityFilters(options) {
 
             $('#dateFilterDropdown').addClass('hidden');
             // Guard against pages where date-pickers are not rendered (e.g. progress page)
-            var dpStart = $('#startDate').data('daterangepicker');
-            var dpEnd   = $('#endDate').data('daterangepicker');
+            const dpStart = $('#startDate').data('daterangepicker');
+            const dpEnd   = $('#endDate').data('daterangepicker');
             if (dpStart) dpStart.hide();
             if (dpEnd)   dpEnd.hide();
         }
     });
 
     $('.date-preset-btn').on('click', function () {
-        var preset = $(this).data('preset');
-        var presetText = $(this).text();
-        var startDate, endDate;
+        const preset = $(this).data('preset');
+        const presetText = $(this).text();
+        let startDate, endDate;
 
         if (preset === 'all_time') {
             $('#startDate').val('');

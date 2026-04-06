@@ -11,6 +11,27 @@ def progress_page():
     # Render the template initially. Data will be fetched via AJAX.
     return render_template('progress.html', title="Progress")
 
+
+def _aggregate_activity(activity, day_map):
+    """Add a single activity's distance and elevation to *day_map*.
+
+    Returns without side-effects when the activity lacks a usable date or
+    its date falls outside the map.
+    """
+    start_date_val = activity.get('start_date')
+    if not start_date_val:
+        return
+
+    d_str = str(start_date_val)[:10]
+    if d_str not in day_map:
+        return
+
+    dist_m = float(activity.get('distance') or 0)
+    elev_m = float(activity.get('total_elevation_gain') or 0)
+    day_map[d_str]['dist'] += dist_m / 1000.0
+    day_map[d_str]['elev'] += elev_m
+
+
 @bp.route('/api/progress_data')
 @login_required
 def progress_data_api():
@@ -50,8 +71,6 @@ def progress_data_api():
         e_str = end_dt.strftime('%Y-%m-%d')
         
         try:
-            # Pass types filter to repo
-            # We assume get_activities_web supports 'types' list
             acts = repo.get_activities_web(
                 limit=100000, 
                 start_date=s_str, 
@@ -61,21 +80,10 @@ def progress_data_api():
         except Exception:
             acts = []
 
-        # 3. Aggregate
+        # Aggregate each activity into the day map
         for a in acts:
             try:
-                start_date_val = a.get('start_date')
-                if not start_date_val:
-                    continue
-                    
-                d_str = str(start_date_val)[:10]
-                
-                if d_str in day_map:
-                    dist_m = float(a.get('distance') or 0)
-                    elev_m = float(a.get('total_elevation_gain') or 0)
-                    
-                    day_map[d_str]['dist'] += (dist_m / 1000.0)
-                    day_map[d_str]['elev'] += elev_m
+                _aggregate_activity(a, day_map)
             except Exception:
                 pass
 

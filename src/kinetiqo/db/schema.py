@@ -2,6 +2,11 @@ import logging
 
 logger = logging.getLogger("kinetiqo")
 
+# Reusable SQL type literals to avoid duplication.
+_BIGINT_NOT_NULL = "BIGINT NOT NULL"
+_INTEGER_NOT_NULL = "INTEGER NOT NULL"
+_DOUBLE_PRECISION = "DOUBLE PRECISION"
+
 # Define the schema in a database-agnostic way where possible,
 # or provide specific types for each dialect.
 SCHEMA_DEFINITION = {
@@ -302,14 +307,14 @@ SCHEMA_DEFINITION = {
     # Distance goals in km; elevation goals in metres.
     "activity_goals": {
         "columns": [
-            {"name": "athlete_id",             "type_mysql": "BIGINT NOT NULL",  "type_pg": "BIGINT NOT NULL",  "type_firebird": "BIGINT NOT NULL"},
-            {"name": "activity_type_id",        "type_mysql": "INTEGER NOT NULL", "type_pg": "INTEGER NOT NULL", "type_firebird": "INTEGER NOT NULL"},
-            {"name": "weekly_distance_goal",    "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
-            {"name": "monthly_distance_goal",   "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
-            {"name": "yearly_distance_goal",    "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
-            {"name": "weekly_elevation_goal",   "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
-            {"name": "monthly_elevation_goal",  "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
-            {"name": "yearly_elevation_goal",   "type_mysql": "DOUBLE PRECISION", "type_pg": "DOUBLE PRECISION", "type_firebird": "DOUBLE PRECISION"},
+            {"name": "athlete_id",             "type_mysql": _BIGINT_NOT_NULL,   "type_pg": _BIGINT_NOT_NULL,   "type_firebird": _BIGINT_NOT_NULL},
+            {"name": "activity_type_id",        "type_mysql": _INTEGER_NOT_NULL,  "type_pg": _INTEGER_NOT_NULL,  "type_firebird": _INTEGER_NOT_NULL},
+            {"name": "weekly_distance_goal",    "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "monthly_distance_goal",   "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "yearly_distance_goal",    "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weekly_elevation_goal",   "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "monthly_elevation_goal",  "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
+            {"name": "yearly_elevation_goal",   "type_mysql": _DOUBLE_PRECISION,  "type_pg": _DOUBLE_PRECISION,  "type_firebird": _DOUBLE_PRECISION},
         ],
         "constraints": [
             {
