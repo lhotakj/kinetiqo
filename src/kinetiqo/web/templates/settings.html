@@ -53,24 +53,24 @@
                 <table class="w-full text-sm border-collapse">
                     <thead>
                         <tr class="border-b border-gray-200 dark:border-zinc-700">
-                            <th class="py-2 pr-4 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Activity</th>
+                            <th scope="col" class="py-2 pr-4 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Activity</th>
                             <!-- Distance group -->
-                            <th colspan="3" class="py-2 px-2 text-center font-medium text-orange-600 dark:text-orange-400 border-l border-gray-200 dark:border-zinc-600">
+                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-orange-600 dark:text-orange-400 border-l border-gray-200 dark:border-zinc-600">
                                 📏 Distance Goal (km)
                             </th>
                             <!-- Elevation group -->
-                            <th colspan="3" class="py-2 px-2 text-center font-medium text-indigo-600 dark:text-indigo-400 border-l border-gray-200 dark:border-zinc-600">
+                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-indigo-600 dark:text-indigo-400 border-l border-gray-200 dark:border-zinc-600">
                                 ⛰️ Elevation Goal (m)
                             </th>
                         </tr>
                         <tr class="border-b border-gray-200 dark:border-zinc-700 text-xs text-gray-500 dark:text-gray-400">
-                            <th class="py-1 pr-4"></th>
-                            <th class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
-                            <th class="py-1 px-2 font-medium text-center">Monthly</th>
-                            <th class="py-1 px-2 font-medium text-center">Yearly</th>
-                            <th class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
-                            <th class="py-1 px-2 font-medium text-center">Monthly</th>
-                            <th class="py-1 px-2 font-medium text-center">Yearly</th>
+                            <th scope="col" class="py-1 pr-4"></th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
                         </tr>
                     </thead>
                     <tbody id="goals-tbody" class="divide-y divide-gray-100 dark:divide-zinc-700">
@@ -134,8 +134,8 @@
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 border dark:border-zinc-700">
                     <thead class="bg-warm-50 dark:bg-zinc-700">
                         <tr>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Table</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Records</th>
+                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Table</th>
+                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-200 uppercase">Records</th>
                         </tr>
                     </thead>
                     <tbody id="db-table-counts" class="divide-y divide-gray-200 dark:divide-zinc-700 text-gray-900 dark:text-gray-300">
@@ -148,6 +148,23 @@
 </div>
 
 <script>
+    // ── Number formatting helpers (outer scope for SonarCloud) ────────────
+    /** Format a positive number with thousands separators, ≤1 decimal place. */
+    function formatGoalNum(val) {
+        if (val == null || val <= 0) return '';
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+        }).format(val);
+    }
+
+    /** Parse a (potentially formatted) string → positive float or null. */
+    function parseGoalNum(str) {
+        if (!str || str.trim() === '') return null;
+        const v = Number.parseFloat(str.replaceAll(',', ''));   // strip thousands separators
+        return (!isNaN(v) && v > 0) ? v : null;
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
 
         // --- Athlete Profile ---
@@ -238,7 +255,7 @@
 
         // Client-side: block non-numeric keys in weight field
         weightInput.addEventListener('keypress', function(e) {
-            const char = String.fromCharCode(e.which || e.keyCode);
+            const char = String.fromCodePoint(e.which || e.keyCode);
             if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
             if (!/[\d.]/.test(char)) { e.preventDefault(); }
         });
@@ -265,26 +282,11 @@
             if (!isError) setTimeout(() => { goalsStatus.textContent = ''; }, 3000);
         }
 
-        // ── Number formatting helpers ──────────────────────────────────────
-        /** Format a positive number with thousands separators, ≤1 decimal place. */
-        function formatGoalNum(val) {
-            if (val == null || val <= 0) return '';
-            return new Intl.NumberFormat('en-US', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 1,
-            }).format(val);
-        }
-
-        /** Parse a (potentially formatted) string → positive float or null. */
-        function parseGoalNum(str) {
-            if (!str || str.trim() === '') return null;
-            const v = parseFloat(str.replace(/,/g, ''));   // strip thousands separators
-            return (!isNaN(v) && v > 0) ? v : null;
-        }
+        // ── Number formatting helpers — see outer scope ──────────────────
 
         function buildGoalInput(typeId, fieldKey, currentVal) {
             // Display as formatted text; raw value restored on focus for editing.
-            const display = (currentVal != null && currentVal > 0) ? formatGoalNum(currentVal) : '';
+            const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
             const borderClass = fieldKey.includes('dist')
                 ? 'focus:ring-orange-400 focus:border-orange-400'
                 : 'focus:ring-indigo-400 focus:border-indigo-400';
@@ -324,7 +326,7 @@
                 inp.addEventListener('blur', onGoalInputBlur);
                 // Allow digits and one decimal dot; commas are stripped on parse
                 inp.addEventListener('keypress', function (e) {
-                    const char = String.fromCharCode(e.which || e.keyCode);
+                    const char = String.fromCodePoint(e.which || e.keyCode);
                     if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
                     if (!/[\d.]/.test(char)) e.preventDefault();
                 });
@@ -332,7 +334,7 @@
         }
 
         function onGoalInputBlur() {
-            const typeId    = parseInt(this.dataset.typeId);
+            const typeId    = Number.parseInt(this.dataset.typeId);
             const fieldKey  = this.dataset.field;
             const newVal    = parseGoalNum(this.value);   // handles formatted or raw strings
             const typeIdStr = String(typeId);
@@ -369,10 +371,10 @@
                 // Update the full row snapshot and reformat all non-focused inputs in the row
                 if (!savedGoals[typeIdStr]) savedGoals[typeIdStr] = {};
                 GOAL_FIELDS.forEach(f => {
-                    savedGoals[typeIdStr][f.key] = payload[f.key] != null ? payload[f.key] : null;
+                    savedGoals[typeIdStr][f.key] = payload[f.key] === null ? null : payload[f.key];
                     const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
                     if (inp && inp !== document.activeElement) {
-                        inp.value = payload[f.key] != null ? formatGoalNum(payload[f.key]) : '';
+                        inp.value = payload[f.key] === null ? '' : formatGoalNum(payload[f.key]);
                     }
                 });
                 showGoalStatus('Saved ✓', false);

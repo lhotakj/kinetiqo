@@ -5,7 +5,7 @@ from flask_login import login_required
 # Create a Blueprint
 bp = Blueprint('progress', __name__)
 
-@bp.route('/progress')
+@bp.route('/progress', methods=['GET'])
 @login_required
 def progress_page():
     # Render the template initially. Data will be fetched via AJAX.
@@ -32,7 +32,7 @@ def _aggregate_activity(activity, day_map):
     day_map[d_str]['elev'] += elev_m
 
 
-@bp.route('/api/progress_data')
+@bp.route('/api/progress_data', methods=['GET'])
 @login_required
 def progress_data_api():
     from kinetiqo.web.app import get_db

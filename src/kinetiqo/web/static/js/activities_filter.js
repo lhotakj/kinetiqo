@@ -45,6 +45,7 @@ function initActivityFilters(opts) {
             if (filters.endDate) $('#endDate').val(filters.endDate);
             return filters;
         } catch (e) {
+            console.warn('Failed to load saved filters from localStorage:', e);
             return {};
         }
     }

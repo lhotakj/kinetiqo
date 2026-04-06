@@ -1193,7 +1193,7 @@ def settings():
     return render_template('settings.html', title="Settings")
 
 
-@app.route('/license')
+@app.route('/license', methods=['GET'])
 @login_required
 def license_page():
     return render_template('license.html', title="License & Credits")

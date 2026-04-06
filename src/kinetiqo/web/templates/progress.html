@@ -79,6 +79,42 @@
 </div>
 
 <script>
+// ── Pure helper functions (outer scope) ──────────────────────────────────
+function getPeriodStart(periodType) {
+    const now = new Date();
+    if (periodType === 'week') {
+        const dow = now.getDay() || 7;
+        const d = new Date(now);
+        d.setDate(now.getDate() - dow + 1);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+    if (periodType === 'month') return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    if (periodType === 'year')  return new Date(now.getFullYear(), 0,             1, 0, 0, 0, 0);
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function getPeriodEnd(periodType) {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    if (periodType === 'week') {
+        const d = new Date(now);
+        d.setDate(now.getDate() + (7 - (now.getDay() || 7)));
+        d.setHours(23, 59, 59, 999);
+        return d;
+    }
+    if (periodType === 'month') { const d = new Date(y, m + 1, 0); d.setHours(23,59,59,999); return d; }
+    if (periodType === 'year')  { const d = new Date(y, 11,   31); d.setHours(23,59,59,999); return d; }
+    return now;
+}
+
+function _toDateStr(d) { return d.toISOString().slice(0, 10); }
+
+function getCumulative(values) {
+    let s = 0;
+    return values.map(v => s += v);
+}
+
 document.addEventListener('DOMContentLoaded', function () {
 
     // ── "Show Entire Period" toggle – injected into _activity_type_selector ──
@@ -186,42 +222,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return (val != null && val > 0) ? val : null;
     }
 
-    // ── Period helpers ─────────────────────────────────────────────────────
-    function getPeriodStart(periodType) {
-        const now = new Date();
-        if (periodType === 'week') {
-            const dow = now.getDay() || 7;        // Mon=1 … Sun=7
-            const d = new Date(now);
-            d.setDate(now.getDate() - dow + 1);   // rewind to Monday
-            d.setHours(0, 0, 0, 0);
-            return d;
-        }
-        if (periodType === 'month') return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        if (periodType === 'year')  return new Date(now.getFullYear(), 0,             1, 0, 0, 0, 0);
-        return new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-
-    function getPeriodEnd(periodType) {
-        const now = new Date();
-        const y = now.getFullYear(), m = now.getMonth();
-        if (periodType === 'week') {
-            const d = new Date(now);
-            d.setDate(now.getDate() + (7 - (now.getDay() || 7)));
-            d.setHours(23, 59, 59, 999);
-            return d;
-        }
-        if (periodType === 'month') { const d = new Date(y, m + 1, 0); d.setHours(23,59,59,999); return d; }
-        if (periodType === 'year')  { const d = new Date(y, 11,   31); d.setHours(23,59,59,999); return d; }
-        return now;
-    }
-
-    function _toDateStr(d) { return d.toISOString().slice(0, 10); }
-
-    // ── Dataset builders ───────────────────────────────────────────────────
-    function getCumulative(values) {
-        let s = 0;
-        return values.map(v => s += v);
-    }
+    // ── Period helpers & dataset builders — see outer scope ─────────────
 
     /**
      * Diagonal "pace" line: (period_start, 0) → (period_end, goalValue).
@@ -331,7 +332,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ── Chart create / update ──────────────────────────────────────────────
-    function createOrUpdateChart(canvasId, label, dates, values, color, unit, showEntirePeriod, goalValue) {
+    function createOrUpdateChart(canvasId, label, dates, values, color, unit, opts) {
+        const showEntirePeriod = opts.showEntirePeriod;
+        const goalValue        = opts.goalValue;
         const cumulative = getCumulative(values);
         const chartData  = dates.map((d, i) => ({ x: d, y: cumulative[i] }));
 
@@ -411,12 +414,12 @@ document.addEventListener('DOMContentLoaded', function () {
             url: '/api/progress_data',
             data: { types: types.length ? types : ['_NO_MATCH_'] },
             success: function (data) {
-                createOrUpdateChart('chartWeekDist',  'Distance',  data.week.dates,  data.week.distance,   '#FC4C02', 'km', showEntirePeriod, getActiveGoal('weekly',  'distance'));
-                createOrUpdateChart('chartMonthDist', 'Distance',  data.month.dates, data.month.distance,  '#FC4C02', 'km', showEntirePeriod, getActiveGoal('monthly', 'distance'));
-                createOrUpdateChart('chartYearDist',  'Distance',  data.year.dates,  data.year.distance,   '#FC4C02', 'km', showEntirePeriod, getActiveGoal('yearly',  'distance'));
-                createOrUpdateChart('chartWeekElev',  'Elevation', data.week.dates,  data.week.elevation,  '#4C02FC', 'm',  showEntirePeriod, getActiveGoal('weekly',  'elevation'));
-                createOrUpdateChart('chartMonthElev', 'Elevation', data.month.dates, data.month.elevation, '#4C02FC', 'm',  showEntirePeriod, getActiveGoal('monthly', 'elevation'));
-                createOrUpdateChart('chartYearElev',  'Elevation', data.year.dates,  data.year.elevation,  '#4C02FC', 'm',  showEntirePeriod, getActiveGoal('yearly',  'elevation'));
+                createOrUpdateChart('chartWeekDist',  'Distance',  data.week.dates,  data.week.distance,   '#FC4C02', 'km', { showEntirePeriod, goalValue: getActiveGoal('weekly',  'distance') });
+                createOrUpdateChart('chartMonthDist', 'Distance',  data.month.dates, data.month.distance,  '#FC4C02', 'km', { showEntirePeriod, goalValue: getActiveGoal('monthly', 'distance') });
+                createOrUpdateChart('chartYearDist',  'Distance',  data.year.dates,  data.year.distance,   '#FC4C02', 'km', { showEntirePeriod, goalValue: getActiveGoal('yearly',  'distance') });
+                createOrUpdateChart('chartWeekElev',  'Elevation', data.week.dates,  data.week.elevation,  '#4C02FC', 'm',  { showEntirePeriod, goalValue: getActiveGoal('weekly',  'elevation') });
+                createOrUpdateChart('chartMonthElev', 'Elevation', data.month.dates, data.month.elevation, '#4C02FC', 'm',  { showEntirePeriod, goalValue: getActiveGoal('monthly', 'elevation') });
+                createOrUpdateChart('chartYearElev',  'Elevation', data.year.dates,  data.year.elevation,  '#4C02FC', 'm',  { showEntirePeriod, goalValue: getActiveGoal('yearly',  'elevation') });
             },
         });
     }
