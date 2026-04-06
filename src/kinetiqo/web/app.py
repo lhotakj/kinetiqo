@@ -1,4 +1,3 @@
-import gzip
 import hashlib
 import logging
 import os
@@ -12,6 +11,7 @@ import httpx
 
 import json as json_module
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask_compress import Compress
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
@@ -31,6 +31,9 @@ logger = logging.getLogger("kinetiqo.web")
 app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
+
+# --- Response Compression (gzip / brotli) ---
+Compress(app)
 
 # --- Static Files MIME Type Configuration ---
 # Add custom MIME types for common files if not already registered
@@ -477,11 +480,11 @@ def map_view():
 @app.route('/api/map/data', methods=['POST'])
 @login_required
 def map_data_api():
-    """API endpoint returning raw coordinate arrays as gzip-compressed JSON.
+    """API endpoint returning raw coordinate arrays as JSON.
 
-    Replaces the old Folium-based /api/map/generate endpoint.  The server
-    sends only compact [lat, lng] arrays and SQL-computed bounds; the client
-    renders polylines directly with Leaflet's Canvas renderer.
+    The server sends only compact [lat, lng] arrays and SQL-computed bounds;
+    the client renders polylines directly with Leaflet's Canvas renderer.
+    Response compression is handled automatically by flask-compress.
 
     Request JSON body::
 
@@ -489,7 +492,7 @@ def map_data_api():
             "activity_ids": ["123", "456", ...]
         }
 
-    Response JSON (gzip-compressed)::
+    Response JSON::
 
         {
             "activities": {
@@ -551,19 +554,13 @@ def map_data_api():
             'point_count': total_points
         }
 
-        # Serialize and gzip-compress for efficient transfer
+        # Serialize to compact JSON; flask-compress handles gzip/brotli
+        # automatically so we no longer compress manually here.
         json_bytes = json_module.dumps(payload, separators=(',', ':')).encode('utf-8')
         uncompressed_len = len(json_bytes)
-        accepts_gzip = 'gzip' in request.headers.get('Accept-Encoding', '')
 
-        if accepts_gzip:
-            compressed = gzip.compress(json_bytes, compresslevel=6)
-            response = Response(compressed, mimetype='application/json')
-            response.headers['Content-Encoding'] = 'gzip'
-            response.headers['Content-Length'] = len(compressed)
-        else:
-            response = Response(json_bytes, mimetype='application/json')
-            response.headers['Content-Length'] = uncompressed_len
+        response = Response(json_bytes, mimetype='application/json')
+        response.headers['Content-Length'] = uncompressed_len
 
         # Custom header for client-side download progress tracking.
         # Browsers strip Content-Length when transparently decompressing gzip,

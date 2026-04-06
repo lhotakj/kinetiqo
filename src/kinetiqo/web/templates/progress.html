@@ -19,7 +19,7 @@
 
 {% block content %}
 <div class="mb-8">
-    <h1 class="font-serif text-3xl font-bold text-gray-900 mb-2">{{ title }}</h1>
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ title }}</h1>
 </div>
 
 <div class="mb-4">
@@ -35,42 +35,42 @@
 </div>
 
 <div class="space-y-6 mt-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-bold mb-4">Cumulative Progress (Distance)</h2>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+        <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Cumulative Progress (Distance)</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-                <h3 class="text-lg font-semibold text-center mb-2">This Week</h3>
+                <h3 class="text-lg font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">This Week</h3>
                 <div class="h-64 relative w-full"><canvas id="chartWeekDist"></canvas></div>
                 <div id="info-chartWeekDist" class="mt-2 text-center min-h-[2.5rem]"></div>
             </div>
             <div>
-                <h3 class="text-lg font-semibold text-center mb-2">This Month</h3>
+                <h3 class="text-lg font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">This Month</h3>
                 <div class="h-64 relative w-full"><canvas id="chartMonthDist"></canvas></div>
                 <div id="info-chartMonthDist" class="mt-2 text-center min-h-[2.5rem]"></div>
             </div>
             <div>
-                <h3 class="text-lg font-semibold text-center mb-2">This Year</h3>
+                <h3 class="text-lg font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">This Year</h3>
                 <div class="h-64 relative w-full"><canvas id="chartYearDist"></canvas></div>
                 <div id="info-chartYearDist" class="mt-2 text-center min-h-[2.5rem]"></div>
             </div>
         </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-bold mb-4">Cumulative Progress (Elevation)</h2>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+        <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Cumulative Progress (Elevation)</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-                <h3 class="text-lg font-semibold text-center mb-2">This Week</h3>
+                <h3 class="text-lg font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">This Week</h3>
                 <div class="h-64 relative w-full"><canvas id="chartWeekElev"></canvas></div>
                 <div id="info-chartWeekElev" class="mt-2 text-center min-h-[2.5rem]"></div>
             </div>
             <div>
-                <h3 class="text-lg font-semibold text-center mb-2">This Month</h3>
+                <h3 class="text-lg font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">This Month</h3>
                 <div class="h-64 relative w-full"><canvas id="chartMonthElev"></canvas></div>
                 <div id="info-chartMonthElev" class="mt-2 text-center min-h-[2.5rem]"></div>
             </div>
             <div>
-                <h3 class="text-lg font-semibold text-center mb-2">This Year</h3>
+                <h3 class="text-lg font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">This Year</h3>
                 <div class="h-64 relative w-full"><canvas id="chartYearElev"></canvas></div>
                 <div id="info-chartYearElev" class="mt-2 text-center min-h-[2.5rem]"></div>
             </div>
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function () {
                           after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white
                           after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5
                           after:transition-all peer-checked:bg-blue-600"></div>
-              <span class="ml-3 text-sm font-medium text-gray-900">Show Entire Period</span>
+              <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-100">Show Entire Period</span>
             </label>
         </div>`;
     const btnGroup = document.querySelector('#custom-buttons-wrapper');
@@ -143,8 +143,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const active = btn.dataset.typeId === activeGoalTypeId;
             btn.className = 'goal-type-pill px-3 py-1.5 rounded text-sm font-medium transition-colors '
                 + (active
-                    ? 'bg-gray-800 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200');
+                    ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600');
         });
     }
 
