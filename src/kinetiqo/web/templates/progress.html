@@ -256,21 +256,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Period helpers & dataset builders — see outer scope ─────────────
 
     // ── Pace-at-today helper ───────────────────────────────────────────────
-    /**
-     * Return what the cumulative value *should* be at this exact moment if the
-     * user were progressing at a perfectly constant daily rate toward the goal.
-     * Mirrors the pace dataset's linear interpolation at t = now.
-     */
-    function getPaceAtToday(periodType, goalValue) {
-        if (!goalValue || goalValue <= 0) return 0;
-        const now   = new Date();
-        const start = getPeriodStart(periodType);
-        const end   = getPeriodEnd(periodType);
-        const totalMs   = end.getTime()   - start.getTime();
-        if (totalMs <= 0) return 0;
-        const elapsedMs = Math.max(0, now.getTime() - start.getTime());
-        return goalValue * Math.min(1, elapsedMs / totalMs);
-    }
+    // getPaceAtToday is now defined in the outer scope for SonarQube compliance.
 
     // ── Chart info panel ───────────────────────────────────────────────────
     /**

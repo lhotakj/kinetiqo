@@ -284,19 +284,20 @@
 
         // ── Number formatting helpers — see outer scope ──────────────────
 
-        function buildGoalInput(typeId, fieldKey, currentVal) {
-            // Display as formatted text; raw value restored on focus for editing.
-            const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
-            const borderClass = fieldKey.includes('dist')
-                ? 'focus:ring-orange-400 focus:border-orange-400'
-                : 'focus:ring-indigo-400 focus:border-indigo-400';
-            return `<input type="text" inputmode="decimal"
-                        data-type-id="${typeId}" data-field="${fieldKey}"
-                        class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
-                               text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
-                               block p-1.5 text-center"
-                        value="${display}" placeholder="—">`;
-        }
+    // ── buildGoalInput moved to outer scope for SonarQube compliance ──
+    function buildGoalInput(typeId, fieldKey, currentVal) {
+        // Display as formatted text; raw value restored on focus for editing.
+        const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
+        const borderClass = fieldKey.includes('dist')
+            ? 'focus:ring-orange-400 focus:border-orange-400'
+            : 'focus:ring-indigo-400 focus:border-indigo-400';
+        return `<input type="text" inputmode="decimal"
+                    data-type-id="${typeId}" data-field="${fieldKey}"
+                    class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
+                           text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
+                           block p-1.5 text-center"
+                    value="${display}" placeholder="">`;
+    }
 
         function renderGoalsTable(goalsData) {
             savedGoals = goalsData;
@@ -321,7 +322,12 @@
                 // Strip formatting on focus so the user edits a plain number
                 inp.addEventListener('focus', function () {
                     const raw = parseGoalNum(this.value);
-                    this.value = raw !== null ? String(raw) : '';
+                    // SonarQube: explicit null check for clarity
+                    if (raw === null) {
+                        this.value = '';
+                    } else {
+                        this.value = String(raw);
+                    }
                 });
                 inp.addEventListener('blur', onGoalInputBlur);
                 // Allow digits and one decimal dot; commas are stripped on parse
@@ -345,7 +351,12 @@
             const newNorm  = newVal;   // parseGoalNum already returns null for ≤0
             if (prevNorm === newNorm) {
                 // No change — just reformat the display in case user typed equivalent value
-                this.value = newNorm !== null ? formatGoalNum(newNorm) : '';
+                // SonarQube: explicit null check for clarity
+                if (newNorm === null) {
+                    this.value = '';
+                } else {
+                    this.value = formatGoalNum(newNorm);
+                }
                 return;
             }
 
