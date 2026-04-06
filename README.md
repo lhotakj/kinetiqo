@@ -1,12 +1,19 @@
 # Kinetiqo
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lhotakj_kinetiqo)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lhotakj_kinetiqo) [![Docker Pulls](https://img.shields.io/docker/pulls/lhotakj/kinetiqo?style=flat-square&logo=docker)](https://hub.docker.com/r/lhotakj/kinetiqo/tags)
 
 Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**), providing full ownership and control over your fitness history.
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
 > Full project documentation is available at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net) 
+
+| [![activities-colums-dark.png](docs/activities-colums-dark.png)](docs/activities-colums-dark.png)<br/>activities-colums-dark.png | [![activities-types.png](docs/activities-types.png)](docs/activities-types.png)<br/>activities-types.png | [![activities.png](docs/activities.png)](docs/activities.png)<br/>activities.png |
+|---|---|---|
+| [![fitness.png](docs/fitness.png)](docs/fitness.png)<br/>fitness.png | [![ftp.png](docs/ftp.png)](docs/ftp.png)<br/>ftp.png | [![map-dark.png](docs/map-dark.png)](docs/map-dark.png)<br/>map-dark.png |
+| [![map.png](docs/map.png)](docs/map.png)<br/>map.png | [![power-dark.png](docs/power-dark.png)](docs/power-dark.png)<br/>power-dark.png | [![settings.png](docs/settings.png)](docs/settings.png)<br/>settings.png |
+| [![trend.png](docs/trend.png)](docs/trend.png)<br/>trend.png | [![vo2.png](docs/vo2.png)](docs/vo2.png)<br/>vo2.png |  |
+
 
 ## Table of Contents
 
@@ -437,6 +444,7 @@ tests/
 ├── test_ftp.py                  # FTP estimation tests
 ├── test_vo2max.py               # VO₂max estimation tests
 ├── test-docker-postgresql.sh    # Docker integration test (PostgreSQL)
+├── test-docker-mysql.sh         # Docker integration test (MySQL)
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
 build/
 ├── Dockerfile                   # Application image (Phase 2)
@@ -649,7 +657,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD={GRAFANA_ADMIN_PASSWORD}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     depends_on:
       - postgresql
 volumes:
@@ -696,3 +704,4 @@ Kinetiqo displays map tiles from the following third-party providers. Their resp
 | [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | © Esri, Maxar, Earthstar Geographics |
 
 For API key setup instructions, see [Map Configuration](#7-map-configuration) above.
+
