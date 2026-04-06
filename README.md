@@ -169,8 +169,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     FIREBIRD_PASSWORD=firebird
     FIREBIRD_DATABASE=/db/data/kinetiqo.fdb
     # API for Maps
-    export MAPY_API_KEY="abc123"
-    export THUNDERFOREST_API_KEY="abc456"
+    MAPY_API_KEY="abc123"
+    THUNDERFOREST_API_KEY="abc456"
 
     ```
     - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
