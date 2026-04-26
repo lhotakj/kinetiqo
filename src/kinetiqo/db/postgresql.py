@@ -269,7 +269,8 @@ class PostgresqlRepository(DatabaseRepository):
                 elev_low,
                 gear_id,
                 has_heartrate,
-                workout_type
+                workout_type,
+                max_speed
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}

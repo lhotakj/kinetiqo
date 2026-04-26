@@ -134,6 +134,15 @@
             Progress
         </a>
 
+        <a href="{{ url_for('stats') }}"
+           class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/stats' %}active{% endif %}">
+            <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
+            </svg>
+            Mega Stats
+        </a>
+
         <a href="{{ url_for('fullsync') }}"
            class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/fullsync' %}active{% endif %}">
             <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

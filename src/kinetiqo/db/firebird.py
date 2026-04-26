@@ -432,7 +432,8 @@ class FirebirdRepository(DatabaseRepository):
                 "elev_low",
                 "gear_id",
                 "has_heartrate",
-                "workout_type"
+                "workout_type",
+                "max_speed"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -467,7 +468,8 @@ class FirebirdRepository(DatabaseRepository):
                     'elev_low': row[20],
                     'gear_id': row[21],
                     'has_heartrate': row[22],
-                    'workout_type': row[23]
+                    'workout_type': row[23],
+                    'max_speed': row[24]
                 }
                 activities.append(activity)
             return activities

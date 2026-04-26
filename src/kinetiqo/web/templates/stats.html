@@ -1,0 +1,685 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+    /* ---- Infographic container ---- */
+    .infographic-wrapper {
+        aspect-ratio: 297 / 210;
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    }
+    .infographic {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 28px 36px 24px 36px;
+        box-sizing: border-box;
+        font-family: 'Inter', sans-serif;
+        color: #fff;
+        position: relative;
+    }
+
+    /* ---- Header ---- */
+    .ig-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 16px;
+        border-bottom: 2px solid rgba(255,255,255,0.15);
+        padding-bottom: 14px;
+    }
+    .ig-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+    .ig-title .brand { opacity: 0.5; font-weight: 400; }
+    .ig-subtitle {
+        font-size: 0.85rem;
+        opacity: 0.65;
+        margin-top: 2px;
+    }
+    .ig-period {
+        font-size: 2.5rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        line-height: 1;
+        text-align: right;
+    }
+    .ig-period-sub { font-size: 0.8rem; opacity: 0.5; font-weight: 400; }
+
+    /* ---- Body ---- */
+    .ig-body {
+        display: flex;
+        flex: 1;
+        gap: 28px;
+        min-height: 0;
+    }
+
+    /* ---- Stats column ---- */
+    .ig-stats {
+        width: 17%;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 4px;
+    }
+    .ig-stat {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .ig-stat-label {
+        font-size: 0.52rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        opacity: 0.55;
+        font-weight: 600;
+        margin-bottom: 1px;
+    }
+    .ig-stat-value {
+        font-size: 1.55rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+    .ig-stat-unit {
+        font-size: 0.7rem;
+        font-weight: 400;
+        opacity: 0.6;
+        margin-left: 2px;
+    }
+    .ig-stat-detail {
+        font-size: 0.48rem;
+        opacity: 0.45;
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 170px;
+    }
+    .ig-stat-divider {
+        border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Most active month — special rainbow style */
+    .ig-month-value {
+        font-size: 1.8rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    /* ---- Calendar heatmap ---- */
+    .ig-calendar-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    .ig-cal-header {
+        display: flex;
+        gap: 32px;
+        margin-bottom: 10px;
+        align-items: baseline;
+    }
+    .ig-cal-header-stat {
+        text-align: center;
+    }
+    .ig-cal-header-label {
+        font-size: 0.55rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        opacity: 0.5;
+        font-weight: 600;
+    }
+    .ig-cal-header-value {
+        font-size: 1.7rem;
+        font-weight: 800;
+        line-height: 1.15;
+    }
+    .ig-cal-grid-wrapper {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+    }
+    .ig-day-labels {
+        display: flex;
+        flex-direction: column;
+        margin-right: 6px;
+        flex-shrink: 0;
+    }
+    .ig-day-label {
+        font-size: 0.5rem;
+        opacity: 0.4;
+        text-align: right;
+        font-weight: 600;
+    }
+    .ig-cal-grid {
+        display: grid;
+        grid-template-rows: repeat(7, 1fr);
+        grid-auto-flow: column;
+        flex: 1;
+    }
+    .ig-cal-cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .ig-cal-dot {
+        border-radius: 50%;
+        transition: transform 0.15s;
+    }
+    .ig-cal-dot.active {
+        opacity: 1;
+    }
+    .ig-cal-dot.inactive {
+        opacity: 0.18;
+    }
+    .ig-cal-dot.out-of-range {
+        opacity: 0.04;
+    }
+
+    /* ---- Month color legend ---- */
+    .ig-legend {
+        display: flex;
+        gap: 3px;
+        margin-top: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .ig-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    .ig-legend-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+    .ig-legend-label {
+        font-size: 0.42rem;
+        opacity: 0.5;
+        font-weight: 500;
+    }
+
+    /* ---- Footer ---- */
+    .ig-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        font-size: 0.45rem;
+        opacity: 0.3;
+    }
+
+    /* ---- No-data overlay ---- */
+    .ig-no-data {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        opacity: 0.4;
+        font-weight: 600;
+        pointer-events: none;
+    }
+
+    /* ---- Print/PDF ---- */
+    @media print {
+        body > *:not(.infographic-wrapper) { display: none !important; }
+        aside, nav, main > *:not(.infographic-wrapper) { display: none !important; }
+        .infographic-wrapper {
+            box-shadow: none;
+            border-radius: 0;
+            max-width: 100%;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">📊 {{ title }}</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        Generate a Veloviewer-style infographic of your activity stats.
+    </p>
+</div>
+
+<!-- ============ Controls ============ -->
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-6">
+    <div class="flex flex-wrap gap-4 items-end">
+        <!-- Year -->
+        <div>
+            <label for="stats-year" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Year</label>
+            <select id="stats-year" class="px-3 py-2 bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% for y in range(current_year, min_year - 1, -1) %}
+                <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Period -->
+        <div>
+            <label for="stats-period" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Period</label>
+            <select id="stats-period" class="px-3 py-2 bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="year" selected>Entire Year</option>
+                <option value="h1">H1 (Jan–Jun)</option>
+                <option value="h2">H2 (Jul–Dec)</option>
+                <option value="q1">Q1 (Jan–Mar)</option>
+                <option value="q2">Q2 (Apr–Jun)</option>
+                <option value="q3">Q3 (Jul–Sep)</option>
+                <option value="q4">Q4 (Oct–Dec)</option>
+            </select>
+        </div>
+
+        <!-- Background colour -->
+        <div>
+            <label for="stats-bg" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Background</label>
+            <input type="color" id="stats-bg" value="#4a4a4a"
+                   class="w-12 h-[38px] rounded-lg border border-gray-200 cursor-pointer dark:border-gray-600" />
+        </div>
+
+        <!-- Activity group -->
+        <div>
+            <label for="stats-group" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Activities</label>
+            <select id="stats-group" class="px-3 py-2 bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                {% for key, grp in activity_groups.items() %}
+                <option value="{{ key }}" {% if key == 'walking' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+
+        <!-- Export buttons -->
+        <div class="flex gap-2">
+            <button id="btn-download-png" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
+                    title="Download as PNG image">
+                📷 PNG
+            </button>
+            <button id="btn-print" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
+                    title="Print / Save as PDF">
+                🖨️ PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Infographic ============ -->
+<div class="infographic-wrapper" id="infographic-wrapper">
+    <div class="infographic" id="infographic" style="background: #4a4a4a;">
+
+        <!-- Loading state -->
+        <div id="ig-loading" class="ig-no-data">Loading stats…</div>
+
+        <!-- Header -->
+        <div class="ig-header" id="ig-header" style="display:none;">
+            <div>
+                <div class="ig-title">
+                    <span class="brand">Kinetiqo</span> Mega Stats – <span id="ig-group-name">Walking</span>
+                </div>
+                <div class="ig-subtitle" id="ig-athlete"></div>
+            </div>
+            <div style="text-align:right;">
+                <div class="ig-period" id="ig-period-label"></div>
+                <div class="ig-period-sub" id="ig-date-range"></div>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="ig-body" id="ig-body" style="display:none;">
+            <!-- Left stats column -->
+            <div class="ig-stats" id="ig-stats">
+                <!-- TOTAL DISTANCE -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label">Total Distance</div>
+                    <div class="ig-stat-value"><span id="ig-distance">0</span><span class="ig-stat-unit">km</span></div>
+                </div>
+                <div class="ig-stat-divider"></div>
+
+                <!-- TOTAL ELEVATION -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label">Total Elevation</div>
+                    <div class="ig-stat-value"><span id="ig-elevation">0</span><span class="ig-stat-unit">m</span></div>
+                </div>
+                <div class="ig-stat-divider"></div>
+
+                <!-- LONGEST -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label" id="ig-longest-label">Longest Walk</div>
+                    <div class="ig-stat-value"><span id="ig-longest">0</span><span class="ig-stat-unit">km</span></div>
+                    <div class="ig-stat-detail" id="ig-longest-name"></div>
+                </div>
+                <div class="ig-stat-divider"></div>
+
+                <!-- HIGHEST ELEVATION -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label" id="ig-highest-label">Max Elevation Walk</div>
+                    <div class="ig-stat-value"><span id="ig-highest-elev">0</span><span class="ig-stat-unit">m</span></div>
+                    <div class="ig-stat-detail" id="ig-highest-name"></div>
+                </div>
+                <div class="ig-stat-divider"></div>
+
+                <!-- TOP SPEED (hidden for non-cycling by default) -->
+                <div class="ig-stat" id="ig-speed-stat">
+                    <div class="ig-stat-label">Top Speed</div>
+                    <div class="ig-stat-value"><span id="ig-speed">0</span><span class="ig-stat-unit">km/h</span></div>
+                </div>
+                <div class="ig-stat-divider" id="ig-speed-divider"></div>
+
+                <!-- TOTAL HOURS -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label">Total Hours</div>
+                    <div class="ig-stat-value"><span id="ig-hours">0</span><span class="ig-stat-unit">hrs</span></div>
+                </div>
+                <div class="ig-stat-divider"></div>
+
+                <!-- MAX STREAK -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label">Max Streak</div>
+                    <div class="ig-stat-value"><span id="ig-streak">0</span><span class="ig-stat-unit">days</span></div>
+                </div>
+                <div class="ig-stat-divider"></div>
+
+                <!-- MOST ACTIVE MONTH -->
+                <div class="ig-stat">
+                    <div class="ig-stat-label">Most Active Month</div>
+                    <div class="ig-month-value" id="ig-best-month" style="color:#2ECC40;">–</div>
+                    <div class="ig-stat-detail" id="ig-best-month-detail"></div>
+                </div>
+            </div>
+
+            <!-- Calendar area -->
+            <div class="ig-calendar-area">
+                <div class="ig-cal-header">
+                    <div class="ig-cal-header-stat">
+                        <div class="ig-cal-header-label">Active Days</div>
+                        <div class="ig-cal-header-value" id="ig-active-days">0</div>
+                    </div>
+                    <div class="ig-cal-header-stat">
+                        <div class="ig-cal-header-label">Total Activities</div>
+                        <div class="ig-cal-header-value" id="ig-total-activities">0</div>
+                    </div>
+                </div>
+
+                <div class="ig-cal-grid-wrapper">
+                    <div class="ig-day-labels" id="ig-day-labels"></div>
+                    <div class="ig-cal-grid" id="ig-cal-grid"></div>
+                </div>
+
+                <!-- Month colour legend -->
+                <div class="ig-legend" id="ig-legend"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="ig-footer" id="ig-footer" style="display:none;">
+            <span>Generated by Kinetiqo · kinetiqo.lhotak.net</span>
+            <span id="ig-generated-date"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const DAY_LABELS  = ['M','T','W','T','F','S','S'];
+
+    // Controls
+    const elYear   = document.getElementById('stats-year');
+    const elPeriod = document.getElementById('stats-period');
+    const elBg     = document.getElementById('stats-bg');
+    const elGroup  = document.getElementById('stats-group');
+
+    // Infographic elements
+    const igEl      = document.getElementById('infographic');
+    const igHeader  = document.getElementById('ig-header');
+    const igBody    = document.getElementById('ig-body');
+    const igFooter  = document.getElementById('ig-footer');
+    const igLoading = document.getElementById('ig-loading');
+
+    // ---- Fetch & Render ----
+    function fetchStats() {
+        const year   = elYear.value;
+        const period = elPeriod.value;
+        const group  = elGroup.value;
+
+        igLoading.style.display = 'flex';
+        igLoading.textContent   = 'Loading stats…';
+        igHeader.style.display  = 'none';
+        igBody.style.display    = 'none';
+        igFooter.style.display  = 'none';
+
+        fetch(`/api/stats_data?year=${year}&period=${period}&group=${group}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    igLoading.textContent = 'Error: ' + data.error;
+                    return;
+                }
+                renderInfographic(data);
+            })
+            .catch(err => {
+                igLoading.textContent = 'Failed to load data.';
+                console.error(err);
+            });
+    }
+
+    function renderInfographic(d) {
+        lastData = d;
+        igLoading.style.display = 'none';
+        igHeader.style.display  = 'flex';
+        igBody.style.display    = 'flex';
+        igFooter.style.display  = 'flex';
+
+        // Capitalise noun for labels
+        const Noun = d.group_noun.charAt(0).toUpperCase() + d.group_noun.slice(1);
+
+        // Header
+        document.getElementById('ig-group-name').textContent = d.group_name;
+        document.getElementById('ig-athlete').textContent     = d.athlete_name || '';
+        document.getElementById('ig-period-label').textContent = d.period_label;
+        document.getElementById('ig-date-range').textContent   =
+            d.start_date + ' → ' + d.end_date;
+
+        // Stats
+        document.getElementById('ig-distance').textContent  = formatNumber(d.total_distance_km);
+        document.getElementById('ig-elevation').textContent  = formatNumber(d.total_elevation_m);
+        document.getElementById('ig-hours').textContent      = formatNumber(d.total_hours);
+        document.getElementById('ig-streak').textContent     = d.max_streak;
+
+        // Longest
+        document.getElementById('ig-longest-label').textContent = 'Longest ' + Noun;
+        document.getElementById('ig-longest').textContent       = formatNumber(d.longest_activity.distance_km);
+        document.getElementById('ig-longest-name').textContent  = d.longest_activity.name || '';
+
+        // Highest elevation
+        document.getElementById('ig-highest-label').textContent = 'Max Elevation ' + Noun;
+        document.getElementById('ig-highest-elev').textContent  = formatNumber(d.highest_elevation_activity.elevation_m);
+        document.getElementById('ig-highest-name').textContent  = d.highest_elevation_activity.name || '';
+
+        // Top speed (show for all groups — value is 0 when no speed data)
+        document.getElementById('ig-speed').textContent = formatNumber(d.top_speed_kmh);
+
+        // Active days / total activities
+        document.getElementById('ig-active-days').textContent      = d.active_days;
+        document.getElementById('ig-total-activities').textContent  = d.total_activities;
+
+        // Most active month
+        const mam  = d.most_active_month;
+        const mamEl = document.getElementById('ig-best-month');
+        mamEl.textContent = mam.name || '–';
+        mamEl.style.color = mam.color || '#888';
+        document.getElementById('ig-best-month-detail').textContent =
+            mam.count ? mam.count + ' activities · ' + formatNumber(mam.distance_km) + ' km' : '';
+
+        // Calendar
+        renderCalendar(d.calendar, d.month_colors);
+
+        // Footer
+        document.getElementById('ig-generated-date').textContent =
+            'Generated ' + new Date().toLocaleDateString();
+    }
+
+    // ---- Calendar Rendering ----
+    function renderCalendar(weeks, monthColors) {
+        const grid   = document.getElementById('ig-cal-grid');
+        const labels = document.getElementById('ig-day-labels');
+        const legend = document.getElementById('ig-legend');
+
+        grid.innerHTML   = '';
+        labels.innerHTML = '';
+        legend.innerHTML = '';
+
+        if (!weeks || weeks.length === 0) return;
+
+        // Dot sizing: adapt to number of weeks
+        const numWeeks = weeks.length;
+        let dotSize, gap;
+        if (numWeeks <= 14) {        // quarter
+            dotSize = 22; gap = 5;
+        } else if (numWeeks <= 28) { // half
+            dotSize = 14; gap = 3;
+        } else {                      // full year
+            dotSize = 10; gap = 2;
+        }
+
+        // Day labels
+        const dayLabelHeight = dotSize + gap;
+        DAY_LABELS.forEach(lbl => {
+            const el = document.createElement('div');
+            el.className = 'ig-day-label';
+            el.textContent = lbl;
+            el.style.height = dayLabelHeight + 'px';
+            el.style.lineHeight = dayLabelHeight + 'px';
+            labels.appendChild(el);
+        });
+
+        // Grid
+        grid.style.gap = gap + 'px';
+
+        /* ---- Render day dots ---- */
+        for (let w = 0; w < numWeeks; w++) {
+            for (let dow = 0; dow < 7; dow++) {
+                const day  = weeks[w][dow];
+                const cell = document.createElement('div');
+                cell.className = 'ig-cal-cell';
+                cell.style.width  = (dotSize + gap) + 'px';
+                cell.style.height = (dotSize + gap) + 'px';
+
+                const dot = document.createElement('div');
+                dot.className = 'ig-cal-dot';
+                dot.style.width  = dotSize + 'px';
+                dot.style.height = dotSize + 'px';
+
+                if (!day.in_range) {
+                    dot.classList.add('out-of-range');
+                    dot.style.backgroundColor = 'rgba(255,255,255,0.15)';
+                } else if (day.has_activity) {
+                    dot.classList.add('active');
+                    dot.style.backgroundColor = day.color;
+                } else {
+                    dot.classList.add('inactive');
+                    dot.style.backgroundColor = day.color;
+                }
+
+                if (day.in_range) {
+                    dot.title = day.date + (day.has_activity ? ' · ' + day.distance_km + ' km' : '');
+                }
+
+                cell.appendChild(dot);
+                grid.appendChild(cell);
+            }
+        }
+
+        /* ---- Month colour legend ---- */
+        const activeMonths = new Set();
+        weeks.forEach(wk => wk.forEach(d => { if (d.in_range) activeMonths.add(d.month); }));
+
+        const mc = monthColors || {};
+        Array.from(activeMonths).sort((a,b) => a - b).forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'ig-legend-item';
+
+            const dot = document.createElement('div');
+            dot.className = 'ig-legend-dot';
+            dot.style.backgroundColor = mc[m] || '#888';
+
+            const lbl = document.createElement('span');
+            lbl.className = 'ig-legend-label';
+            lbl.textContent = MONTH_NAMES[m - 1] || '';
+
+            item.appendChild(dot);
+            item.appendChild(lbl);
+            legend.appendChild(item);
+        });
+    }
+
+    // ---- Utility ----
+    function formatNumber(n) {
+        if (n === undefined || n === null) return '0';
+        return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+    }
+
+    // ---- Event handlers ----
+    let lastData = null;  // cache for resize re-render
+
+    [elYear, elPeriod, elGroup].forEach(el => {
+        el.addEventListener('change', fetchStats);
+    });
+
+    elBg.addEventListener('input', function() {
+        igEl.style.backgroundColor = this.value;
+    });
+
+    // Re-render calendar on resize so dots fill the new available space
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            if (lastData && lastData.calendar) {
+                renderCalendar(lastData.calendar, lastData.month_colors);
+            }
+        }, 150);
+    });
+
+    // Download PNG
+    document.getElementById('btn-download-png').addEventListener('click', function() {
+        const wrapper = document.getElementById('infographic-wrapper');
+        html2canvas(wrapper, { scale: 2, useCORS: true, backgroundColor: null })
+            .then(canvas => {
+                const link = document.createElement('a');
+                const group = elGroup.options[elGroup.selectedIndex].textContent.trim();
+                link.download = 'kinetiqo-megastats-' + elYear.value + '-' + elPeriod.value + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+    });
+
+    // Print / PDF
+    document.getElementById('btn-print').addEventListener('click', function() {
+        window.print();
+    });
+
+    // ---- Initial load ----
+    fetchStats();
+});
+</script>
+{% endblock %}
+

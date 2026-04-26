@@ -23,6 +23,9 @@ from kinetiqo.web.vo2max import (
     estimate_vo2max, classify_vo2max, smooth_vo2max_history,
     filter_qualifying_rides, MIN_WATTS_SAMPLES,
 )
+from kinetiqo.web.stats import (
+    compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1151,6 +1154,106 @@ def vo2max_history():
 
     except Exception as e:
         logger.error(f"Error computing VO2max history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/stats')
+@login_required
+def stats():
+    """Render the Mega Stats infographic page."""
+    # Determine the year range from the earliest activity
+    min_year = datetime.now().year
+    try:
+        repo = get_db()
+        oldest = repo.get_activities_web(limit=1, sort_by='start_date', sort_order='ASC')
+        if oldest:
+            from kinetiqo.web.stats import parse_activity_date
+            d = parse_activity_date(oldest[0].get('start_date'))
+            if d:
+                min_year = d.year
+    except Exception as e:
+        logger.warning(f"Could not determine earliest activity year: {e}")
+
+    current_year = datetime.now().year
+
+    # Get athlete profile for the infographic header
+    athlete_name = ''
+    try:
+        profile = get_db().get_profile()
+        if profile:
+            first = profile.get('first_name', '') or ''
+            last = profile.get('last_name', '') or ''
+            athlete_name = f"{first} {last}".strip()
+    except Exception:
+        pass
+
+    return render_template(
+        'stats.html',
+        title="Mega Stats",
+        min_year=min_year,
+        current_year=current_year,
+        athlete_name=athlete_name,
+        activity_groups=ACTIVITY_GROUPS,
+    )
+
+
+@app.route('/api/stats_data')
+@login_required
+def stats_data_api():
+    """Return computed Mega Stats as JSON for the infographic."""
+    try:
+        year = request.args.get('year', default=datetime.now().year, type=int)
+        period = request.args.get('period', 'year')
+        if period not in STATS_PERIODS:
+            period = 'year'
+        group = request.args.get('group', 'walking')
+
+        # Resolve activity types from the selected group
+        group_info = ACTIVITY_GROUPS.get(group)
+        if not group_info:
+            return jsonify({'error': f'Unknown activity group: {group}'}), 400
+
+        types = group_info['types']
+
+        repo = get_db()
+
+        # Fetch activities for the entire year (compute_mega_stats filters by period)
+        start_date_str = f'{year}-01-01'
+        end_date_str = f'{year}-12-31'
+
+        activities = repo.get_activities_web(
+            limit=100000,
+            sort_by='start_date',
+            sort_order='ASC',
+            types=types,
+            start_date=start_date_str,
+            end_date=end_date_str,
+        )
+
+        stats = compute_mega_stats(activities, year, period)
+
+        # Attach group metadata
+        stats['group_key'] = group
+        stats['group_name'] = group_info['name']
+        stats['group_icon'] = group_info['icon']
+        stats['group_noun'] = group_info['noun']
+
+        # Attach athlete profile
+        athlete_name = ''
+        try:
+            profile = repo.get_profile()
+            if profile:
+                first = profile.get('first_name', '') or ''
+                last = profile.get('last_name', '') or ''
+                athlete_name = f"{first} {last}".strip()
+        except Exception:
+            pass
+        stats['athlete_name'] = athlete_name
+
+        return jsonify(stats)
+
+    except Exception as e:
+        logger.error(f"Error computing mega stats: {e}")
         return jsonify({'error': str(e)}), 500
 
 
