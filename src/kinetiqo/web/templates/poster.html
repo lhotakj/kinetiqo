@@ -415,17 +415,27 @@
             : '0px transparent';
         statsEl.style.paintOrder = 'stroke fill';
         statsEl.style.opacity = settings.statsOpacity / 100;
-        // SVG icons: apply color and match font size
+        // SVG icons: stroke with statsColor only
         statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
             const size = settings.statsFontSize + 'px';
             const svg = iconSpan.querySelector('svg');
             if (svg) {
                 svg.style.width = size;
                 svg.style.height = size;
-                svg.style.stroke = settings.statsColor;
-                svg.style.filter = settings.statsOutlineWidth > 0
-                    ? `drop-shadow(0 0 ${settings.statsOutlineWidth}px ${settings.statsOutlineColor})`
-                    : 'none';
+                svg.style.overflow = 'visible';
+
+                // Apply main stroke color to all elements
+                svg.querySelectorAll('*').forEach(el => {
+                    el.style.fill = 'none';
+                    el.style.stroke = settings.statsColor;
+                    el.style.strokeWidth = '2';
+                    el.style.strokeLinecap = 'round';
+                    el.style.strokeLinejoin = 'round';
+                });
+
+
+                // Apply opacity
+                svg.style.opacity = settings.statsOpacity / 100;
             }
         });
 
