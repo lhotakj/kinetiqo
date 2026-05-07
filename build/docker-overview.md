@@ -7,14 +7,17 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 ## Features
 
 - 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
+- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics with activity calendar heatmaps for any year or period. Export as PNG or PDF.
+- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, and sizes (800–2048px). Live WYSIWYG preview with Playwright-powered PNG export.
 - 🔄 **Smart Sync**:
   - **Full Sync**: Complete library audit—fetches everything, fills gaps, and prunes deleted activities.
   - **Fast Sync**: Lightning-fast updates for your latest workouts.
 - 🐳 **Docker Native**: Drop it into your stack and forget it.
 - ⏱️ **Set & Forget**: Built-in cron scheduler keeps your data fresh automatically.
 - 💾 **Database Agnostic**:
-  - **PostgreSQL** (version 18+)
-  - **MySQL 8 / MariaDB 12**
+  - **PostgreSQL** (version 12+)
+  - **MySQL 8 / MariaDB 10+**
+  - **Firebird** (3.0, 4.0, 5.0)
 - 🚀 **Optimized**: Intelligent caching minimizes API usage and maximizes speed.
 - 🔒 **Secure**: OAuth 2.0 authentication keeps your Strava account safe.
 

@@ -50,6 +50,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 ## Features
 
 - 📊 **Advanced Visualization**: A streamlined web interface for daily monitoring and comprehensive Grafana dashboards for in-depth analysis.
+- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year/period statistics with activity calendar heatmaps, selectable by year, half-year, quarter, and activity type. Export as PNG or PDF.
+- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation chart, and Playwright-powered PNG export at exact pixel dimensions.
 - ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s to 1h) with a spider chart, selectable per-activity or aggregated.
 - 🏋️ **FTP Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data, with a per-ride history chart.
 - 🫁 **VO₂max Estimation**: Estimates your VO₂max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
@@ -85,6 +87,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/ftp` | FTP | FTP estimation history chart (95% of best 20-min power) |
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
 | `/vo2max` | VO₂max | VO₂max estimation from 5-min MAP power with trend and classification |
+| `/stats` | MEGA Stats | Veloviewer-style infographic of year/period stats with activity calendar heatmap, export as PNG/PDF |
+| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), and aspect ratios (4:3, 16:9, 1:1). WYSIWYG preview, elevation chart, background photo support |
 | `/settings` | Settings | Athlete profile, activity goals, application configuration |
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |
 | `/license` | License | Open-source licenses, map tile attributions, and third-party credits |
@@ -101,6 +105,12 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/fitness_data` | GET | CTL/ATL/TSB time series |
 | `/api/ftp_history` | GET | FTP estimation history |
 | `/api/vo2max_history` | GET | VO₂max estimation history |
+| `/api/stats_data` | GET | MEGA Stats infographic data (year, period, group params) |
+| `/api/poster/photo/<activity_id>` | GET | Cached activity poster background photo |
+| `/api/poster/photo/<activity_id>` | POST | Fetch and cache poster photo from Strava |
+| `/api/poster/upload/<activity_id>` | POST | Upload custom poster background image |
+| `/api/poster/elevation/<activity_id>` | GET | Activity elevation profile data for poster chart |
+| `/api/poster/export/<activity_id>` | POST | Generate pixel-perfect PNG via Playwright (respects posterSize, ratio settings) |
 | `/api/settings` | GET | Application settings |
 | `/api/profile` | GET/PUT | Athlete profile (weight, name) |
 | `/api/goals` | GET/PUT | Activity goals per type |
@@ -422,6 +432,7 @@ src/
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
         ├── vo2max.py            # VO₂max estimation (Townsend method)
         ├── progress.py          # SSE sync progress stream
+        ├── stats.py             # MEGA Stats infographic data aggregation
         ├── static/              # Static assets (CSS, JS, images)
         └── templates/           # Jinja2 templates
             ├── base.html            # Base layout (sidebar, dark mode, CDN imports)
@@ -431,6 +442,8 @@ src/
             ├── ftp.html             # FTP estimation history chart
             ├── fitness.html         # Fitness & Freshness chart (CTL/ATL/TSB)
             ├── vo2max.html          # VO₂max estimation chart
+            ├── stats.html           # MEGA Stats Veloviewer-style infographic
+            ├── poster.html          # Activity poster generator (customizable fonts, colors, sizes)
             ├── settings.html        # Settings page (profile, goals, config)
             ├── logs.html            # Audit log viewer
             ├── license.html         # License & attribution page
@@ -462,14 +475,16 @@ build/
 | Language | Python | 3.13 |
 | Web framework | Flask[async] + flask-login | 3.1.3 / 0.6.3 |
 | Response compression | flask-compress | 1.24 |
-| WSGI server | Gunicorn | 25.3.0 |
-| CLI | Click | 8.3.2 |
+| WSGI server | Gunicorn | 26.0.0 |
+| CLI | Click | 8.3.3 |
 | HTTP client | httpx | 0.28.1 |
 | Data processing | pandas | 3.0.2 |
-| Versioning | packaging | 26.0 |
-| PostgreSQL driver | psycopg2-binary | 2.9.11 |
-| MySQL driver | mysql-connector-python | 9.6.0 |
-| Firebird driver | firebird-driver | 2.0.2 |
+| Versioning | packaging | ≥26.0 |
+| PostgreSQL driver | psycopg2-binary | 2.9.12 |
+| MySQL driver | mysql-connector-python | 9.7.0 |
+| Firebird driver | firebird-driver | 2.0.3 |
+| Image processing | Pillow | ≥12.2.0 |
+| Browser automation | Playwright | ≥1.59.0 |
 | Frontend CSS | Tailwind CSS | CDN (play) |
 | Reactivity | HTMX + htmx-ext-sse | 2.0.4 / 2.2.2 |
 | Data tables | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 |
