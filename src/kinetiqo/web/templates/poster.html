@@ -198,6 +198,18 @@
                 <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="titleOpacityVal" class="text-xs w-8">100%</span>
             </div>
+            <div class="control-row">
+                <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
+                <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
+            </div>
+            <div class="control-row">
+                <label>Text Align</label>
+                <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                </select>
+            </div>
         </div>
 
         <!-- Stats Controls -->
@@ -317,7 +329,8 @@
         posterSize: 1280, ratio: '4/3',
         titleFont: 'Roboto', titleFontSize: 30, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
         statsFont: 'Roboto', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
-        elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70
+        elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
+        singleLine: true
     };
 
     function loadSettings() {
@@ -362,6 +375,8 @@
         document.getElementById('elevFillColor').value = s.elevFillColor;
         document.getElementById('elevOpacity').value = s.elevOpacity;
         document.getElementById('elevOpacityVal').textContent = s.elevOpacity + '%';
+        document.getElementById('singleLineCheckbox').checked = s.singleLine !== false;
+        document.getElementById('titleAlign').value = s.titleAlign || 'left';
     }
 
     function updateDimensionsDisplay(width, height) {
@@ -402,6 +417,7 @@
             : '0px transparent';
         titleEl.style.paintOrder = 'stroke fill';
         titleEl.style.opacity = settings.titleOpacity / 100;
+        titleEl.style.textAlign = settings.titleAlign || 'left';
 
         // Stats — use -webkit-text-stroke for proper outline
         const statsEl = document.getElementById('posterStats');
@@ -440,6 +456,61 @@
         // Elevation
         const elevEl = document.getElementById('posterElevation');
         elevEl.style.opacity = settings.elevOpacity / 100;
+
+        // --- Single line only logic for activity name ---
+        const singleLineCheckbox = document.getElementById('singleLineCheckbox');
+
+        // Add to settings object for persistence and PNG export
+        if (settings.singleLine === undefined) settings.singleLine = true;
+
+        function applySingleLineMode(singleLine) {
+            if (!titleEl) return;
+            if (singleLine) {
+                titleEl.style.whiteSpace = 'nowrap';
+                titleEl.style.overflow = 'hidden';
+                titleEl.style.textOverflow = 'ellipsis';
+            } else {
+                titleEl.style.whiteSpace = 'normal';
+                titleEl.style.overflow = 'visible';
+                titleEl.style.textOverflow = 'unset';
+            }
+        }
+
+        // On checkbox change
+        if (singleLineCheckbox) {
+            singleLineCheckbox.addEventListener('change', function() {
+                settings.singleLine = this.checked;
+                saveSettings(settings);
+                applySingleLineMode(this.checked);
+            });
+        }
+
+        // On page load, restore setting
+        document.addEventListener('DOMContentLoaded', function() {
+            if (singleLineCheckbox) {
+                singleLineCheckbox.checked = settings.singleLine !== false;
+                applySingleLineMode(singleLineCheckbox.checked);
+            }
+        });
+
+        // Also apply in renderPoster so PNG export is correct
+        const origRenderPoster = renderPoster;
+        renderPoster = function() {
+            origRenderPoster();
+            applySingleLineMode(settings.singleLine !== false);
+        };
+
+        // --- Text Align logic for activity name ---
+        if (settings.titleAlign !== 'center' && settings.titleAlign !== 'right') settings.titleAlign = 'left';
+        const titleAlignSelect = document.getElementById('titleAlign');
+        if (titleAlignSelect) {
+            titleAlignSelect.value = settings.titleAlign;
+            titleAlignSelect.addEventListener('change', function() {
+                settings.titleAlign = this.value;
+                saveSettings(settings);
+                renderPoster();
+            });
+        }
 
         renderElevationChart();
     }
