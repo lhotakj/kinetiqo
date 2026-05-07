@@ -11,13 +11,11 @@
         overflow: hidden;
         background: #333;
         max-width: 2048px;
-        line-height: 1;
         box-sizing: border-box;
     }
     .poster-container * {
         margin: 0;
         padding: 0;
-        line-height: 1.2;
         box-sizing: border-box;
     }
     .poster-container img.poster-bg {
@@ -35,7 +33,10 @@
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: 24px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        padding-left: 20px;
+        padding-right: 20px;
         pointer-events: none;
     }
     .poster-title {
@@ -45,9 +46,6 @@
         text-overflow: ellipsis;
         -webkit-text-stroke: 0px black;
         paint-order: stroke fill;
-        /* Explicit line-height prevents html2canvas from computing it
-           differently via the Tailwind global cascade */
-        line-height: 1 !important;
     }
     .poster-stats {
         display: flex;
@@ -415,7 +413,7 @@
             : '0px transparent';
         statsEl.style.paintOrder = 'stroke fill';
         statsEl.style.opacity = settings.statsOpacity / 100;
-        // SVG icons: stroke with statsColor only
+        // SVG icons: stroke with statsColor, simple outline via filter if enabled
         statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
             const size = settings.statsFontSize + 'px';
             const svg = iconSpan.querySelector('svg');
