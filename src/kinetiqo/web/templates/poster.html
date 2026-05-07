@@ -176,6 +176,18 @@
                 </select>
             </div>
             <div class="control-row">
+                <label>Text Align</label>
+                <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
+                <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
+            </div>
+            <div class="control-row">
                 <label>Font Size</label>
                 <input type="range" id="titleFontSize" min="12" max="72" value="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="titleFontSizeVal" class="text-xs w-8">30px</span>
@@ -197,18 +209,6 @@
                 <label>Opacity</label>
                 <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="titleOpacityVal" class="text-xs w-8">100%</span>
-            </div>
-            <div class="control-row">
-                <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
-                <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
-            </div>
-            <div class="control-row">
-                <label>Text Align</label>
-                <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="left">Left</option>
-                    <option value="center">Center</option>
-                    <option value="right">Right</option>
-                </select>
             </div>
         </div>
 
