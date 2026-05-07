@@ -44,7 +44,26 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # dcron is the only extra system package the application itself needs;
 # libtommath, libgcc and libpq are already present in the base image.
-RUN apk add --no-cache dcron
+#
+# chromium + supporting libs are required by Playwright for server-side
+# poster PNG export.  Using the Alpine system Chromium avoids the need for
+# Playwright's own bundled Chromium (which is a glibc binary and does not
+# run on musl/Alpine without extra shims).
+# font-noto and ttf-freefont ensure Google Fonts fallback works correctly.
+RUN apk add --no-cache \
+    dcron \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    font-noto \
+    font-noto-cjk
+
+# Tell Playwright to use the system Chromium instead of its bundled binary.
+ENV PLAYWRIGHT_BROWSERS_PATH=/dev/null \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Set working directory
 WORKDIR /app

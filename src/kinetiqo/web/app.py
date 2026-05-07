@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, List
 
 import httpx
+import requests
 
 import json as json_module
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response
@@ -1734,6 +1735,424 @@ def stop_sync():
     except Exception as e:
         logger.error(f"Failed to create stop signal: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/poster/<activity_id>')
+@login_required
+def poster(activity_id):
+    """Render the poster page for a given activity."""
+    repo = get_db()
+    # Fetch basic activity info from DB
+    activities = repo.get_activities_by_ids([activity_id])
+    activity = activities[0] if activities else None
+    if not activity:
+        flash("Activity not found.")
+        return redirect(url_for('activities'))
+    return render_template('poster.html', title="Activity Poster", activity=activity)
+
+
+@app.route('/api/poster/photo/<activity_id>', methods=['GET'])
+@login_required
+def poster_photo_get(activity_id):
+    """Serve the cached poster photo for an activity, or fetch from Strava."""
+    import pathlib
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cache_dir.mkdir(exist_ok=True)
+    cached = cache_dir / f"{activity_id}.png"
+    if cached.exists():
+        return Response(cached.read_bytes(), mimetype='image/png')
+    # Try to fetch from Strava
+    try:
+        photo_url = _fetch_strava_activity_photo(activity_id)
+        if photo_url:
+            img_data = _download_and_convert_to_png(photo_url)
+            if img_data:
+                cached.write_bytes(img_data)
+                return Response(img_data, mimetype='image/png')
+    except Exception as e:
+        logger.error(f"Failed to fetch poster photo for {activity_id}: {e}")
+    return '', 404
+
+
+@app.route('/api/poster/photo/<activity_id>', methods=['POST'])
+@login_required
+def poster_photo_reload(activity_id):
+    """Re-download the activity photo from Strava."""
+    import pathlib
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cache_dir.mkdir(exist_ok=True)
+    cached = cache_dir / f"{activity_id}.png"
+    try:
+        photo_url = _fetch_strava_activity_photo(activity_id)
+        if photo_url:
+            img_data = _download_and_convert_to_png(photo_url)
+            if img_data:
+                cached.write_bytes(img_data)
+                return Response(img_data, mimetype='image/png')
+        return jsonify({'error': 'No photo found on Strava'}), 404
+    except Exception as e:
+        logger.error(f"Failed to reload poster photo for {activity_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/poster/upload/<activity_id>', methods=['POST'])
+@login_required
+def poster_photo_upload(activity_id):
+    """Upload a custom image for the poster."""
+    import pathlib
+    from PIL import Image
+    import io
+
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cache_dir.mkdir(exist_ok=True)
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    filename = file.filename.lower() if file.filename else ''
+    allowed = ('.png', '.jpg', '.jpeg', '.heic', '.heif')
+    if not any(filename.endswith(ext) for ext in allowed):
+        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, HEIC'}), 400
+
+    try:
+        raw = file.read()
+        # Convert to PNG
+        if filename.endswith(('.heic', '.heif')):
+            try:
+                import pillow_heif
+                pillow_heif.register_heif_opener()
+            except ImportError:
+                return jsonify({'error': 'HEIC support not available (pillow-heif not installed)'}), 500
+        img = Image.open(io.BytesIO(raw))
+        img = img.convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        png_data = buf.getvalue()
+        cached = cache_dir / f"{activity_id}.png"
+        cached.write_bytes(png_data)
+        return Response(png_data, mimetype='image/png')
+    except Exception as e:
+        logger.error(f"Failed to process uploaded image for {activity_id}: {e}")
+        return jsonify({'error': f'Failed to process image: {e}'}), 500
+
+
+@app.route('/api/poster/elevation/<activity_id>')
+@login_required
+def poster_elevation_data(activity_id):
+    """Return elevation profile data for the activity."""
+    from kinetiqo.strava import StravaClient
+    try:
+        client = StravaClient(config)
+        streams = client.get_streams(int(activity_id))
+        distance_data = streams.get('distance', {}).get('data', [])
+        altitude_data = streams.get('altitude', {}).get('data', [])
+        if not distance_data or not altitude_data:
+            return jsonify({'distance': [], 'altitude': []})
+        return jsonify({
+            'distance': distance_data,
+            'altitude': altitude_data
+        })
+    except Exception as e:
+        logger.error(f"Failed to get elevation data for {activity_id}: {e}")
+        return jsonify({'distance': [], 'altitude': []})
+
+
+@app.route('/api/poster/export/<activity_id>', methods=['POST'])
+@login_required
+def poster_export(activity_id):
+    """Export the activity poster as a pixel-perfect PNG using Playwright.
+
+    The client POSTs the current poster settings as a JSON body.  This
+    endpoint launches a headless Chromium, navigates to the poster page
+    with those settings pre-loaded into localStorage (so ``renderPoster()``
+    picks them up on the first paint), waits for every async element to
+    finish rendering, then screenshots the ``#posterContainer`` element and
+    streams the PNG bytes back to the browser as a file download.
+
+    Chromium selection
+    ------------------
+    * In Docker / Alpine the ``PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`` env var
+      points at the system Chromium installed via ``apk add chromium``.
+    * In local development (Linux/macOS/Windows) that variable is unset and
+      Playwright uses its own bundled Chromium (installed with
+      ``playwright install chromium``).
+    """
+    import json as _json
+    import shutil
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.error('playwright package is not installed')
+        return jsonify({'error': 'playwright is not installed on the server. '
+                                 'Run: pip install playwright && playwright install chromium'}), 500
+
+    settings_payload = request.get_json(silent=True) or {}
+
+    # ── Determine poster dimensions from settings ─────────────────────────
+    poster_width = int(settings_payload.get('posterSize', 1280))
+    # Clamp to a sensible range to prevent abuse
+    poster_width = max(800, min(poster_width, 2048))
+
+    # Parse the aspect ratio string (e.g. "4/3", "16/9", "1/1") to compute
+    # the poster container's rendered height so the viewport is tall enough.
+    ratio_str = settings_payload.get('ratio', '4/3')
+    try:
+        rw, rh = (int(x) for x in ratio_str.split('/'))
+        poster_height = int(poster_width * rh / rw)
+    except (ValueError, ZeroDivisionError):
+        poster_height = int(poster_width * 3 / 4)  # fallback to 4:3
+
+    # Viewport must be large enough for the poster to render at its full
+    # requested size.  The page has a 256 px sidebar, a 320 px controls
+    # panel, and ~48 px of padding/gaps.  We inject CSS later to force the
+    # exact size, but the viewport still needs to be at least as large.
+    viewport_width = poster_width + 700   # sidebar + controls + margin
+    viewport_height = poster_height + 300  # nav bar + padding
+
+    # ── Determine the URL Playwright should navigate to ──────────────────────
+    # Always hit the local address so we bypass any external reverse-proxy
+    # TLS termination.  The Flask dev server and gunicorn both bind on 4444;
+    # fall back to the port embedded in request.host if different.
+    host_header = request.host  # e.g. "localhost:4444" or "kinetiqo.example.com"
+    host_domain = host_header.split(':')[0]  # strip port for cookie domain
+    port = host_header.split(':')[1] if ':' in host_header else '4444'
+    internal_url = f"http://127.0.0.1:{port}/poster/{activity_id}"
+
+    # ── Replay Flask session cookies so the protected route doesn't redirect ─
+    cookies_for_playwright = []
+    for name, value in request.cookies.items():
+        cookies_for_playwright.append({
+            'name': name,
+            'value': value,
+            'domain': '127.0.0.1',
+            'path': '/'
+        })
+
+    # ── Resolve Chromium executable ────────────────────────────────────────
+    # Use the env-var set in the Dockerfile for Alpine/Docker deployments;
+    # fall back to any system Chromium found on PATH; otherwise let
+    # Playwright use its own bundled browser (dev machines).
+    chromium_exe = (
+        os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH')
+        or shutil.which('chromium-browser')
+        or shutil.which('chromium')
+        or None  # None → Playwright uses its bundled Chromium
+    )
+
+    try:
+        with sync_playwright() as p:
+            launch_kwargs: dict = {
+                'headless': True,
+                'args': [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',  # avoids /dev/shm exhaustion in Docker
+                    '--disable-gpu',
+                    '--font-render-hinting=none',  # crisper font rendering
+                ],
+            }
+            if chromium_exe:
+                launch_kwargs['executable_path'] = chromium_exe
+
+            browser = p.chromium.launch(**launch_kwargs)
+
+            context = browser.new_context(
+                # Viewport sized to fit the poster container at its full
+                # configured width plus room for the controls panel.
+                viewport={'width': viewport_width, 'height': viewport_height},
+                # 1:1 device pixel ratio so the exported PNG matches the
+                # exact pixel dimensions chosen by the user (no scaling).
+                device_scale_factor=1,
+                # Declare support for web fonts loaded from fonts.googleapis.com
+                # (the CSP on the page already allows them).
+                ignore_https_errors=True,
+            )
+
+            # Replay session cookies (Flask-Login auth)
+            if cookies_for_playwright:
+                context.add_cookies(cookies_for_playwright)
+
+            # Pre-populate localStorage BEFORE the page script runs so that
+            # loadSettings() picks up the user's settings on the very first
+            # renderPoster() call — no need for a second reload or inject.
+            context.add_init_script(f"""
+                (function() {{
+                    try {{
+                        window.localStorage.setItem(
+                            'poster_settings_v2',
+                            JSON.stringify({_json.dumps(settings_payload)})
+                        );
+                    }} catch(e) {{}}
+                }})();
+            """)
+
+            page = context.new_page()
+
+            # ── Navigate and wait for the network to settle ───────────────────
+            # 'networkidle' fires once there are no in-flight requests for
+            # 500 ms — covers the photo, SVG icons, elevation API call, and
+            # all CDN assets (Chart.js, Google Fonts, Tailwind).
+            page.goto(internal_url, wait_until='networkidle', timeout=30_000)
+
+            # ── Wait for web fonts to be measured ─────────────────────────────
+            # document.fonts.ready resolves after the browser has loaded every
+            # font used on the page and updated all text layout boxes.
+            page.wait_for_function('document.fonts.ready', timeout=10_000)
+
+            # ── Wait for inline SVG icons ──────────────────────────────────────
+            # loadInlineSvgs() fetches each icon via XHR and injects the <svg>
+            # element into the DOM; check that all four stat-icon spans have
+            # an <svg> child (distance, elevation, speed, time).
+            page.wait_for_function(
+                "document.querySelectorAll('.stat-icon svg').length >= 4",
+                timeout=10_000
+            )
+
+            # ── Wait for the elevation Chart.js canvas to be painted ───────────
+            # Chart.js renders synchronously once data arrives, but the canvas
+            # element gets a non-zero width only after the first paint cycle.
+            page.wait_for_function(
+                "(function() {"
+                "  var c = document.getElementById('elevationChart');"
+                "  return c && c.width > 0;"
+                "})()",
+                timeout=15_000
+            )
+
+            # ── Wait for the background photo ─────────────────────────────────
+            # The img is hidden (display:none) until onload fires and the JS
+            # sets display:block.  If no photo is cached the src returns 404
+            # and the element stays hidden — both states are terminal.
+            page.wait_for_function(
+                "(function() {"
+                "  var img = document.getElementById('posterBg');"
+                "  if (!img) return true;"
+                "  return img.complete;"  # true for both loaded and errored
+                "})()",
+                timeout=15_000
+            )
+
+            # Short settle: allow Chart.js entrance animations and any
+            # micro-task queues to fully drain before we screenshot.
+            page.wait_for_timeout(400)
+
+            # ── Force exact poster dimensions ─────────────────────────────────
+            # The page layout (sidebar + flex + controls panel) may constrain
+            # the poster container to less than the requested width.  Override
+            # all layout constraints so the container renders at pixel-perfect
+            # dimensions matching the user's Poster Size × Ratio settings.
+            page.evaluate(f"""
+                (function() {{
+                    var c = document.getElementById('posterContainer');
+                    c.style.width    = '{poster_width}px';
+                    c.style.maxWidth = '{poster_width}px';
+                    c.style.minWidth = '{poster_width}px';
+                    c.style.height   = '{poster_height}px';
+                    c.style.flex     = 'none';
+                    c.style.position = 'relative';
+                    c.style.overflow = 'hidden';
+                }})();
+            """)
+
+            # Let the browser re-layout and Chart.js resize after the
+            # dimension override, then wait for a
+            #
+            page.wait_for_timeout(500)
+
+            # Re-trigger Chart.js resize so the elevation chart fills the
+            # new container dimensions.
+            page.evaluate("""
+                (function() {
+                    var canvas = document.getElementById('elevationChart');
+                    if (canvas && canvas.__chartjs_instance) {
+                        canvas.__chartjs_instance.resize();
+                    }
+                    // Chart.js 4.x stores the instance on Chart.instances
+                    if (typeof Chart !== 'undefined' && Chart.instances) {
+                        Object.values(Chart.instances).forEach(function(c) { c.resize(); });
+                    }
+                })();
+            """)
+            page.wait_for_timeout(200)
+
+            # ── Screenshot only the poster container ──────────────────────────
+            # element.screenshot() crops to the element's bounding box,
+            # ignoring the rest of the page (nav, controls, etc.).
+            container = page.locator('#posterContainer')
+            png_bytes = container.screenshot()
+
+            context.close()
+            browser.close()
+
+        logger.info(
+            f"Poster export OK: activity={activity_id}, "
+            f"size={len(png_bytes)//1024} KB"
+        )
+        return Response(
+            png_bytes,
+            mimetype='image/png',
+            headers={
+                'Content-Disposition':
+                    f'attachment; filename="poster_{activity_id}.png"',
+                'Content-Length': str(len(png_bytes)),
+            }
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Playwright poster export failed for {activity_id}: {e}",
+            exc_info=True
+        )
+        return jsonify({'error': str(e)}), 500
+
+
+def _fetch_strava_activity_photo(activity_id: str) -> str | None:
+    """Fetch the primary photo URL for a Strava activity (highest resolution)."""
+    from kinetiqo.strava import StravaClient
+    client = StravaClient(config)
+    token = client._get_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # First try the activity photos endpoint which gives full-size URLs
+    try:
+        photos_url = f"https://www.strava.com/api/v3/activities/{activity_id}/photos?size=5000"
+        r = requests.get(photos_url, headers=headers, timeout=15)
+        r.raise_for_status()
+        photos_list = r.json()
+        if photos_list and len(photos_list) > 0:
+            # Get the first (primary) photo
+            photo = photos_list[0]
+            urls = photo.get('urls', {})
+            # size=5000 returns the largest available in the '5000' key
+            return urls.get('5000') or urls.get('2048') or urls.get('1800') or urls.get('600') or None
+    except Exception:
+        pass
+
+    # Fallback: activity detail endpoint
+    url = f"https://www.strava.com/api/v3/activities/{activity_id}"
+    r = requests.get(url, headers=headers, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    photos = data.get('photos', {}).get('primary', {})
+    if photos:
+        urls = photos.get('urls', {})
+        return urls.get('600') or urls.get('100') or None
+    return None
+
+
+def _download_and_convert_to_png(url: str) -> bytes | None:
+    """Download an image URL and convert to PNG bytes."""
+    from PIL import Image
+    import io
+    r = requests.get(url, timeout=15)
+    r.raise_for_status()
+    img = Image.open(io.BytesIO(r.content))
+    img = img.convert('RGB')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
 
 
 @app.route('/latest-version')

@@ -1,0 +1,631 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    .poster-container {
+        position: relative;
+        overflow: hidden;
+        background: #333;
+        max-width: 2048px;
+        line-height: 1;
+        box-sizing: border-box;
+    }
+    .poster-container * {
+        margin: 0;
+        padding: 0;
+        line-height: 1.2;
+        box-sizing: border-box;
+    }
+    .poster-container img.poster-bg {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        position: absolute;
+        top: 0; left: 0;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+    .poster-overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 24px;
+        pointer-events: none;
+    }
+    .poster-title {
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        -webkit-text-stroke: 0px black;
+        paint-order: stroke fill;
+        /* Explicit line-height prevents html2canvas from computing it
+           differently via the Tailwind global cascade */
+        line-height: 1 !important;
+    }
+    .poster-stats {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        align-items: center;
+        -webkit-text-stroke: 0px black;
+        paint-order: stroke fill;
+    }
+    .poster-stats .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+    }
+    .poster-stats .stat-item .stat-icon {
+        /* inline-flex is not reliably supported by html2canvas;
+           inline-block + vertical-align produces identical browser
+           rendering AND works in the canvas capture. */
+        display: inline-block;
+        vertical-align: middle;
+        line-height: 0;   /* collapses the inline box so the SVG
+                             fills exactly its own height */
+    }
+    .poster-stats .stat-item .stat-icon svg {
+        display: block;   /* removes the inline whitespace gap below the SVG */
+        width: 20px;
+        height: 20px;
+    }
+    /* Keep stat text vertically centred alongside the icon */
+    .poster-stats .stat-item > span:not(.stat-icon) {
+        vertical-align: middle;
+    }
+    .poster-elevation {
+        width: 100%;
+        height: 30%;
+    }
+    .control-box {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    .control-box h4 {
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+    }
+    .control-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+    .control-row label {
+        font-size: 0.75rem;
+        min-width: 80px;
+        color: #6b7280;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100">{{ title }}</h1>
+    <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ activity.get('name', 'Activity') }}</p>
+</div>
+
+<div class="flex flex-col lg:flex-row gap-6">
+    <!-- Controls -->
+    <div class="w-full lg:w-80 flex-shrink-0">
+        <!-- Action Buttons -->
+        <div class="flex gap-2 mb-4 flex-wrap">
+            <button id="savePngBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition">Save as PNG</button>
+            <button id="loadStravaBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition">Load from Strava</button>
+            <label class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer">
+                Upload Image
+                <input type="file" id="uploadInput" accept=".png,.jpg,.jpeg,.heic,.heif" class="hidden">
+            </label>
+        </div>
+
+        <!-- Poster Size -->
+        <div class="control-box">
+            <h4>Poster Size</h4>
+            <div class="control-row">
+                <label>Width</label>
+                <select id="posterSize" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="800">XS (width 800px)</option>
+                    <option value="1024">S (width 1024px)</option>
+                    <option value="1280">M (width 1280px)</option>
+                    <option value="1440">L (width 1440px)</option>
+                    <option value="1600">XL (width 1600px)</option>
+                    <option value="1920">XXL (width 1920px)</option>
+                    <option value="2048">XXXL (width 2048px)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Ratio</label>
+                <select id="ratioSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="4/3">4:3 (Standard)</option>
+                    <option value="16/9">16:9 (Wide)</option>
+                    <option value="1/1">1:1 (Square)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Dimensions</label>
+                <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Poster dimensions: — × —</div>
+            </div>
+        </div>
+
+        <!-- Activity Name Controls -->
+        <div class="control-box">
+            <h4>Activity Name</h4>
+            <div class="control-row">
+                <label>Font</label>
+                <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="Roboto">Roboto</option>
+                    <option value="Inter">Inter</option>
+                    <option value="Roboto Condensed">Roboto Condensed</option>
+                    <option value="PT Sans Narrow">PT Sans Narrow</option>
+                    <option value="PT Sans">PT Sans</option>
+                    <option value="IBM Plex Serif">IBM Plex Serif</option>
+                    <option value="IBM Plex Sans Condensed">IBM Plex Sans Condensed</option>
+                    <option value="Open Sans">Open Sans</option>
+                    <option value="Faculty Glyphic">Faculty Glyphic</option>
+                    <option value="Yanone Kaffeesatz">Yanone Kaffeesatz</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Font Size</label>
+                <input type="range" id="titleFontSize" min="12" max="72" value="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleFontSizeVal" class="text-xs w-8">30px</span>
+            </div>
+            <div class="control-row">
+                <label>Color</label>
+                <input type="color" id="titleColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label>Outline Color</label>
+                <input type="color" id="titleOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label>Outline Width</label>
+                <input type="range" id="titleOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleOutlineWidthVal" class="text-xs w-6">1</span>
+            </div>
+            <div class="control-row">
+                <label>Opacity</label>
+                <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleOpacityVal" class="text-xs w-8">100%</span>
+            </div>
+        </div>
+
+        <!-- Stats Controls -->
+        <div class="control-box">
+            <h4>Stats</h4>
+            <div class="control-row">
+                <label>Font</label>
+                <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="Roboto">Roboto</option>
+                    <option value="Inter">Inter</option>
+                    <option value="Roboto Condensed">Roboto Condensed</option>
+                    <option value="PT Sans Narrow">PT Sans Narrow</option>
+                    <option value="PT Sans">PT Sans</option>
+                    <option value="IBM Plex Serif">IBM Plex Serif</option>
+                    <option value="IBM Plex Sans Condensed">IBM Plex Sans Condensed</option>
+                    <option value="Open Sans">Open Sans</option>
+                    <option value="Faculty Glyphic">Faculty Glyphic</option>
+                    <option value="Yanone Kaffeesatz">Yanone Kaffeesatz</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Font Size</label>
+                <input type="range" id="statsFontSize" min="10" max="48" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsFontSizeVal" class="text-xs w-8">20px</span>
+            </div>
+            <div class="control-row">
+                <label>Color</label>
+                <input type="color" id="statsColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label>Outline Color</label>
+                <input type="color" id="statsOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label>Outline Width</label>
+                <input type="range" id="statsOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsOutlineWidthVal" class="text-xs w-6">1</span>
+            </div>
+            <div class="control-row">
+                <label>Opacity</label>
+                <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsOpacityVal" class="text-xs w-8">100%</span>
+            </div>
+        </div>
+
+        <!-- Elevation Controls -->
+        <div class="control-box">
+            <h4>Elevation Chart</h4>
+            <div class="control-row">
+                <label>Font Size</label>
+                <input type="range" id="elevFontSize" min="8" max="36" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="elevFontSizeVal" class="text-xs w-8">20px</span>
+            </div>
+            <div class="control-row">
+                <label>Line Color</label>
+                <input type="color" id="elevColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label>Fill Color</label>
+                <input type="color" id="elevFillColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label>Opacity</label>
+                <input type="range" id="elevOpacity" min="0" max="100" value="70" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="elevOpacityVal" class="text-xs w-8">70%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Poster Preview -->
+    <div class="flex-1">
+        <div id="posterContainer" class="poster-container rounded-lg shadow-lg" style="aspect-ratio: 4/3;">
+            <img id="posterBg" class="poster-bg" src="" alt="" style="display:none;">
+            <div class="poster-overlay">
+                <!-- Activity Name -->
+                <div id="posterTitle" class="poster-title">{{ activity.get('name', '') }}</div>
+
+                <!-- Stats -->
+                <div id="posterStats" class="poster-stats">
+                    <div class="stat-item">
+                        <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
+                        <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
+                        <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
+                        <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
+                        <span id="statTime">
+                            {% set s = activity.get('moving_time', 0)|int %}
+                            {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Elevation Chart -->
+                <div id="posterElevation" class="poster-elevation">
+                    <canvas id="elevationChart" style="width:100%;height:100%;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const ACTIVITY_ID = '{{ activity.get("id", "") }}';
+    const LS_KEY = 'poster_settings_v2';
+
+    // Defaults
+    const DEFAULTS = {
+        posterSize: 1280, ratio: '4/3',
+        titleFont: 'Roboto', titleFontSize: 30, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
+        statsFont: 'Roboto', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
+        elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70
+    };
+
+    function loadSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(LS_KEY));
+            if (saved && typeof saved === 'object') return { ...DEFAULTS, ...saved };
+        } catch(e) {}
+        return { ...DEFAULTS };
+    }
+
+    function saveSettings(settings) {
+        localStorage.setItem(LS_KEY, JSON.stringify(settings));
+    }
+
+    let settings = loadSettings();
+
+    // Apply settings to controls
+    function applyToControls(s) {
+        document.getElementById('posterSize').value = s.posterSize;
+        document.getElementById('ratioSelect').value = s.ratio;
+        document.getElementById('titleFont').value = s.titleFont;
+        document.getElementById('titleFontSize').value = s.titleFontSize;
+        document.getElementById('titleFontSizeVal').textContent = s.titleFontSize + 'px';
+        document.getElementById('titleColor').value = s.titleColor;
+        document.getElementById('titleOutlineColor').value = s.titleOutlineColor;
+        document.getElementById('titleOutlineWidth').value = s.titleOutlineWidth;
+        document.getElementById('titleOutlineWidthVal').textContent = s.titleOutlineWidth;
+        document.getElementById('titleOpacity').value = s.titleOpacity;
+        document.getElementById('titleOpacityVal').textContent = s.titleOpacity + '%';
+        document.getElementById('statsFont').value = s.statsFont;
+        document.getElementById('statsFontSize').value = s.statsFontSize;
+        document.getElementById('statsFontSizeVal').textContent = s.statsFontSize + 'px';
+        document.getElementById('statsColor').value = s.statsColor;
+        document.getElementById('statsOutlineColor').value = s.statsOutlineColor;
+        document.getElementById('statsOutlineWidth').value = s.statsOutlineWidth;
+        document.getElementById('statsOutlineWidthVal').textContent = s.statsOutlineWidth;
+        document.getElementById('statsOpacity').value = s.statsOpacity;
+        document.getElementById('statsOpacityVal').textContent = s.statsOpacity + '%';
+        document.getElementById('elevFontSize').value = s.elevFontSize;
+        document.getElementById('elevFontSizeVal').textContent = s.elevFontSize + 'px';
+        document.getElementById('elevColor').value = s.elevColor;
+        document.getElementById('elevFillColor').value = s.elevFillColor;
+        document.getElementById('elevOpacity').value = s.elevOpacity;
+        document.getElementById('elevOpacityVal').textContent = s.elevOpacity + '%';
+    }
+
+    function updateDimensionsDisplay(width, height) {
+        const dimensionsEl = document.getElementById('posterDimensions');
+        dimensionsEl.textContent = `Poster dimensions: ${width} × ${height}`;
+    }
+
+    function renderPoster() {
+        const container = document.getElementById('posterContainer');
+
+        // Compute exact height from posterSize and aspect ratio
+        const ratioMatch = settings.ratio.match(/(\d+)\/(\d+)/);
+        let posterHeight = settings.posterSize;
+        if (ratioMatch) {
+            const rw = parseInt(ratioMatch[1]);
+            const rh = parseInt(ratioMatch[2]);
+            posterHeight = Math.round(settings.posterSize * rh / rw);
+        }
+
+        // Set exact dimensions so WYSIWYG preview matches export output.
+        // If poster doesn't fit in viewport, scrollbars will appear naturally.
+        container.style.width = settings.posterSize + 'px';
+        container.style.height = posterHeight + 'px';
+        container.style.maxWidth = 'none';
+        container.style.maxHeight = 'none';
+        container.style.aspectRatio = settings.ratio;
+
+        // Update dimensions display
+        updateDimensionsDisplay(settings.posterSize, posterHeight);
+
+        // Title — use -webkit-text-stroke for proper outline
+        const titleEl = document.getElementById('posterTitle');
+        titleEl.style.fontFamily = `'${settings.titleFont}', sans-serif`;
+        titleEl.style.fontSize = settings.titleFontSize + 'px';
+        titleEl.style.color = settings.titleColor;
+        titleEl.style.webkitTextStroke = settings.titleOutlineWidth > 0
+            ? settings.titleOutlineWidth + 'px ' + settings.titleOutlineColor
+            : '0px transparent';
+        titleEl.style.paintOrder = 'stroke fill';
+        titleEl.style.opacity = settings.titleOpacity / 100;
+
+        // Stats — use -webkit-text-stroke for proper outline
+        const statsEl = document.getElementById('posterStats');
+        statsEl.style.fontFamily = `'${settings.statsFont}', sans-serif`;
+        statsEl.style.fontSize = settings.statsFontSize + 'px';
+        statsEl.style.color = settings.statsColor;
+        statsEl.style.webkitTextStroke = settings.statsOutlineWidth > 0
+            ? settings.statsOutlineWidth + 'px ' + settings.statsOutlineColor
+            : '0px transparent';
+        statsEl.style.paintOrder = 'stroke fill';
+        statsEl.style.opacity = settings.statsOpacity / 100;
+        // SVG icons: apply color and match font size
+        statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
+            const size = settings.statsFontSize + 'px';
+            const svg = iconSpan.querySelector('svg');
+            if (svg) {
+                svg.style.width = size;
+                svg.style.height = size;
+                svg.style.stroke = settings.statsColor;
+                svg.style.filter = settings.statsOutlineWidth > 0
+                    ? `drop-shadow(0 0 ${settings.statsOutlineWidth}px ${settings.statsOutlineColor})`
+                    : 'none';
+            }
+        });
+
+        // Elevation
+        const elevEl = document.getElementById('posterElevation');
+        elevEl.style.opacity = settings.elevOpacity / 100;
+
+        renderElevationChart();
+    }
+
+    // Elevation chart
+    let elevChart = null;
+    let elevData = { distance: [], altitude: [] };
+
+    function renderElevationChart() {
+        const canvas = document.getElementById('elevationChart');
+        const ctx = canvas.getContext('2d');
+
+        if (elevChart) elevChart.destroy();
+        if (!elevData.distance.length) return;
+
+        // Convert distance to km
+        const distKm = elevData.distance.map(d => d / 1000);
+        const maxDist = distKm[distKm.length - 1];
+        const fillColor = settings.elevFillColor + '80'; // 50% alpha
+        const fontSize = settings.elevFontSize || 20;
+
+        elevChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: distKm,
+                datasets: [{
+                    data: elevData.altitude,
+                    borderColor: settings.elevColor,
+                    backgroundColor: fillColor,
+                    fill: true,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        min: 0,
+                        max: maxDist,
+                        title: { display: true, text: 'km', color: settings.elevColor, font: { size: fontSize - 4 } },
+                        ticks: { color: settings.elevColor, font: { size: fontSize - 4 }, callback: v => v.toFixed(0) },
+                        grid: { display: false }
+                    },
+                    y: {
+                        title: { display: false },
+                        ticks: { color: settings.elevColor, font: { size: fontSize - 4 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    // Load elevation data
+    function loadElevation() {
+        fetch(`/api/poster/elevation/${ACTIVITY_ID}`)
+            .then(r => r.json())
+            .then(data => {
+                elevData = data;
+                renderElevationChart();
+            });
+    }
+
+    // Load photo
+    function loadPhoto() {
+        const img = document.getElementById('posterBg');
+        img.onload = () => { img.style.display = 'block'; };
+        img.src = `/api/poster/photo/${ACTIVITY_ID}?t=${Date.now()}`;
+    }
+
+    // Reload from Strava
+    document.getElementById('loadStravaBtn').addEventListener('click', function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        fetch(`/api/poster/photo/${ACTIVITY_ID}`, { method: 'POST' })
+            .then(r => {
+                if (r.ok) loadPhoto();
+                else alert('No photo found on Strava for this activity.');
+            })
+            .finally(() => { btn.disabled = false; btn.textContent = 'Load from Strava'; });
+    });
+
+    // Upload
+    document.getElementById('uploadInput').addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch(`/api/poster/upload/${ACTIVITY_ID}`, { method: 'POST', body: formData })
+            .then(r => {
+                if (r.ok) loadPhoto();
+                else r.json().then(d => alert(d.error || 'Upload failed'));
+            });
+    });
+
+    // Save as PNG — server-side Playwright render
+    // The current settings object is POSTed to the server; Playwright loads
+    // the poster page in a headless browser with those settings pre-injected
+    // into localStorage, waits for every async element (fonts, icons, photo,
+    // elevation chart) to finish painting, then streams a 2×-resolution PNG
+    // back as a file download.
+    document.getElementById('savePngBtn').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled    = true;
+        btn.textContent = 'Saving…';
+
+        try {
+            const resp = await fetch(`/api/poster/export/${ACTIVITY_ID}`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(settings)
+            });
+
+            if (!resp.ok) {
+                let msg = `HTTP ${resp.status}`;
+                try { msg = (await resp.json()).error || msg; } catch (_) {}
+                alert('Export failed: ' + msg);
+                return;
+            }
+
+            // Stream the PNG bytes into a transient object URL and click it
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.download = `poster_${ACTIVITY_ID}.png`;
+            a.href     = url;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+
+        } catch (e) {
+            alert('Export failed: ' + e.message);
+        } finally {
+            btn.disabled    = false;
+            btn.textContent = 'Save as PNG';
+        }
+    });
+
+    // Bind controls
+    function bindControl(id, settingKey, isRange, valSpanId, suffix) {
+        const el = document.getElementById(id);
+        el.addEventListener('input', function() {
+            settings[settingKey] = isRange ? parseInt(this.value) : this.value;
+            if (valSpanId) {
+                document.getElementById(valSpanId).textContent = this.value + (suffix || '');
+            }
+            saveSettings(settings);
+            renderPoster();
+        });
+    }
+
+    bindControl('posterSize', 'posterSize', true);
+    bindControl('ratioSelect', 'ratio', false);
+    bindControl('titleFont', 'titleFont', false);
+    bindControl('titleFontSize', 'titleFontSize', true, 'titleFontSizeVal', 'px');
+    bindControl('titleColor', 'titleColor', false);
+    bindControl('titleOutlineColor', 'titleOutlineColor', false);
+    bindControl('titleOutlineWidth', 'titleOutlineWidth', true, 'titleOutlineWidthVal', '');
+    bindControl('titleOpacity', 'titleOpacity', true, 'titleOpacityVal', '%');
+    bindControl('statsFont', 'statsFont', false);
+    bindControl('statsFontSize', 'statsFontSize', true, 'statsFontSizeVal', 'px');
+    bindControl('statsColor', 'statsColor', false);
+    bindControl('statsOutlineColor', 'statsOutlineColor', false);
+    bindControl('statsOutlineWidth', 'statsOutlineWidth', true, 'statsOutlineWidthVal', '');
+    bindControl('statsOpacity', 'statsOpacity', true, 'statsOpacityVal', '%');
+    bindControl('elevFontSize', 'elevFontSize', true, 'elevFontSizeVal', 'px');
+    bindControl('elevColor', 'elevColor', false);
+    bindControl('elevFillColor', 'elevFillColor', false);
+    bindControl('elevOpacity', 'elevOpacity', true, 'elevOpacityVal', '%');
+
+    // Load inline SVGs for stat icons (so color/stroke can be controlled via CSS/JS)
+    function loadInlineSvgs() {
+        document.querySelectorAll('.stat-icon[data-icon]').forEach(span => {
+            const url = span.getAttribute('data-icon');
+            fetch(url)
+                .then(r => r.text())
+                .then(svgText => {
+                    span.innerHTML = svgText;
+                    renderPoster(); // re-apply styles after SVGs are loaded
+                });
+        });
+    }
+
+    // Init
+    applyToControls(settings);
+    renderPoster();
+    loadPhoto();
+    loadElevation();
+    loadInlineSvgs();
+})();
+</script>
+{% endblock %}
