@@ -4,7 +4,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Limelight&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&display=swap" rel="stylesheet">
 <style>
     .poster-container {
         position: relative;
@@ -12,6 +12,7 @@
         background: #333;
         max-width: 2048px;
         box-sizing: border-box;
+        border-radius: 0 !important;
     }
     .poster-container * {
         margin: 0;
@@ -47,28 +48,111 @@
         -webkit-text-stroke: 0px black;
         paint-order: stroke fill;
     }
+     .draggable-box {
+         position: absolute;
+         z-index: 10;
+         transition: box-shadow 0.2s, border-color 0.2s;
+         cursor: grab;
+         border: 2px solid transparent;
+         border-radius: 4px;
+         box-sizing: border-box;
+         user-select: none;
+         pointer-events: auto;
+         min-width: 60px;
+         min-height: 24px;
+         overflow: hidden;
+     }
+     .resize-handle {
+         position: absolute;
+         right: 0; bottom: 0;
+         width: 22px; height: 22px;
+         background: rgba(14, 165, 233, 0.92);
+         border-radius: 0 0 2px 0;
+         cursor: nwse-resize;
+         z-index: 20;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         /* shadow removed as requested */
+         border-top: 1px solid rgba(255,255,255,0.28);
+         border-left: 1px solid rgba(255,255,255,0.18);
+     }
+     /* Three diagonal dots — classic resize indicator (adjusted positions for smaller control) */
+     .resize-handle::before,
+     .resize-handle::after,
+     .resize-handle span {
+         content: '';
+         display: block;
+         position: absolute;
+         border-radius: 50%;
+         background: #fff;
+         opacity: 0.95;
+     }
+     .resize-handle::before { width: 4px; height: 4px; right: 4px;  bottom: 10px; }
+     .resize-handle::after  { width: 4px; height: 4px; right: 4px;  bottom: 4px;  }
+     .resize-handle span    { width: 4px; height: 4px; right: 10px; bottom: 4px;  pointer-events: none; }
+     .draggable-box.resizing {
+         cursor: nwse-resize !important;
+         opacity: 0.85;
+     }
+     .hide-drag-ui .resize-handle {
+         display: none !important;
+     }
+    .draggable-box.drag-hover {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px #38bdf8, 0 0 10px 2px #38bdf8;
+        animation: border-flash 1s infinite alternate;
+        cursor: move;
+    }
+    @keyframes border-flash {
+        0% { border-color: #38bdf8; }
+        100% { border-color: #0ea5e9; }
+    }
+    .draggable-box.dragging {
+        opacity: 0.7;
+        cursor: grabbing;
+        z-index: 100;
+    }
+    .hide-drag-ui .draggable-box {
+        /* Keep the border width to avoid layout shift when hiding the UI;
+           only make it transparent so the visual chrome is hidden but the
+           element's size doesn't change. */
+        border: 2px solid transparent !important;
+        box-shadow: none !important;
+        cursor: default !important;
+    }
+     .poster-elevation {
+         width: 100%;
+         height: 180px;
+         display: flex;
+         align-items: stretch;
+     }
+     #boxElevation {
+         height: 180px;
+     }
+     #boxElevation .poster-elevation {
+         height: 180px;
+     }
+     #elevationChart {
+         width: 100%;
+         height: 180px;
+         display: block;
+     }
+
     .poster-stats {
         display: flex;
-        gap: 24px;
-        flex-wrap: wrap;
+        flex-direction: row;
+        flex-wrap: nowrap;
         align-items: center;
-        -webkit-text-stroke: 0px black;
-        paint-order: stroke fill;
+        gap: 16px;
+        white-space: nowrap;
     }
     .poster-stats .stat-item {
-        display: flex;
+        display: inline-flex;
+        flex-direction: row;
         align-items: center;
-        gap: 6px;
-        font-weight: 600;
-    }
-    .poster-stats .stat-item .stat-icon {
-        /* inline-flex is not reliably supported by html2canvas;
-           inline-block + vertical-align produces identical browser
-           rendering AND works in the canvas capture. */
-        display: inline-block;
-        vertical-align: middle;
-        line-height: 0;   /* collapses the inline box so the SVG
-                             fills exactly its own height */
+        gap: 4px;
+        white-space: nowrap;
     }
     .poster-stats .stat-item .stat-icon svg {
         display: block;   /* removes the inline whitespace gap below the SVG */
@@ -78,10 +162,6 @@
     /* Keep stat text vertically centred alongside the icon */
     .poster-stats .stat-item > span:not(.stat-icon) {
         vertical-align: middle;
-    }
-    .poster-elevation {
-        width: 100%;
-        height: 30%;
     }
     .control-box {
         border: 1px solid #e5e7eb;
@@ -115,11 +195,13 @@
     <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ activity.get('name', 'Activity') }}</p>
 </div>
 
-<div class="flex flex-col lg:flex-row gap-6">
+     <div class="flex flex-col lg:flex-row gap-6">
     <!-- Controls -->
     <div class="w-full lg:w-80 flex-shrink-0">
         <!-- Action Buttons -->
         <div class="flex gap-2 mb-4 flex-wrap">
+            <button id="resetStylesBtn" class="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm font-medium transition h-10">Reset Styles</button>
+            <button id="resetLayoutBtn" class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium transition h-10">Reset Layout</button>
             <button id="savePngBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition">Save as PNG</button>
             <button id="loadStravaBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition">Load from Strava</button>
             <label class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer">
@@ -165,6 +247,7 @@
                 <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                     <option value="Roboto">Roboto</option>
                     <option value="Inter">Inter</option>
+                    <option value="Limelight">Limelight</option>
                     <option value="Roboto Condensed">Roboto Condensed</option>
                     <option value="PT Sans Narrow">PT Sans Narrow</option>
                     <option value="PT Sans">PT Sans</option>
@@ -220,6 +303,7 @@
                 <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                     <option value="Roboto">Roboto</option>
                     <option value="Inter">Inter</option>
+                    <option value="Limelight">Limelight</option>
                     <option value="Roboto Condensed">Roboto Condensed</option>
                     <option value="PT Sans Narrow">PT Sans Narrow</option>
                     <option value="PT Sans">PT Sans</option>
@@ -281,40 +365,47 @@
 
     <!-- Poster Preview -->
     <div class="flex-1">
-        <div id="posterContainer" class="poster-container rounded-lg shadow-lg" style="aspect-ratio: 4/3;">
+        <div id="posterContainer" class="poster-container shadow-lg" style="aspect-ratio: 4/3;">
             <img id="posterBg" class="poster-bg" src="" alt="" style="display:none;">
-            <div class="poster-overlay">
-                <!-- Activity Name -->
-                <div id="posterTitle" class="poster-title">{{ activity.get('name', '') }}</div>
-
-                <!-- Stats -->
-                <div id="posterStats" class="poster-stats">
-                    <div class="stat-item">
-                        <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
-                        <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
-                        <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
-                        <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
-                        <span id="statTime">
-                            {% set s = activity.get('moving_time', 0)|int %}
-                            {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Elevation Chart -->
-                <div id="posterElevation" class="poster-elevation">
-                    <canvas id="elevationChart" style="width:100%;height:100%;"></canvas>
-                </div>
-            </div>
+             <div class="poster-overlay" id="posterOverlay">
+                 <!-- Activity Name -->
+                   <div class="draggable-box" id="boxTitle">
+                       <div id="posterTitle" class="poster-title">{{ activity.get('name', '') }}</div>
+                       <div class="resize-handle" title="Drag to resize"><span></span></div>
+                   </div>
+                  <!-- Stats -->
+                  <div class="draggable-box" id="boxStats">
+                      <div id="posterStats" class="poster-stats">
+                          <div class="stat-item">
+                              <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
+                              <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
+                          </div>
+                          <div class="stat-item">
+                              <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
+                              <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
+                          </div>
+                          <div class="stat-item">
+                              <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
+                              <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
+                          </div>
+                          <div class="stat-item">
+                              <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
+                              <span id="statTime">
+                                  {% set s = activity.get('moving_time', 0)|int %}
+                                  {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
+                              </span>
+                          </div>
+                      </div>
+                      <div class="resize-handle" title="Drag to resize"><span></span></div>
+                  </div>
+                  <!-- Elevation Chart -->
+                   <div class="draggable-box" id="boxElevation">
+                       <div id="posterElevation" class="poster-elevation">
+                           <canvas id="elevationChart" style="width:100%;height:100%;"></canvas>
+                       </div>
+                       <div class="resize-handle" title="Drag to resize"><span></span></div>
+                   </div>
+             </div>
         </div>
     </div>
 </div>
@@ -384,136 +475,114 @@
         dimensionsEl.textContent = `Poster dimensions: ${width} × ${height}`;
     }
 
-    function renderPoster() {
-        const container = document.getElementById('posterContainer');
-
-        // Compute exact height from posterSize and aspect ratio
-        const ratioMatch = settings.ratio.match(/(\d+)\/(\d+)/);
-        let posterHeight = settings.posterSize;
-        if (ratioMatch) {
-            const rw = parseInt(ratioMatch[1]);
-            const rh = parseInt(ratioMatch[2]);
-            posterHeight = Math.round(settings.posterSize * rh / rw);
-        }
-
-        // Set exact dimensions so WYSIWYG preview matches export output.
-        // If poster doesn't fit in viewport, scrollbars will appear naturally.
-        container.style.width = settings.posterSize + 'px';
-        container.style.height = posterHeight + 'px';
-        container.style.maxWidth = 'none';
-        container.style.maxHeight = 'none';
-        container.style.aspectRatio = settings.ratio;
-
-        // Update dimensions display
-        updateDimensionsDisplay(settings.posterSize, posterHeight);
-
-        // Title — use -webkit-text-stroke for proper outline
-        const titleEl = document.getElementById('posterTitle');
-        titleEl.style.fontFamily = `'${settings.titleFont}', sans-serif`;
-        titleEl.style.fontSize = settings.titleFontSize + 'px';
-        titleEl.style.color = settings.titleColor;
-        titleEl.style.webkitTextStroke = settings.titleOutlineWidth > 0
-            ? settings.titleOutlineWidth + 'px ' + settings.titleOutlineColor
-            : '0px transparent';
-        titleEl.style.paintOrder = 'stroke fill';
-        titleEl.style.opacity = settings.titleOpacity / 100;
-        titleEl.style.textAlign = settings.titleAlign || 'left';
-
-        // Stats — use -webkit-text-stroke for proper outline
-        const statsEl = document.getElementById('posterStats');
-        statsEl.style.fontFamily = `'${settings.statsFont}', sans-serif`;
-        statsEl.style.fontSize = settings.statsFontSize + 'px';
-        statsEl.style.color = settings.statsColor;
-        statsEl.style.webkitTextStroke = settings.statsOutlineWidth > 0
-            ? settings.statsOutlineWidth + 'px ' + settings.statsOutlineColor
-            : '0px transparent';
-        statsEl.style.paintOrder = 'stroke fill';
-        statsEl.style.opacity = settings.statsOpacity / 100;
-        // SVG icons: stroke with statsColor, simple outline via filter if enabled
-        statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
-            const size = settings.statsFontSize + 'px';
-            const svg = iconSpan.querySelector('svg');
-            if (svg) {
-                svg.style.width = size;
-                svg.style.height = size;
-                svg.style.overflow = 'visible';
-
-                // Apply main stroke color to all elements
-                svg.querySelectorAll('*').forEach(el => {
-                    el.style.fill = 'none';
-                    el.style.stroke = settings.statsColor;
-                    el.style.strokeWidth = '2';
-                    el.style.strokeLinecap = 'round';
-                    el.style.strokeLinejoin = 'round';
-                });
-
-
-                // Apply opacity
-                svg.style.opacity = settings.statsOpacity / 100;
-            }
-        });
-
-        // Elevation
-        const elevEl = document.getElementById('posterElevation');
-        elevEl.style.opacity = settings.elevOpacity / 100;
-
-        // --- Single line only logic for activity name ---
-        const singleLineCheckbox = document.getElementById('singleLineCheckbox');
-
-        // Add to settings object for persistence and PNG export
-        if (settings.singleLine === undefined) settings.singleLine = true;
-
-        function applySingleLineMode(singleLine) {
-            if (!titleEl) return;
-            if (singleLine) {
-                titleEl.style.whiteSpace = 'nowrap';
-                titleEl.style.overflow = 'hidden';
-                titleEl.style.textOverflow = 'ellipsis';
-            } else {
-                titleEl.style.whiteSpace = 'normal';
-                titleEl.style.overflow = 'visible';
-                titleEl.style.textOverflow = 'unset';
-            }
-        }
-
-        // On checkbox change
-        if (singleLineCheckbox) {
-            singleLineCheckbox.addEventListener('change', function() {
-                settings.singleLine = this.checked;
-                saveSettings(settings);
-                applySingleLineMode(this.checked);
-            });
-        }
-
-        // On page load, restore setting
-        document.addEventListener('DOMContentLoaded', function() {
-            if (singleLineCheckbox) {
-                singleLineCheckbox.checked = settings.singleLine !== false;
-                applySingleLineMode(singleLineCheckbox.checked);
-            }
-        });
-
-        // Also apply in renderPoster so PNG export is correct
-        const origRenderPoster = renderPoster;
-        renderPoster = function() {
-            origRenderPoster();
-            applySingleLineMode(settings.singleLine !== false);
-        };
-
-        // --- Text Align logic for activity name ---
-        if (settings.titleAlign !== 'center' && settings.titleAlign !== 'right') settings.titleAlign = 'left';
-        const titleAlignSelect = document.getElementById('titleAlign');
-        if (titleAlignSelect) {
-            titleAlignSelect.value = settings.titleAlign;
-            titleAlignSelect.addEventListener('change', function() {
-                settings.titleAlign = this.value;
-                saveSettings(settings);
-                renderPoster();
-            });
-        }
-
-        renderElevationChart();
-    }
+     function renderPoster() {
+         const container = document.getElementById('posterContainer');
+         // Compute exact height from posterSize and aspect ratio
+         const ratioMatch = settings.ratio.match(/(\d+)\/(\d+)/);
+         let posterHeight = settings.posterSize;
+         if (ratioMatch) {
+             const rw = parseInt(ratioMatch[1]);
+             const rh = parseInt(ratioMatch[2]);
+             posterHeight = Math.round(settings.posterSize * rh / rw);
+         }
+         // Set exact dimensions so WYSIWYG preview matches export output.
+         container.style.width = settings.posterSize + 'px';
+         container.style.height = posterHeight + 'px';
+         container.style.maxWidth = 'none';
+         container.style.maxHeight = 'none';
+         container.style.aspectRatio = settings.ratio;
+         // Update dimensions display
+         updateDimensionsDisplay(settings.posterSize, posterHeight);
+         // Title — use -webkit-text-stroke for proper outline
+         const titleEl = document.getElementById('posterTitle');
+         titleEl.style.fontFamily = `'${settings.titleFont}', sans-serif`;
+         titleEl.style.fontSize = settings.titleFontSize + 'px';
+         titleEl.style.color = settings.titleColor;
+         titleEl.style.webkitTextStroke = settings.titleOutlineWidth > 0
+             ? settings.titleOutlineWidth + 'px ' + settings.titleOutlineColor
+             : '0px transparent';
+         titleEl.style.paintOrder = 'stroke fill';
+         titleEl.style.opacity = settings.titleOpacity / 100;
+         titleEl.style.textAlign = settings.titleAlign || 'left';
+         // Stats — use -webkit-text-stroke for proper outline
+         const statsEl = document.getElementById('posterStats');
+         statsEl.style.fontFamily = `'${settings.statsFont}', sans-serif`;
+         statsEl.style.fontSize = settings.statsFontSize + 'px';
+         statsEl.style.color = settings.statsColor;
+         statsEl.style.webkitTextStroke = settings.statsOutlineWidth > 0
+             ? settings.statsOutlineWidth + 'px ' + settings.statsOutlineColor
+             : '0px transparent';
+         statsEl.style.paintOrder = 'stroke fill';
+         statsEl.style.opacity = settings.statsOpacity / 100;
+         // SVG icons: stroke with statsColor, simple outline via filter if enabled
+         statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
+             const size = settings.statsFontSize + 'px';
+             const svg = iconSpan.querySelector('svg');
+             if (svg) {
+                 svg.style.width = size;
+                 svg.style.height = size;
+                 svg.style.overflow = 'visible';
+                 // Apply main stroke color to all elements
+                 svg.querySelectorAll('*').forEach(el => {
+                     el.style.fill = 'none';
+                     el.style.stroke = settings.statsColor;
+                     el.style.strokeWidth = '2';
+                     el.style.strokeLinecap = 'round';
+                     el.style.strokeLinejoin = 'round';
+                 });
+                 // Apply opacity
+                 svg.style.opacity = settings.statsOpacity / 100;
+             }
+         });
+         // Elevation
+         const elevEl = document.getElementById('posterElevation');
+         elevEl.style.opacity = settings.elevOpacity / 100;
+         // --- Single line only logic for activity name ---
+         const singleLineCheckbox = document.getElementById('singleLineCheckbox');
+         if (settings.singleLine === undefined) settings.singleLine = true;
+         function applySingleLineMode(singleLine) {
+             if (!titleEl) return;
+             if (singleLine) {
+                 titleEl.style.whiteSpace = 'nowrap';
+                 titleEl.style.overflow = 'hidden';
+                 titleEl.style.textOverflow = 'ellipsis';
+             } else {
+                 titleEl.style.whiteSpace = 'normal';
+                 titleEl.style.overflow = 'visible';
+                 titleEl.style.textOverflow = 'unset';
+             }
+         }
+         if (singleLineCheckbox) {
+             singleLineCheckbox.addEventListener('change', function() {
+                 settings.singleLine = this.checked;
+                 saveSettings(settings);
+                 applySingleLineMode(this.checked);
+             });
+         }
+         document.addEventListener('DOMContentLoaded', function() {
+             if (singleLineCheckbox) {
+                 singleLineCheckbox.checked = settings.singleLine !== false;
+                 applySingleLineMode(singleLineCheckbox.checked);
+             }
+         });
+         const origRenderPoster = renderPoster;
+         renderPoster = function() {
+             origRenderPoster();
+             applySingleLineMode(settings.singleLine !== false);
+         };
+         // --- Text Align logic for activity name ---
+         if (settings.titleAlign !== 'center' && settings.titleAlign !== 'right') settings.titleAlign = 'left';
+         const titleAlignSelect = document.getElementById('titleAlign');
+         if (titleAlignSelect) {
+             titleAlignSelect.value = settings.titleAlign;
+             titleAlignSelect.addEventListener('change', function() {
+                 settings.titleAlign = this.value;
+                 saveSettings(settings);
+                 renderPoster();
+             });
+         }
+         renderElevationChart();
+     }
 
     // Elevation chart
     let elevChart = null;
@@ -613,21 +682,42 @@
     });
 
     // Save as PNG — server-side Playwright render
-    // The current settings object is POSTed to the server; Playwright loads
-    // the poster page in a headless browser with those settings pre-injected
-    // into localStorage, waits for every async element (fonts, icons, photo,
-    // elevation chart) to finish painting, then streams a 2×-resolution PNG
-    // back as a file download.
+    // The payload now includes both `settings` and the current `positions` so
+    // the headless renderer reproduces the user's last layout.
+    function saveCurrentPositionsForExport() {
+        const container = document.getElementById('posterContainer');
+        if (!container) return;
+        const pos = {};
+        DRAGGABLES.forEach(({ boxId }) => {
+            const box = document.getElementById(boxId);
+            if (!box) return;
+            const leftPx = parseInt(box.style.left || box.offsetLeft || 0, 10);
+            const topPx  = parseInt(box.style.top  || box.offsetTop  || 0, 10);
+            pos[boxId] = {
+                left:  (leftPx + box.offsetWidth / 2) / container.offsetWidth,
+                top:   (topPx  + box.offsetHeight / 2) / container.offsetHeight,
+                width: box.offsetWidth / container.offsetWidth
+            };
+            if (box.offsetHeight) pos[boxId].height = box.offsetHeight / container.offsetHeight;
+        });
+        savePositions(pos);
+    }
+
     document.getElementById('savePngBtn').addEventListener('click', async function() {
         const btn = this;
         btn.disabled    = true;
         btn.textContent = 'Saving…';
 
+        // Hide drag UI and persist latest positions before export
+        setDragUiHidden(true);
         try {
+            saveCurrentPositionsForExport();
+            const payload = { settings: settings, positions: loadPositions() };
+
             const resp = await fetch(`/api/poster/export/${ACTIVITY_ID}`, {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify(settings)
+                body:    JSON.stringify(payload)
             });
 
             if (!resp.ok) {
@@ -649,6 +739,7 @@
         } catch (e) {
             alert('Export failed: ' + e.message);
         } finally {
+            setDragUiHidden(false);
             btn.disabled    = false;
             btn.textContent = 'Save as PNG';
         }
@@ -705,6 +796,204 @@
     loadPhoto();
     loadElevation();
     loadInlineSvgs();
-})();
+    // --- Draggable poster elements ---
+     const DRAGGABLES = [
+         { boxId: 'boxTitle',     default: { left: 0.5, top: 0.16, width: 0.6 } },
+         { boxId: 'boxStats',     default: { left: 0.5, top: 0.5,  width: 0.4 } },
+         { boxId: 'boxElevation', default: { left: 0.5, top: 0.92, width: 0.9 } },
+     ];
+    const POS_KEY = id => `posterPositions_${ACTIVITY_ID}`;
+    function loadPositions() {
+        try {
+            const raw = localStorage.getItem(POS_KEY());
+            if (raw) return JSON.parse(raw);
+        } catch(e) {}
+        return {};
+    }
+    function savePositions(pos) {
+        localStorage.setItem(POS_KEY(), JSON.stringify(pos));
+    }
+     function applyBoxPositions() {
+         const container = document.getElementById('posterContainer');
+         const w = container.offsetWidth, h = container.offsetHeight;
+         const pos = loadPositions();
+         DRAGGABLES.forEach(({ boxId, default: def }) => {
+             const box = document.getElementById(boxId);
+             if (!box) return;
+             let p = pos[boxId];
+             if (!p) p = {};
+             // Default: center X, Y as percent of container
+             const left  = (p.left  !== undefined ? p.left  : def.left);
+             const top   = (p.top   !== undefined ? p.top   : def.top);
+             const width = (p.width !== undefined ? p.width : def.width);
+             const height = (p.height !== undefined ? p.height : def.height);
+             // Convert percent to px
+             const x = Math.round(left * w - box.offsetWidth / 2);
+             const y = Math.round(top  * h - box.offsetHeight / 2);
+             box.style.left = x + 'px';
+             box.style.top  = y + 'px';
+             // Apply width when available
+             if (width !== undefined) {
+                 box.style.width = Math.round(width * w) + 'px';
+             } else {
+                 box.style.width = '';
+             }
+             // Apply height when available (only if explicitly saved by user resize)
+             if (height !== undefined) {
+                 box.style.height = Math.round(height * h) + 'px';
+             } else {
+                 box.style.height = '';
+             }
+         });
+     }
+     function enableDraggableBoxes() {
+         const container = document.getElementById('posterContainer');
+         const pos = loadPositions();
+         DRAGGABLES.forEach(({ boxId, default: def }) => {
+             const box = document.getElementById(boxId);
+             if (!box) return;
+              let dragging = false, resizing = false, offsetX = 0, offsetY = 0, startW = 0, startH = 0;
+             // Drag logic
+             box.addEventListener('mouseenter', () => {
+                 if (!dragging && !resizing) box.classList.add('drag-hover');
+             });
+             box.addEventListener('mouseleave', () => {
+                 if (!dragging && !resizing) box.classList.remove('drag-hover');
+             });
+             box.addEventListener('mousedown', e => {
+                 // Only drag if not on resize handle
+                 if (e.target.classList.contains('resize-handle')) return;
+                 dragging = true;
+                 box.classList.add('dragging');
+                 box.classList.remove('drag-hover');
+                 const rect = box.getBoundingClientRect();
+                 const contRect = container.getBoundingClientRect();
+                 offsetX = e.clientX - rect.left;
+                 offsetY = e.clientY - rect.top;
+                 document.body.style.userSelect = 'none';
+                 function onMove(ev) {
+                     if (!dragging) return;
+                     let x = ev.clientX - contRect.left - offsetX;
+                     let y = ev.clientY - contRect.top - offsetY;
+                     // Clamp within container
+                     x = Math.max(0, Math.min(x, container.offsetWidth - box.offsetWidth));
+                     y = Math.max(0, Math.min(y, container.offsetHeight - box.offsetHeight));
+                     box.style.left = x + 'px';
+                     box.style.top = y + 'px';
+                 }
+                  function onUp(ev) {
+                      if (!dragging) return;
+                      dragging = false;
+                      box.classList.remove('dragging');
+                      document.removeEventListener('mousemove', onMove);
+                      document.removeEventListener('mouseup', onUp);
+                      document.body.style.userSelect = '';
+                      // Save position and current width as percent of container
+                      let x = parseInt(box.style.left, 10) + box.offsetWidth / 2;
+                      let y = parseInt(box.style.top, 10) + box.offsetHeight / 2;
+                      if (!pos[boxId]) pos[boxId] = {};
+                       pos[boxId].left  = x / container.offsetWidth;
+                       pos[boxId].top   = y / container.offsetHeight;
+                       pos[boxId].width = box.offsetWidth / container.offsetWidth;
+                       if (box.style.height) pos[boxId].height = box.offsetHeight / container.offsetHeight;
+                       savePositions(pos);
+                  }
+                 document.addEventListener('mousemove', onMove);
+                 document.addEventListener('mouseup', onUp);
+             });
+              // Resize logic — both horizontal and vertical
+              const handle = box.querySelector('.resize-handle');
+              if (handle) {
+                  handle.addEventListener('mousedown', e => {
+                      e.stopPropagation();
+                      resizing = true;
+                      box.classList.add('resizing');
+                      startW = box.offsetWidth;
+                      startH = box.offsetHeight;
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      document.body.style.userSelect = 'none';
+                      function onMove(ev) {
+                          if (!resizing) return;
+                          let dx = ev.clientX - startX;
+                          let dy = ev.clientY - startY;
+                          let newW = Math.max(60, Math.min(startW + dx, container.offsetWidth));
+                          let newH = Math.max(24, Math.min(startH + dy, container.offsetHeight));
+                          box.style.width  = newW + 'px';
+                          box.style.height = newH + 'px';
+                      }
+                      function onUp(ev) {
+                          if (!resizing) return;
+                          resizing = false;
+                          box.classList.remove('resizing');
+                          document.removeEventListener('mousemove', onMove);
+                          document.removeEventListener('mouseup', onUp);
+                          document.body.style.userSelect = '';
+                          if (!pos[boxId]) pos[boxId] = {};
+                          pos[boxId].width  = box.offsetWidth  / container.offsetWidth;
+                          pos[boxId].height = box.offsetHeight / container.offsetHeight;
+                          savePositions(pos);
+                      }
+                      document.addEventListener('mousemove', onMove);
+                      document.addEventListener('mouseup', onUp);
+                  });
+              }
+         });
+     }
+     function resetBoxPositions() {
+         const pos = {};
+         DRAGGABLES.forEach(({ boxId, default: def }) => {
+             pos[boxId] = { left: def.left, top: def.top, width: def.width };
+             // height is intentionally omitted — boxes revert to auto/content height
+         });
+         savePositions(pos);
+         // Also clear inline height so boxes snap back to content size
+         DRAGGABLES.forEach(({ boxId }) => {
+             const box = document.getElementById(boxId);
+             if (box) box.style.height = '';
+         });
+         applyBoxPositions();
+     }
+     function resetStyles() {
+         localStorage.removeItem(LS_KEY);
+         settings = loadSettings();
+         applyToControls(settings);
+         renderPoster();
+     }
+    // On poster resize, re-apply positions
+    function onResizeApplyPositions() {
+        applyBoxPositions();
+    }
+    window.addEventListener('resize', onResizeApplyPositions);
+    // After renderPoster (which sets container size), re-apply positions
+    const origRenderPoster = renderPoster;
+    renderPoster = function() {
+        origRenderPoster();
+        applyBoxPositions();
+    };
+    // On DOMContentLoaded, enable drag
+    document.addEventListener('DOMContentLoaded', function() {
+        enableDraggableBoxes();
+        applyBoxPositions();
+    });
+    // Hide drag UI for PNG export
+    function setDragUiHidden(hidden) {
+        const overlay = document.getElementById('posterOverlay');
+        if (overlay) {
+            if (hidden) overlay.classList.add('hide-drag-ui');
+            else overlay.classList.remove('hide-drag-ui');
+        }
+    }
+    // (export flow handled inline in the Save as PNG handler)
+     // Reset buttons
+     document.getElementById('resetLayoutBtn').addEventListener('click', function() {
+         resetBoxPositions();
+     });
+     document.getElementById('resetStylesBtn').addEventListener('click', function() {
+         resetStyles();
+         resetBoxPositions();
+     });
+     // ...existing code...
+    })();
 </script>
 {% endblock %}

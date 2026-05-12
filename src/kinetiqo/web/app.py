@@ -1889,15 +1889,18 @@ def poster_export(activity_id):
                                  'Run: pip install playwright && playwright install chromium'}), 500
 
     settings_payload = request.get_json(silent=True) or {}
+    # Support both legacy payload (settings directly) and new payload
+    # { settings: {...}, positions: {...} }
+    settings_obj = settings_payload.get('settings', settings_payload)
 
     # ── Determine poster dimensions from settings ─────────────────────────
-    poster_width = int(settings_payload.get('posterSize', 1280))
+    poster_width = int(settings_obj.get('posterSize', 1280))
     # Clamp to a sensible range to prevent abuse
     poster_width = max(800, min(poster_width, 2048))
 
     # Parse the aspect ratio string (e.g. "4/3", "16/9", "1/1") to compute
     # the poster container's rendered height so the viewport is tall enough.
-    ratio_str = settings_payload.get('ratio', '4/3')
+    ratio_str = settings_obj.get('ratio', '4/3')
     try:
         rw, rh = (int(x) for x in ratio_str.split('/'))
         poster_height = int(poster_width * rh / rw)
@@ -1975,14 +1978,20 @@ def poster_export(activity_id):
                 context.add_cookies(cookies_for_playwright)
 
             # Pre-populate localStorage BEFORE the page script runs so that
-            # loadSettings() picks up the user's settings on the very first
-            # renderPoster() call — no need for a second reload or inject.
+            # loadSettings() picks up the user's settings and saved positions
+            # on the very first renderPoster() call — no need for a second
+            # reload or manual injection. Both `settings` and `positions` are
+            # optional in the payload; fall back to empty objects when missing.
             context.add_init_script(f"""
                 (function() {{
                     try {{
                         window.localStorage.setItem(
                             'poster_settings_v2',
-                            JSON.stringify({_json.dumps(settings_payload)})
+                            JSON.stringify({_json.dumps(settings_payload.get('settings', {}))})
+                        );
+                        window.localStorage.setItem(
+                            'posterPositions_{activity_id}',
+                            JSON.stringify({_json.dumps(settings_payload.get('positions', {}))})
                         );
                     }} catch(e) {{}}
                 }})();
@@ -2076,6 +2085,11 @@ def poster_export(activity_id):
                 })();
             """)
             page.wait_for_timeout(200)
+
+            # ── Ensure drag UI is hidden in the headless page so the resize
+            # handles (blue boxes) are not visible in the exported PNG.
+            page.evaluate("(function(){ var o = document.getElementById('posterOverlay'); if (o) o.classList.add('hide-drag-ui'); })();")
+            page.wait_for_timeout(80)
 
             # ── Screenshot only the poster container ──────────────────────────
             # element.screenshot() crops to the element's bounding box,

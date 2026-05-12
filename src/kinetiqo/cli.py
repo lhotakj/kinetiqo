@@ -136,7 +136,7 @@ def cli(ctx, database):
             logger.info(f"DB Version: {db_version}")
 
             repo.initialize_schema()
-            _load_api_keys(config)
+            # _load_api_keys(config)
 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}", exc_info=True)

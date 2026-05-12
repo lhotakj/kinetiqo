@@ -52,8 +52,8 @@ class Config:
     athlete_weight: float = 0.0  # kg — set via ATHLETE_WEIGHT env var for VO2max estimation
 
     # Map API keys
-    mapy_api_key: str = ""
-    thunderforest_api_key: str = ""
+    mapy_api_key: str = os.getenv("MAPY_API_KEY", "")
+    thunderforest_api_key: str = os.getenv("THUNDERFOREST_API_KEY", "")
 
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
