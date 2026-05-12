@@ -1892,6 +1892,8 @@ def poster_export(activity_id):
     # Support both legacy payload (settings directly) and new payload
     # { settings: {...}, positions: {...} }
     settings_obj = settings_payload.get('settings', settings_payload)
+    positions_payload = settings_payload.get('positions', {}) if isinstance(settings_payload, dict) else {}
+    logger.info(f"Poster export request: activity={activity_id}, settings_keys={list(settings_obj.keys()) if isinstance(settings_obj, dict) else 'N/A'}, positions_provided={len(positions_payload) if isinstance(positions_payload, dict) else 0}")
 
     # ── Determine poster dimensions from settings ─────────────────────────
     poster_width = int(settings_obj.get('posterSize', 1280))

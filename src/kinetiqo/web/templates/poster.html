@@ -411,14 +411,25 @@
 </div>
 
 <script>
-(function() {
+    (function() {
+        // Global diagnostics: capture uncaught errors and unhandled promise rejections
+        window.addEventListener('error', function (ev) {
+            try {
+                console.error('Unhandled error (captured):', ev.message, ev.filename + ':' + ev.lineno, ev.error || ev);
+            } catch (e) {}
+        });
+        window.addEventListener('unhandledrejection', function (ev) {
+            try {
+                console.warn('Unhandled promise rejection (captured):', ev.reason);
+            } catch (e) {}
+        });
     const ACTIVITY_ID = '{{ activity.get("id", "") }}';
     const LS_KEY = 'poster_settings_v2';
 
     // Defaults
     const DEFAULTS = {
         posterSize: 1280, ratio: '4/3',
-        titleFont: 'Roboto', titleFontSize: 30, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
+        titleFont: 'Roboto', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
         statsFont: 'Roboto', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
         singleLine: true
@@ -537,39 +548,35 @@
          // Elevation
          const elevEl = document.getElementById('posterElevation');
          elevEl.style.opacity = settings.elevOpacity / 100;
-         // --- Single line only logic for activity name ---
-         const singleLineCheckbox = document.getElementById('singleLineCheckbox');
-         if (settings.singleLine === undefined) settings.singleLine = true;
-         function applySingleLineMode(singleLine) {
-             if (!titleEl) return;
-             if (singleLine) {
-                 titleEl.style.whiteSpace = 'nowrap';
-                 titleEl.style.overflow = 'hidden';
-                 titleEl.style.textOverflow = 'ellipsis';
-             } else {
-                 titleEl.style.whiteSpace = 'normal';
-                 titleEl.style.overflow = 'visible';
-                 titleEl.style.textOverflow = 'unset';
-             }
-         }
-         if (singleLineCheckbox) {
-             singleLineCheckbox.addEventListener('change', function() {
-                 settings.singleLine = this.checked;
-                 saveSettings(settings);
-                 applySingleLineMode(this.checked);
-             });
-         }
-         document.addEventListener('DOMContentLoaded', function() {
-             if (singleLineCheckbox) {
-                 singleLineCheckbox.checked = settings.singleLine !== false;
-                 applySingleLineMode(singleLineCheckbox.checked);
-             }
-         });
-         const origRenderPoster = renderPoster;
-         renderPoster = function() {
-             origRenderPoster();
-             applySingleLineMode(settings.singleLine !== false);
-         };
+          // --- Single line only logic for activity name ---
+          const singleLineCheckbox = document.getElementById('singleLineCheckbox');
+          if (settings.singleLine === undefined) settings.singleLine = true;
+          function applySingleLineMode(singleLine) {
+              if (!titleEl) return;
+              if (singleLine) {
+                  titleEl.style.whiteSpace = 'nowrap';
+                  titleEl.style.overflow = 'hidden';
+                  titleEl.style.textOverflow = 'ellipsis';
+              } else {
+                  titleEl.style.whiteSpace = 'normal';
+                  titleEl.style.overflow = 'visible';
+                  titleEl.style.textOverflow = 'unset';
+              }
+          }
+          // Bind the checkbox once to avoid duplicate listeners when renderPoster runs repeatedly
+          if (singleLineCheckbox && !singleLineCheckbox._bound) {
+              singleLineCheckbox._bound = true;
+              singleLineCheckbox.addEventListener('change', function() {
+                  settings.singleLine = this.checked;
+                  saveSettings(settings);
+                  applySingleLineMode(this.checked);
+              });
+          }
+          // Immediately sync the checkbox state with settings
+          if (singleLineCheckbox) {
+              singleLineCheckbox.checked = settings.singleLine !== false;
+              applySingleLineMode(singleLineCheckbox.checked);
+          }
          // --- Text Align logic for activity name ---
          if (settings.titleAlign !== 'center' && settings.titleAlign !== 'right') settings.titleAlign = 'left';
          const titleAlignSelect = document.getElementById('titleAlign');
@@ -581,7 +588,9 @@
                  renderPoster();
              });
          }
-         renderElevationChart();
+          renderElevationChart();
+          // Ensure positions are applied after rendering (container size may have changed)
+          try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed in renderPoster', e); }
      }
 
     // Elevation chart
@@ -684,23 +693,29 @@
     // Save as PNG — server-side Playwright render
     // The payload now includes both `settings` and the current `positions` so
     // the headless renderer reproduces the user's last layout.
+    // Compute and persist the precise current positions/sizes of all draggable
+    // boxes and return the positions object. Use getBoundingClientRect to avoid
+    // relying on inline style values which may be empty in some browsers.
     function saveCurrentPositionsForExport() {
         const container = document.getElementById('posterContainer');
-        if (!container) return;
+        if (!container) return {};
+        const contRect = container.getBoundingClientRect();
         const pos = {};
         DRAGGABLES.forEach(({ boxId }) => {
             const box = document.getElementById(boxId);
             if (!box) return;
-            const leftPx = parseInt(box.style.left || box.offsetLeft || 0, 10);
-            const topPx  = parseInt(box.style.top  || box.offsetTop  || 0, 10);
+            const rect = box.getBoundingClientRect();
+            const leftPx = rect.left - contRect.left;
+            const topPx  = rect.top  - contRect.top;
             pos[boxId] = {
-                left:  (leftPx + box.offsetWidth / 2) / container.offsetWidth,
-                top:   (topPx  + box.offsetHeight / 2) / container.offsetHeight,
-                width: box.offsetWidth / container.offsetWidth
+                left:  (leftPx + rect.width / 2) / container.offsetWidth,
+                top:   (topPx  + rect.height / 2) / container.offsetHeight,
+                width: rect.width / container.offsetWidth
             };
-            if (box.offsetHeight) pos[boxId].height = box.offsetHeight / container.offsetHeight;
+            if (rect.height) pos[boxId].height = rect.height / container.offsetHeight;
         });
         savePositions(pos);
+        return pos;
     }
 
     document.getElementById('savePngBtn').addEventListener('click', async function() {
@@ -708,11 +723,13 @@
         btn.disabled    = true;
         btn.textContent = 'Saving…';
 
-        // Hide drag UI and persist latest positions before export
-        setDragUiHidden(true);
-        try {
-            saveCurrentPositionsForExport();
-            const payload = { settings: settings, positions: loadPositions() };
+            // Hide drag UI and persist latest positions before export. We take
+            // the computed positions directly from the helper to avoid any
+            // race or key-mismatch with localStorage reads.
+            setDragUiHidden(true);
+            try {
+                const currentPositions = saveCurrentPositionsForExport() || loadPositions();
+                const payload = { settings: settings, positions: currentPositions };
 
             const resp = await fetch(`/api/poster/export/${ACTIVITY_ID}`, {
                 method:  'POST',
@@ -796,22 +813,151 @@
     loadPhoto();
     loadElevation();
     loadInlineSvgs();
+    // If there are no saved positions (first use or corrupted localStorage), apply a sensible default layout
+    try {
+        const raw = localStorage.getItem(POS_KEY());
+        console.debug('init: raw posterPositions key=', POS_KEY(), raw);
+        const existing = loadPositions();
+        console.debug('init: cleaned positions=', existing);
+        if (!raw || Object.keys(existing).length === 0) {
+            // Defer a tick to ensure renderPoster() has set container size
+            console.debug('init: no saved positions found; applying default layout');
+            setTimeout(() => resetBoxPositions(), 0);
+        } else {
+            console.debug('init: found saved positions, applying them');
+            // applyBoxPositions already called in init after enableDraggableBoxes
+        }
+    } catch (e) {
+        console.warn('init: loadPositions failed', e);
+    }
     // --- Draggable poster elements ---
      const DRAGGABLES = [
          { boxId: 'boxTitle',     default: { left: 0.5, top: 0.16, width: 0.6 } },
          { boxId: 'boxStats',     default: { left: 0.5, top: 0.5,  width: 0.4 } },
          { boxId: 'boxElevation', default: { left: 0.5, top: 0.92, width: 0.9 } },
      ];
-    const POS_KEY = id => `posterPositions_${ACTIVITY_ID}`;
+    const POS_KEY = () => `posterPositions_${ACTIVITY_ID}`;
+    // Enable draggable boxes now (script is at end of body so DOM exists). Apply positions
+    // immediately so a reload (F5) restores the last layout. Placed after DRAGGABLES
+    // declaration so the function has the data it needs.
+    try { enableDraggableBoxes(); } catch (e) { console.debug('enableDraggableBoxes failed', e); }
+    try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed on init', e); }
+    function _isNumberBetweenZeroAndOne(v) {
+        return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1;
+    }
+
     function loadPositions() {
         try {
-            const raw = localStorage.getItem(POS_KEY());
-            if (raw) return JSON.parse(raw);
-        } catch(e) {}
-        return {};
+            const key = POS_KEY();
+            const raw = localStorage.getItem(key);
+            if (!raw) return {};
+            let parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch (e) {
+                console.warn('poster positions JSON parse failed, clearing key', key, e);
+                localStorage.removeItem(key);
+                return {};
+            }
+            if (!parsed || typeof parsed !== 'object') return {};
+            // Validate each saved box entry — only keep numeric fractional values in [0,1]
+            const clean = {};
+            Object.keys(parsed).forEach(k => {
+                const v = parsed[k];
+                if (!v || typeof v !== 'object') return;
+                const out = {};
+                if (_isNumberBetweenZeroAndOne(v.left)) out.left = v.left;
+                if (_isNumberBetweenZeroAndOne(v.top)) out.top = v.top;
+                if (_isNumberBetweenZeroAndOne(v.width) && v.width > 0) out.width = v.width;
+                if (_isNumberBetweenZeroAndOne(v.height) && v.height > 0) out.height = v.height;
+                if (Object.keys(out).length) clean[k] = out;
+            });
+            console.debug('loadPositions ->', key, parsed, '=> clean=', clean);
+            return clean;
+        } catch (e) {
+            // Corrupt JSON or localStorage error — remove the key to allow reset and return empty
+            try { localStorage.removeItem(POS_KEY()); } catch (_) {}
+            return {};
+        }
     }
+
     function savePositions(pos) {
-        localStorage.setItem(POS_KEY(), JSON.stringify(pos));
+        try {
+            if (!pos || typeof pos !== 'object') return;
+            const key = POS_KEY();
+            // Sanitize and round floats to 4 decimals to avoid huge JSONs
+            const out = {};
+            Object.keys(pos).forEach(k => {
+                const v = pos[k];
+                if (!v || typeof v !== 'object') return;
+                const entry = {};
+                if (_isNumberBetweenZeroAndOne(v.left)) entry.left = Math.round(v.left * 10000) / 10000;
+                if (_isNumberBetweenZeroAndOne(v.top)) entry.top = Math.round(v.top * 10000) / 10000;
+                if (_isNumberBetweenZeroAndOne(v.width) && v.width > 0) entry.width = Math.round(v.width * 10000) / 10000;
+                if (_isNumberBetweenZeroAndOne(v.height) && v.height > 0) entry.height = Math.round(v.height * 10000) / 10000;
+                if (Object.keys(entry).length) out[k] = entry;
+            });
+            localStorage.setItem(key, JSON.stringify(out));
+            console.debug('savePositions ->', key, out);
+        } catch (e) {
+            // best-effort: don't crash the UI
+            console.warn('Failed to save poster positions', e);
+        }
+    }
+    // Flush current DOM positions synchronously (used on beforeunload to avoid losing
+    // state when the user quickly reloads the page before throttled saves fire).
+    function flushPositionsNow() {
+        try {
+            const container = document.getElementById('posterContainer');
+            if (!container) return;
+            const contRect = container.getBoundingClientRect();
+            const pos = {};
+            DRAGGABLES.forEach(({ boxId }) => {
+                const box = document.getElementById(boxId);
+                if (!box) return;
+                const rect = box.getBoundingClientRect();
+                const leftPx = rect.left - contRect.left;
+                const topPx  = rect.top  - contRect.top;
+                pos[boxId] = {
+                    left:  (leftPx + rect.width / 2) / container.offsetWidth,
+                    top:   (topPx  + rect.height / 2) / container.offsetHeight,
+                    width: rect.width / container.offsetWidth
+                };
+                if (rect.height) pos[boxId].height = rect.height / container.offsetHeight;
+            });
+            savePositions(pos);
+            console.debug('flushPositionsNow -> saved', pos);
+        } catch (e) {
+            console.warn('flushPositionsNow failed', e);
+        }
+    }
+    window.addEventListener('beforeunload', function () { flushPositionsNow(); });
+    // Throttle map for in-flight saves while dragging/resizing so quick
+    // interactions persist frequently but not on every mousemove event.
+    const _saveThrottleMs = 150;
+    const _saveTimers = {}; // keyed by boxId -> timeout id
+    function scheduleSaveBox(boxId) {
+        try {
+            if (!boxId) return;
+            if (_saveTimers[boxId]) clearTimeout(_saveTimers[boxId]);
+            _saveTimers[boxId] = setTimeout(() => {
+                try {
+                    const container = document.getElementById('posterContainer');
+                    const box = document.getElementById(boxId);
+                    if (!container || !box) return;
+                    const current = loadPositions();
+                    const leftPct = parseFloat(box.style.left) / 100;
+                    const topPct  = parseFloat(box.style.top)  / 100;
+                    current[boxId] = current[boxId] || {};
+                    if (!isNaN(leftPct)) current[boxId].left = leftPct;
+                    if (!isNaN(topPct))  current[boxId].top  = topPct;
+                    current[boxId].width  = box.offsetWidth  / container.offsetWidth;
+                    if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
+                    savePositions(current);
+                } catch (e) { console.debug('scheduled save failed', e); }
+                delete _saveTimers[boxId];
+            }, _saveThrottleMs);
+        } catch (e) { /* swallow */ }
     }
      function applyBoxPositions() {
          const container = document.getElementById('posterContainer');
@@ -827,32 +973,42 @@
              const top   = (p.top   !== undefined ? p.top   : def.top);
              const width = (p.width !== undefined ? p.width : def.width);
              const height = (p.height !== undefined ? p.height : def.height);
-             // Convert percent to px
-             const x = Math.round(left * w - box.offsetWidth / 2);
-             const y = Math.round(top  * h - box.offsetHeight / 2);
-             box.style.left = x + 'px';
-             box.style.top  = y + 'px';
-             // Apply width when available
-             if (width !== undefined) {
-                 box.style.width = Math.round(width * w) + 'px';
-             } else {
-                 box.style.width = '';
-             }
-             // Apply height when available (only if explicitly saved by user resize)
-             if (height !== undefined) {
-                 box.style.height = Math.round(height * h) + 'px';
-             } else {
-                 box.style.height = '';
-             }
+                // Apply width/height first so offsetWidth/offsetHeight reflect
+                // the intended size when computing centered left/top positions.
+              if (width !== undefined) {
+                  // Use percent width so it scales with poster size
+                  box.style.width = (width * 100) + '%';
+              } else {
+                  box.style.width = '';
+              }
+              // Apply height when available (only if explicitly saved by user resize)
+              if (height !== undefined) {
+                  box.style.height = (height * 100) + '%';
+              } else {
+                  box.style.height = '';
+              }
+              // Ensure centering transform so left/top represent the box center
+              box.style.transform = 'translate(-50%, -50%)';
+              // Convert percent to px (center the box)
+                      // Use percent left/top so that saved positions are resolution
+                      // independent and consistent with the drag handlers.
+                      const leftPct = left * 100;
+                      const topPct = top * 100;
+                      console.debug('applyBoxPositions', boxId, {left, top, width, height, computed:{leftPct, topPct, boxW:box.offsetWidth,boxH:box.offsetHeight}});
+                      box.style.left = leftPct + '%';
+                      box.style.top  = topPct + '%';
          });
      }
-     function enableDraggableBoxes() {
-         const container = document.getElementById('posterContainer');
-         const pos = loadPositions();
-         DRAGGABLES.forEach(({ boxId, default: def }) => {
-             const box = document.getElementById(boxId);
-             if (!box) return;
-              let dragging = false, resizing = false, offsetX = 0, offsetY = 0, startW = 0, startH = 0;
+        function enableDraggableBoxes() {
+            // Prevent double-binding
+            if (enableDraggableBoxes._bound) return;
+            enableDraggableBoxes._bound = true;
+          const container = document.getElementById('posterContainer');
+          DRAGGABLES.forEach(({ boxId, default: def }) => {
+                try {
+                 const box = document.getElementById(boxId);
+                 if (!box) return;
+                 let dragging = false, resizing = false, offsetX = 0, offsetY = 0, startW = 0, startH = 0;
              // Drag logic
              box.addEventListener('mouseenter', () => {
                  if (!dragging && !resizing) box.classList.add('drag-hover');
@@ -860,9 +1016,10 @@
              box.addEventListener('mouseleave', () => {
                  if (!dragging && !resizing) box.classList.remove('drag-hover');
              });
-             box.addEventListener('mousedown', e => {
-                 // Only drag if not on resize handle
-                 if (e.target.classList.contains('resize-handle')) return;
+              box.addEventListener('mousedown', e => {
+                  try {
+                  // Only drag if not on resize handle (support clicks on inner children via closest)
+                  if (e.target && e.target.closest && e.target.closest('.resize-handle')) return;
                  dragging = true;
                  box.classList.add('dragging');
                  box.classList.remove('drag-hover');
@@ -871,93 +1028,167 @@
                  offsetX = e.clientX - rect.left;
                  offsetY = e.clientY - rect.top;
                  document.body.style.userSelect = 'none';
-                 function onMove(ev) {
-                     if (!dragging) return;
-                     let x = ev.clientX - contRect.left - offsetX;
-                     let y = ev.clientY - contRect.top - offsetY;
-                     // Clamp within container
-                     x = Math.max(0, Math.min(x, container.offsetWidth - box.offsetWidth));
-                     y = Math.max(0, Math.min(y, container.offsetHeight - box.offsetHeight));
-                     box.style.left = x + 'px';
-                     box.style.top = y + 'px';
-                 }
-                  function onUp(ev) {
+                   function onMove(ev) {
                       if (!dragging) return;
-                      dragging = false;
-                      box.classList.remove('dragging');
-                      document.removeEventListener('mousemove', onMove);
-                      document.removeEventListener('mouseup', onUp);
-                      document.body.style.userSelect = '';
-                      // Save position and current width as percent of container
-                      let x = parseInt(box.style.left, 10) + box.offsetWidth / 2;
-                      let y = parseInt(box.style.top, 10) + box.offsetHeight / 2;
-                      if (!pos[boxId]) pos[boxId] = {};
-                       pos[boxId].left  = x / container.offsetWidth;
-                       pos[boxId].top   = y / container.offsetHeight;
-                       pos[boxId].width = box.offsetWidth / container.offsetWidth;
-                       if (box.style.height) pos[boxId].height = box.offsetHeight / container.offsetHeight;
-                       savePositions(pos);
+                      // Compute center coordinates and convert to percent of container
+                      const centerX = ev.clientX - contRect.left - offsetX + box.offsetWidth / 2;
+                      const centerY = ev.clientY - contRect.top - offsetY + box.offsetHeight / 2;
+                      let cx = centerX / container.offsetWidth;
+                      let cy = centerY / container.offsetHeight;
+                      // Clamp so the box stays fully inside the container
+                      const halfW = (box.offsetWidth / 2) / container.offsetWidth;
+                      const halfH = (box.offsetHeight / 2) / container.offsetHeight;
+                      cx = Math.max(halfW, Math.min(1 - halfW, cx));
+                      cy = Math.max(halfH, Math.min(1 - halfH, cy));
+                      box.style.left = (cx * 100) + '%';
+                      box.style.top  = (cy * 100) + '%';
+                      box.style.transform = 'translate(-50%, -50%)';
+                       // Throttled persist while dragging so quick reloads catch recent state
+                       scheduleSaveBox(boxId);
                   }
-                 document.addEventListener('mousemove', onMove);
-                 document.addEventListener('mouseup', onUp);
+                   function onUp(ev) {
+                       if (!dragging) return;
+                       dragging = false;
+                       box.classList.remove('dragging');
+                       document.removeEventListener('mousemove', onMove);
+                       document.removeEventListener('mouseup', onUp);
+                       document.body.style.userSelect = '';
+                       // Read latest positions (avoid closure-stale object), update this box and persist
+                       try {
+                           const current = loadPositions();
+                           // box.style.left/top are percentages like '50%'
+                           const leftPct = parseFloat(box.style.left) / 100;
+                           const topPct  = parseFloat(box.style.top)  / 100;
+                           if (!current[boxId]) current[boxId] = {};
+                           if (!isNaN(leftPct)) current[boxId].left = leftPct;
+                           if (!isNaN(topPct))  current[boxId].top  = topPct;
+                           current[boxId].width = box.offsetWidth / container.offsetWidth;
+                           if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
+                           savePositions(current);
+                       } catch (e) {
+                           console.warn('Failed to persist drag position', e);
+                       }
+                   }
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                  } catch (err) { console.error('drag mousedown handler failed for', boxId, err); }
              });
               // Resize logic — both horizontal and vertical
               const handle = box.querySelector('.resize-handle');
-              if (handle) {
-                  handle.addEventListener('mousedown', e => {
-                      e.stopPropagation();
-                      resizing = true;
+               if (handle) {
+                   handle.addEventListener('mousedown', e => {
+                       try {
+                       e.stopPropagation();
+                       resizing = true;
                       box.classList.add('resizing');
                       startW = box.offsetWidth;
                       startH = box.offsetHeight;
                       const startX = e.clientX;
                       const startY = e.clientY;
                       document.body.style.userSelect = 'none';
-                      function onMove(ev) {
-                          if (!resizing) return;
-                          let dx = ev.clientX - startX;
-                          let dy = ev.clientY - startY;
-                          let newW = Math.max(60, Math.min(startW + dx, container.offsetWidth));
-                          let newH = Math.max(24, Math.min(startH + dy, container.offsetHeight));
-                          box.style.width  = newW + 'px';
-                          box.style.height = newH + 'px';
-                      }
-                      function onUp(ev) {
-                          if (!resizing) return;
-                          resizing = false;
-                          box.classList.remove('resizing');
-                          document.removeEventListener('mousemove', onMove);
-                          document.removeEventListener('mouseup', onUp);
-                          document.body.style.userSelect = '';
-                          if (!pos[boxId]) pos[boxId] = {};
-                          pos[boxId].width  = box.offsetWidth  / container.offsetWidth;
-                          pos[boxId].height = box.offsetHeight / container.offsetHeight;
-                          savePositions(pos);
-                      }
-                      document.addEventListener('mousemove', onMove);
-                      document.addEventListener('mouseup', onUp);
+                        function onMove(ev) {
+                           if (!resizing) return;
+                           let dx = ev.clientX - startX;
+                           let dy = ev.clientY - startY;
+                           let newW = Math.max(60, Math.min(startW + dx, container.offsetWidth));
+                           let newH = Math.max(24, Math.min(startH + dy, container.offsetHeight));
+                           // Use percent widths/heights so restore is resolution independent
+                           box.style.width  = (newW  / container.offsetWidth  * 100) + '%';
+                           box.style.height = (newH  / container.offsetHeight * 100) + '%';
+                           // Keep centered transform
+                           box.style.transform = 'translate(-50%, -50%)';
+                            // Throttled persist while resizing
+                            scheduleSaveBox(boxId);
+                       }
+                       function onUp(ev) {
+                           if (!resizing) return;
+                           resizing = false;
+                           box.classList.remove('resizing');
+                           document.removeEventListener('mousemove', onMove);
+                           document.removeEventListener('mouseup', onUp);
+                           document.body.style.userSelect = '';
+                           try {
+                               const current = loadPositions();
+                               if (!current[boxId]) current[boxId] = {};
+                               current[boxId].width  = box.offsetWidth  / container.offsetWidth;
+                               current[boxId].height = box.offsetHeight / container.offsetHeight;
+                               // Also persist current center percent
+                               const leftPct = parseFloat(box.style.left) / 100;
+                               const topPct  = parseFloat(box.style.top)  / 100;
+                               if (!isNaN(leftPct)) current[boxId].left = leftPct;
+                               if (!isNaN(topPct))  current[boxId].top  = topPct;
+                               savePositions(current);
+                           } catch (e) {
+                               console.warn('Failed to persist resize', e);
+                           }
+                       }
+                       document.addEventListener('mousemove', onMove);
+                       document.addEventListener('mouseup', onUp);
+                       } catch (err) { console.error('resize mousedown handler failed for', boxId, err); }
                   });
-              }
+               }
+            } catch (err) {
+                console.error('Failed to enable draggable for', boxId, err);
+            }
          });
      }
-     function resetBoxPositions() {
-         const pos = {};
-         DRAGGABLES.forEach(({ boxId, default: def }) => {
-             pos[boxId] = { left: def.left, top: def.top, width: def.width };
-             // height is intentionally omitted — boxes revert to auto/content height
-         });
-         savePositions(pos);
-         // Also clear inline height so boxes snap back to content size
-         DRAGGABLES.forEach(({ boxId }) => {
-             const box = document.getElementById(boxId);
-             if (box) box.style.height = '';
-         });
-         applyBoxPositions();
-     }
-     function resetStyles() {
+      function resetBoxPositions() {
+          const container = document.getElementById('posterContainer');
+          const w = container.offsetWidth, h = container.offsetHeight;
+          const pos = {};
+          // Title: span full width with 10px padding left/right and 10px from top
+          const titleFontSize = parseInt(settings.titleFontSize, 10) || DEFAULTS.titleFontSize;
+          const titleLineHeight = titleFontSize * 1.2;
+          const titlePaddingTop = 10;
+          const titleHeightPx = Math.round(titleLineHeight + 8);
+          const titleWidthPx = Math.max(120, w - 20);
+          pos['boxTitle'] = {
+              left: 0.5,
+              top: (titlePaddingTop + titleHeightPx / 2) / h,
+              width: titleWidthPx / w
+          };
+
+          // Stats: place below title. Make it span the full width with same left/right padding so text fits.
+          const statsFontSize = parseInt(settings.statsFontSize, 10) || DEFAULTS.statsFontSize;
+          const statsLineHeight = statsFontSize * 1.2;
+          const statsHeightPx = Math.round(statsLineHeight + 8);
+          const gap = 8;
+          const statsTopPx = titlePaddingTop + titleHeightPx + gap + statsHeightPx / 2;
+          pos['boxStats'] = {
+              left: 0.5,
+              top: Math.min(0.95, statsTopPx / h),
+              width: Math.max(120, w - 20) / w
+          };
+
+          // Elevation: span full width with 10px left/right and 10px from bottom
+          const elevHeightPx = Math.round(Math.min(Math.max(120, h * 0.18), 300));
+          const elevBottomPad = 10;
+          const elevTopPx = h - elevBottomPad - elevHeightPx / 2;
+          pos['boxElevation'] = {
+              left: 0.5,
+              top: Math.min(0.98, elevTopPx / h),
+              width: Math.max(120, w - 20) / w,
+              height: elevHeightPx / h
+          };
+
+          savePositions(pos);
+          // Also clear inline height so boxes snap back to content size unless explicitly set above
+          DRAGGABLES.forEach(({ boxId }) => {
+              const box = document.getElementById(boxId);
+              if (box) box.style.height = '';
+          });
+          applyBoxPositions();
+      }
+      function resetStyles() {
+         // Clear saved settings and restore defaults. Ensure single-line
+         // mode is explicitly enabled by the reset action.
          localStorage.removeItem(LS_KEY);
-         settings = loadSettings();
+         settings = { ...DEFAULTS };
+         settings.singleLine = true;
+         // Persist the fresh defaults so subsequent loads pick them up
+         saveSettings(settings);
          applyToControls(settings);
+         // Re-render the poster which applies single-line mode as part of renderPoster
          renderPoster();
      }
     // On poster resize, re-apply positions
@@ -965,17 +1196,9 @@
         applyBoxPositions();
     }
     window.addEventListener('resize', onResizeApplyPositions);
-    // After renderPoster (which sets container size), re-apply positions
-    const origRenderPoster = renderPoster;
-    renderPoster = function() {
-        origRenderPoster();
-        applyBoxPositions();
-    };
-    // On DOMContentLoaded, enable drag
-    document.addEventListener('DOMContentLoaded', function() {
-        enableDraggableBoxes();
-        applyBoxPositions();
-    });
+    // After renderPoster (which sets container size), applyBoxPositions is invoked
+    // from within renderPoster itself and during init. We avoid DOMContentLoaded
+    // listeners to prevent missed events when the script runs late in the page.
     // Hide drag UI for PNG export
     function setDragUiHidden(hidden) {
         const overlay = document.getElementById('posterOverlay');
@@ -987,6 +1210,15 @@
     // (export flow handled inline in the Save as PNG handler)
      // Reset buttons
      document.getElementById('resetLayoutBtn').addEventListener('click', function() {
+         // Reset layout should also ensure single-line title mode is applied
+         try {
+             settings.singleLine = true;
+             saveSettings(settings);
+             applyToControls(settings);
+             renderPoster();
+         } catch (e) {
+             console.warn('Failed to apply singleLine on resetLayout', e);
+         }
          resetBoxPositions();
      });
      document.getElementById('resetStylesBtn').addEventListener('click', function() {
