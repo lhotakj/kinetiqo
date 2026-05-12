@@ -1223,15 +1223,14 @@
     // (export flow handled inline in the Save as PNG handler)
      // Reset buttons
      document.getElementById('resetLayoutBtn').addEventListener('click', function() {
-         // Reset layout should also ensure single-line title mode is applied
+         // Reset layout should also reset styles to defaults so the whole poster
+         // returns to a known default state (fonts, colors, single-line, etc.)
          try {
-             settings.singleLine = true;
-             saveSettings(settings);
-             applyToControls(settings);
-             renderPoster();
+             resetStyles();
          } catch (e) {
-             console.warn('Failed to apply singleLine on resetLayout', e);
+             console.warn('Failed to reset styles during resetLayout', e);
          }
+         // Then reset box positions to the default layout
          resetBoxPositions();
      });
      document.getElementById('resetStylesBtn').addEventListener('click', function() {
