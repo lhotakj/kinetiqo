@@ -1086,20 +1086,33 @@
                       const startX = e.clientX;
                       const startY = e.clientY;
                       document.body.style.userSelect = 'none';
-                        function onMove(ev) {
-                           if (!resizing) return;
-                           let dx = ev.clientX - startX;
-                           let dy = ev.clientY - startY;
-                           let newW = Math.max(60, Math.min(startW + dx, container.offsetWidth));
-                           let newH = Math.max(24, Math.min(startH + dy, container.offsetHeight));
-                           // Use percent widths/heights so restore is resolution independent
-                           box.style.width  = (newW  / container.offsetWidth  * 100) + '%';
-                           box.style.height = (newH  / container.offsetHeight * 100) + '%';
-                           // Keep centered transform
-                           box.style.transform = 'translate(-50%, -50%)';
+                         function onMove(ev) {
+                            if (!resizing) return;
+                            let dx = ev.clientX - startX;
+                            let dy = ev.clientY - startY;
+                            // Compute new width/height in px (clamped)
+                            let newW = Math.max(60, Math.min(startW + dx, container.offsetWidth));
+                            let newH = Math.max(24, Math.min(startH + dy, container.offsetHeight));
+                            // Determine current box top-left in container coords
+                            const contRect = container.getBoundingClientRect();
+                            const boxRect = box.getBoundingClientRect();
+                            const leftPx = boxRect.left - contRect.left;
+                            const topPx  = boxRect.top  - contRect.top;
+                            // Compute new center so the top-left stays fixed while resizing
+                            let newCenterX = leftPx + newW / 2;
+                            let newCenterY = topPx  + newH / 2;
+                            // Clamp center so the box stays fully inside the container
+                            newCenterX = Math.max(newW/2, Math.min(container.offsetWidth - newW/2, newCenterX));
+                            newCenterY = Math.max(newH/2, Math.min(container.offsetHeight - newH/2, newCenterY));
+                            // Apply sizes as percent and update center (left/top) as percent
+                            box.style.width  = (newW  / container.offsetWidth  * 100) + '%';
+                            box.style.height = (newH  / container.offsetHeight * 100) + '%';
+                            box.style.left = (newCenterX / container.offsetWidth * 100) + '%';
+                            box.style.top  = (newCenterY / container.offsetHeight * 100) + '%';
+                            box.style.transform = 'translate(-50%, -50%)';
                             // Throttled persist while resizing
                             scheduleSaveBox(boxId);
-                       }
+                        }
                        function onUp(ev) {
                            if (!resizing) return;
                            resizing = false;
