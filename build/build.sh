@@ -46,7 +46,7 @@ do
 done
 
 (
-cd ../src || exit 1
+cd "$(dirname "$0")/../src" || exit 1
 info "Reading version ..."
 VERSION=$(cat ./version.template)
 export VERSION
@@ -71,9 +71,9 @@ if [ -n "$PUSH_FLAG" ]; then
       --no-cache \
       --pull=true \
       --build-arg VERSION=${SHORT_VERSION} \
-      -t ${DOCKER_USERNAME}/kinetiqo:latest \
-      -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
-      -t ${DOCKER_USERNAME}/kinetiqo:${VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo2:latest \
+      -t ${DOCKER_USERNAME}/kinetiqo2:${SHORT_VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo2:${VERSION} \
       -f ../build/Dockerfile \
       --push \
       ..
@@ -97,13 +97,13 @@ else
       --no-cache \
       ${PULL_FLAG} \
       --build-arg VERSION=${SHORT_VERSION} \
-      -t ${DOCKER_USERNAME}/kinetiqo:latest \
-      -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
-      -t ${DOCKER_USERNAME}/kinetiqo:${VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo2:latest \
+      -t ${DOCKER_USERNAME}/kinetiqo2:${SHORT_VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo2:${VERSION} \
       -f ../build/Dockerfile \
       ..
 
     info "Built image size:"
-    docker image ls ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION}
+    docker image ls ${DOCKER_USERNAME}/kinetiqo2:${SHORT_VERSION}
 fi
 )

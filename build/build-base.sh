@@ -52,7 +52,7 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-IMAGE="${DOCKER_USERNAME}/firebird-python"
+IMAGE="${DOCKER_USERNAME}/firebird-debian-python"
 TAG_VERSION="${PYTHON_VERSION}"
 TAG_FULL="${PYTHON_VERSION}-firebird${FIREBIRD_VERSION}"
 
@@ -72,7 +72,7 @@ if [ -n "$PUSH_FLAG" ]; then
         --build-arg FIREBIRD_VERSION="${FIREBIRD_VERSION}" \
         -t "${IMAGE}:${TAG_VERSION}" \
         -t "${IMAGE}:${TAG_FULL}" \
-        -f build/Dockerfile.firebird-base \
+        -f build/Dockerfile.firebird-debian-base \
         --push \
         .
 else
@@ -85,7 +85,7 @@ else
         --build-arg FIREBIRD_VERSION="${FIREBIRD_VERSION}" \
         -t "${IMAGE}:${TAG_VERSION}" \
         -t "${IMAGE}:${TAG_FULL}" \
-        -f build/Dockerfile.firebird-base \
+        -f build/Dockerfile.firebird-debian-base \
         .
 
     info "Built image size:"

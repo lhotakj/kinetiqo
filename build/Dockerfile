@@ -1,9 +1,11 @@
 # =============================================================================
 # Kinetiqo Application Image
 # =============================================================================
-# Uses the pre-built lhotakj/firebird-python base image which already contains
-# the compiled Firebird 5.x client library.  This keeps the application build
-# fast (no ~40-minute Firebird compilation).
+# Uses the pre-built lhotakj/firebird-python base image (Debian slim / glibc)
+# which already contains the compiled Firebird 5.x client library.
+#
+# Because the base is glibc-based, Playwright's own bundled Chromium binary
+# runs natively — no system Chromium package required.
 #
 # To rebuild the base image run the "Build Firebird Python Base Image"
 # GitHub Actions workflow manually, or use build/build-base.sh locally.
@@ -12,22 +14,34 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder — install Python dependencies into an isolated prefix
 # -----------------------------------------------------------------------------
-FROM python:3.13-alpine AS builder
+FROM python:3.13-slim AS builder
 
-# Set working directory
 WORKDIR /app
-
-# Copy requirements file
 COPY requirements.txt .
 
-# Install all pip packages to /install so they can be copied cleanly
-# into the runtime stage without dragging in the build tools.
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Minimal build deps — most packages ship manylinux binary wheels on Debian,
+# so compilation is rarely needed.  gcc + libffi-dev cover the edge cases.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install all Python packages.
+# psycopg2-binary works as-is on Debian/glibc — no source build needed.
+# --no-compile: skip .pyc pre-compilation (saves ~40 MB in the layer).
+# Post-install cleanup removes test directories (pandas/tests, numpy/tests,
+# etc.) and any stray bytecode — together this saves another ~80-100 MB.
+RUN pip install --no-cache-dir --no-compile --prefix=/install -r requirements.txt \
+    && find /install -type d -name "tests"      -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -type d -name "test"       -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -name "*.pyc" -delete \
+    && find /install -name "*.pyo" -delete
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime — application on top of the Firebird-ready base image
 # -----------------------------------------------------------------------------
-FROM lhotakj/firebird-python:3.13
+FROM lhotakj/firebird-debian-python:3.13
 
 ARG VERSION
 LABEL maintainer="jarda@lhotak.net" \
@@ -42,29 +56,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LD_LIBRARY_PATH=/usr/local/lib \
     FIREBIRD_LIB=/usr/local/lib/libfbclient.so
 
-# dcron is the only extra system package the application itself needs;
-# libtommath, libgcc and libpq are already present in the base image.
-#
-# chromium + supporting libs are required by Playwright for server-side
-# poster PNG export.  Using the Alpine system Chromium avoids the need for
-# Playwright's own bundled Chromium (which is a glibc binary and does not
-# run on musl/Alpine without extra shims).
-# font-noto and ttf-freefont ensure Google Fonts fallback works correctly.
-RUN apk add --no-cache \
-    dcron \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
-    font-noto \
-    font-noto-cjk
-
-# Tell Playwright to use the system Chromium instead of its bundled binary.
-ENV PLAYWRIGHT_BROWSERS_PATH=/dev/null \
-    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
 # Set working directory
 WORKDIR /app
 
@@ -74,6 +65,15 @@ COPY --from=builder /install /usr/local
 # Copy application source and the container entrypoint
 COPY src ./
 COPY build/entrypoint.sh ./
+
+# Download Playwright's version-matched Chromium binary and install its
+# system dependencies (libnss3, libatk, libgbm, etc.) via apt.
+# This layer is cached by Docker and only re-runs when the playwright
+# package version changes.
+RUN playwright install chromium --with-deps \
+    && rm -rf /var/lib/apt/lists/* \
+    && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
+    && rm -rf /usr/share/man /usr/share/groff /usr/share/info /usr/share/lintian
 
 EXPOSE 4444
 

@@ -56,7 +56,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: build/Dockerfile.firebird-base
+          file: build/Dockerfile.firebird-debian-base
           platforms: ${{ inputs.platforms }}
           push: true
           # no-cache ensures we always get the freshest Firebird source

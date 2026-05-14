@@ -63,7 +63,7 @@ fi
 if [ $CRON_ADDED -eq 1 ]; then
   crontab $CRONFILE
   # Start cron in background
-  crond -b -L /dev/stdout
+  cron
   info "Cron started in background"
 fi
 

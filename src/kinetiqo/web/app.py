@@ -1936,13 +1936,12 @@ def poster_export(activity_id):
         })
 
     # ── Resolve Chromium executable ────────────────────────────────────────
-    # Use the env-var set in the Dockerfile for Alpine/Docker deployments;
-    # fall back to any system Chromium found on PATH; otherwise let
-    # Playwright use its own bundled browser (dev machines).
+    # Playwright uses its own version-matched bundled Chromium by default.
+    # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH can still override this for
+    # environments where a system Chromium is preferred, but it is no longer
+    # set in the Docker image — Playwright's bundled binary is used instead.
     chromium_exe = (
         os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH')
-        or shutil.which('chromium-browser')
-        or shutil.which('chromium')
         or None  # None → Playwright uses its bundled Chromium
     )
 
