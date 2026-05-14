@@ -1,0 +1,155 @@
+# =============================================================================
+# Kinetiqo — Self-Contained Local Build
+# =============================================================================
+# This Dockerfile is used for LOCAL builds only (no DockerHub dependency).
+# It inlines all three stages so there is no need to pre-build or push the
+# lhotakj/firebird-debian-python base image.
+#
+# Usage:
+#   ./build/build.sh          # automatically uses this file locally
+# =============================================================================
+
+ARG PYTHON_VERSION=3.13
+ARG FIREBIRD_VERSION=5.0.3
+
+# -----------------------------------------------------------------------------
+# Stage 1: Compile Firebird client library from source
+# -----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim AS firebird-builder
+
+ARG FIREBIRD_VERSION
+
+# libtomcrypt-dev: system libtomcrypt avoids the bundled libtool build issue.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libicu-dev \
+        zlib1g-dev \
+        wget \
+        unzip \
+        autoconf \
+        automake \
+        libtool \
+        pkg-config \
+        libtommath-dev \
+        libtomcrypt-dev \
+        libncurses-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /firebird-lib \
+    && wget -q "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz" \
+    && tar xzf "v${FIREBIRD_VERSION}.tar.gz" \
+    && cd "firebird-${FIREBIRD_VERSION}" \
+    && chmod +x ./autogen.sh \
+    && ./autogen.sh \
+    && ./configure \
+           --enable-client-only \
+    && make -j"$(nproc)" \
+    && cp ./gen/Release/firebird/lib/* /firebird-lib/ \
+    && strip --strip-unneeded /firebird-lib/*.so* 2>/dev/null || true \
+    && rm -rf "firebird-${FIREBIRD_VERSION}" "v${FIREBIRD_VERSION}.tar.gz"
+
+# -----------------------------------------------------------------------------
+# Stage 2: Install Python application dependencies
+# -----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim AS python-builder
+
+WORKDIR /app
+COPY requirements.txt .
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 prevents any post-install download hooks.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+# --no-compile: skip .pyc pre-compilation (~40 MB saved).
+# Post-install cleanup strips test dirs and bytecode (~80-100 MB saved).
+RUN pip install --no-cache-dir --no-compile --prefix=/install -r requirements.txt \
+    && find /install -type d -name "tests"       -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -type d -name "test"        -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -name "*.pyc" -delete \
+    && find /install -name "*.pyo" -delete
+
+# -----------------------------------------------------------------------------
+# Stage 3: Final runtime image
+# -----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim
+
+ARG VERSION
+ARG PYTHON_VERSION
+ARG FIREBIRD_VERSION
+
+LABEL maintainer="jarda@lhotak.net" \
+      version=$VERSION \
+      description="Kinetiqo sync tool (local build)"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FULL_SYNC="" \
+    FAST_SYNC="" \
+    PYTHONPATH=/usr/local/lib/python3.13/site-packages \
+    LD_LIBRARY_PATH=/usr/local/lib \
+    FIREBIRD_LIB=/usr/local/lib/libfbclient.so \
+    PLAYWRIGHT_BROWSERS_PATH=/dev/null \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# Runtime system libraries: Firebird client deps + psycopg2 + cron + Chromium.
+# Chromium is installed here (system package) so Playwright can use it via
+# PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH without downloading its own binary.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libtommath1 \
+        libtomcrypt1 \
+        libpq5 \
+        cron \
+        chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
+    && rm -rf /usr/share/man /usr/share/groff /usr/share/info /usr/share/lintian
+
+# Copy the compiled Firebird client shared library
+COPY --from=firebird-builder /firebird-lib/ /usr/local/lib/
+
+# Copy installed Python packages
+COPY --from=python-builder /install /usr/local
+
+WORKDIR /app
+COPY src ./
+COPY build/entrypoint.sh ./
+
+# Sanity check — verify system Chromium is reachable by Playwright.
+# Then do a thorough final cleanup to minimise image size:
+#   • apt lists & cache, pip cache, /tmp
+#   • Python bytecode and __pycache__ (from COPYed packages)
+#   • Residual test/doc directories in site-packages
+#   • Debian doc/man/info/locale data
+RUN chromium --version \
+    && apt-get clean \
+    && rm -rf \
+        /var/lib/apt/lists/* \
+        /var/cache/apt/archives/* \
+        /root/.cache \
+        /tmp/* \
+        /var/tmp/* \
+    && find /usr/local/lib -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib -name "*.pyc" -delete 2>/dev/null || true \
+    && find /usr/local/lib -name "*.pyo" -delete 2>/dev/null || true \
+    && find /usr/local/lib -type d -name "tests"  -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib -type d -name "test"   -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/share/doc     -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
+    && rm -rf \
+        /usr/share/man \
+        /usr/share/groff \
+        /usr/share/info \
+        /usr/share/lintian \
+        /usr/share/locale \
+        /usr/lib/python3/dist-packages/pip \
+        /usr/lib/python3/dist-packages/setuptools
+
+EXPOSE 4444
+
+ENTRYPOINT ["sh", "entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:4444", "--workers", "4", "--timeout", "180", "kinetiqo.web.app:app"]
+

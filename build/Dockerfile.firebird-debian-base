@@ -1,13 +1,15 @@
 # =============================================================================
 # Firebird Python Base Image
 # =============================================================================
-# Builds a minimal Python Debian-slim image with the Firebird 5.x client
-# library pre-compiled and installed.  Debian slim uses glibc, which means
-# Playwright's own bundled Chromium binary can be used directly in the
-# application image — no system Chromium package needed.
+# Builds a minimal Python Debian-slim image with:
+#   • Firebird 5.x client library (compiled from source)
+#   • System Chromium browser (for Playwright poster-export in the app image)
 #
-# Published to Docker Hub as: lhotakj/firebird-python:<python_version>
-# Example: lhotakj/firebird-python:3.13
+# Bundling Chromium here means the ~300 MB apt install runs only once when
+# the base is rebuilt — not on every application build.  Playwright is
+# configured via ENV to use this system binary instead of downloading its own.
+#
+# Published to Docker Hub as: lhotakj/firebird-debian-python:<python_version>
 # =============================================================================
 
 ARG PYTHON_VERSION=3.13
@@ -54,7 +56,9 @@ RUN mkdir -p /firebird-lib \
     && ./configure \
            --enable-client-only \
     && make -j"$(nproc)" \
-    && cp ./gen/Release/firebird/lib/* /firebird-lib/
+    && cp ./gen/Release/firebird/lib/* /firebird-lib/ \
+    && strip --strip-unneeded /firebird-lib/*.so* 2>/dev/null || true \
+    && rm -rf "firebird-${FIREBIRD_VERSION}" "v${FIREBIRD_VERSION}.tar.gz"
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime — minimal Python Debian slim + Firebird client only
@@ -71,24 +75,50 @@ LABEL maintainer="jarda@lhotak.net" \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LD_LIBRARY_PATH=/usr/local/lib \
-    FIREBIRD_LIB=/usr/local/lib/libfbclient.so
+    FIREBIRD_LIB=/usr/local/lib/libfbclient.so \
+    # Tell Playwright to use the system Chromium instead of downloading its own.
+    # PLAYWRIGHT_BROWSERS_PATH=/dev/null prevents any browser cache lookups.
+    # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH points to the system binary.
+    # When executable_path is set on launch(), Playwright skips version checks.
+    PLAYWRIGHT_BROWSERS_PATH=/dev/null \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
-# Runtime-only system libraries required by the Firebird client, psycopg2,
-# and the cron scheduler used by the application entrypoint.
+# Runtime-only system libraries:
+#   • Firebird client deps  (libtommath1, libtomcrypt1)
+#   • psycopg2              (libpq5)
+#   • cron scheduler        (cron)
+#   • Chromium + its full dependency tree so Playwright can launch headlessly.
+#     Using --no-install-recommends keeps it as lean as possible.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libtommath1 \
         libtomcrypt1 \
         libpq5 \
         cron \
-    && rm -rf /var/lib/apt/lists/* \
-    && find /usr/share/doc     -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
-    && rm -rf /usr/share/man /usr/share/groff /usr/share/info /usr/share/lintian
+        chromium \
+    && apt-get clean \
+    && rm -rf \
+        /var/lib/apt/lists/* \
+        /var/cache/apt/archives/* \
+        /root/.cache \
+        /tmp/* \
+        /var/tmp/* \
+        /usr/share/man \
+        /usr/share/groff \
+        /usr/share/info \
+        /usr/share/lintian \
+        /usr/share/locale \
+        /usr/lib/python3/dist-packages/pip \
+        /usr/lib/python3/dist-packages/setuptools \
+    && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true
 
 # Copy the compiled Firebird client shared library from the builder stage
 COPY --from=builder /firebird-lib/ /usr/local/lib/
 
-# Sanity check — fails the build if the library is missing
-RUN ls -la /usr/local/lib/libfbclient.so* \
-    && echo "Firebird client library installed successfully."
-
+# Sanity checks — fail the build if anything is missing or broken.
+RUN ldconfig \
+    && ls -la /usr/local/lib/libfbclient.so* \
+    && python3 -c "import ctypes; ctypes.CDLL('/usr/local/lib/libfbclient.so'); print('Firebird client library v${FIREBIRD_VERSION} — loaded OK')" \
+    && chromium --version \
+    && echo "Base image sanity checks passed."
 
