@@ -21,17 +21,11 @@ FROM python:3.13-slim AS builder
 WORKDIR /app
 COPY requirements.txt .
 
-# Minimal build deps — most packages ship manylinux binary wheels on Debian.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc \
-        libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install all Python packages.
-# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 prevents pip post-install hooks from
-# attempting to download Chromium — the system browser in the base is used.
-# --no-compile: skip .pyc pre-compilation (~40 MB saved).
-# Post-install cleanup strips test directories and bytecode (~80-100 MB saved).
+# No build tools needed — every package in requirements.txt ships a
+# pre-built manylinux binary wheel so nothing is compiled from source.
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 suppresses any browser download hooks.
+# --no-compile skips .pyc pre-compilation (~40 MB saved).
+# Post-install find cleanup strips test dirs and bytecode (~80-100 MB saved).
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN pip install --no-cache-dir --no-compile --prefix=/install -r requirements.txt \
     && find /install -type d -name "tests"       -exec rm -rf {} + 2>/dev/null || true \
