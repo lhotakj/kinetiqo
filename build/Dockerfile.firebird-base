@@ -96,6 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq5 \
         cron \
         chromium \
+        fonts-noto-color-emoji \
     && apt-get clean \
     && rm -rf \
         /var/lib/apt/lists/* \
