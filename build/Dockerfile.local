@@ -3,7 +3,7 @@
 # =============================================================================
 # This Dockerfile is used for LOCAL builds only (no DockerHub dependency).
 # It inlines all three stages so there is no need to pre-build or push the
-# lhotakj/firebird-debian-python base image.
+# lhotakj/firebird-python base image.
 #
 # Usage:
 #   ./build/build.sh          # automatically uses this file locally

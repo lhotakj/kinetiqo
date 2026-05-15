@@ -9,7 +9,7 @@
 # the base is rebuilt — not on every application build.  Playwright is
 # configured via ENV to use this system binary instead of downloading its own.
 #
-# Published to Docker Hub as: lhotakj/firebird-debian-python:<python_version>
+# Published to Docker Hub as: lhotakj/firebird-python:<python_version>
 # =============================================================================
 
 ARG PYTHON_VERSION=3.13
@@ -110,7 +110,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         /usr/share/locale \
         /usr/lib/python3/dist-packages/pip \
         /usr/lib/python3/dist-packages/setuptools \
-    && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true
+        /usr/lib/chromium/swiftshader \
+    && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
+    # Chromium ships ~100 locale .pak files (~180 MB total).
+    # Headless Playwright only needs en-US.pak — delete everything else.
+    && find /usr/lib/chromium/locales -name "*.pak" ! -name "en-US.pak" -delete 2>/dev/null || true
 
 # Copy the compiled Firebird client shared library from the builder stage
 COPY --from=builder /firebird-lib/ /usr/local/lib/
