@@ -1,6 +1,6 @@
 
 docker run -it \
-  --name kinetiqo2 \
+  --name kinetiqo \
   --network traefik_cloudflare_traefik-proxy \
   -e STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID \
   -e STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET \
@@ -18,5 +18,5 @@ docker run -it \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -p 4444:4444 \
-  docker.io/lhotakj/kinetiqo2:latest
+  docker.io/lhotakj/kinetiqo:latest
 

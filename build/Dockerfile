@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir --no-compile --prefix=/install -r requirements.tx
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime — application on top of the Firebird + Chromium base image
 # -----------------------------------------------------------------------------
-FROM lhotakj/firebird-debian-python:3.13
+FROM lhotakj/firebird-python:3.13
 
 ARG VERSION
 LABEL maintainer="jarda@lhotak.net" \
