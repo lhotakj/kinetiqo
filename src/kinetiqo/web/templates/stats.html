@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 <style>
     /* ---- Infographic container ---- */
     .infographic-wrapper {
@@ -659,17 +659,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 150);
     });
 
-    // Download PNG
-    document.getElementById('btn-download-png').addEventListener('click', function() {
-        const wrapper = document.getElementById('infographic-wrapper');
-        html2canvas(wrapper, { scale: 2, useCORS: true, backgroundColor: null })
-            .then(canvas => {
-                const link = document.createElement('a');
-                const group = elGroup.options[elGroup.selectedIndex].textContent.trim();
-                link.download = 'kinetiqo-megastats-' + elYear.value + '-' + elPeriod.value + '.png';
-                link.href = canvas.toDataURL('image/png');
-                link.click();
+    // Download PNG using server-side Playwright/Chromium export
+    document.getElementById('btn-download-png').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Exporting…';
+        try {
+            // Gather current settings
+            const payload = {
+                year: elYear.value,
+                period: elPeriod.value,
+                group: elGroup.value,
+                bg: elBg.value,
+                // Use current infographic width/height for export (matches container)
+                width: document.getElementById('infographic-wrapper').offsetWidth,
+                height: document.getElementById('infographic-wrapper').offsetHeight
+            };
+            const resp = await fetch('/api/stats/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
+            if (!resp.ok) {
+                let msg = `HTTP ${resp.status}`;
+                try { msg = (await resp.json()).error || msg; } catch (_) {}
+                alert('Export failed: ' + msg);
+                return;
+            }
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.download = 'kinetiqo-megastats-' + elYear.value + '-' + elPeriod.value + '.png';
+            a.href     = url;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        } catch (e) {
+            alert('Export failed: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '📷 PNG';
+        }
     });
 
     // Print / PDF

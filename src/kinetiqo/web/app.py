@@ -1900,7 +1900,7 @@ def poster_export(activity_id):
     # Clamp to a sensible range to prevent abuse
     poster_width = max(800, min(poster_width, 2048))
 
-    # Parse the aspect ratio string (e.g. "4/3", "16/9", "1/1") to compute
+    # Parse the aspect ratio string (e.g. "4/3", "16/9", "1/1) to compute
     # the poster container's rendered height so the viewport is tall enough.
     ratio_str = settings_obj.get('ratio', '4/3')
     try:
@@ -2120,6 +2120,123 @@ def poster_export(activity_id):
             f"Playwright poster export failed for {activity_id}: {e}",
             exc_info=True
         )
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/stats/export', methods=['POST'])
+@login_required
+def stats_export():
+    """Export the Mega Stats infographic as a pixel-perfect PNG using Playwright.
+
+    The client POSTs the current infographic settings as a JSON body. This
+    endpoint launches a headless Chromium, navigates to the /stats page with
+    those settings pre-loaded into localStorage, waits for rendering, then
+    screenshots the #infographic-wrapper element and streams the PNG bytes.
+    """
+    import json as _json
+    import os
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.error('playwright package is not installed')
+        return jsonify({'error': 'playwright is not installed on the server. Run: pip install playwright && playwright install chromium'}), 500
+
+    settings_payload = request.get_json(silent=True) or {}
+    logger.info(f"Stats export request: settings_keys={list(settings_payload.keys()) if isinstance(settings_payload, dict) else 'N/A'}")
+
+    # Default infographic width/height (A4 landscape, 297x210mm at 150dpi)
+    width = int(settings_payload.get('width', 1200))
+    height = int(settings_payload.get('height', 850))
+    width = max(800, min(width, 2048))
+    height = max(600, min(height, 1600))
+
+    # Internal URL for Playwright to render (bypass proxy)
+    host_header = request.host
+    port = host_header.split(':')[1] if ':' in host_header else '4444'
+    internal_url = f"http://127.0.0.1:{port}/stats"
+
+    # Replay Flask session cookies for authentication
+    cookies_for_playwright = []
+    for name, value in request.cookies.items():
+        cookies_for_playwright.append({
+            'name': name,
+            'value': value,
+            'domain': '127.0.0.1',
+            'path': '/'
+        })
+
+    chromium_exe = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH') or None
+
+    try:
+        from flask import Response
+        with sync_playwright() as p:
+            launch_kwargs = {
+                'headless': True,
+                'args': [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--font-render-hinting=none',
+                ],
+            }
+            if chromium_exe:
+                launch_kwargs['executable_path'] = chromium_exe
+
+            browser = p.chromium.launch(**launch_kwargs)
+            context = browser.new_context(
+                viewport={'width': width, 'height': height},
+                device_scale_factor=1,
+                ignore_https_errors=True,
+            )
+            if cookies_for_playwright:
+                context.add_cookies(cookies_for_playwright)
+
+            # Pre-populate localStorage with settings before page load
+            context.add_init_script(f"""
+                (function() {{
+                    try {{
+                        window.localStorage.setItem('stats_settings', JSON.stringify({_json.dumps(settings_payload)}));
+                    }} catch(e) {{}}
+                }})();
+            """)
+
+            page = context.new_page()
+            page.goto(internal_url, wait_until='networkidle', timeout=30_000)
+            page.wait_for_function('document.fonts.ready', timeout=10_000)
+            # Wait for infographic to be visible
+            page.wait_for_selector('#infographic-wrapper', state='visible', timeout=10_000)
+            page.wait_for_timeout(400)
+            # Force exact dimensions
+            page.evaluate(f"""
+                (function() {{
+                    var c = document.getElementById('infographic-wrapper');
+                    if (c) {{
+                        c.style.width = '{width}px';
+                        c.style.height = '{height}px';
+                        c.style.maxWidth = '{width}px';
+                        c.style.minWidth = '{width}px';
+                        c.style.position = 'relative';
+                        c.style.overflow = 'hidden';
+                    }}
+                }})();
+            """)
+            page.wait_for_timeout(200)
+            container = page.locator('#infographic-wrapper')
+            png_bytes = container.screenshot()
+            context.close()
+            browser.close()
+        logger.info(f"Stats export OK: size={len(png_bytes)//1024} KB")
+        return Response(
+            png_bytes,
+            mimetype='image/png',
+            headers={
+                'Content-Disposition': 'attachment; filename="kinetiqo-megastats.png"',
+                'Content-Length': str(len(png_bytes)),
+            }
+        )
+    except Exception as e:
+        logger.error(f"Playwright stats export failed: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
