@@ -2128,10 +2128,11 @@ def poster_export(activity_id):
 def stats_export():
     """Export the Mega Stats infographic as a pixel-perfect PNG using Playwright.
 
-    The client POSTs the current infographic settings as a JSON body. This
-    endpoint launches a headless Chromium, navigates to the /stats page with
-    those settings pre-loaded into localStorage, waits for rendering, then
-    screenshots the #infographic-wrapper element and streams the PNG bytes.
+    The client POSTs the current infographic settings (year, period, group, bg,
+    width, height) as a JSON body.  Playwright loads /stats, injects the correct
+    settings into the form controls, waits for the calendar to render, then
+    repositions the #infographic-wrapper to (0,0) with no scale transform so the
+    page screenshot captures exactly width×height pixels of the infographic.
     """
     import json as _json
     import os
@@ -2139,32 +2140,27 @@ def stats_export():
         from playwright.sync_api import sync_playwright
     except ImportError:
         logger.error('playwright package is not installed')
-        return jsonify({'error': 'playwright is not installed on the server. Run: pip install playwright && playwright install chromium'}), 500
+        return jsonify({'error': 'playwright is not installed on the server. '
+                                  'Run: pip install playwright && playwright install chromium'}), 500
 
-    settings_payload = request.get_json(silent=True) or {}
-    logger.info(f"Stats export request: settings_keys={list(settings_payload.keys()) if isinstance(settings_payload, dict) else 'N/A'}")
+    payload = request.get_json(silent=True) or {}
+    logger.info(f"Stats export request: {list(payload.keys()) if isinstance(payload, dict) else 'N/A'}")
 
-    # Default infographic width/height (A4 landscape, 297x210mm at 150dpi)
-    width = int(settings_payload.get('width', 1200))
-    height = int(settings_payload.get('height', 850))
-    width = max(800, min(width, 2048))
-    height = max(600, min(height, 1600))
+    year   = str(payload.get('year',   ''))
+    period = str(payload.get('period', 'year'))
+    group  = str(payload.get('group',  'walking'))
+    bg     = str(payload.get('bg',     '#4a4a4a'))
+    width  = max(800,  min(int(payload.get('width',  1280)), 2048))
+    height = max(600,  min(int(payload.get('height',  960)), 1600))
 
-    # Internal URL for Playwright to render (bypass proxy)
     host_header = request.host
     port = host_header.split(':')[1] if ':' in host_header else '4444'
     internal_url = f"http://127.0.0.1:{port}/stats"
 
-    # Replay Flask session cookies for authentication
-    cookies_for_playwright = []
-    for name, value in request.cookies.items():
-        cookies_for_playwright.append({
-            'name': name,
-            'value': value,
-            'domain': '127.0.0.1',
-            'path': '/'
-        })
-
+    cookies_for_playwright = [
+        {'name': n, 'value': v, 'domain': '127.0.0.1', 'path': '/'}
+        for n, v in request.cookies.items()
+    ]
     chromium_exe = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH') or None
 
     try:
@@ -2184,6 +2180,8 @@ def stats_export():
                 launch_kwargs['executable_path'] = chromium_exe
 
             browser = p.chromium.launch(**launch_kwargs)
+            # Viewport must be at least as large as the infographic so that the
+            # fixed-position element is fully painted by the GPU compositor.
             context = browser.new_context(
                 viewport={'width': width, 'height': height},
                 device_scale_factor=1,
@@ -2192,41 +2190,95 @@ def stats_export():
             if cookies_for_playwright:
                 context.add_cookies(cookies_for_playwright)
 
-            # Pre-populate localStorage with settings before page load
-            context.add_init_script(f"""
-                (function() {{
-                    try {{
-                        window.localStorage.setItem('stats_settings', JSON.stringify({_json.dumps(settings_payload)}));
-                    }} catch(e) {{}}
-                }})();
-            """)
-
             page = context.new_page()
             page.goto(internal_url, wait_until='networkidle', timeout=30_000)
             page.wait_for_function('document.fonts.ready', timeout=10_000)
-            # Wait for infographic to be visible
             page.wait_for_selector('#infographic-wrapper', state='visible', timeout=10_000)
-            page.wait_for_timeout(400)
-            # Force exact dimensions
+
+            # ── Step 1: inject the correct settings into the form controls and
+            #           trigger a re-fetch so the right year/period/group/bg is shown.
             page.evaluate(f"""
                 (function() {{
-                    var c = document.getElementById('infographic-wrapper');
-                    if (c) {{
-                        c.style.width = '{width}px';
-                        c.style.height = '{height}px';
-                        c.style.maxWidth = '{width}px';
-                        c.style.minWidth = '{width}px';
-                        c.style.position = 'relative';
-                        c.style.overflow = 'hidden';
+                    function setVal(id, val) {{
+                        var el = document.getElementById(id);
+                        if (el) el.value = val;
                     }}
+                    setVal('stats-year',   {_json.dumps(year)});
+                    setVal('stats-period', {_json.dumps(period)});
+                    setVal('stats-group',  {_json.dumps(group)});
+                    setVal('stats-size',   'M');  // size only affects layout, handled below
+                    var bg = document.getElementById('stats-bg');
+                    if (bg) bg.value = {_json.dumps(bg)};
+                    var ig = document.getElementById('infographic');
+                    if (ig) ig.style.backgroundColor = {_json.dumps(bg)};
+                    // Trigger fetchStats via change event on the year select
+                    var sel = document.getElementById('stats-year');
+                    if (sel) sel.dispatchEvent(new Event('change'));
                 }})();
             """)
-            page.wait_for_timeout(200)
-            container = page.locator('#infographic-wrapper')
-            png_bytes = container.screenshot()
+
+            # ── Step 2: wait for the calendar to finish rendering.
+            #            #ig-body goes from display:none → display:flex when data arrives.
+            page.wait_for_function(
+                "document.getElementById('ig-body') && "
+                "document.getElementById('ig-body').style.display !== 'none'",
+                timeout=20_000,
+            )
+            # Give the calendar dots an extra tick to paint
+            page.wait_for_timeout(600)
+
+            # ── Step 3: reset the infographic to exact export dimensions and
+            #            detach it from the flex layout so it covers the full
+            #            viewport with no CSS transform applied.
+            #            We move #infographic-wrapper to the body root and fix it
+            #            at (0,0) so page.screenshot() captures exactly W×H px.
+            page.evaluate(f"""
+                (function() {{
+                    try {{
+                        var w = document.getElementById('infographic-wrapper');
+                        if (!w) return;
+                        // Move wrapper to body root to escape any parent clipping/transform
+                        document.body.appendChild(w);
+                        // Hide every other body child so nothing shows behind the infographic
+                        Array.from(document.body.children).forEach(function(el) {{
+                            if (el !== w) el.style.visibility = 'hidden';
+                        }});
+                        document.body.style.cssText = 'margin:0;padding:0;overflow:hidden;background:#000;';
+                        // Apply exact pixel size with no transform
+                        w.style.cssText = [
+                            'display:block',
+                            'position:fixed',
+                            'top:0', 'left:0',
+                            'width:{width}px',
+                            'height:{height}px',
+                            'transform:none',
+                            'transform-origin:top left',
+                            'border-radius:0',
+                            'box-shadow:none',
+                            'overflow:hidden',
+                            'z-index:99999'
+                        ].join(';') + ';';
+                        // Ensure the infographic div inside fills completely
+                        var ig = document.getElementById('infographic');
+                        if (ig) {{
+                            ig.style.width  = '100%';
+                            ig.style.height = '100%';
+                        }}
+                    }} catch(e) {{ console.error('Stats export prep failed', e); }}
+                }})();
+            """)
+            # Short pause so the browser repaints after the DOM changes
+            page.wait_for_timeout(300)
+
+            # ── Step 4: screenshot the full viewport — which now shows only the
+            #            infographic at (0,0) with exact width×height.
+            png_bytes = page.screenshot(
+                clip={'x': 0, 'y': 0, 'width': width, 'height': height}
+            )
             context.close()
             browser.close()
-        logger.info(f"Stats export OK: size={len(png_bytes)//1024} KB")
+
+        logger.info(f"Stats export OK: {width}x{height}, size={len(png_bytes)//1024} KB")
         return Response(
             png_bytes,
             mimetype='image/png',
