@@ -27,3 +27,6 @@ kinetiqo-activities-map.json
 build/
 !build/Dockerfile
 !build/entrypoint.sh
+
+src/kinetiqo/web/posters-cache
+
