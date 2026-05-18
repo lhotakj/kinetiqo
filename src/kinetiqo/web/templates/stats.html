@@ -65,7 +65,7 @@
     .ig-stat-value { font-size: calc(var(--stats-font-size, 1.5rem) * 1.03) !important; font-weight: 800; line-height: 1.1; }
     .ig-stat-unit  { font-size: calc(var(--stats-font-size, 1.5rem) * 0.47) !important; font-weight: 400; opacity: 0.6; margin-left: 2px; }
     .ig-stat-detail {
-        font-size: calc(var(--stats-font-size, 1.5rem) * 0.32) !important;
+        font-size: calc(var(--stats-font-size, 1.5rem) * 0.40) !important; /* was 0.32 */
         opacity: 0.45; margin-top: 1px;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;
     }
@@ -94,7 +94,7 @@
         margin-right: 6px; flex-shrink: 0;
     }
     .ig-day-label {
-        font-size: 0.5rem; opacity: 0.4; font-weight: 600;
+        font-size: 1em; opacity: 0.4; font-weight: 600;
         flex: 1; display: flex; align-items: center; justify-content: flex-end;
     }
     .ig-cal-grid {
@@ -114,7 +114,7 @@
     .ig-legend { display: flex; gap: 3px; margin-top: 8px; justify-content: center; flex-wrap: wrap; }
     .ig-legend-item { display: flex; align-items: center; gap: 2px; }
     .ig-legend-dot  { width: 7px; height: 7px; border-radius: 50%; }
-    .ig-legend-label{ font-size: 0.42rem; opacity: 0.5; font-weight: 500; }
+    .ig-legend-label{ font-size: 0.42rem; opacity: 0.5; font-weight: 500; padding-right: 0.3em }
 
     /* ---- Footer ---- */
     .ig-footer {
@@ -615,7 +615,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 group:  elGroup.value,
                 bg:     elBg.value,
                 width:  width,
-                height: height
+                height: height,
+                fontSize: fontSizeSlider.value
             };
             const resp = await fetch('/api/stats/export', {
                 method:  'POST',
@@ -650,25 +651,76 @@ document.addEventListener('DOMContentLoaded', function() {
     const fontSizeSlider = document.getElementById('stats-title-font-size');
     const fontSizeVal    = document.getElementById('stats-title-font-size-val');
 
-    function updateStatsFontSize(val) {
+    window.updateStatsFontSize = function updateStatsFontSize(val) {
         fontSizeVal.textContent = val + 'px';
+        // Also update additional elements
+        const v = parseInt(val, 10);
+        const elAthlete     = document.getElementById('ig-athlete');
+        const elPeriodLabel = document.getElementById('ig-period-label');
+        const elDateRange   = document.getElementById('ig-date-range');
+        const elLegend      = document.getElementById('ig-legend');
+        const elFooter      = document.getElementById('ig-footer');
+        const elDayLabels   = document.getElementById('ig-day-labels');
+        const elBestMonthDetail = document.getElementById('ig-best-month-detail');
+        const elHighestName     = document.getElementById('ig-highest-name');
+        const elLongestName     = document.getElementById('ig-longest-name');
+        if (elAthlete)     elAthlete.style.fontSize = (v - 12) + 'px';
+        if (elPeriodLabel) elPeriodLabel.style.fontSize = (v - 4) + 'px';
+        if (elDateRange)   elDateRange.style.fontSize = (v - 16) + 'px';
+        if (elLegend)      elLegend.style.fontSize = (v - 15 ) + 'px';
+        if (elFooter)      elFooter.style.fontSize = (v - 15) + 'px';
+        if (elDayLabels) {
+            elDayLabels.style.fontSize = (v - 15) + 'px';
+            Array.from(elDayLabels.children).forEach(function(child) {
+                child.style.fontSize = (v - 15) + 'px';
+            });
+        }
+        if (elBestMonthDetail) elBestMonthDetail.style.fontSize = (v - 14) + 'px';
+        if (elHighestName)     elHighestName.style.fontSize     = (v - 18) + 'px';
+        if (elLongestName)     elLongestName.style.fontSize     = (v - 18) + 'px';
+
+        // Update all subelements of .ig-legend-item
+        var legendItems = document.querySelectorAll('.ig-legend-item');
+        legendItems.forEach(function(item) {
+            // Set font size for all .ig-legend-label spans
+            var labels = item.querySelectorAll('.ig-legend-label');
+            labels.forEach(function(label) {
+                label.style.fontSize = (v - 12) + 'px';
+            });
+            // Set font size for any SVG or <i> icons (if present)
+            var icons = item.querySelectorAll('svg, i');
+            icons.forEach(function(icon) {
+                icon.style.fontSize = (v - 12) + 'px';
+                icon.style.height = (v - 12) + 'px';
+                icon.style.width = (v - 12) + 'px';
+            });
+        });
+        // Update all .ig-legend-dot elements: scale width/height, not font-size
+        var legendDots = document.querySelectorAll('.ig-legend-dot');
+        var dotSize = Math.max(7, Math.round(v * 0.32)); // 24*0.32=7.68 ~ 7px default
+        legendDots.forEach(function(dot) {
+            dot.style.width = dotSize + 'px';
+            dot.style.height = dotSize + 'px';
+        });
+
         igEl.style.setProperty('--stats-font-size', val + 'px');
         localStorage.setItem('statsTitleFontSize', val);
+
     }
 
     // Restore from localStorage if available, else apply default
-    (function() {
+    ;(function() {
         var stored = localStorage.getItem('statsTitleFontSize');
         if (stored) {
             fontSizeSlider.value = stored;
-            updateStatsFontSize(stored);
+            window.updateStatsFontSize(stored);
         } else {
-            updateStatsFontSize(fontSizeSlider.value);
+            window.updateStatsFontSize(fontSizeSlider.value);
         }
     })();
 
-    fontSizeSlider.addEventListener('input',  function() { updateStatsFontSize(this.value); });
-    fontSizeSlider.addEventListener('change', function() { updateStatsFontSize(this.value); });
+    fontSizeSlider.addEventListener('input',  function() { window.updateStatsFontSize(this.value); });
+    fontSizeSlider.addEventListener('change', function() { window.updateStatsFontSize(this.value); });
 
     // ---- Initial load ----
     applyInfographicSize();
@@ -676,6 +728,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

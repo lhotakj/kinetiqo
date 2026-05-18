@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 
 
-# Rainbow month colours (1-indexed month → hex)
+# Rainbow month colors (1-indexed month → hex)
 MONTH_COLORS: Dict[int, str] = {
     1:  '#FF4136',   # Jan  – Red
     2:  '#FF6D3A',   # Feb  – Orange-Red

@@ -2152,6 +2152,7 @@ def stats_export():
     bg     = str(payload.get('bg',     '#4a4a4a'))
     width  = max(800,  min(int(payload.get('width',  1280)), 2048))
     height = max(600,  min(int(payload.get('height',  960)), 1600))
+    font_size = str(payload.get('fontSize', '24'))
 
     host_header = request.host
     port = host_header.split(':')[1] if ':' in host_header else '4444'
@@ -2197,7 +2198,8 @@ def stats_export():
 
             # ── Step 1: inject the correct settings into the form controls and
             #           trigger a re-fetch so the right year/period/group/bg is shown.
-            page.evaluate(f"""
+            font_size_js = _json.dumps(font_size)
+            js_code = f"""
                 (function() {{
                     function setVal(id, val) {{
                         var el = document.getElementById(id);
@@ -2211,11 +2213,17 @@ def stats_export():
                     if (bg) bg.value = {_json.dumps(bg)};
                     var ig = document.getElementById('infographic');
                     if (ig) ig.style.backgroundColor = {_json.dumps(bg)};
-                    // Trigger fetchStats via change event on the year select
+                    // Set font size slider and update
+                    var fontSlider = document.getElementById('stats-title-font-size');
+                    if (fontSlider) {{
+                        fontSlider.value = {_json.dumps(font_size)};
+                        updateStatsFontSize({_json.dumps(font_size)});
+                    }}
                     var sel = document.getElementById('stats-year');
                     if (sel) sel.dispatchEvent(new Event('change'));
                 }})();
-            """)
+            """
+            page.evaluate(js_code)
 
             # ── Step 2: wait for the calendar to finish rendering.
             #            #ig-body goes from display:none → display:flex when data arrives.
