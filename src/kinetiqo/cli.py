@@ -1,7 +1,9 @@
+
 import logging
 import os
 import re
 import sys
+import platform
 
 import click
 from kinetiqo.cache import CacheManager
@@ -133,6 +135,7 @@ def cli(ctx, database):
             db_version, host_info = _get_db_info(config, repo)
             db_type = config.database_type.capitalize()
             logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
+            logger.info(f"Running in Python {platform.python_version()}")
             logger.info(f"DB Version: {db_version}")
 
             repo.initialize_schema()

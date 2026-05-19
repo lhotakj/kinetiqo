@@ -1,3 +1,4 @@
+
 import hashlib
 import logging
 import os
@@ -27,6 +28,10 @@ from kinetiqo.web.vo2max import (
 from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
+
+# --- Python version detection ---
+import platform
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -765,6 +770,29 @@ def _get_athlete_weight() -> tuple[float, str]:
     return 0.0, ""
 
 
+
+# --- Detect Playwright Chromium Version at Startup ---
+try:
+    from playwright.sync_api import sync_playwright
+    def detect_chromium_version():
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                version = browser.version
+                browser.close()
+                logger.info(f"Detected Chromium version: {version}")
+                return version
+        except Exception as e:
+            logger.warning(f"Could not detect Chromium version: {e}")
+            return None
+    CHROMIUM_VERSION = detect_chromium_version()
+except ImportError:
+    CHROMIUM_VERSION = None
+
+# --- Detect Python version at startup ---
+PYTHON_VERSION = platform.python_version()
+
+
 # ---------------------------------------------------------------------------
 # In-memory TTL cache for expensive power computations
 # ---------------------------------------------------------------------------
@@ -1297,10 +1325,16 @@ def settings():
     return render_template('settings.html', title="Settings")
 
 
+
 @app.route('/license', methods=['GET'])
 @login_required
 def license_page():
-    return render_template('license.html', title="License & Credits")
+    return render_template(
+        'license.html',
+        title="License & Credits",
+        chromium_version=CHROMIUM_VERSION,
+        python_version=PYTHON_VERSION
+    )
 
 
 @app.route('/api/settings')

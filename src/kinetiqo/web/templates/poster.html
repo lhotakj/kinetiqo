@@ -4,7 +4,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Limelight&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Limelight&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&family=Nunito:wght@400;700&family=Cinzel:wght@400;700&family=Cormorant:wght@400;700&display=swap" rel="stylesheet">
 <style>
     .poster-container {
         position: relative;
@@ -245,17 +245,7 @@
             <div class="control-row">
                 <label>Font</label>
                 <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="Roboto">Roboto</option>
-                    <option value="Inter">Inter</option>
-                    <option value="Limelight">Limelight</option>
-                    <option value="Roboto Condensed">Roboto Condensed</option>
-                    <option value="PT Sans Narrow">PT Sans Narrow</option>
-                    <option value="PT Sans">PT Sans</option>
-                    <option value="IBM Plex Serif">IBM Plex Serif</option>
-                    <option value="IBM Plex Sans Condensed">IBM Plex Sans Condensed</option>
-                    <option value="Open Sans">Open Sans</option>
-                    <option value="Faculty Glyphic">Faculty Glyphic</option>
-                    <option value="Yanone Kaffeesatz">Yanone Kaffeesatz</option>
+                    {% include "_font_options.html" %}
                 </select>
             </div>
             <div class="control-row">
@@ -301,17 +291,7 @@
             <div class="control-row">
                 <label>Font</label>
                 <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="Roboto">Roboto</option>
-                    <option value="Inter">Inter</option>
-                    <option value="Limelight">Limelight</option>
-                    <option value="Roboto Condensed">Roboto Condensed</option>
-                    <option value="PT Sans Narrow">PT Sans Narrow</option>
-                    <option value="PT Sans">PT Sans</option>
-                    <option value="IBM Plex Serif">IBM Plex Serif</option>
-                    <option value="IBM Plex Sans Condensed">IBM Plex Sans Condensed</option>
-                    <option value="Open Sans">Open Sans</option>
-                    <option value="Faculty Glyphic">Faculty Glyphic</option>
-                    <option value="Yanone Kaffeesatz">Yanone Kaffeesatz</option>
+                                                                                                                                                                                    {% include "_font_options.html" %}
                 </select>
             </div>
             <div class="control-row">
@@ -429,8 +409,8 @@
     // Defaults
     const DEFAULTS = {
         posterSize: 1280, ratio: '4/3',
-        titleFont: 'Roboto', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
-        statsFont: 'Roboto', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
+        titleFont: 'Roboto Condensed', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
+        statsFont: 'Roboto Condensed', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
         singleLine: true
     };
