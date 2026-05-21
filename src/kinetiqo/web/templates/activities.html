@@ -16,6 +16,8 @@
 <script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.html5.min.js"></script>
 <script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<!-- SheetJS for true XLSX export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -221,6 +223,10 @@
             <button id="exportCsvBtn"
                     class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Export the selected activities to a CSV file">Export to CSV
+            </button>
+            <button id="exportXlsxBtn"
+                    class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Export the selected activities to an Excel XLSX file">Export as XLSX
             </button>
         </div>
         <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
@@ -1312,11 +1318,13 @@ var table = null;
                 $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
                 $('#powerSkillsBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-purple-600');
                 $('#exportCsvBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-blue-600');
+                $('#exportXlsxBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-green-600');
             } else {
                 $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
                 $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
                 $('#powerSkillsBtn').prop('disabled', true).removeClass('bg-purple-600').addClass('bg-gray-400');
                 $('#exportCsvBtn').prop('disabled', true).removeClass('bg-blue-600').addClass('bg-gray-400');
+                $('#exportXlsxBtn').prop('disabled', true).removeClass('bg-green-600').addClass('bg-gray-400');
             }
         }
 
@@ -1551,6 +1559,97 @@ var table = null;
                 link.click();
                 document.body.removeChild(link);
             }
+        });
+
+        // Export as XLSX — respects currently visible columns in their visual order
+        $('#exportXlsxBtn').on('click', function () {
+            if (selectedActivities.size === 0) return;
+
+            const allData = table.data().toArray();
+            const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
+
+            if (selectedData.length === 0) return;
+
+            // Columns whose content cannot be meaningfully exported (UI-only)
+            const SKIP_COLS = new Set([0, 25, 26]); // Select checkbox, Poster, Actions/Delete
+
+            // Per-column data extractor: originalColIndex → function(row) → cell value
+            // Mirrors the render logic in the DataTables column definitions above.
+            const colExtractors = {
+                1:  row => row.name || '',
+                2:  row => row.type || '',
+                3:  row => {
+                        // timestamp is Unix seconds from Python; Date() needs ms
+                        const ts = row.date && row.date.timestamp;
+                        if (ts) return new Date(ts * 1000);
+                        const disp = (row.date && row.date.display) ? row.date.display : row.date;
+                        return disp ? new Date(disp) : '';
+                    },
+                4:  row => parseFloat((row.distance / 1000).toFixed(2)),
+                5:  row => parseFloat(Number(row.elevation).toFixed(2)),
+                6:  row => formatDuration(row.moving_time),
+                7:  row => parseFloat((row.average_speed * 3.6).toFixed(1)),
+                8:  row => row.average_watts > 0 ? Math.round(row.average_watts) : '',
+                9:  row => row.max_watts > 0 ? Math.round(row.max_watts) : '',
+                10: row => row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '',
+                11: row => row.weighted_average_watts ? Math.round(row.weighted_average_watts) : '',
+                12: row => row.device_watts ? Math.round(row.device_watts) : '',
+                13: row => row.calories ? Math.round(row.calories) : '',
+                14: row => row.kilojoules ? Math.round(row.kilojoules) : '',
+                15: row => row.achievement_count || 0,
+                16: row => row.pr_count || 0,
+                17: row => row.suffer_score ? Math.round(row.suffer_score) : '',
+                18: row => (row.average_temp !== null && row.average_temp !== undefined)
+                              ? parseFloat(Number(row.average_temp).toFixed(1)) : '',
+                19: row => row.elev_high ? parseFloat(Number(row.elev_high).toFixed(2)) : '',
+                20: row => row.elev_low  ? parseFloat(Number(row.elev_low).toFixed(2))  : '',
+                21: row => row.gear_id || '',
+                22: row => row.has_heartrate ? 'Yes' : 'No',
+                23: row => row.workout_type || '',
+                24: row => 'https://www.strava.com/activities/' + row.id
+            };
+
+            // Determine which columns to export: current visual order, visible, and exportable
+            const order = readColumnOrder(); // position → originalColIndex
+            const visibleCols = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
+            const exportCols = order.filter(origIdx =>
+                visibleCols.includes(origIdx) &&
+                !SKIP_COLS.has(origIdx) &&
+                colExtractors[origIdx] !== undefined
+            );
+
+            if (exportCols.length === 0) {
+                showFlash('No exportable columns are currently visible.', 'warning');
+                return;
+            }
+
+            // Build header row from columnDefs labels in visual order
+            const headers = exportCols.map(origIdx => columnDefs[origIdx].label);
+
+            // Build data rows
+            const rows = selectedData.map(row =>
+                exportCols.map(origIdx => colExtractors[origIdx](row))
+            );
+
+            // Create worksheet and set auto column widths
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 12) }));
+
+            // Apply Excel date format to the Date column cells
+            const dateExportPos = exportCols.indexOf(3);
+            if (dateExportPos >= 0) {
+                const dateColLetter = XLSX.utils.encode_col(dateExportPos);
+                for (let r = 0; r < rows.length; r++) {
+                    const cellRef = dateColLetter + (r + 2); // +1 header, +1 1-based
+                    if (ws[cellRef] && ws[cellRef].t === 'd') {
+                        ws[cellRef].z = 'yyyy-mm-dd';
+                    }
+                }
+            }
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Activities');
+            XLSX.writeFile(wb, 'selected_activities.xlsx');
         });
 
 
