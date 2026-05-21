@@ -65,7 +65,7 @@
     .ig-stat-value { font-size: calc(var(--stats-font-size, 1.5rem) * 1.03) !important; font-weight: 800; line-height: 1.1; }
     .ig-stat-unit  { font-size: calc(var(--stats-font-size, 1.5rem) * 0.47) !important; font-weight: 400; opacity: 0.6; margin-left: 2px; }
     .ig-stat-detail {
-        font-size: calc(var(--stats-font-size, 1.5rem) * 0.40) !important; /* was 0.32 */
+        font-size: calc(var(--stats-font-size, 1.5rem) * 0.52) !important; /* was 0.40, increased for better readability */
         opacity: 0.45; margin-top: 1px;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;
     }
@@ -470,6 +470,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Calendar rendered after body is visible so offsetHeight is valid
         renderCalendar(d.calendar, d.month_colors);
+        // Ensure legend font size is set after legend is rendered
+        if (window.updateStatsFontSize && fontSizeSlider) {
+            window.updateStatsFontSize(fontSizeSlider.value);
+        }
 
         document.getElementById('ig-generated-date').textContent =
             'Generated ' + new Date().toLocaleDateString();
@@ -585,6 +589,10 @@ document.addEventListener('DOMContentLoaded', function() {
         applyInfographicSize();
         if (lastData && lastData.calendar) {
             renderCalendar(lastData.calendar, lastData.month_colors);
+            // Ensure legend font size is set after legend is rendered
+            if (window.updateStatsFontSize && fontSizeSlider) {
+                window.updateStatsFontSize(fontSizeSlider.value);
+            }
         }
     });
 
@@ -598,6 +606,10 @@ document.addEventListener('DOMContentLoaded', function() {
             updateScaler(width, height);
             if (lastData && lastData.calendar) {
                 renderCalendar(lastData.calendar, lastData.month_colors);
+                // Ensure legend font size is set after legend is rendered
+                if (window.updateStatsFontSize && fontSizeSlider) {
+                    window.updateStatsFontSize(fontSizeSlider.value);
+                }
             }
         }, 150);
     });
@@ -675,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 child.style.fontSize = (v - 15) + 'px';
             });
         }
-        if (elBestMonthDetail) elBestMonthDetail.style.fontSize = (v - 14) + 'px';
+        if (elBestMonthDetail) elBestMonthDetail.style.fontSize = (v - 8) + 'px'; // Larger font for best month detail
         if (elHighestName)     elHighestName.style.fontSize     = (v - 18) + 'px';
         if (elLongestName)     elLongestName.style.fontSize     = (v - 18) + 'px';
 
