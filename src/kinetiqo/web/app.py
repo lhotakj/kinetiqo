@@ -2187,6 +2187,7 @@ def stats_export():
     width  = max(800,  min(int(payload.get('width',  1280)), 2048))
     height = max(600,  min(int(payload.get('height',  960)), 1600))
     font_size = str(payload.get('fontSize', '24'))
+    export_format = str(payload.get('format', 'png')).lower()
 
     host_header = request.host
     port = host_header.split(':')[1] if ':' in host_header else '4444'
@@ -2312,23 +2313,42 @@ def stats_export():
             # Short pause so the browser repaints after the DOM changes
             page.wait_for_timeout(300)
 
-            # ── Step 4: screenshot the full viewport — which now shows only the
-            #            infographic at (0,0) with exact width×height.
-            png_bytes = page.screenshot(
-                clip={'x': 0, 'y': 0, 'width': width, 'height': height}
-            )
-            context.close()
-            browser.close()
-
-        logger.info(f"Stats export OK: {width}x{height}, size={len(png_bytes)//1024} KB")
-        return Response(
-            png_bytes,
-            mimetype='image/png',
-            headers={
-                'Content-Disposition': 'attachment; filename="kinetiqo-megastats.png"',
-                'Content-Length': str(len(png_bytes)),
-            }
-        )
+            # ── Step 4: export as PNG or PDF
+            if export_format == 'pdf':
+                pdf_bytes = page.pdf(
+                    width=f'{width}px',
+                    height=f'{height}px',
+                    print_background=True,
+                    margin={'top': '0', 'right': '0', 'bottom': '0', 'left': '0'},
+                    page_ranges=None,
+                    display_header_footer=False
+                )
+                context.close()
+                browser.close()
+                logger.info(f"Stats PDF export OK: {width}x{height}, size={len(pdf_bytes)//1024} KB")
+                return Response(
+                    pdf_bytes,
+                    mimetype='application/pdf',
+                    headers={
+                        'Content-Disposition': 'attachment; filename="kinetiqo-megastats.pdf"',
+                        'Content-Length': str(len(pdf_bytes)),
+                    }
+                )
+            else:
+                png_bytes = page.screenshot(
+                    clip={'x': 0, 'y': 0, 'width': width, 'height': height}
+                )
+                context.close()
+                browser.close()
+                logger.info(f"Stats PNG export OK: {width}x{height}, size={len(png_bytes)//1024} KB")
+                return Response(
+                    png_bytes,
+                    mimetype='image/png',
+                    headers={
+                        'Content-Disposition': 'attachment; filename="kinetiqo-megastats.png"',
+                        'Content-Length': str(len(png_bytes)),
+                    }
+                )
     except Exception as e:
         logger.error(f"Playwright stats export failed: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500

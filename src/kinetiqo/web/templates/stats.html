@@ -171,10 +171,10 @@
                     title="Download as PNG image">
                 📷 PNG
             </button>
-            <button id="btn-print"
-                    class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium transition"
-                    title="Print / Save as PDF">
-                🖨️ PDF
+            <button id="btn-download-pdf"
+                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition"
+                    title="Download as PDF">
+                📄 PDF
             </button>
         </div>
 
@@ -656,7 +656,47 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    document.getElementById('btn-print').addEventListener('click', function() { window.print(); });
+    document.getElementById('btn-download-pdf').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled    = true;
+        btn.textContent = 'Exporting…';
+        try {
+            const { width, height } = getExportSize();
+            const payload = {
+                year:   elYear.value,
+                period: elPeriod.value,
+                group:  elGroup.value,
+                bg:     elBg.value,
+                width:  width,
+                height: height,
+                fontSize: fontSizeSlider.value,
+                format: 'pdf'
+            };
+            const resp = await fetch('/api/stats/export', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                let msg = 'HTTP ' + resp.status;
+                try { msg = (await resp.json()).error || msg; } catch (_) {}
+                alert('Export failed: ' + msg);
+                return;
+            }
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.download = 'kinetiqo-megastats-' + elYear.value + '-' + elPeriod.value + '.pdf';
+            a.href     = url;
+            a.click();
+            setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
+        } catch (e) {
+            alert('Export failed: ' + e.message);
+        } finally {
+            btn.disabled    = false;
+            btn.textContent = '\ud83d\udcc4 PDF';
+        }
+    });
 
     // --- Stats Title Font Size Control ---
     // NOTE: This must be directly inside the outer DOMContentLoaded, NOT nested in another one.
@@ -740,6 +780,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
+
+
+
 
 
 
