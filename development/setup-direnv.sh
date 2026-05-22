@@ -69,6 +69,9 @@ warn() {
 BLUE="\033[34m"
 RESET="\033[0m"
 
+# Fake Ubuntu version
+export PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64
+
 # Get Python version
 PYTHON_VERSION=$(python3 --version 2>&1)
 

@@ -82,7 +82,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # When executable_path is set on launch(), Playwright skips version checks.
     PLAYWRIGHT_BROWSERS_PATH=/dev/null \
     PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PLAYWRIGHT_HEADLESS=1
 
 # Runtime-only system libraries:
 #   • Firebird client deps  (libtommath1, libtomcrypt1)
