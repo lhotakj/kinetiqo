@@ -45,7 +45,7 @@ python3 /app/kinetiqo.py flightcheck
 > $CRONFILE
 
 if [ "$FULL_SYNC" != "" ]; then
-  echo "$FULL_SYNC python3 /app/kinetiqo.py sync --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
+  echo "$FULL_SYNC python /app/kinetiqo.py sync --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   info "Adding full sync to cron: $FULL_SYNC"
   CRON_ADDED=1
 else
@@ -53,7 +53,7 @@ else
 fi
 
 if [ "$FAST_SYNC" != "" ]; then
-  echo "$FAST_SYNC python3 /app/kinetiqo.py sync --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
+  echo "$FAST_SYNC python /app/kinetiqo.py sync --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   info "Adding fast sync to cron: ${FAST_SYNC}"
   CRON_ADDED=1
 else
