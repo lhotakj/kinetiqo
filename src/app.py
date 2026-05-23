@@ -141,42 +141,6 @@ def fastsync():
     return render_template('sync.html', title="Fast Sync", sync_type="fast")
 
 
-# --- HTMX / Reactive API Endpoints ---
-
-@app.route('/api/sync/<type>', methods=['POST'])
-@login_required
-def run_sync(type):
-    """
-    This endpoint is called by HTMX. It simulates a backend process
-    and returns an HTML snippet to update the UI without a page reload.
-    """
-    # Simulate processing delay
-    time.sleep(1.5)
-
-    if type == 'full':
-        count = random.randint(1000, 2000)
-        msg = f"Full synchronization completed. {count} historical items processed."
-        color_class = "green"
-    else:
-        count = random.randint(0, 15)
-        msg = f"Fast sync completed. {count} new activities found."
-        color_class = "blue"
-
-    # Return HTML snippet for HTMX injection
-    return f'''
-        <div class="p-4 bg-{color_class}-50 border border-{color_class}-200 rounded-md text-{color_class}-800 animate-fade-in">
-            <div class="flex items-center">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                <span class="font-medium">{msg}</span>
-            </div>
-            <div class="mt-2 text-xs text-{color_class}-600 opacity-75">
-                Database connection: Active | Strava API: OK
-            </div>
-        </div>
-    '''
-
-
-
 # --- Main Entrypoint ---
 if __name__ == '__main__':
     # For development only! Use Gunicorn or another WSGI server in production.

@@ -110,15 +110,21 @@ class SyncService:
 
             after = None
             if limit_days > 0:
+                # Full sync scoped to a rolling window from NOW.
                 after = int((datetime.now(timezone.utc) - timedelta(days=limit_days)).timestamp())
                 yield yield_log(f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
             elif not full_sync:
+                # Fast sync window: start from the latest activity date in the DB,
+                # but always go back at least 7 days from now so that recently
+                # deleted activities (which sit at or before latest_ts) are still
+                # inside the Strava fetch window and can be detected as missing.
                 latest_ts = self.db.get_latest_activity_time()
+                week_ago = int((datetime.now(timezone.utc) - timedelta(days=14)).timestamp())
                 if latest_ts:
-                    after = latest_ts - 86400
-                    yield yield_log(f"Fast sync: Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
+                    after = min(latest_ts, week_ago)
                 else:
-                    yield yield_log("Fast sync: No previous data found, falling back to full fetch.")
+                    after = week_ago
+                yield yield_log(f"Fast sync: Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
 
             activities = []
             for item in self.strava.get_activities(activities, after=after):
@@ -136,11 +142,12 @@ class SyncService:
             existing_activities = [a for a in activities if str(a["id"]) in synced_ids]
             yield yield_log(f"Identified {len(new_activities)} new and {len(existing_activities)} existing activities.")
 
-            ids_to_delete = set()
             strava_ids = {str(a["id"]) for a in activities}
             if after is None:
+                # Full sync with no window: every DB id missing from Strava was deleted.
                 ids_to_delete = synced_ids - strava_ids
             else:
+                # Windowed sync: only compare within the fetched date window.
                 scoped_synced_ids = self.db.get_synced_activity_ids_since(after)
                 ids_to_delete = scoped_synced_ids - strava_ids
             if ids_to_delete:
