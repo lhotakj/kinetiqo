@@ -482,6 +482,7 @@ build/
 | Language | Python | 3.14 |
 | Web framework | Flask[async] + flask-login | 3.1.3 / 0.6.3 |
 | Response compression | flask-compress | 1.24 |
+| CSRF protection | Flask-WTF | 1.1.1 |
 | WSGI server | Gunicorn | 26.0.0 |
 | CLI | Click | 8.3.3 |
 | HTTP client | httpx | 0.28.1 |

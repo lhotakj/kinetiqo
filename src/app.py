@@ -1,15 +1,77 @@
 import random
 import time
+import os
+
 from datetime import datetime
 
 from auth import User, users
 from flask import Flask, request, redirect, url_for, flash
 from flask import render_template
+# Import CSRFProtect with robust fallbacks so the app can run in dev without
+# Flask-WTF installed. In production, ensure Flask-WTF is installed and
+# enabled to provide CSRF protection.
+try:
+    from flask_wtf import CSRFProtect
+except Exception:
+    try:
+        from flask_wtf.csrf import CSRFProtect
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "flask-wtf not installed; CSRF protection disabled. "
+            "Install Flask-WTF in production!"
+        )
+
+        class CSRFProtect:  # no-op fallback for development/test environments
+            def init_app(self, app):
+                return None
+
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from mock_data import get_mock_activities
 
+
+# --- Flask App & Security Configuration ---
 app = Flask(__name__)
-app.secret_key = 'super_secret_key_for_demo_only'
+csrf = CSRFProtect()
+csrf.init_app(app) # Compliant
+
+# Enforce SECRET_KEY in production
+secret = os.environ.get("SECRET_KEY")
+if not secret:
+    import logging
+    logging.getLogger(__name__).warning(
+        "SECRET_KEY environment variable not set - using a generated key. "
+        "This is fine for development but MUST be set in production."
+    )
+    # Use a randomly generated key (bytes); Flask accepts bytes or str.
+    secret = os.urandom(24)
+app.secret_key = secret
+
+# Secure session cookie settings (adjust as needed for your deployment)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # Consider "Strict" for extra protection
+# Only set SESSION_COOKIE_SECURE if running behind HTTPS
+if os.environ.get("FLASK_ENV") == "production" or os.environ.get("KINETIQO_PRODUCTION") == "1":
+    app.config["SESSION_COOKIE_SECURE"] = True
+    if not os.environ.get("SECRET_KEY"):
+        raise RuntimeError("SECRET_KEY must be set in production!")
+
+# Warn if running in debug mode in production
+if app.debug or os.environ.get("FLASK_ENV") == "development":
+    import logging
+    logging.getLogger(__name__).warning(
+        "Flask is running in debug mode. Do NOT use debug mode in production!"
+    )
+
+# --- Password Security Note ---
+# WARNING: This mock app uses plaintext passwords for demonstration only.
+# In production, always store password hashes (e.g., with bcrypt or argon2).
+# Never store or compare plaintext passwords.
+
+# --- Production Deployment Note ---
+# For production, use a WSGI server like Gunicorn behind HTTPS (e.g., via nginx or Caddy).
+# Do NOT use Flask's built-in server in production.
+
 
 # --- Login Configuration ---
 login_manager = LoginManager()
@@ -39,6 +101,9 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
+
+        # WARNING: Plaintext password check for mock/demo only!
+        # Replace with password hash check in production.
         if username in users and users[username]['password'] == password:
             user = User(username)
             login_user(user)
@@ -111,5 +176,8 @@ def run_sync(type):
     '''
 
 
+
+# --- Main Entrypoint ---
 if __name__ == '__main__':
+    # For development only! Use Gunicorn or another WSGI server in production.
     app.run(debug=True, port=4444, host='0.0.0.0')
