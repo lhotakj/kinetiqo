@@ -142,7 +142,7 @@ def cli(ctx, database):
             # _load_api_keys(config)
 
         except Exception as e:
-            logger.error(f"Failed to initialize database: {e}", exc_info=True)
+            logger.exception(f"Failed to initialize database: {e}", exc_info=True)
             sys.exit(1)
         finally:
             if repo:
@@ -231,7 +231,7 @@ def flightcheck(ctx):
             logger.error("Database check failed.")
             sys.exit(1)
     except Exception as e:
-        logger.error(f"An error occurred during flight check: {e}")
+        logger.exception(f"An error occurred during flight check: {e}")
         sys.exit(1)
     finally:
         if repo:

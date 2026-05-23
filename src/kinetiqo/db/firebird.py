@@ -4,8 +4,6 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
-import firebird.driver
-from firebird.driver import tpb, Isolation, TraAccessMode
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
@@ -63,7 +61,7 @@ class FirebirdRepository(DatabaseRepository):
 
             return conn
         except Exception as e:
-            logger.error(f"Failed to connect to Firebird: {e}")
+            logger.exception(f"Failed to connect to Firebird: {e}")
             raise
 
     def _ensure_connected(self):
@@ -100,7 +98,7 @@ class FirebirdRepository(DatabaseRepository):
                 self.conn = self._connect()
                 self._last_verified = time.monotonic()
             except Exception as e:
-                logger.error(f"Failed to reconnect to Firebird: {e}")
+                logger.exception(f"Failed to reconnect to Firebird: {e}")
                 raise
 
     def _ensure_database(self):
@@ -124,7 +122,7 @@ class FirebirdRepository(DatabaseRepository):
                 logger.info(f"Database '{self.config.firebird_database}' created successfully.")
                 self.conn = self._connect()
             except Exception as create_err:
-                logger.error(f"Could not create database: {create_err}")
+                logger.exception(f"Could not create database: {create_err}")
                 sys.exit(1)
 
     def get_firebird_version(self) -> str:

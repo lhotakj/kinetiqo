@@ -192,7 +192,7 @@ class SyncService:
                         logger.warning(f"  ⚠ Activity {activity_id} has no stream data.")
                 except Exception as e:
                     yield yield_log(f"Error syncing activity {activity_id}: {e}")
-                    logger.error(f"  ✗ Error syncing activity {activity_id}: {e}")
+                    logger.exception(f"  ✗ Error syncing activity {activity_id}: {e}")
                 time.sleep(0.1)
 
             if ids_to_delete:
@@ -207,7 +207,7 @@ class SyncService:
 
         except Exception as e:
             success = False
-            logger.error(f"Sync failed: {e}", exc_info=True)
+            logger.exception(f"Sync failed: {e}", exc_info=True)
             yield yield_log(f"Sync failed: {e}", final=True)
             raise
         finally:
@@ -216,7 +216,7 @@ class SyncService:
                 final_action = action + ("-stopped" if stopped else "")
                 self.db.log_sync(added_count, removed_count, trigger, final_success, final_action, user)
             except Exception as e:
-                logger.error(f"Failed to write sync log: {e}")
+                logger.exception(f"Failed to write sync log: {e}")
 
     def close(self):
         self.db.close()

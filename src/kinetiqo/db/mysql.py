@@ -46,7 +46,7 @@ class MySQLRepository(DatabaseRepository):
                 try:
                     conn = mysql.connector.connect(**connect_args)
                 except Exception as e:
-                    logger.error(str(e))
+                    logger.exception(str(e))
                     raise
             else:
                 logger.error(str(err))
@@ -79,7 +79,7 @@ class MySQLRepository(DatabaseRepository):
                 self.conn = self._connect()
                 self.conn.database = self.config.mysql_database
             except Exception as e:
-                logger.error(f"Failed to reconnect to MySQL: {e}")
+                logger.exception(f"Failed to reconnect to MySQL: {e}")
                 raise
         # Re-apply autocommit in case ping's reconnect reset session state
         if not self.conn.autocommit:
@@ -144,7 +144,7 @@ class MySQLRepository(DatabaseRepository):
 
                 return True
         except Exception as e:
-            logger.error(f"Flight check failed: {e}")
+            logger.exception(f"Flight check failed: {e}")
             return False
 
     def get_latest_activity_time(self) -> Optional[int]:

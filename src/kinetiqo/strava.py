@@ -39,7 +39,7 @@ class StravaClient:
         try:
             r = requests.post(url, data=payload, timeout=self.request_timeout)
         except Exception as e:
-            logger.error(f"Token exchange request failed: {e}")
+            logger.exception(f"Token exchange request failed: {e}")
             raise
 
         if r.status_code != 200:
@@ -124,7 +124,7 @@ class StravaClient:
             try:
                 batch = r.json()
             except Exception as e:
-                logger.error(f"Failed to decode Strava response JSON: {e}")
+                logger.exception(f"Failed to decode Strava response JSON: {e}")
                 yield f"Error: Failed to decode Strava response: {e}"
                 return
 
