@@ -65,10 +65,17 @@ else
 fi
 
 if [ $CRON_ADDED -eq 1 ]; then
+  # Add environment variables to crontab so cron jobs can access them
+  {
+    echo "STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID"
+    echo "STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET"
+    echo "SECRET_KEY=$SECRET_KEY"
+    echo ""
+  } >> $CRONFILE
   crontab $CRONFILE
-  # Start cron in background
-  cron
-  info "Cron started in background"
+  # Start cron daemon in background
+  crond -f -l 2 &
+  info "Cron daemon started in background"
 fi
 
 # Execute the command passed to docker run
