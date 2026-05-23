@@ -23,7 +23,7 @@ except Exception:
         )
 
         class CSRFProtect:  # no-op fallback for development/test environments
-            def init_app(self, app):
+            def init_app(self):
                 return None
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -88,7 +88,7 @@ def load_user(user_id):
 
 # --- Routes ---
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('activities'))
@@ -114,14 +114,14 @@ def login():
     return render_template('login.html', current_year=datetime.now().year)
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
 
 
-@app.route('/activities')
+@app.route('/activities', methods=['GET'])
 @login_required
 def activities():
     # Load mocked Strava data
@@ -129,13 +129,13 @@ def activities():
     return render_template('activities.html', title="Activities", activities=data)
 
 
-@app.route('/fullsync')
+@app.route('/fullsync', methods=['GET'])
 @login_required
 def fullsync():
     return render_template('sync.html', title="Full Sync", sync_type="full")
 
 
-@app.route('/fastsync')
+@app.route('/fastsync', methods=['GET'])
 @login_required
 def fastsync():
     return render_template('sync.html', title="Fast Sync", sync_type="fast")
