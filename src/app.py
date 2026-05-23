@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 
 from auth import User, users
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, request, redirect, url_for, flash
 from flask import render_template
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from mock_data import get_mock_activities
