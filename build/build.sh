@@ -33,6 +33,7 @@ warn() {
 # Default values
 PUSH_FLAG=""
 DOCKER_USERNAME="lhotakj"
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
 
 # Parse command-line arguments
 for arg in "$@"
@@ -65,7 +66,7 @@ echo "$VERSION" > ./version.txt
 echo "$SHORT_VERSION" > ./short_version.txt
 
 if [ -n "$PUSH_FLAG" ]; then
-    info "Building and pushing version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 and linux/arm64 ..."
+    info "Building and pushing version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 and linux/arm64 with timestamp ${TIMESTAMP} ..."
     docker buildx build \
       --platform linux/amd64,linux/arm64 \
       --no-cache \
@@ -74,6 +75,7 @@ if [ -n "$PUSH_FLAG" ]; then
       -t ${DOCKER_USERNAME}/kinetiqo:latest \
       -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
       -t ${DOCKER_USERNAME}/kinetiqo:${VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo:${TIMESTAMP} \
       -f ../build/Dockerfile \
       --push \
       ..
@@ -90,7 +92,7 @@ else
       info "Using locally cached base image (lhotakj/firebird-python:3.14) — run build-base.sh first if missing."
     fi
 
-    info "Building locally version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 ..."
+    info "Building locally version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 with timestamp ${TIMESTAMP} ..."
     docker buildx build \
       --platform linux/amd64 \
       --load \
@@ -100,6 +102,7 @@ else
       -t ${DOCKER_USERNAME}/kinetiqo:latest \
       -t ${DOCKER_USERNAME}/kinetiqo:${SHORT_VERSION} \
       -t ${DOCKER_USERNAME}/kinetiqo:${VERSION} \
+      -t ${DOCKER_USERNAME}/kinetiqo:${TIMESTAMP} \
       -f ../build/Dockerfile \
       ..
 
