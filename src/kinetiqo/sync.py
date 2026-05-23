@@ -29,12 +29,11 @@ class SyncService:
     def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0):
         """
         Perform sync of Strava activities, yielding progress updates.
+
+        Full sync:  fetches activities within the given limit_days window (or all time if 0).
+        Fast sync:  fetches activities after the latest activity already in the database.
         """
-        if os.path.exists(STOP_SIGNAL_FILE):
-            try:
-                os.remove(STOP_SIGNAL_FILE)
-            except:
-                pass
+        self._check_stop_signal()  # clear any leftover stop signal before starting
 
         log_buffer = []
         sync_type_str = 'full' if full_sync else 'fast'
@@ -97,7 +96,7 @@ class SyncService:
                 Stop Sync
             </button>""".replace('\n', '')
             yield f"data: {stop_button_html}\n\n"
-            yield yield_log(f"Starting sync process (Mode: {'FULL' if full_sync else 'FAST'}, Limit: {limit_days} days)...")
+            yield yield_log(f"Starting {sync_type_str} sync (limit: {limit_days} days)...")
 
             self.db.initialize_schema()
             synced_ids = self.db.get_synced_activity_ids()
@@ -108,24 +107,30 @@ class SyncService:
                 yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
                 return
 
+            # --- Determine the time window for fetching from Strava ---
             after = None
-            if limit_days > 0:
-                # Full sync scoped to a rolling window from NOW.
+            if full_sync and limit_days > 0:
                 after = int((datetime.now(timezone.utc) - timedelta(days=limit_days)).timestamp())
-                yield yield_log(f"Full sync limited to last {limit_days} days. Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
+                yield yield_log(
+                    f"Full sync limited to last {limit_days} days (after {datetime.fromtimestamp(after, tz=timezone.utc)}).")
             elif not full_sync:
-                # Fast sync window: start from the latest activity date in the DB,
-                # but always go back at least 7 days from now so that recently
-                # deleted activities (which sit at or before latest_ts) are still
-                # inside the Strava fetch window and can be detected as missing.
                 latest_ts = self.db.get_latest_activity_time()
-                week_ago = int((datetime.now(timezone.utc) - timedelta(days=14)).timestamp())
                 if latest_ts:
-                    after = min(latest_ts, week_ago)
+                    latest_dt = datetime.fromtimestamp(latest_ts, tz=timezone.utc)
+                    # Cover the current and previous calendar day of the latest activity.
+                    # This handles activities that were deleted or uploaded late — anything
+                    # within the last ~3 days is always rechecked. For gaps older than that,
+                    # use FullSync with an appropriate window.
+                    after_dt = (latest_dt - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+                    after = int(after_dt.timestamp())
+                    yield yield_log(
+                        f"Fast sync: fetching activities since {after_dt.strftime('%Y-%m-%d')} "
+                        f"(day prior to latest: {latest_dt.strftime('%Y-%m-%d %H:%M:%S UTC')})."
+                    )
                 else:
-                    after = week_ago
-                yield yield_log(f"Fast sync: Fetching activities after {datetime.fromtimestamp(after, tz=timezone.utc)}")
+                    yield yield_log("Fast sync: no previous data found, falling back to full fetch.")
 
+            # --- Fetch from Strava ---
             activities = []
             for item in self.strava.get_activities(activities, after=after):
                 if isinstance(item, str):
@@ -142,18 +147,22 @@ class SyncService:
             existing_activities = [a for a in activities if str(a["id"]) in synced_ids]
             yield yield_log(f"Identified {len(new_activities)} new and {len(existing_activities)} existing activities.")
 
+            # --- Identify stale DB entries within the fetched window ---
             strava_ids = {str(a["id"]) for a in activities}
             if after is None:
-                # Full sync with no window: every DB id missing from Strava was deleted.
                 ids_to_delete = synced_ids - strava_ids
             else:
-                # Windowed sync: only compare within the fetched date window.
-                scoped_synced_ids = self.db.get_synced_activity_ids_since(after)
+                # Strava's `after` param is exclusive (strictly >), meaning the activity
+                # sitting exactly at `after` is our anchor — it will never be returned
+                # by Strava and must never be considered stale. Use after+1 to match
+                # the same exclusive boundary.
+                scoped_synced_ids = self.db.get_synced_activity_ids_since(after + 1)
                 ids_to_delete = scoped_synced_ids - strava_ids
+
             if ids_to_delete:
-                yield yield_log(f"Found {len(ids_to_delete)} activities in database that are missing from Strava.")
+                yield yield_log(f"Found {len(ids_to_delete)} activities in database missing from Strava.")
             else:
-                yield yield_log("No activities to delete.")
+                yield yield_log("No stale activities to delete.")
 
             if self._check_stop_signal():
                 stopped = True
@@ -169,7 +178,7 @@ class SyncService:
                         updated_count += 1
                     except Exception as e:
                         logger.warning(f"Failed to update activity {activity['id']}: {e}")
-                yield yield_log(f"Updated {updated_count} existing activities (metadata only, streams unchanged).")
+                yield yield_log(f"Updated {updated_count} existing activities.")
 
             if self._check_stop_signal():
                 stopped = True
@@ -196,34 +205,42 @@ class SyncService:
                         self.db.write_activity_streams(activity, streams)
                         added_count += 1
                     else:
-                        logger.warning(f"  ⚠ Activity {activity_id} has no stream data.")
+                        logger.warning(f"Activity {activity_id} has no stream data.")
                 except Exception as e:
                     yield yield_log(f"Error syncing activity {activity_id}: {e}")
-                    logger.exception(f"  ✗ Error syncing activity {activity_id}: {e}")
+                    logger.error(f"Error syncing activity {activity_id}: {e}")
                 time.sleep(0.1)
 
+            # --- Phase 3: Delete stale activities ---
             if ids_to_delete:
                 try:
                     self.db.delete_activities(list(ids_to_delete))
                     removed_count = len(ids_to_delete)
                     yield yield_log(f"Deleted {removed_count} stale activities from database.")
                 except Exception as e:
-                    yield yield_log(f"Error deleting activities: {e}")
+                    yield yield_log(f"Error deleting stale activities: {e}")
 
-            yield yield_log(f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.", final=True)
+            yield yield_log(
+                f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",
+                final=True
+            )
 
         except Exception as e:
             success = False
-            logger.exception(f"Sync failed: {e}", exc_info=True)
+            logger.error(f"Sync failed: {e}", exc_info=True)
             yield yield_log(f"Sync failed: {e}", final=True)
             raise
         finally:
             try:
-                final_success = success and not stopped
-                final_action = action + ("-stopped" if stopped else "")
-                self.db.log_sync(added_count, removed_count, trigger, final_success, final_action, user)
+                self.db.log_sync(
+                    added_count, removed_count, trigger,
+                    success and not stopped,
+                    action + ("-stopped" if stopped else ""),
+                    user
+                )
             except Exception as e:
-                logger.exception(f"Failed to write sync log: {e}")
+                logger.error(f"Failed to write sync log: {e}")
+
 
     def close(self):
         self.db.close()
