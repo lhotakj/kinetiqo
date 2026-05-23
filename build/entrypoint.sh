@@ -34,18 +34,22 @@ info " Starting Kinetiqo v.${VERSION} ..."
 
 CRON_ADDED=0
 CRONFILE=/tmp/crontab
+PYTHON_PATH="/usr/local/bin/python"
+
+info "Check Python version"
+$PYTHON_PATH --version
 
 info "Check version"
-python3 /app/kinetiqo.py version
+$PYTHON_PATH /app/kinetiqo.py version
 
 info "Flight check"
-python3 /app/kinetiqo.py flightcheck
+$PYTHON_PATH /app/kinetiqo.py flightcheck
 
 # shellcheck disable=SC2188
 > $CRONFILE
 
 if [ "$FULL_SYNC" != "" ]; then
-  echo "$FULL_SYNC python /app/kinetiqo.py sync --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
+  echo "$FULL_SYNC $PYTHON_PATH /app/kinetiqo.py sync --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   info "Adding full sync to cron: $FULL_SYNC"
   CRON_ADDED=1
 else
@@ -53,7 +57,7 @@ else
 fi
 
 if [ "$FAST_SYNC" != "" ]; then
-  echo "$FAST_SYNC python /app/kinetiqo.py sync --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
+  echo "$FAST_SYNC $PYTHON_PATH /app/kinetiqo.py sync --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   info "Adding fast sync to cron: ${FAST_SYNC}"
   CRON_ADDED=1
 else
