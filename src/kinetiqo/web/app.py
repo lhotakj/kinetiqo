@@ -2,11 +2,12 @@
 import hashlib
 import logging
 import os
+import shutil
 import mimetypes
 import threading
 import time as _time
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import httpx
 import requests
@@ -774,10 +775,95 @@ def _get_athlete_weight() -> tuple[float, str]:
 # --- Detect Playwright Chromium Version at Startup ---
 try:
     from playwright.sync_api import sync_playwright
-    def detect_chromium_version():
+    
+    def _find_system_chromium() -> Optional[str]:
+        """
+        Try to find a system-installed Chromium executable.
+        
+        Searches in this order:
+        1. PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH environment variable
+        2. System PATH locations (varies by OS)
+        3. Common installation paths
+        
+        Returns:
+            Full path to chromium executable if found, None otherwise
+        """
+        # Priority 1: Check environment variable
+        exe_path = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH')
+        if exe_path and os.path.isfile(exe_path) and os.access(exe_path, os.X_OK):
+            return exe_path
+        
+        # Priority 2: Try to find in system PATH
+        # Common executable names across platforms
+        executable_names = [
+            'chromium',              # Linux (common package name)
+            'chromium-browser',      # Debian/Ubuntu variant
+            'chromium-headless-shell',  # Playwright headless variant
+            'google-chrome',         # Google Chrome (if installed as Chrome)
+            'google-chrome-stable',  # Chrome stable variant
+            'chrome',                # Windows/macOS
+        ]
+        
+        for name in executable_names:
+            exe = shutil.which(name)
+            if exe:
+                logger.info(f"Found Chromium via PATH: {exe} (name: {name})")
+                return exe
+        
+        # Priority 3: Check common installation paths (Windows)
+        if os.name == 'nt':  # Windows
+            common_paths = [
+                r'C:\Program Files\Chromium\Application\chrome.exe',
+                r'C:\Program Files (x86)\Chromium\Application\chrome.exe',
+                r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+                r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+            ]
+            for path in common_paths:
+                if os.path.isfile(path):
+                    logger.info(f"Found Chromium at common Windows path: {path}")
+                    return path
+        
+        # Priority 4: Check common installation paths (Unix/Linux/macOS)
+        else:
+            common_paths = [
+                '/usr/bin/chromium',
+                '/usr/bin/chromium-browser',
+                '/snap/bin/chromium',
+                '/opt/chromium/chrome',
+                '/Applications/Chromium.app/Contents/MacOS/Chromium',
+                '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            ]
+            for path in common_paths:
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    logger.info(f"Found Chromium at common path: {path}")
+                    return path
+        
+        return None
+    
+    def detect_chromium_version() -> Optional[str]:
+        """
+        Detect Chromium version using available Chromium installation.
+        
+        Tries the following in order:
+        1. System-installed Chromium (via _find_system_chromium)
+        2. Playwright-bundled Chromium (default)
+        
+        Returns:
+            Version string if successful, None otherwise
+        """
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch()
+                launch_kwargs = {'headless': True}
+                
+                # Try to find system Chromium first
+                exe_path = _find_system_chromium()
+                if exe_path:
+                    launch_kwargs['executable_path'] = exe_path
+                    logger.info(f"Using system Chromium: {exe_path}")
+                else:
+                    logger.info("Using Playwright's bundled Chromium")
+                
+                browser = p.chromium.launch(**launch_kwargs)
                 version = browser.version
                 browser.close()
                 logger.info(f"Detected Chromium version: {version}")
@@ -785,6 +871,7 @@ try:
         except Exception as e:
             logger.warning(f"Could not detect Chromium version: {e}")
             return None
+    
     CHROMIUM_VERSION = detect_chromium_version()
 except ImportError:
     CHROMIUM_VERSION = None
@@ -1906,11 +1993,11 @@ def poster_export(activity_id):
 
     Chromium selection
     ------------------
-    * In Docker / Alpine the ``PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`` env var
-      points at the system Chromium installed via ``apk add chromium``.
-    * In local development (Linux/macOS/Windows) that variable is unset and
-      Playwright uses its own bundled Chromium (installed with
-      ``playwright install chromium``).
+    * In Docker / Production: system Chromium from ``chromium`` apt package,
+      configured via ``PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium``
+      in the base image.
+    * In local development: Playwright's bundled Chromium installed via
+      ``playwright install chromium``.
     """
     import json as _json
     import shutil
@@ -1970,14 +2057,13 @@ def poster_export(activity_id):
         })
 
     # ── Resolve Chromium executable ────────────────────────────────────────
-    # Playwright uses its own version-matched bundled Chromium by default.
-    # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH can still override this for
-    # environments where a system Chromium is preferred, but it is no longer
-    # set in the Docker image — Playwright's bundled binary is used instead.
-    chromium_exe = (
-        os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH')
-        or None  # None → Playwright uses its bundled Chromium
-    )
+    # Try to find system Chromium first, then fall back to Playwright's
+    # bundled Chromium.
+    chromium_exe = _find_system_chromium()
+    if chromium_exe:
+        logger.info(f"Poster export will use: {chromium_exe}")
+    else:
+        logger.info("Poster export will use Playwright's bundled Chromium")
 
     try:
         with sync_playwright() as p:
@@ -2197,7 +2283,11 @@ def stats_export():
         {'name': n, 'value': v, 'domain': '127.0.0.1', 'path': '/'}
         for n, v in request.cookies.items()
     ]
-    chromium_exe = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH') or None
+    chromium_exe = _find_system_chromium()
+    if chromium_exe:
+        logger.info(f"Stats export will use: {chromium_exe}")
+    else:
+        logger.info("Stats export will use Playwright's bundled Chromium")
 
     try:
         from flask import Response

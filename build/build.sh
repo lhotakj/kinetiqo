@@ -87,7 +87,7 @@ else
       info "CI environment detected — base image will be pulled from DockerHub."
     else
       PULL_FLAG="--pull=false"
-      info "Using locally cached base image (lhotakj/firebird-python:3.13) — run build-base.sh first if missing."
+      info "Using locally cached base image (lhotakj/firebird-python:3.14) — run build-base.sh first if missing."
     fi
 
     info "Building locally version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 ..."

@@ -12,8 +12,8 @@
 # Published to Docker Hub as: lhotakj/firebird-python:<python_version>
 # =============================================================================
 
-ARG PYTHON_VERSION=3.13
-ARG FIREBIRD_VERSION=5.0.3
+ARG PYTHON_VERSION=3.14
+ARG FIREBIRD_VERSION=5.0.4
 
 # -----------------------------------------------------------------------------
 # Stage 1: Builder — compile Firebird client-only from source
@@ -77,10 +77,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LD_LIBRARY_PATH=/usr/local/lib \
     FIREBIRD_LIB=/usr/local/lib/libfbclient.so \
     # Tell Playwright to use the system Chromium instead of downloading its own.
-    # PLAYWRIGHT_BROWSERS_PATH=/dev/null prevents any browser cache lookups.
     # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH points to the system binary.
     # When executable_path is set on launch(), Playwright skips version checks.
-    PLAYWRIGHT_BROWSERS_PATH=/dev/null \
     PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     PLAYWRIGHT_HEADLESS=1

@@ -16,7 +16,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder — install Python dependencies into an isolated prefix
 # -----------------------------------------------------------------------------
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 COPY requirements.txt .
@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir --no-compile --prefix=/install -r requirements.tx
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime — application on top of the Firebird + Chromium base image
 # -----------------------------------------------------------------------------
-FROM lhotakj/firebird-python:3.13
+FROM lhotakj/firebird-python:3.14
 
 ARG VERSION
 LABEL maintainer="jarda@lhotak.net" \
@@ -48,7 +48,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FULL_SYNC="" \
     FAST_SYNC="" \
-    PYTHONPATH=/usr/local/lib/python3.13/site-packages
+    PYTHONPATH=/usr/local/lib/python3.14/site-packages
 # LD_LIBRARY_PATH, FIREBIRD_LIB, PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
 # PLAYWRIGHT_BROWSERS_PATH, PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD are all
 # inherited from the base image ENV — no need to repeat them here.

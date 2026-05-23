@@ -5,7 +5,7 @@
 # Usage:
 #   ./build-base.sh                  # build locally for linux/amd64 only
 #   ./build-base.sh --push           # build for amd64+arm64 and push to DockerHub
-#   ./build-base.sh --push --python 3.13 --firebird 5.0.3
+#   ./build-base.sh --push --python 3.14 --firebird 5.0.4
 
 # Logging functions
 info() {
@@ -26,8 +26,8 @@ warn() {
 
 # Defaults
 PUSH_FLAG=""
-PYTHON_VERSION="3.13"
-FIREBIRD_VERSION="5.0.3"
+PYTHON_VERSION="3.14"
+FIREBIRD_VERSION="5.0.4"
 DOCKER_USERNAME="lhotakj"
 
 # Parse arguments

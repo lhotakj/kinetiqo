@@ -64,7 +64,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - **Full Synchronization**: Comprehensive audit of your Strava history — retrieves all activities and reconciles deletions.
   - **Incremental Synchronization**: Efficiently retrieves only the most recent activities.
   - **Real-time progress**: SSE-powered progress bar during sync operations via HTMX.
-- 🐳 **Container-Native**: Dockerised on `python:3.13-alpine` with a two-phase build (Firebird base + app).
+- 🐳 **Container-Native**: Dockerised on `python:3.14-slim` with a two-phase build (Firebird base + app).
 - ⏱️ **Automated Scheduling**: Built-in `dcron` scheduler for unattended sync.
 - 💾 **Database Compatibility**:
   - **PostgreSQL** (version 12+)
@@ -121,10 +121,17 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 
 ### Dependencies
 
-- Python 3.13+
+- Python 3.14+
 - A running instance of PostgreSQL, MySQL/MariaDB, or Firebird.
 - Python package dependencies as listed in `requirements.txt`.
 - For Firebird, the client library is compiled from source inside the Docker base image (see [Building Docker Images](#building-docker-images)). For local (non-Docker) development on Ubuntu, install `libfbclient2`.
+- **Chromium/Headless browser** for poster and stats image export:
+  - The app auto-detects chromium in this order:
+    1. System package: `chromium` or `chromium-headless` (e.g., `apt install chromium`)
+    2. Playwright headless-shell: `playwright install chromium-headless-shell`
+    3. Playwright full chromium: `playwright install chromium` or bundled download
+  - Docker images ship with Playwright headless-shell pre-installed (minimal, ~150 MB).
+  - To use system chromium instead, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` (or `/usr/bin/chromium-headless`).
 
 ### Local Setup
 
@@ -472,7 +479,7 @@ build/
 
 | Concern | Technology | Version |
 |---|---|---|
-| Language | Python | 3.13 |
+| Language | Python | 3.14 |
 | Web framework | Flask[async] + flask-login | 3.1.3 / 0.6.3 |
 | Response compression | flask-compress | 1.24 |
 | WSGI server | Gunicorn | 26.0.0 |
@@ -494,8 +501,8 @@ build/
 | Date pickers | DateRangePicker + Moment.js | latest / 2.30 |
 | Drag & drop | SortableJS | 1.15 |
 | Fonts | Inter (variable), Italiana | Google Fonts |
-| Container base | python:3.13-alpine | — |
-| Scheduler | dcron | Alpine package |
+| Container base | python:3.14-slim | — |
+| Scheduler | dcron | Linux package |
 | Testing | unittest + unittest.mock | stdlib |
 
 ## Building Docker Images
@@ -509,12 +516,12 @@ Phase 1 (rare)                          Phase 2 (every release)
 ┌──────────────────────────┐            ┌──────────────────────────┐
 │  Dockerfile.firebird-base│            │  Dockerfile              │
 │                          │            │                          │
-│  python:3.13-alpine      │            │  python:3.13-alpine      │ ← pip install only
+│  python:3.14-slim        │            │  python:3.14-slim        │ ← pip install only
 │    + compile Firebird    │            │    (builder stage)       │
 │    + runtime libs        │            │                          │
 │           ↓              │            │  lhotakj/firebird-python │ ← FROM base image
 │  lhotakj/firebird-python │ ──────────│    + pip packages        │
-│         :3.13            │  used as   │    + app source          │
+│         :3.14            │  used as   │    + app source          │
 └──────────────────────────┘  base      │           ↓              │
                                         │  lhotakj/kinetiqo:x.y.z │
                                         └──────────────────────────┘
@@ -522,7 +529,7 @@ Phase 1 (rare)                          Phase 2 (every release)
 
 | Phase | Image | Dockerfile | Rebuild when… |
 |---|---|---|---|
-| 1 — Base | `lhotakj/firebird-python:3.13` | `build/Dockerfile.firebird-base` | Python or Firebird version changes |
+| 1 — Base | `lhotakj/firebird-python:3.14` | `build/Dockerfile.firebird-base` | Python or Firebird version changes |
 | 2 — App | `lhotakj/kinetiqo:x.y.z` | `build/Dockerfile` | Application code or dependencies change |
 
 ### Local Build
@@ -538,7 +545,7 @@ cd build
 ./build.sh
 ```
 
-`build-base.sh` compiles the Firebird client and loads `lhotakj/firebird-python:3.13` into your local Docker daemon. `build.sh` then uses that local image as its `FROM` target (with `--pull=false` to prevent Docker from reaching out to Docker Hub).
+`build-base.sh` compiles the Firebird client and loads `lhotakj/firebird-python:3.14` into your local Docker daemon. `build.sh` then uses that local image as its `FROM` target (with `--pull=false` to prevent Docker from reaching out to Docker Hub).
 
 You only need to re-run `build-base.sh` when you change the Python or Firebird version. For day-to-day code changes, `./build.sh` alone is sufficient.
 
@@ -549,7 +556,7 @@ Both scripts accept the `--push` flag to publish to Docker Hub instead:
 | `build-base.sh` | Builds for `linux/amd64`, loads locally | Builds for `linux/amd64` + `linux/arm64`, pushes to DockerHub |
 | `build.sh` | Builds for `linux/amd64`, loads locally | Builds for `linux/amd64` + `linux/arm64`, pushes to DockerHub |
 
-`build-base.sh` also accepts `--python <version>` and `--firebird <version>` to override the defaults (`3.13` and `5.0.3`).
+`build-base.sh` also accepts `--python <version>` and `--firebird <version>` to override the defaults (`3.14` and `5.0.4`).
 
 ### CI/CD Workflows
 
@@ -566,13 +573,13 @@ Triggered **manually only** from the GitHub Actions UI. Inputs:
 
 | Input | Default | Description |
 |---|---|---|
-| `python_version` | `3.13` | Python version for the base Alpine image |
-| `firebird_version` | `5.0.3` | Firebird version to compile from source |
+| `python_version` | `3.14` | Python version for the base Alpine image |
+| `firebird_version` | `5.0.4` | Firebird version to compile from source |
 | `platforms` | `linux/amd64,linux/arm64` | Target architectures |
 
 Pushes two tags to DockerHub:
-- `lhotakj/firebird-python:3.13`
-- `lhotakj/firebird-python:3.13-firebird5.0.3`
+- `lhotakj/firebird-python:3.14`
+- `lhotakj/firebird-python:3.14-firebird5.0.4`
 
 #### Build and publish Docker image
 

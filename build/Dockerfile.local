@@ -9,8 +9,8 @@
 #   ./build/build.sh          # automatically uses this file locally
 # =============================================================================
 
-ARG PYTHON_VERSION=3.13
-ARG FIREBIRD_VERSION=5.0.3
+ARG PYTHON_VERSION=3.14
+ARG FIREBIRD_VERSION=5.0.4
 
 # -----------------------------------------------------------------------------
 # Stage 1: Compile Firebird client library from source
@@ -82,7 +82,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FULL_SYNC="" \
     FAST_SYNC="" \
-    PYTHONPATH=/usr/local/lib/python3.13/site-packages \
+    PYTHONPATH=/usr/local/lib/python3.14/site-packages \
     LD_LIBRARY_PATH=/usr/local/lib \
     FIREBIRD_LIB=/usr/local/lib/libfbclient.so \
     PLAYWRIGHT_BROWSERS_PATH=/dev/null \

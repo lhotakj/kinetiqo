@@ -32,7 +32,7 @@ The web UI includes:
 
 | Concern | Technology | Version | Notes |
 |---|---|---|---|
-| Language | **Python** | 3.13 | Dockerised on `python:3.13-alpine` |
+| Language | **Python** | 3.14 | Dockerised on `python:3.14-slim` |
 | Testing | **unittest** + **unittest.mock** | stdlib | No pytest |
 | Web framework | **Flask[async]** + **flask-login** | 3.1.3 / 0.6.3 | Jinja2 templates, Gunicorn (25.3) in production |
 | Response compression | **flask-compress** | 1.24 | Automatic gzip/brotli for all responses |
