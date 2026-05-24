@@ -376,25 +376,34 @@
                   <!-- Stats -->
                   <div class="draggable-box" id="boxStats">
                       <div id="posterStats" class="poster-stats">
-                          <div class="stat-item">
-                              <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
-                              <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
-                          </div>
-                          <div class="stat-item">
-                              <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
-                              <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
-                          </div>
-                          <div class="stat-item">
-                              <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
-                              <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
-                          </div>
-                          <div class="stat-item">
-                              <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
-                              <span id="statTime">
-                                  {% set s = activity.get('moving_time', 0)|int %}
-                                  {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
-                              </span>
-                          </div>
+                           <div class="stat-item">
+                               <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
+                               <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
+                           </div>
+                           <div class="stat-item">
+                               <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
+                               <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
+                           </div>
+                           <div class="stat-item">
+                               <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
+                               <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
+                           </div>
+                            <!-- Crank / Cadence -->
+                            <div class="stat-item">
+                                <!-- Use the SVG icon (crank.svg) which lives in the repo's static/icons/ directory.
+                                     Previously the template referenced crank.png which caused a 404 because the file
+                                     is actually an SVG. The inline-SVG loader below will fetch and inline the SVG
+                                     so its stroke/fill can be styled via JS. -->
+                                 <span class="stat-icon" data-icon="/static/icons/crank.svg?v=2"></span>
+                                <span id="statCadence">{% if activity.get('average_cadence') is not none %}{{ "%d"|format(activity.get('average_cadence')|round(0)) }} rpm{% else %}— rpm{% endif %}</span>
+                            </div>
+                           <div class="stat-item">
+                               <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
+                               <span id="statTime">
+                                   {% set s = activity.get('moving_time', 0)|int %}
+                                   {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
+                               </span>
+                           </div>
                       </div>
                       <div class="resize-handle" title="Drag to resize"><span></span></div>
                   </div>
@@ -531,26 +540,38 @@
              : '0px transparent';
          statsEl.style.paintOrder = 'stroke fill';
          statsEl.style.opacity = settings.statsOpacity / 100;
-         // SVG icons: stroke with statsColor, simple outline via filter if enabled
-         statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
-             const size = settings.statsFontSize + 'px';
-             const svg = iconSpan.querySelector('svg');
-             if (svg) {
-                 svg.style.width = size;
-                 svg.style.height = size;
-                 svg.style.overflow = 'visible';
-                 // Apply main stroke color to all elements
-                 svg.querySelectorAll('*').forEach(el => {
-                     el.style.fill = 'none';
-                     el.style.stroke = settings.statsColor;
-                     el.style.strokeWidth = '2';
-                     el.style.strokeLinecap = 'round';
-                     el.style.strokeLinejoin = 'round';
-                 });
-                 // Apply opacity
-                 svg.style.opacity = settings.statsOpacity / 100;
-             }
-         });
+          // Icons: support both inline SVGs and raster images (PNG) so the
+          // crank.png icon can be used alongside existing SVG icons.
+          statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
+              const sizePx = settings.statsFontSize + 'px';
+              const svg = iconSpan.querySelector('svg');
+              if (svg) {
+                  svg.style.width = sizePx;
+                  svg.style.height = sizePx;
+                  svg.style.overflow = 'visible';
+                  // Apply main stroke color to all elements
+                  svg.querySelectorAll('*').forEach(el => {
+                      el.style.fill = 'none';
+                      el.style.stroke = settings.statsColor;
+                      el.style.strokeWidth = '2';
+                      el.style.strokeLinecap = 'round';
+                      el.style.strokeLinejoin = 'round';
+                  });
+                  // Apply opacity
+                  svg.style.opacity = settings.statsOpacity / 100;
+              } else {
+                  // Try raster image (img element) — set size and opacity to match SVGs
+                  const img = iconSpan.querySelector('img');
+                  if (img) {
+                      img.style.width = sizePx;
+                      img.style.height = sizePx;
+                      img.style.objectFit = 'contain';
+                      img.style.opacity = settings.statsOpacity / 100;
+                      img.style.display = 'inline-block';
+                      img.style.verticalAlign = 'middle';
+                  }
+              }
+          });
          // Elevation
          const elevEl = document.getElementById('posterElevation');
          elevEl.style.opacity = settings.elevOpacity / 100;
@@ -833,12 +854,28 @@
     function loadInlineSvgs() {
         document.querySelectorAll('.stat-icon[data-icon]').forEach(span => {
             const url = span.getAttribute('data-icon');
-            fetch(url)
-                .then(r => r.text())
-                .then(svgText => {
-                    span.innerHTML = svgText;
-                    renderPoster(); // re-apply styles after SVGs are loaded
-                });
+            // If SVG, fetch text and inline; otherwise create an <img> for raster icons
+            if (url && url.split('?')[0].toLowerCase().endsWith('.svg')) {
+                fetch(url)
+                    .then(r => r.text())
+                    .then(svgText => {
+                        span.innerHTML = svgText;
+                        renderPoster(); // re-apply styles after SVGs are loaded
+                    })
+                    .catch(err => { console.warn('Failed to load inline svg', url, err); });
+            } else if (url) {
+                // Raster image (png/jpg). Create an IMG element and append it.
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = '';
+                img.style.display = 'inline-block';
+                img.style.verticalAlign = 'middle';
+                img.onload = () => { renderPoster(); };
+                img.onerror = () => { console.warn('Failed to load icon image', url); };
+                // Clear any existing content and append
+                span.innerHTML = '';
+                span.appendChild(img);
+            }
         });
     }
 

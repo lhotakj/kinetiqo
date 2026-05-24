@@ -1869,6 +1869,7 @@ def poster(activity_id):
     if not activity:
         flash("Activity not found.")
         return redirect(url_for('activities'))
+
     return render_template('poster.html', title="Activity Poster", activity=activity)
 
 
@@ -2133,10 +2134,11 @@ def poster_export(activity_id):
 
             # ── Wait for inline SVG icons ──────────────────────────────────────
             # loadInlineSvgs() fetches each icon via XHR and injects the <svg>
-            # element into the DOM; check that all four stat-icon spans have
-            # an <svg> child (distance, elevation, speed, time).
+            # element into the DOM; check that the stat-icon spans have their
+            # <svg> children inlined (distance, elevation, speed, time, cadence).
+            # Require >=5 so the poster export waits for the cadence crank icon too.
             page.wait_for_function(
-                "document.querySelectorAll('.stat-icon svg').length >= 4",
+                "document.querySelectorAll('.stat-icon svg').length >= 5",
                 timeout=10_000
             )
 

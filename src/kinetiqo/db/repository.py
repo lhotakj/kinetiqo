@@ -214,6 +214,14 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activity_average_cadence(self, activity_id: str) -> Optional[float]:
+        """Return the average cadence (rpm) for the given activity computed from streams.
+
+        Returns a float (average cadence) or ``None`` if no cadence samples exist.
+        """
+        pass
+
+    @abstractmethod
     def close(self):
         """Close database connection."""
         pass

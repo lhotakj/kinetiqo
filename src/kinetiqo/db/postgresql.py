@@ -181,9 +181,10 @@ class PostgresqlRepository(DatabaseRepository):
                                moving_time,
                                total_elevation_gain,
                                start_date,
-                               average_speed,
-                               average_heartrate,
-                               average_watts,
+                                average_speed,
+                                average_heartrate,
+                                average_cadence,
+                                average_watts,
                                max_watts,
                                weighted_average_watts,
                                device_watts,
@@ -216,7 +217,7 @@ class PostgresqlRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from PostgreSQL"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -255,6 +256,7 @@ class PostgresqlRepository(DatabaseRepository):
                 start_date,
                 average_speed,
                 average_heartrate,
+                average_cadence,
                 average_watts,
                 max_watts,
                 weighted_average_watts,
@@ -308,6 +310,7 @@ class PostgresqlRepository(DatabaseRepository):
                                start_date,
                                average_speed,
                                average_heartrate,
+                               average_cadence,
                                average_watts,
                                max_watts,
                                weighted_average_watts,
@@ -645,6 +648,17 @@ class PostgresqlRepository(DatabaseRepository):
                         """, (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
+
+    def get_activity_average_cadence(self, activity_id: str) -> Optional[float]:
+        """Compute average cadence (rpm) for an activity from streams (PostgreSQL)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT AVG(cadence) FROM streams
+                WHERE activity_id = %s AND cadence IS NOT NULL
+            """, (int(activity_id),))
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] is not None else None
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""

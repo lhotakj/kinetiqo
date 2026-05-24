@@ -316,6 +316,7 @@ class FirebirdRepository(DatabaseRepository):
                     "start_date",
                     "average_speed",
                     "average_heartrate",
+                    "average_cadence",
                     "average_watts",
                     "max_watts",
                     "weighted_average_watts",
@@ -347,21 +348,22 @@ class FirebirdRepository(DatabaseRepository):
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
                     'average_heartrate': row[8],
-                    'average_watts': row[9],
-                    'max_watts': row[10],
-                    'weighted_average_watts': row[11],
-                    'device_watts': row[12],
-                    'calories': row[13],
-                    'kilojoules': row[14],
-                    'achievement_count': row[15],
-                    'pr_count': row[16],
-                    'suffer_score': row[17],
-                    'average_temp': row[18],
-                    'elev_high': row[19],
-                    'elev_low': row[20],
-                    'gear_id': row[21],
-                    'has_heartrate': row[22],
-                    'workout_type': row[23]
+                    'average_cadence': row[9],
+                    'average_watts': row[10],
+                    'max_watts': row[11],
+                    'weighted_average_watts': row[12],
+                    'device_watts': row[13],
+                    'calories': row[14],
+                    'kilojoules': row[15],
+                    'achievement_count': row[16],
+                    'pr_count': row[17],
+                    'suffer_score': row[18],
+                    'average_temp': row[19],
+                    'elev_high': row[20],
+                    'elev_low': row[21],
+                    'gear_id': row[22],
+                    'has_heartrate': row[23],
+                    'workout_type': row[24]
                 }
                 activities.append(activity)
             return activities
@@ -371,7 +373,7 @@ class FirebirdRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from Firebird"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -416,6 +418,7 @@ class FirebirdRepository(DatabaseRepository):
                 "start_date",
                 "average_speed",
                 "average_heartrate",
+                "average_cadence",
                 "average_watts",
                 "max_watts",
                 "weighted_average_watts",
@@ -452,22 +455,23 @@ class FirebirdRepository(DatabaseRepository):
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
                     'average_heartrate': row[8],
-                    'average_watts': row[9],
-                    'max_watts': row[10],
-                    'weighted_average_watts': row[11],
-                    'device_watts': row[12],
-                    'calories': row[13],
-                    'kilojoules': row[14],
-                    'achievement_count': row[15],
-                    'pr_count': row[16],
-                    'suffer_score': row[17],
-                    'average_temp': row[18],
-                    'elev_high': row[19],
-                    'elev_low': row[20],
-                    'gear_id': row[21],
-                    'has_heartrate': row[22],
-                    'workout_type': row[23],
-                    'max_speed': row[24]
+                    'average_cadence': row[9],
+                    'average_watts': row[10],
+                    'max_watts': row[11],
+                    'weighted_average_watts': row[12],
+                    'device_watts': row[13],
+                    'calories': row[14],
+                    'kilojoules': row[15],
+                    'achievement_count': row[16],
+                    'pr_count': row[17],
+                    'suffer_score': row[18],
+                    'average_temp': row[19],
+                    'elev_high': row[20],
+                    'elev_low': row[21],
+                    'gear_id': row[22],
+                    'has_heartrate': row[23],
+                    'workout_type': row[24],
+                    'max_speed': row[25]
                 }
                 activities.append(activity)
             return activities
@@ -493,6 +497,7 @@ class FirebirdRepository(DatabaseRepository):
                     "start_date",
                     "average_speed",
                     "average_heartrate",
+                    "average_cadence",
                     "average_watts",
                     "max_watts",
                     "weighted_average_watts",
@@ -525,21 +530,22 @@ class FirebirdRepository(DatabaseRepository):
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
                     'average_heartrate': row[8],
-                    'average_watts': row[9],
-                    'max_watts': row[10],
-                    'weighted_average_watts': row[11],
-                    'device_watts': row[12],
-                    'calories': row[13],
-                    'kilojoules': row[14],
-                    'achievement_count': row[15],
-                    'pr_count': row[16],
-                    'suffer_score': row[17],
-                    'average_temp': row[18],
-                    'elev_high': row[19],
-                    'elev_low': row[20],
-                    'gear_id': row[21],
-                    'has_heartrate': row[22],
-                    'workout_type': row[23]
+                    'average_cadence': row[9],
+                    'average_watts': row[10],
+                    'max_watts': row[11],
+                    'weighted_average_watts': row[12],
+                    'device_watts': row[13],
+                    'calories': row[14],
+                    'kilojoules': row[15],
+                    'achievement_count': row[16],
+                    'pr_count': row[17],
+                    'suffer_score': row[18],
+                    'average_temp': row[19],
+                    'elev_high': row[20],
+                    'elev_low': row[21],
+                    'gear_id': row[22],
+                    'has_heartrate': row[23],
+                    'workout_type': row[24]
                 }
                 activities.append(activity)
             return activities
@@ -840,6 +846,14 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute('SELECT CAST("name" AS VARCHAR(500)) FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
+
+    def get_activity_average_cadence(self, activity_id: str) -> Optional[float]:
+        """Compute average cadence (rpm) for an activity from streams (Firebird)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT AVG("cadence") FROM "streams" WHERE "activity_id" = ? AND "cadence" IS NOT NULL', (int(activity_id),))
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] is not None else None
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
