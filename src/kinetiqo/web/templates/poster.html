@@ -28,6 +28,20 @@
         image-rendering: -webkit-optimize-contrast;
         image-rendering: crisp-edges;
     }
+    /* Watermark (kinetiqo logo) - static, non-interactive, positioned bottom-right
+       Size is controlled by WATERMARK_SIZE_PCT JS constant (fraction of poster width)
+       Opacity is controlled by WATERMARK_OPACITY JS constant (0.0 - 1.0).
+    */
+    .poster-watermark {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        pointer-events: none; /* non-interactive */
+        z-index: 99999; /* above all draggable UI */
+        height: auto;
+        display: block;
+        image-rendering: -webkit-optimize-contrast;
+    }
     .poster-overlay {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
@@ -347,6 +361,8 @@
     <div class="flex-1">
         <div id="posterContainer" class="poster-container shadow-lg" style="aspect-ratio: 4/3;">
             <img id="posterBg" class="poster-bg" src="" alt="" style="display:none;">
+            <!-- Watermark image (static) - created/managed by JS -->
+            <img id="posterWatermark" class="poster-watermark" src="/static/img/kinetiqo_logo.png" alt="Kinetiqo logo" style="display:none;" aria-hidden="true" />
              <div class="poster-overlay" id="posterOverlay">
                  <!-- Activity Name -->
                    <div class="draggable-box" id="boxTitle">
@@ -414,6 +430,12 @@
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
         singleLine: true
     };
+
+    // Watermark constants - change these to tune watermark size (fraction of poster width)
+    // and opacity. WATERMARK_SIZE_PCT: 0.10 means 10% of poster width.
+    const WATERMARK_SIZE_PCT = 0.10;
+    const WATERMARK_OPACITY = 0.8; // 1.0 == fully opaque, 0.0 == fully transparent
+
 
     function loadSettings() {
         try {
@@ -571,6 +593,8 @@
           renderElevationChart();
           // Ensure positions are applied after rendering (container size may have changed)
           try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed in renderPoster', e); }
+           // Update watermark size/visibility after layout changes
+           try { updateWatermark(); } catch (e) { console.debug('updateWatermark failed', e); }
      }
 
     // Elevation chart
@@ -642,6 +666,33 @@
         const img = document.getElementById('posterBg');
         img.onload = () => { img.style.display = 'block'; };
         img.src = `/api/poster/photo/${ACTIVITY_ID}?t=${Date.now()}`;
+    }
+
+    // Watermark management - keep watermark sized to WATERMARK_SIZE_PCT of poster width
+    function ensureWatermark() {
+        const wm = document.getElementById('posterWatermark');
+        if (!wm) return null;
+        // Ensure src is set (in case templates change) and make it visible
+        if (!wm.src || wm.src.indexOf('kinetiqo_logo') === -1) wm.src = '/static/img/kinetiqo_logo.png';
+        wm.style.opacity = WATERMARK_OPACITY;
+        wm.style.display = 'block';
+        wm.setAttribute('aria-hidden', 'true');
+        return wm;
+    }
+
+    function updateWatermark() {
+        const container = document.getElementById('posterContainer');
+        if (!container) return;
+        const wm = ensureWatermark();
+        if (!wm) return;
+        // compute width based on poster container width
+        const cw = container.offsetWidth || parseInt(window.getComputedStyle(container).width, 10) || 0;
+        const targetW = Math.max(12, Math.round(cw * WATERMARK_SIZE_PCT));
+        wm.style.width = targetW + 'px';
+        // Keep the watermark inside the rounded area (respect offsets)
+        // right/bottom are controlled by CSS (10px) so it will stay inside
+        // Ensure it stays above everything
+        wm.style.zIndex = 99999;
     }
 
     // Reload from Strava
@@ -793,6 +844,8 @@
     loadPhoto();
     loadElevation();
     loadInlineSvgs();
+    // Ensure watermark is initialised and sized
+    try { updateWatermark(); } catch (e) { console.debug('initial updateWatermark failed', e); }
     // If there are no saved positions (first use or corrupted localStorage), apply a sensible default layout
     try {
         const raw = localStorage.getItem(POS_KEY());
@@ -1187,6 +1240,7 @@
     // On poster resize, re-apply positions
     function onResizeApplyPositions() {
         applyBoxPositions();
+        try { updateWatermark(); } catch (e) { console.debug('updateWatermark on resize failed', e); }
     }
     window.addEventListener('resize', onResizeApplyPositions);
     // After renderPoster (which sets container size), applyBoxPositions is invoked
