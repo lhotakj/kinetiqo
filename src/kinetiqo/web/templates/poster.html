@@ -156,17 +156,21 @@
     .poster-stats {
         display: flex;
         flex-direction: row;
-        flex-wrap: nowrap;
+        /* allow stats to wrap to next line when container gets narrow */
+        flex-wrap: wrap;
         align-items: center;
-        gap: 16px;
-        white-space: nowrap;
+        gap: 8px 16px; /* vertical and horizontal gaps */
     }
     .poster-stats .stat-item {
         display: inline-flex;
         flex-direction: row;
         align-items: center;
         gap: 4px;
-        white-space: nowrap;
+        /* allow the text inside stat items to wrap onto multiple lines when needed */
+        white-space: normal;
+        /* allow items to shrink but keep layout stable */
+        flex: 0 1 auto;
+        min-width: 0; /* enable text truncation/wrapping inside flex items */
     }
     .poster-stats .stat-item .stat-icon svg {
         display: block;   /* removes the inline whitespace gap below the SVG */
