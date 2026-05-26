@@ -335,6 +335,17 @@
                 <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="statsOpacityVal" class="text-xs w-8">100%</span>
             </div>
+            <div class="control-row">
+                <label>Visible Stats</label>
+                <div id="statsVisibility" class="flex flex-wrap gap-2 items-center">
+                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_distance" class="mr-2">Distance</label>
+                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_elevation" class="mr-2">Elevation</label>
+                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_speed" class="mr-2">Avg speed</label>
+                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_cadence" class="mr-2">Avg cadence</label>
+                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_heartrate" class="mr-2">Avg heart rate</label>
+                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_time" class="mr-2">Time</label>
+                </div>
+            </div>
         </div>
 
         <!-- Elevation Controls -->
@@ -376,30 +387,34 @@
                   <!-- Stats -->
                   <div class="draggable-box" id="boxStats">
                       <div id="posterStats" class="poster-stats">
-                           <div class="stat-item">
-                               <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
-                               <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
-                           </div>
-                           <div class="stat-item">
-                               <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
-                               <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
-                           </div>
-                           <div class="stat-item">
-                               <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
-                               <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
-                           </div>
+                           <div class="stat-item" data-field="distance">
+                                <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
+                                <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
+                            </div>
+                            <div class="stat-item" data-field="elevation">
+                                <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
+                                <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
+                            </div>
+                            <div class="stat-item" data-field="speed">
+                                <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
+                                <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
+                            </div>
                             <!-- Crank / Cadence -->
-                            <div class="stat-item">
+                             <div class="stat-item" data-field="cadence">
                                 <!-- Use the SVG icon (crank.svg) which lives in the repo's static/icons/ directory.
-                                     Previously the template referenced crank.png which caused a 404 because the file
-                                     is actually an SVG. The inline-SVG loader below will fetch and inline the SVG
-                                     so its stroke/fill can be styled via JS. -->
+                                     The inline-SVG loader below will fetch and inline the SVG so its stroke/fill can be styled via JS. -->
                                  <span class="stat-icon" data-icon="/static/icons/crank.svg?v=2"></span>
                                 <span id="statCadence">{% if activity.get('average_cadence') is not none %}{{ "%d"|format(activity.get('average_cadence')|round(0)) }} rpm{% else %}— rpm{% endif %}</span>
                             </div>
-                           <div class="stat-item">
-                               <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
-                               <span id="statTime">
+                            <!-- Heart / Average Heartrate -->
+                            <div class="stat-item" data-field="heartrate">
+                                <!-- Heart icon: outlined (no data-fill) so it is rendered as a stroked outline to match other stat icons -->
+                                <span class="stat-icon" data-icon="/static/icons/heart.svg"></span>
+                                <span id="statHeart">{% if activity.get('average_heartrate') is not none %}{{ "%d"|format(activity.get('average_heartrate')|round(0)) }} bpm{% else %}— bpm{% endif %}</span>
+                            </div>
+                            <div class="stat-item" data-field="time">
+                                <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
+                                <span id="statTime">
                                    {% set s = activity.get('moving_time', 0)|int %}
                                    {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
                                </span>
@@ -440,6 +455,8 @@
         posterSize: 1280, ratio: '4/3',
         titleFont: 'Roboto Condensed', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
         statsFont: 'Roboto Condensed', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
+        // Which stats are visible on the poster (all enabled by default)
+        statsVisible: { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true },
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
         singleLine: true
     };
@@ -494,6 +511,8 @@
         document.getElementById('elevOpacityVal').textContent = s.elevOpacity + '%';
         document.getElementById('singleLineCheckbox').checked = s.singleLine !== false;
         document.getElementById('titleAlign').value = s.titleAlign || 'left';
+        // Apply stats visibility checkbox states (if present)
+        try { applyStatsVisibilityControls(s); } catch (e) { /* ignore */ }
     }
 
     function updateDimensionsDisplay(width, height) {
@@ -530,8 +549,8 @@
          titleEl.style.paintOrder = 'stroke fill';
          titleEl.style.opacity = settings.titleOpacity / 100;
          titleEl.style.textAlign = settings.titleAlign || 'left';
-         // Stats — use -webkit-text-stroke for proper outline
-         const statsEl = document.getElementById('posterStats');
+          // Stats — use -webkit-text-stroke for proper outline
+          const statsEl = document.getElementById('posterStats');
          statsEl.style.fontFamily = `'${settings.statsFont}', sans-serif`;
          statsEl.style.fontSize = settings.statsFontSize + 'px';
          statsEl.style.color = settings.statsColor;
@@ -540,9 +559,17 @@
              : '0px transparent';
          statsEl.style.paintOrder = 'stroke fill';
          statsEl.style.opacity = settings.statsOpacity / 100;
+          // Apply visibility flags to stat items
+          try {
+              statsEl.querySelectorAll('.stat-item[data-field]').forEach(item => {
+                  const key = item.getAttribute('data-field');
+                  const visible = settings.statsVisible && settings.statsVisible[key];
+                  item.style.display = visible ? 'inline-flex' : 'none';
+              });
+          } catch (e) { /* ignore */ }
           // Icons: support both inline SVGs and raster images (PNG) so the
           // crank.png icon can be used alongside existing SVG icons.
-          statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
+                   statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
               const sizePx = settings.statsFontSize + 'px';
               const svg = iconSpan.querySelector('svg');
               if (svg) {
@@ -550,13 +577,21 @@
                   svg.style.height = sizePx;
                   svg.style.overflow = 'visible';
                   // Apply main stroke color to all elements
-                  svg.querySelectorAll('*').forEach(el => {
-                      el.style.fill = 'none';
-                      el.style.stroke = settings.statsColor;
-                      el.style.strokeWidth = '2';
-                      el.style.strokeLinecap = 'round';
-                      el.style.strokeLinejoin = 'round';
-                  });
+                           // If the host span requests a filled icon (data-fill="true"), apply fill color
+                           const wantFill = iconSpan.getAttribute('data-fill') === 'true' || iconSpan.classList.contains('stat-fill');
+                           svg.querySelectorAll('*').forEach(el => {
+                               if (wantFill) {
+                                   el.style.fill = settings.statsColor;
+                                   // Ensure stroke is none so filled icons render as solid shapes
+                                   el.style.stroke = 'none';
+                               } else {
+                                   el.style.fill = 'none';
+                                   el.style.stroke = settings.statsColor;
+                               }
+                               el.style.strokeWidth = '2';
+                               el.style.strokeLinecap = 'round';
+                               el.style.strokeLinejoin = 'round';
+                           });
                   // Apply opacity
                   svg.style.opacity = settings.statsOpacity / 100;
               } else {
@@ -849,6 +884,26 @@
     bindControl('elevColor', 'elevColor', false);
     bindControl('elevFillColor', 'elevFillColor', false);
     bindControl('elevOpacity', 'elevOpacity', true, 'elevOpacityVal', '%');
+
+    // Stats visibility checkboxes: wire up, persist, and reflect rendering
+    const STAT_KEYS = ['distance','elevation','speed','cadence','heartrate','time'];
+    function applyStatsVisibilityControls(s) {
+        STAT_KEYS.forEach(k => {
+            const el = document.getElementById('statsVisible_' + k);
+            if (!el) return;
+            try { el.checked = !!(s.statsVisible && s.statsVisible[k]); } catch (e) { el.checked = true; }
+            // Add change handler once
+            if (!el._bound) {
+                el._bound = true;
+                el.addEventListener('change', function() {
+                    settings.statsVisible = settings.statsVisible || {};
+                    settings.statsVisible[k] = !!this.checked;
+                    saveSettings(settings);
+                    renderPoster();
+                });
+            }
+        });
+    }
 
     // Load inline SVGs for stat icons (so color/stroke can be controlled via CSS/JS)
     function loadInlineSvgs() {
