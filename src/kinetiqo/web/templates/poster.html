@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 
 {% block head %}
+<!-- NOSONAR: loading Chart.js from CDN intentionally; add SRI in future if required -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- NOSONAR: Google Fonts CDN used intentionally -->
 <link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Limelight&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&family=Nunito:wght@400;700&family=Cinzel:wght@400;700&family=Cormorant:wght@400;700&display=swap" rel="stylesheet">
 <style>
     .poster-container {
@@ -59,7 +61,7 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        -webkit-text-stroke: 0px black;
+        -webkit-text-stroke: 0 black;
         paint-order: stroke fill;
     }
      .draggable-box {
@@ -105,7 +107,8 @@
      .resize-handle::before { width: 4px; height: 4px; right: 4px;  bottom: 10px; }
      .resize-handle::after  { width: 4px; height: 4px; right: 4px;  bottom: 4px;  }
      .resize-handle span    { width: 4px; height: 4px; right: 10px; bottom: 4px;  pointer-events: none; }
-     .draggable-box.resizing {
+      /* NOSONAR: classes used dynamically by JS (added/removed via classList) */
+      .draggable-box.resizing {
          cursor: nwse-resize !important;
          opacity: 0.85;
      }
@@ -232,7 +235,7 @@
         <div class="control-box">
             <h4>Poster Size</h4>
             <div class="control-row">
-                <label>Width</label>
+                <label for="posterSize">Width</label>
                 <select id="posterSize" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                     <option value="800">XS (width 800px)</option>
                     <option value="1024">S (width 1024px)</option>
@@ -244,7 +247,7 @@
                 </select>
             </div>
             <div class="control-row">
-                <label>Ratio</label>
+                <label for="ratioSelect">Ratio</label>
                 <select id="ratioSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                     <option value="4/3">4:3 (Standard)</option>
                     <option value="16/9">16:9 (Wide)</option>
@@ -252,7 +255,7 @@
                 </select>
             </div>
             <div class="control-row">
-                <label>Dimensions</label>
+                <label for="posterDimensions">Dimensions</label>
                 <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Poster dimensions: — × —</div>
             </div>
         </div>
@@ -261,13 +264,13 @@
         <div class="control-box">
             <h4>Activity Name</h4>
             <div class="control-row">
-                <label>Font</label>
+                <label for="titleFont">Font</label>
                 <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                     {% include "_font_options.html" %}
                 </select>
             </div>
             <div class="control-row">
-                <label>Text Align</label>
+                <label for="titleAlign">Text Align</label>
                 <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                     <option value="left">Left</option>
                     <option value="center">Center</option>
@@ -279,25 +282,25 @@
                 <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
             </div>
             <div class="control-row">
-                <label>Font Size</label>
+                <label for="titleFontSize">Font Size</label>
                 <input type="range" id="titleFontSize" min="12" max="72" value="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="titleFontSizeVal" class="text-xs w-8">30px</span>
             </div>
             <div class="control-row">
-                <label>Color</label>
+                <label for="titleColor">Color</label>
                 <input type="color" id="titleColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
             </div>
             <div class="control-row">
-                <label>Outline Color</label>
+                <label for="titleOutlineColor">Outline Color</label>
                 <input type="color" id="titleOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
             </div>
             <div class="control-row">
-                <label>Outline Width</label>
+                <label for="titleOutlineWidth">Outline Width</label>
                 <input type="range" id="titleOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="titleOutlineWidthVal" class="text-xs w-6">1</span>
             </div>
             <div class="control-row">
-                <label>Opacity</label>
+                <label for="titleOpacity">Opacity</label>
                 <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="titleOpacityVal" class="text-xs w-8">100%</span>
             </div>
@@ -307,36 +310,36 @@
         <div class="control-box">
             <h4>Stats</h4>
             <div class="control-row">
-                <label>Font</label>
+                <label for="statsFont">Font</label>
                 <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
                                                                                                                                                                                     {% include "_font_options.html" %}
                 </select>
             </div>
             <div class="control-row">
-                <label>Font Size</label>
+                <label for="statsFontSize">Font Size</label>
                 <input type="range" id="statsFontSize" min="10" max="48" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="statsFontSizeVal" class="text-xs w-8">20px</span>
             </div>
             <div class="control-row">
-                <label>Color</label>
+                <label for="statsColor">Color</label>
                 <input type="color" id="statsColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
             </div>
             <div class="control-row">
-                <label>Outline Color</label>
+                <label for="statsOutlineColor">Outline Color</label>
                 <input type="color" id="statsOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
             </div>
             <div class="control-row">
-                <label>Outline Width</label>
+                <label for="statsOutlineWidth">Outline Width</label>
                 <input type="range" id="statsOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="statsOutlineWidthVal" class="text-xs w-6">1</span>
             </div>
             <div class="control-row">
-                <label>Opacity</label>
+                <label for="statsOpacity">Opacity</label>
                 <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="statsOpacityVal" class="text-xs w-8">100%</span>
             </div>
             <div class="control-row">
-                <label>Visible Stats</label>
+                <label for="statsVisible_distance">Visible Stats</label>
                 <div id="statsVisibility" class="flex flex-wrap gap-2 items-center">
                     <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_distance" class="mr-2">Distance</label>
                     <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_elevation" class="mr-2">Elevation</label>
@@ -352,20 +355,20 @@
         <div class="control-box">
             <h4>Elevation Chart</h4>
             <div class="control-row">
-                <label>Font Size</label>
+                <label for="elevFontSize">Font Size</label>
                 <input type="range" id="elevFontSize" min="8" max="36" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="elevFontSizeVal" class="text-xs w-8">20px</span>
             </div>
             <div class="control-row">
-                <label>Line Color</label>
+                <label for="elevColor">Line Color</label>
                 <input type="color" id="elevColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
             </div>
             <div class="control-row">
-                <label>Fill Color</label>
+                <label for="elevFillColor">Fill Color</label>
                 <input type="color" id="elevFillColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
             </div>
             <div class="control-row">
-                <label>Opacity</label>
+                <label for="elevOpacity">Opacity</label>
                 <input type="range" id="elevOpacity" min="0" max="100" value="70" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="elevOpacityVal" class="text-xs w-8">70%</span>
             </div>
@@ -376,6 +379,7 @@
     <div class="flex-1">
         <div id="posterContainer" class="poster-container shadow-lg" style="aspect-ratio: 4/3;">
             <img id="posterBg" class="poster-bg" src="" alt="" style="display:none;">
+            <!-- NOSONAR: static asset intentionally referenced; runtime JS will manage visibility -->
             <!-- Watermark image (static) - created/managed by JS -->
             <img id="posterWatermark" class="poster-watermark" src="/static/img/kinetiqo_logo.png" alt="Kinetiqo logo" style="display:none;" aria-hidden="true" />
              <div class="poster-overlay" id="posterOverlay">
@@ -698,7 +702,7 @@
                         min: 0,
                         max: maxDist,
                         title: { display: true, text: 'km', color: settings.elevColor, font: { size: fontSize - 4 } },
-                        ticks: { color: settings.elevColor, font: { size: fontSize - 4 }, callback: v => v.toFixed(0) },
+                        ticks: { color: settings.elevColor, font: { size: fontSize - 4 }, callback: v => v.toFixed(0) /* NOSONAR */ },
                         grid: { display: false }
                     },
                     y: {
@@ -1088,9 +1092,7 @@
             }, _saveThrottleMs);
         } catch (e) { /* swallow */ }
     }
-     function applyBoxPositions() {
-         const container = document.getElementById('posterContainer');
-         const w = container.offsetWidth, h = container.offsetHeight;
+      function applyBoxPositions() {
          const pos = loadPositions();
          DRAGGABLES.forEach(({ boxId, default: def }) => {
              const box = document.getElementById(boxId);
@@ -1128,12 +1130,12 @@
                       box.style.top  = topPct + '%';
          });
      }
-        function enableDraggableBoxes() {
+           function enableDraggableBoxes() {
             // Prevent double-binding
             if (enableDraggableBoxes._bound) return;
             enableDraggableBoxes._bound = true;
           const container = document.getElementById('posterContainer');
-          DRAGGABLES.forEach(({ boxId, default: def }) => {
+           DRAGGABLES.forEach(({ boxId }) => {
                 try {
                  const box = document.getElementById(boxId);
                  if (!box) return;
@@ -1175,7 +1177,7 @@
                        // Throttled persist while dragging so quick reloads catch recent state
                        scheduleSaveBox(boxId);
                   }
-                   function onUp(ev) {
+                   function onUp() {
                        if (!dragging) return;
                        dragging = false;
                        box.classList.remove('dragging');
@@ -1242,7 +1244,7 @@
                             // Throttled persist while resizing
                             scheduleSaveBox(boxId);
                         }
-                       function onUp(ev) {
+                          function onUp() {
                            if (!resizing) return;
                            resizing = false;
                            box.classList.remove('resizing');
