@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import platform
+from collections import deque
 
 import click
 from kinetiqo.cache import CacheManager
@@ -268,8 +269,11 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
 
     sync_service = SyncService(config)
     try:
-        for _ in sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days):
-            pass
+        # Exhaust the generator returned by sync() for its side-effects.
+        # Using deque(..., maxlen=0) efficiently consumes the iterator without
+        # storing items in memory. This keeps behavior identical to the
+        # previous empty for-loop but avoids Sonar S108 (empty loop bodies).
+        deque(sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days), maxlen=0)
     finally:
         sync_service.close()
 
