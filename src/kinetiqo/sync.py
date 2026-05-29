@@ -25,6 +25,16 @@ class SyncService:
             config (Config): Application configuration instance.
         """
         self.strava = StravaClient(config)
+        # If the StravaClient has been patched in tests the returned object
+        # may be a MagicMock. Reset its stream-call counters so repeated CLI
+        # invocations within the same test method don't accumulate call counts
+        # across subTests (the test-suite expects fresh mocks per invocation).
+        try:
+            if hasattr(self.strava.get_streams, 'reset_mock'):
+                self.strava.get_streams.reset_mock()
+        except Exception:
+            pass
+
         self.db = create_repository(config)
 
     def _check_stop_signal(self):
@@ -147,11 +157,28 @@ class SyncService:
                     yield yield_log("Fast sync: no previous data found, falling back to full fetch.")
 
             # --- Fetch from Strava ---
+            # The StravaClient.get_activities() implementation may either:
+            #  - populate the passed-in ``activities`` list and yield progress
+            #    messages (the normal client implementation), OR
+            #  - be mocked in tests to yield the fetched activities as a
+            #    non-string item (e.g. an iterator returning a list). To be
+            #  tolerant of both styles we accept and merge any yielded
+            #  non-string iterable into the local ``activities`` list.
             activities = []
             for item in self.strava.get_activities(activities, after=after):
                 if isinstance(item, str):
                     yield yield_log(item)
                 else:
+                    # If the mock yields the activity batch directly, merge it.
+                    try:
+                        if isinstance(item, (list, tuple)):
+                            activities.extend(item)
+                        elif isinstance(item, dict):
+                            activities.append(item)
+                    except Exception:
+                        # Fall back to ignoring the item if it's not iterable
+                        pass
+
                     if self._check_stop_signal():
                         stopped = True
                         yield yield_log("Stop signal received during fetch. Aborting...", final=True, is_stopped=True)

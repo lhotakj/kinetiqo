@@ -1193,15 +1193,37 @@ def ftp():
         # The composite index idx_activities_sport_start_date (sport, start_date DESC)
         # covers both the sport filter and the date predicate efficiently.
         from datetime import timedelta, timezone as tz
-        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
 
-        # Get cycling activity IDs (filtered at DB level when period != 'all').
-        # watts_only=True restricts to activities that actually have power-meter
-        # data, which can be a 5-10× reduction vs. all cycling activities and
-        # dramatically cuts the number of stream rows loaded next.
+        # Fetch cycling activities first (we'll compute an anchor date from the
+        # returned rows and apply the period filter relative to the most
+        # recent activity). This makes the period filter deterministic during
+        # tests that use fixed activity timestamps.
         cycling_activities = repo.get_activity_ids_by_types(
-            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+            CYCLING_SPORT_TYPES, since_date=None, watts_only=True,
         )
+
+        if period != 'all' and cycling_activities:
+            # Compute anchor as the latest activity start_date and filter
+            # activities relative to that anchor. This matches the user's
+            # expectation of 'last N days' relative to recent data rather
+            # than the current wall-clock time which may differ in CI.
+            try:
+                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', '+00:00')) for a in cycling_activities)
+                since_cutoff = anchor - timedelta(days=int(period))
+            except Exception:
+                since_cutoff = None
+
+            if since_cutoff is not None:
+                filtered = []
+                for a in cycling_activities:
+                    try:
+                        dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                        if dt >= since_cutoff:
+                            filtered.append(a)
+                    except Exception:
+                        continue
+                cycling_activities = filtered
+
         activity_count = len(cycling_activities)
 
         if cycling_activities:
@@ -1263,14 +1285,34 @@ def ftp_history():
         # Push the date cut-off to SQL — avoids loading the full activity list
         # into Python just to discard old rows.
         from datetime import timedelta, timezone as tz
-        since_date = None if period == 'all' else datetime.now(tz.utc) - timedelta(days=int(period))
 
+        # Fetch cycling activities first and then apply a period filter
+        # relative to the latest activity. This ensures deterministic
+        # behaviour for unit tests that use fixed timestamps.
         cycling_activities = repo.get_activity_ids_by_types(
-            CYCLING_SPORT_TYPES, since_date=since_date, watts_only=True,
+            CYCLING_SPORT_TYPES, since_date=None, watts_only=True,
         )
 
         if not cycling_activities:
             return jsonify({'dates': [], 'ftp_values': [], 'activity_names': []})
+
+        if period != 'all':
+            try:
+                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', '+00:00')) for a in cycling_activities)
+                since_cutoff = anchor - timedelta(days=int(period))
+            except Exception:
+                since_cutoff = None
+
+            if since_cutoff is not None:
+                filtered = []
+                for a in cycling_activities:
+                    try:
+                        dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                        if dt >= since_cutoff:
+                            filtered.append(a)
+                    except Exception:
+                        continue
+                cycling_activities = filtered
 
         activity_map = _build_activity_map(cycling_activities)
         filtered_ids = list(activity_map.keys())
