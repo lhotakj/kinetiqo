@@ -10,9 +10,20 @@ logger = logging.getLogger("kinetiqo")
 
 
 class StravaClient:
+    """Simple Strava API client used by Kinetiqo for fetching activities,
+    athlete profile and activity streams. Supports basic retry logic and
+    optional file-based caching via CacheManager.
+    """
+
     BASE_URL = "https://www.strava.com/api/v3"
 
     def __init__(self, config: Config):
+        """Initialize the Strava client.
+
+        Args:
+            config (Config): Application configuration with Strava credentials
+                and optional client settings (timeouts, retries).
+        """
         self.config = config
         self._access_token = None
         self.cache = CacheManager(config)
@@ -22,7 +33,11 @@ class StravaClient:
         self.request_retries = getattr(self.config, 'strava_request_retries', 2)
 
     def _get_access_token(self) -> str:
-        """Exchange refresh token for a new access token."""
+        """Exchange the refresh token for an access token and cache it.
+
+        Returns:
+            str: A valid OAuth2 access token for Strava API calls.
+        """
         if self._access_token:
             return self._access_token
 
@@ -60,6 +75,11 @@ class StravaClient:
         return self._access_token
 
     def _headers(self) -> dict:
+        """Return HTTP headers for authenticated requests.
+
+        Returns:
+            dict: Headers with Authorization Bearer token.
+        """
         return {"Authorization": f"Bearer {self._get_access_token()}"}
 
     def get_activities(self, result_container: list, after: int = None):

@@ -12,6 +12,13 @@ logger = logging.getLogger("kinetiqo")
 
 
 class FirebirdRepository(DatabaseRepository):
+    """Firebird repository implementation using the firebird-driver.
+
+    This class provides the DatabaseRepository contract for Firebird backends
+    and includes connection verification, schema initialization and data
+    access methods optimized for the Firebird engine.
+    """
+
     # Minimum seconds between active connection probes.  Within this window
     # only a cheap ``is_closed()`` check is performed.  The web layer creates
     # a fresh connection per request (lifetime < 1 s), so the probe is
@@ -20,6 +27,11 @@ class FirebirdRepository(DatabaseRepository):
     _VERIFY_INTERVAL: float = 30.0
 
     def __init__(self, config: Config):
+        """Initialize Firebird repository and ensure database availability.
+
+        Args:
+            config (Config): Application configuration with Firebird connection info.
+        """
         self.config = config
         self._last_verified: float = 0.0
         try:
@@ -1108,12 +1120,15 @@ class FirebirdRepository(DatabaseRepository):
         self.conn.commit()
 
     def __enter__(self):
+        """Enter context manager; return the repository instance."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and close connection."""
         self.close()
 
     def close(self):
+        """Close Firebird connection if open; log any errors."""
         try:
             if self.conn:
                 self.conn.close()

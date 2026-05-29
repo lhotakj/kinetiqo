@@ -15,6 +15,11 @@ CACHE_DURATION = 3600  # 1 hour
 logger = logging.getLogger("kinetiqo")
 
 async def get_latest_version() -> str|None:
+    """Fetch the latest release tag from GitHub, with a local cache.
+
+    Returns:
+        Optional[str]: The latest tag name (e.g. 'v1.2.3') or None on error.
+    """
     now = time.time()
 
     if CACHE_FILE.exists():
@@ -39,6 +44,12 @@ async def get_latest_version() -> str|None:
 
 
 async def check_for_new_version():
+    """Compare the current package version to the latest GitHub release.
+
+    Returns:
+        Optional[str]: A human-readable message if a newer version is available,
+        otherwise None.
+    """
     current_version_str = get_version()
     latest_version_str = await get_latest_version()
     if not latest_version_str:

@@ -81,6 +81,14 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Load a user by ID for Flask-Login.
+
+    Args:
+        user_id (str): The identifier of the user (as stored in session).
+
+    Returns:
+        User | None: A `User` object if the user exists, otherwise `None`.
+    """
     if user_id in users:
         return User(user_id)
     return None
@@ -90,6 +98,11 @@ def load_user(user_id):
 
 @app.route('/', methods=['GET'])
 def index():
+    """Root route: redirect authenticated users to activities, others to login.
+
+    Returns:
+        Response: A Flask redirect response to the appropriate page.
+    """
     if current_user.is_authenticated:
         return redirect(url_for('activities'))
     return redirect(url_for('login'))
@@ -97,10 +110,17 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Handle login form display and submission.
+
+    GET: render the login form.
+    POST: validate credentials and log the user in (demo plaintext check).
+
+    Returns:
+        Response: Rendered template or redirect on successful login.
+    """
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-
 
         # WARNING: Plaintext password check for mock/demo only!
         # Replace with password hash check in production.
@@ -117,6 +137,11 @@ def login():
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
+    """Log out the current user and redirect to the login page.
+
+    Returns:
+        Response: A Flask redirect response to the login page.
+    """
     logout_user()
     return redirect(url_for('login'))
 
@@ -124,6 +149,11 @@ def logout():
 @app.route('/activities', methods=['GET'])
 @login_required
 def activities():
+    """Render the activities page using mocked Strava data.
+
+    Returns:
+        Response: Rendered activities template populated with activity data.
+    """
     # Load mocked Strava data
     data = get_mock_activities()
     return render_template('activities.html', title="Activities", activities=data)
@@ -132,12 +162,22 @@ def activities():
 @app.route('/fullsync', methods=['GET'])
 @login_required
 def fullsync():
+    """Render the full-sync page.
+
+    Returns:
+        Response: Rendered sync template for a full synchronization.
+    """
     return render_template('sync.html', title="Full Sync", sync_type="full")
 
 
 @app.route('/fastsync', methods=['GET'])
 @login_required
 def fastsync():
+    """Render the fast-sync page.
+
+    Returns:
+        Response: Rendered sync template for a fast synchronization.
+    """
     return render_template('sync.html', title="Fast Sync", sync_type="fast")
 
 

@@ -9,6 +9,11 @@ logger = logging.getLogger("kinetiqo")
 
 @dataclass
 class Config:
+    """Application configuration read primarily from environment variables.
+
+    Attributes correspond to various configurable settings such as Strava
+    credentials, cache options, database connection parameters, and map API keys.
+    """
     # Strava
     strava_client_id: str = os.getenv("STRAVA_CLIENT_ID")
     strava_client_secret: str = os.getenv("STRAVA_CLIENT_SECRET")
@@ -59,6 +64,11 @@ class Config:
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
     def __post_init__(self):
+        """Post-initialization to coerce and validate environment values.
+
+        Converts port and numeric environment variables to the appropriate
+        numeric types and exits with an error message if values are malformed.
+        """
         if os.getenv("POSTGRESQL_PORT"):
             try:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))

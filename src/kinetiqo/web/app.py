@@ -30,6 +30,27 @@ from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
 
+"""Web UI for the Kinetiqo application.
+
+This module defines the Flask application, mounts all web routes and JSON
+API endpoints used by the browser UI, and provides utility helpers used by
+those routes (tile provider configuration, simple caches, Playwright-based
+export helpers, etc.). It intentionally keeps the view layer thin — heavy
+data processing is delegated to modules under ``kinetiqo.web`` and the
+database access is provided via the repository factory ``create_repository``.
+
+Key features implemented here:
+  * Flask routes for pages (activities, map, ftp, vo2max, stats, settings)
+  * JSON API endpoints for charts and client-side rendering
+  * Server-side OSM tile proxy that respects OSM tile usage policy
+  * Playwright-driven pixel-perfect PNG/PDF export endpoints
+  * Simple in-process TTL cache for expensive power computations
+
+The module is intentionally documented with Google-style docstrings for the
+public helpers to satisfy pydocstyle checks and provide richer automated
+documentation.
+"""
+
 # --- Python version detection ---
 import platform
 
@@ -58,7 +79,16 @@ mimetypes.add_type('font/ttf', '.ttf')
 
 @app.after_request
 def set_static_headers(response):
-    """Set proper headers for static content and caching."""
+    """Set proper headers for static content and caching.
+
+    Args:
+        response (flask.Response): The response object returned by the
+            view. The function mutates headers on this object in-place.
+
+    Returns:
+        flask.Response: The mutated response object (returned for Flask
+        compatibility with after_request handlers).
+    """
     if request.path.startswith('/static/'):
         # Set appropriate Cache-Control headers based on file type
         if request.path.endswith('.css') or request.path.endswith('.js'):
@@ -112,13 +142,15 @@ config = Config()
 
 
 def get_db():
-    """Returns a per-request database repository, creating one if needed.
+    """Return a per-request database repository instance.
 
-    The repository is stored in Flask's ``g`` object so it is scoped to the
-    current request and automatically closed by :func:`close_db` at the end
-    of the application context.
+    The repository is created via :func:`kinetiqo.db.factory.create_repository`
+    on first access and stored on :data:`flask.g` so it is scoped to the
+    current request. The :func:`close_db` teardown handler will attempt to
+    close the repository at the end of the request (if it exposes ``close``).
 
-    :return: A database repository instance for the current request.
+    Returns:
+        Any: A concrete repository implementing the project's repository API.
     """
     if 'db_repo' not in g:
         g.db_repo = create_repository(config)
@@ -127,9 +159,17 @@ def get_db():
 
 @app.teardown_appcontext
 def close_db(exception=None):
-    """Closes the per-request database connection after each request.
+    """Close and cleanup the per-request repository stored on :data:`flask.g`.
 
-    :param exception: Any exception that caused the context to be torn down.
+    This function is registered as a Flask ``teardown_appcontext`` handler and
+    will be invoked automatically at the end of each request. If the stored
+    repository exposes a ``close()`` method it will be called; otherwise the
+    repository object is simply discarded.
+
+    Args:
+        exception (Optional[BaseException]): Optional exception that caused
+            the teardown. It is ignored by this function but included to match
+            the Flask teardown handler signature.
     """
     repo = g.pop('db_repo', None)
     if repo is not None:
@@ -140,9 +180,12 @@ def close_db(exception=None):
 
 
 def set_config(new_config: Config):
-    """Sets the configuration used by the application.
+    """Set the global configuration object used by the application.
 
-    :param new_config: The configuration instance to use.
+    Args:
+        new_config (Config): A :class:`kinetiqo.config.Config` instance. This
+            replaces the module-level ``config`` used when creating
+            per-request repositories and resolving API keys/feature flags.
     """
     global config
     config = new_config
@@ -156,12 +199,29 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Flask-Login ``user_loader`` callback.
+
+    This function is called by Flask-Login to rehydrate a user from the
+    session. It should return a :class:`kinetiqo.web.auth.User` instance or
+    ``None`` if no matching user exists.
+
+    Args:
+        user_id (str): The user identifier stored in the session.
+
+    Returns:
+        Optional[User]: A :class:`kinetiqo.web.auth.User` instance or ``None``.
+    """
     if user_id in users:
         return User(user_id)
     return None
 
 
 def describe_cron(expression):
+    """Return a human-friendly description for a cron expression.
+
+    Supports simple patterns such as "*/N * * * *" and daily/hourly forms.
+    If the expression is unrecognised the original expression is returned.
+    """
     if not expression:
         return "Not scheduled"
 
@@ -252,6 +312,15 @@ app.register_blueprint(progress_bp)
 
 @app.route('/')
 def index():
+    """Root route that redirects authenticated users to the activities page.
+
+    If the current user is authenticated the function redirects to the main
+    activities listing. Otherwise it redirects to the login page.
+
+    Returns:
+        Response: A Flask redirect response to either ``/activities`` or
+        ``/login``.
+    """
     if current_user.is_authenticated:
         return redirect(url_for('activities'))
     return redirect(url_for('login'))
@@ -259,6 +328,19 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Render the login form and authenticate users on POST.
+
+    POST behaviour
+    - Expects ``username`` and ``password`` form fields in the request form.
+    - On successful authentication the user is logged in via
+      :func:`flask_login.login_user` and redirected to the activities page.
+    - On failure the login template is rendered again and a flash message is
+      shown.
+
+    Returns:
+        Response: The rendered login template on GET or on failed login, or a
+        redirect to the activities page on successful authentication.
+    """
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -276,6 +358,11 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    """Log out the current user and redirect to the login page.
+
+    Returns:
+        Response: A Flask redirect response to the login page.
+    """
     logout_user()
     return redirect(url_for('login'))
 
@@ -283,6 +370,16 @@ def logout():
 @app.route('/activities')
 @login_required
 def activities():
+    """Render the activities listing page.
+
+    The view attempts to load a recent set of activities from the database
+    repository and passes them to the ``activities.html`` template. Errors
+    during data loading are caught, logged and surfaced to the user via
+    ``flask.flash``.
+
+    Returns:
+        Response: The rendered activities page.
+    """
     # Load real data from database
     try:
         data = get_db().get_activities(limit=50)
@@ -299,6 +396,16 @@ def activities():
 # disabled when no MAPY_API_KEY is configured (free key from
 # https://developer.mapy.cz).  Tiles are loaded directly by the browser.
 def _build_tile_providers() -> dict:
+    """Return the configured tile providers for the map dropdown.
+
+    The returned mapping is Leaflet-compatible and includes provider names,
+    URL templates and attribution strings. Some entries may be marked
+    ``disabled`` when the project configuration lacks the required API key so
+    the frontend can render them greyed-out.
+
+    Returns:
+        dict: Mapping provider_key -> provider metadata dict.
+    """
     providers = {
         'openstreetmap': {
             'name': 'OpenStreetMap',
@@ -414,13 +521,17 @@ _OSM_SUBDOMAINS = ('a', 'b', 'c')
 async def osm_tile_proxy(z: int, x: int, y: int):
     """Server-side proxy for OpenStreetMap raster tiles.
 
-    Fetches tiles from tile.openstreetmap.org with a proper ``Referer`` and
-    ``User-Agent`` header, satisfying OSM's tile usage policy:
-    https://operations.osmfoundation.org/policies/tiles/
+    Args:
+        z (int): Tile zoom level.
+        x (int): Tile X coordinate.
+        y (int): Tile Y coordinate.
 
-    Because the browser requests tiles from our own origin the
-    ``Referer`` the browser sends is irrelevant — our server controls what
-    OSM actually sees, completely eliminating the 403r "Access blocked" tile.
+    Returns:
+        flask.Response: The raw tile bytes proxied from the OSM tile server
+        with an appropriate content-type, or an error status on failure.
+
+    The proxy sets a responsible ``User-Agent`` and ``Referer`` header when
+    fetching tiles to comply with OSM tile usage policy.
     """
     if not (0 <= z <= 19):
         return Response('', status=400)
@@ -463,7 +574,17 @@ async def osm_tile_proxy(z: int, x: int, y: int):
 @app.route('/map', methods=['GET', 'POST'])
 @login_required
 def map_view():
-    """Render the map page shell. Data is loaded asynchronously via /api/map/data."""
+    """Render the map page shell.
+
+    The page itself is a thin shell; actual track geometry is loaded
+    asynchronously by the browser via the ``/api/map/data`` endpoint. The
+    view accepts optional form/query parameters to pre-select activities and
+    rendering options.
+
+    Returns:
+        Response: The rendered map template or a redirect back to
+        ``/activities`` for GET requests.
+    """
     if request.method == 'GET':
         return redirect(url_for('activities'))
 
@@ -585,13 +706,21 @@ def map_data_api():
 
 
 def _compute_best_average_power(watts_series: list, duration_seconds: int) -> float:
-    """Compute the best (max) average power over a sliding window for a single activity.
+    """Compute the best (maximum) average power over a sliding window.
 
-    Delegates to the canonical O(N) implementation in ``kinetiqo.db.repository``.
+    This function delegates to the canonical O(N) implementation in
+    :mod:`kinetiqo.db.repository` so the algorithm is implemented in a
+    central place and can be unit-tested independently of the web layer.
 
-    :param watts_series: List of float watts values (1 sample/sec).
-    :param duration_seconds: Window size in seconds.
-    :return: Best average power as float, or 0.0 if insufficient data.
+    Args:
+        watts_series (list[float]): Sequence of power samples (typically
+            sampled at 1 Hz).
+        duration_seconds (int): Sliding window size in seconds to compute the
+            average over (e.g. 300 for 5 minutes).
+
+    Returns:
+        float: Best (maximum) average power found for the given window size,
+        or 0.0 if the input series is too short.
     """
     from kinetiqo.db.repository import compute_best_average_power
     return compute_best_average_power(watts_series, duration_seconds)
@@ -618,7 +747,16 @@ POWER_SKILLS_DURATIONS = [
 @app.route('/powerskills', methods=['GET', 'POST'])
 @login_required
 def powerskills():
-    """Render the Power Skills spider chart for selected activities."""
+    """Render the Power Skills spider chart for selected activities.
+
+    The view accepts activity IDs either via POST form field
+    ``activity_ids[]`` or via GET query string ``ids`` (comma-separated).
+    It computes the best average power for a set of standard durations and
+    passes the results to the template.
+
+    Returns:
+        Response: The rendered ``powerskills.html`` template.
+    """
     # Accept activity IDs from POST (form) or GET (query string)
     if request.method == 'POST':
         activity_ids = request.form.getlist('activity_ids[]')
@@ -733,7 +871,17 @@ VO2MAX_MAP_DURATION_SECONDS = 300  # 5 minutes
 
 
 def _build_activity_map(cycling_activities):
-    """Build a lightweight lookup {activity_id_str → {name, date, start_date_iso}} from raw activity rows."""
+    """Build a lightweight lookup map for activities.
+
+    Args:
+        cycling_activities (list[dict]): List of raw activity rows as returned
+            by the repository. Each row is expected to contain at least
+            ``id`` and ``start_date`` keys and may include ``name``.
+
+    Returns:
+        dict[str, dict]: Mapping of activity id (string) to a small dict with
+        keys ``name``, ``date`` (formatted for display) and ``start_date_iso``.
+    """
     activity_map = {}
     for a in cycling_activities:
         try:
@@ -750,10 +898,15 @@ def _build_activity_map(cycling_activities):
 
 
 def _get_athlete_weight() -> tuple[float, str]:
-    """Resolve athlete weight from the ``profile`` database table.
+    """Resolve athlete weight from the profile table or configured fallback.
 
-    Returns a ``(weight_kg, source)`` tuple.  *source* is a human-readable
-    label such as ``"profile"`` or ``"ATHLETE_WEIGHT env var"``.
+    The resolution order is:
+      1. Value from ``profile`` table (if present and > 0)
+      2. ``config.athlete_weight`` from environment/config
+
+    Returns:
+        tuple[float, str]: ``(weight_kg, source)`` where *source* is a
+        human-friendly label such as ``"profile"`` or ``"ATHLETE_WEIGHT env var"``.
     """
     try:
         profile = get_db().get_profile()
@@ -897,7 +1050,22 @@ PYTHON_VERSION = platform.python_version()
 # ---------------------------------------------------------------------------
 
 class _PowerCache:
-    """Process-level TTL cache for ``get_best_power_per_activity`` results."""
+    """Process-level TTL cache for best-power-per-activity results.
+
+    This lightweight in-memory cache stores the result of
+    ``repo.get_best_power_per_activity(activity_ids, duration, min_total)``
+    keyed by a hash of the activity id list and the query parameters. It is
+    intended to dramatically speed up round-trip scenarios where the page
+    render triggers the same expensive query twice within a short interval
+    (for example the initial page render followed immediately by an AJAX
+    chart data request).
+
+    Attributes:
+        _DEFAULT_TTL (int): Default time-to-live for cache entries in seconds.
+        _store (Dict[str, tuple]): Internal mapping key -> (timestamp, result).
+        _lock (threading.Lock): Protects concurrent access to the store.
+        _ttl (int): Effective TTL; can be adjusted on the instance.
+    """
 
     _DEFAULT_TTL: int = 300          # 5 minutes
 
@@ -915,7 +1083,23 @@ class _PowerCache:
         duration_seconds: int,
         min_total_samples: int = 0,
     ) -> Dict[str, float]:
-        """Return cached result or compute, cache, and return."""
+        """Return cached best-power-per-activity result or compute and cache it.
+
+        The method first checks an in-process TTL cache and returns the cached
+        result if it is still fresh. On a cache miss it calls
+        ``repo.get_best_power_per_activity(...)`` to fetch the data and stores
+        the result in the cache.
+
+        Args:
+            repo: Repository instance implementing ``get_best_power_per_activity``.
+            activity_ids (List[str]): List of activity id strings to query.
+            duration_seconds (int): Duration window in seconds (e.g. 1200 for 20m).
+            min_total_samples (int, optional): Minimum number of samples required
+                for an activity to be considered. Defaults to 0.
+
+        Returns:
+            Dict[str, float]: Mapping activity_id -> best average watts.
+        """
         key = self._make_key(activity_ids, duration_seconds, min_total_samples)
         now = _time.monotonic()
 
@@ -950,11 +1134,25 @@ class _PowerCache:
 
     @staticmethod
     def _make_key(activity_ids: List[str], duration: int, min_total: int) -> str:
+        """Create a stable cache key for the given query parameters.
+
+        Args:
+            activity_ids (List[str]): Activity id strings.
+            duration (int): Duration seconds.
+            min_total (int): Minimum total samples parameter.
+
+        Returns:
+            str: Deterministic string key used to lookup cache entries.
+        """
         ids_hash = hashlib.md5(",".join(sorted(activity_ids)).encode()).hexdigest()
         return f"{ids_hash}:{duration}:{min_total}"
 
     def _evict(self, now: float) -> None:
-        """Remove entries older than TTL.  Caller must hold ``_lock``."""
+        """Remove entries older than TTL. Caller must hold ``_lock``.
+
+        Args:
+            now (float): Current monotonic timestamp used to compare entry ages.
+        """
         stale = [k for k, (ts, _) in self._store.items() if (now - ts) >= self._ttl]
         for k in stale:
             del self._store[k]
@@ -966,7 +1164,16 @@ _power_cache = _PowerCache()
 @app.route('/ftp')
 @login_required
 def ftp():
-    """Estimate FTP as 95 % of the best 20-minute average power across all cycling activities."""
+    """Estimate FTP as 95% of the best 20-minute average power.
+
+    The view computes the best 20-minute average power across cycling
+    activities (optionally restricted by a period) and applies the configured
+    FTP factor to produce the final estimate. Results and contextual
+    information are rendered into ``ftp.html``.
+
+    Returns:
+        Response: The rendered FTP estimate page.
+    """
     period = request.args.get('period', 'all')
     if period not in SUPPORTED_PERIODS:
         period = "all"
@@ -1037,7 +1244,15 @@ def ftp():
 @app.route('/api/ftp_history')
 @login_required
 def ftp_history():
-    """Return per-ride FTP estimates as a JSON time-series for the chart."""
+    """Return per-ride FTP estimates as JSON for charting purposes.
+
+    Query parameters:
+        period (str): Time window to include (see ``SUPPORTED_PERIODS``).
+
+    Returns:
+        flask.Response: JSON payload with ``dates``, ``ftp_values`` and
+        ``activity_names`` arrays, or an error payload on failure.
+    """
     try:
         period = request.args.get('period', 'all')
         if period not in SUPPORTED_PERIODS:
@@ -1096,7 +1311,11 @@ def ftp_history():
 @app.route('/fitness')
 @login_required
 def fitness():
-    """Render the Fitness & Freshness chart page."""
+    """Render the Fitness & Freshness chart page.
+
+    Returns:
+        Response: The rendered fitness page template.
+    """
     period = request.args.get('period', '14')
     if period not in SUPPORTED_PERIODS:
         period = "14"
@@ -1107,7 +1326,16 @@ def fitness():
 @app.route('/api/fitness_data')
 @login_required
 def fitness_data():
-    """API endpoint to get fitness, fatigue, and form data."""
+    """API endpoint to compute and return fitness/freshness (CTL/ATL/TSB).
+
+    Query parameters:
+        period (str): Period length in days (defaults to '14').
+
+    Returns:
+        flask.Response: JSON payload produced by
+        :func:`kinetiqo.web.fitness.calculate_fitness_freshness` or an error
+        payload on failure.
+    """
     try:
         period = request.args.get('period', '14')
         if period not in SUPPORTED_PERIODS:
@@ -1123,7 +1351,15 @@ def fitness_data():
 @app.route('/vo2max')
 @login_required
 def vo2max():
-    """Render the VO2max estimation page."""
+    """Render the VO₂max estimation page.
+
+    The view obtains athlete weight, computes the best 5-minute power per
+    activity, estimates VO₂max using the Townsend method and passes the
+    results to the template for display.
+
+    Returns:
+        Response: The rendered VO₂max page.
+    """
     period = request.args.get('period', 'all')
     if period not in SUPPORTED_PERIODS:
         period = "all"
@@ -1205,7 +1441,15 @@ def vo2max():
 @app.route('/api/vo2max_history')
 @login_required
 def vo2max_history():
-    """Return per-ride VO2max estimates as a JSON time-series for the chart."""
+    """Return per-ride VO₂max estimates as a JSON time-series for the chart.
+
+    Query parameters:
+        period (str): Period filter for included rides.
+
+    Returns:
+        flask.Response: JSON payload with dates, vo2max values and activity
+        names, or an error payload on failure.
+    """
     try:
         period = request.args.get('period', 'all')
         if period not in SUPPORTED_PERIODS:
@@ -1276,7 +1520,16 @@ def vo2max_history():
 @app.route('/stats')
 @login_required
 def stats():
-    """Render the Mega Stats infographic page."""
+    """Render the Mega Stats infographic page.
+
+    The view determines an appropriate year range and athlete name (from the
+    profile) and renders the stats infographic shell. Heavy aggregation is
+    performed by the JSON API endpoint ``/api/stats_data`` which the page
+    uses to populate charts.
+
+    Returns:
+        Response: The rendered stats page.
+    """
     # Determine the year range from the earliest activity
     min_year = datetime.now().year
     try:
@@ -1316,7 +1569,17 @@ def stats():
 @app.route('/api/stats_data')
 @login_required
 def stats_data_api():
-    """Return computed Mega Stats as JSON for the infographic."""
+    """Return computed Mega Stats as JSON for the infographic.
+
+    Query parameters:
+        year (int): Target year to compute stats for.
+        period (str): Period selection (e.g. 'year').
+        group (str): Activity group key.
+
+    Returns:
+        flask.Response: JSON object with computed statistics and metadata, or
+        an error payload on failure.
+    """
     try:
         year = request.args.get('year', default=datetime.now().year, type=int)
         period = request.args.get('period', 'year')
@@ -1375,6 +1638,14 @@ def stats_data_api():
 
 @app.route('/logs')
 def logs():
+    """Render the sync logs page showing recent sync actions.
+
+    The view fetches recent log rows from the repository and formats them
+    into a monospaced text block that the template shows.
+
+    Returns:
+        Response: The rendered logs page.
+    """
     try:
         logs_data = get_db().get_logs(limit=25)
 
@@ -1409,6 +1680,11 @@ def logs():
 @app.route('/settings')
 @login_required
 def settings():
+    """Render the Settings page shell.
+
+    Returns:
+        Response: The rendered settings template.
+    """
     return render_template('settings.html', title="Settings")
 
 
@@ -1416,6 +1692,14 @@ def settings():
 @app.route('/license', methods=['GET'])
 @login_required
 def license_page():
+    """Render the License & Credits page and inject diagnostic info.
+
+    Injects detected Chromium and Python versions into the template for
+    debugging and compatibility information.
+
+    Returns:
+        Response: The rendered license and credits page.
+    """
     return render_template(
         'license.html',
         title="License & Credits",
@@ -1427,6 +1711,14 @@ def license_page():
 @app.route('/api/settings')
 @login_required
 def get_settings():
+    """Return runtime and database settings as JSON for the UI settings panel.
+
+    The endpoint reads environment and repository-derived configuration and
+    returns a JSON object used by the settings UI to display runtime status.
+
+    Returns:
+        flask.Response: JSON payload describing runtime and database settings.
+    """
     full_sync = os.environ.get('FULL_SYNC', '')
     fast_sync = os.environ.get('FAST_SYNC', '')
 
@@ -1474,7 +1766,13 @@ def get_settings():
 @app.route('/api/profile', methods=['GET'])
 @login_required
 def get_profile_api():
-    """Return the athlete profile as JSON."""
+    """Return the athlete profile as JSON.
+
+    Returns:
+        flask.Response: The athlete profile as stored in the repository or a
+        default empty profile if none exists. On error returns a 500 error
+        payload.
+    """
     try:
         profile = get_db().get_profile()
         if not profile:
@@ -1488,7 +1786,15 @@ def get_profile_api():
 @app.route('/api/profile', methods=['PUT'])
 @login_required
 def update_profile_api():
-    """Update individual profile fields.  Validates that *weight* is a positive number."""
+    """Update individual profile fields and validate inputs.
+
+    Expects a JSON body with optional ``first_name``, ``last_name`` and
+    ``weight``. ``weight`` must be a numeric value >= 0.
+
+    Returns:
+        flask.Response: The updated profile on success, or an error payload
+        with a suitable HTTP status code on validation/database failure.
+    """
     try:
         data = request.get_json()
         if not data:
@@ -1531,10 +1837,15 @@ def update_profile_api():
 # ---------------------------------------------------------------------------
 
 def _build_goals_response(goals_rows: list) -> dict:
-    """Merge DB rows with the ACTIVITY_GOALS_TYPES catalogue into a JSON-ready dict.
+    """Merge DB goal rows with the activity goals catalogue for the UI.
 
-    Each entry includes ``strava_types`` so the client can drive Select2
-    filtering without maintaining a duplicate mapping.
+    Args:
+        goals_rows (list[dict]): Rows returned from the repository containing
+            persisted goal values (may be empty).
+
+    Returns:
+        dict: Mapping string(activity_type_id) -> combined goal metadata and
+        persisted values suitable for JSON serialization.
     """
     goals_by_type = {int(g['activity_type_id']): g for g in goals_rows}
     result = {}
@@ -1558,7 +1869,12 @@ def _build_goals_response(goals_rows: list) -> dict:
 @app.route('/api/goals', methods=['GET'])
 @login_required
 def get_goals_api():
-    """Return activity goals for the authenticated athlete."""
+    """Return activity goals for the authenticated athlete.
+
+    Returns:
+        flask.Response: JSON mapping of activity goal configuration for the
+        logged-in athlete or an error payload on failure.
+    """
     try:
         profile = get_db().get_profile()
         if not profile:
@@ -1572,7 +1888,14 @@ def get_goals_api():
 @app.route('/api/goals', methods=['PUT'])
 @login_required
 def update_goals_api():
-    """Upsert activity goals. Request body: list of goal objects."""
+    """Upsert activity goals for the authenticated athlete.
+
+    Expects a JSON array of goal objects describing targets per activity type.
+
+    Returns:
+        flask.Response: ``{'success': True}`` on success or an error payload on
+        failure.
+    """
     try:
         data = request.get_json()
         if not data or not isinstance(data, list):
@@ -1618,6 +1941,20 @@ def update_goals_api():
 
 @app.route('/api/activities', methods=['GET', 'DELETE'])
 def get_activities_api():
+    """API endpoint to list activities (GET) or delete activities (DELETE).
+
+    GET behaviour:
+      - Supports pagination parameters ``page`` and ``per_page`` for server-side mode.
+      - Supports filtering by ``types[]``, ``startDate`` and ``endDate``.
+
+    DELETE behaviour:
+      - Expects JSON body containing ``activity_ids`` and delegates to the
+        bulk delete handler.
+
+    Returns:
+        flask.Response: JSON payload containing activity rows and aggregated
+        totals in the ``data`` and ``totals`` keys respectively.
+    """
     if request.method == 'DELETE':
         return delete_activities_api()
 
@@ -1731,6 +2068,14 @@ def get_activities_api():
 @app.route('/api/activities/<activity_id>', methods=['DELETE'])
 @login_required
 def delete_activity_api(activity_id):
+    """Delete a single activity by its id.
+
+    Args:
+        activity_id (str): Identifier of the activity to delete.
+
+    Returns:
+        flask.Response: JSON success or error payload.
+    """
     try:
         repo = get_db()
 
@@ -1750,6 +2095,13 @@ def delete_activity_api(activity_id):
 
 @login_required
 def delete_activities_api():
+    """Delete multiple activities provided in the request JSON.
+
+    Expects a JSON body: {"activity_ids": ["123", "456", ...]}.
+
+    Returns:
+        flask.Response: JSON success or error payload.
+    """
     activity_ids = request.json.get('activity_ids', [])
     if not activity_ids:
         return jsonify({'success': False, 'error': 'No activity IDs provided'}), 400
@@ -1774,12 +2126,22 @@ def delete_activities_api():
 @app.route('/fullsync')
 @login_required
 def fullsync():
+    """Render the Full Sync UI page which triggers a full Strava sync.
+
+    Returns:
+        Response: The rendered sync UI page configured for a full sync.
+    """
     return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days())
 
 
 @app.route('/fastsync')
 @login_required
 def fastsync():
+    """Render the Fast Sync UI page for incremental syncs.
+
+    Returns:
+        Response: The rendered sync UI page configured for a fast/incremental sync.
+    """
     return render_template('sync.html', title="Fast Sync", sync_type="fast")
 
 
@@ -1788,8 +2150,13 @@ def fastsync():
 @app.route('/sync/start/<type>')
 @login_required
 def start_sync_ui(type):
-    """
-    Returns the HTML snippet to connect to the SSE stream.
+    """Return an HTML snippet that connects the client to the SSE sync stream.
+
+    Args:
+        type (str): Sync type string (e.g. 'full' or 'fast').
+
+    Returns:
+        str: HTML fragment used by the HTMX UI to initialise the SSE connection.
     """
     limit_days = request.args.get('limit_days', '0')
     sse_url = f"/api/sync/stream/{type}?limit_days={limit_days}"
@@ -1817,8 +2184,13 @@ def start_sync_ui(type):
 @app.route('/api/sync/stream/<type>')
 @login_required
 def sync_stream(type):
-    """
-    This endpoint uses Server-Sent Events (SSE) to stream sync progress.
+    """Stream synchronization progress via Server-Sent Events (SSE).
+
+    Args:
+        type (str): 'full' or 'fast' indicating the sync mode.
+
+    Returns:
+        Response: A text/event-stream response streaming progress events.
     """
     is_full_sync = (type == 'full')
     user_id = current_user.id
@@ -1847,7 +2219,12 @@ def sync_stream(type):
 @app.route('/api/sync/stop', methods=['POST'])
 @login_required
 def stop_sync():
-    """Endpoint to signal the sync process to stop."""
+    """Signal the long-running sync process to stop via a filesystem flag.
+
+    Returns:
+        flask.Response: Empty 204 response on success or a JSON error payload
+        on failure.
+    """
     try:
         with open(STOP_SIGNAL_FILE, 'w') as f:
             f.write('stop')
@@ -1861,7 +2238,15 @@ def stop_sync():
 @app.route('/poster/<activity_id>')
 @login_required
 def poster(activity_id):
-    """Render the poster page for a given activity."""
+    """Render the poster page for a given activity id.
+
+    Args:
+        activity_id (str): Activity identifier to render the poster for.
+
+    Returns:
+        Response: The rendered poster page or a redirect to activities if the
+        activity cannot be found.
+    """
     repo = get_db()
     # Fetch basic activity info from DB
     activities = repo.get_activities_by_ids([activity_id])
@@ -1876,7 +2261,15 @@ def poster(activity_id):
 @app.route('/api/poster/photo/<activity_id>', methods=['GET'])
 @login_required
 def poster_photo_get(activity_id):
-    """Serve the cached poster photo for an activity, or fetch from Strava."""
+    """Serve a cached poster photo or fetch it from Strava and cache it.
+
+    Args:
+        activity_id (str): Activity identifier for which to serve the poster photo.
+
+    Returns:
+        Response: PNG bytes with mimetype 'image/png' on success, or an empty
+        404 response on failure.
+    """
     import pathlib
     cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
     cache_dir.mkdir(exist_ok=True)
@@ -1899,7 +2292,14 @@ def poster_photo_get(activity_id):
 @app.route('/api/poster/photo/<activity_id>', methods=['POST'])
 @login_required
 def poster_photo_reload(activity_id):
-    """Re-download the activity photo from Strava."""
+    """Force re-download of the activity photo from Strava and cache it.
+
+    Args:
+        activity_id (str): Activity identifier whose photo should be reloaded.
+
+    Returns:
+        Response: PNG bytes on success or a JSON error payload on failure.
+    """
     import pathlib
     cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
     cache_dir.mkdir(exist_ok=True)
@@ -1920,7 +2320,18 @@ def poster_photo_reload(activity_id):
 @app.route('/api/poster/upload/<activity_id>', methods=['POST'])
 @login_required
 def poster_photo_upload(activity_id):
-    """Upload a custom image for the poster."""
+    """Upload and store a custom image for an activity poster.
+
+    The endpoint accepts common image formats and converts them to PNG for
+    consistent use in the poster generator.
+
+    Args:
+        activity_id (str): Activity identifier to attach the uploaded image to.
+
+    Returns:
+        Response: PNG bytes of the converted image or a JSON error payload on
+        failure.
+    """
     import pathlib
     from PIL import Image
     import io
@@ -1962,7 +2373,15 @@ def poster_photo_upload(activity_id):
 @app.route('/api/poster/elevation/<activity_id>')
 @login_required
 def poster_elevation_data(activity_id):
-    """Return elevation profile data for the activity."""
+    """Return elevation profile data (distance and altitude arrays) for an activity.
+
+    Args:
+        activity_id (str): Activity identifier whose streams to fetch.
+
+    Returns:
+        flask.Response: JSON object with ``distance`` and ``altitude`` arrays or
+        empty arrays if unavailable.
+    """
     from kinetiqo.strava import StravaClient
     try:
         client = StravaClient(config)
@@ -2447,7 +2866,15 @@ def stats_export():
 
 
 def _fetch_strava_activity_photo(activity_id: str) -> str | None:
-    """Fetch the primary photo URL for a Strava activity (highest resolution)."""
+    """Fetch the primary photo URL for a Strava activity (highest resolution).
+
+    Args:
+        activity_id (str): Strava activity identifier.
+
+    Returns:
+        Optional[str]: URL of the best available photo size or ``None`` when
+        no photo is available.
+    """
     from kinetiqo.strava import StravaClient
     client = StravaClient(config)
     token = client._get_access_token()
@@ -2495,6 +2922,11 @@ def _download_and_convert_to_png(url: str) -> bytes | None:
 
 @app.route('/latest-version')
 async def latest_version():
+    """Return an asynchronous message indicating whether a newer release exists.
+
+    This endpoint delegates to :mod:`kinetiqo.version_check` and is safe to
+    call from the web UI; the check is cached and non-blocking.
+    """
     from kinetiqo.version_check import check_for_new_version
     message = await check_for_new_version()
     return jsonify({'message': message})
@@ -2519,6 +2951,7 @@ def inject_version():
 
 
 def run_app():
+    """Run the Flask development server (for local testing only)."""
     app.run(debug=True, port=4444, host='0.0.0.0')
 
 

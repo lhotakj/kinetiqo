@@ -13,7 +13,17 @@ logger = logging.getLogger("kinetiqo")
 
 
 class MySQLRepository(DatabaseRepository):
+    """MySQL/MariaDB repository implementation for the database backend.
+
+    Implements DatabaseRepository using mysql-connector-python and raw SQL.
+    """
+
     def __init__(self, config: Config):
+        """Initialize MySQL repository and ensure the target database exists.
+
+        Args:
+            config (Config): Application configuration containing MySQL connection info.
+        """
         self.config = config
         try:
             self.conn = self._connect()
@@ -915,12 +925,15 @@ class MySQLRepository(DatabaseRepository):
                   weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
 
     def __enter__(self):
+        """Enter context manager; return the repository instance."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and close the repository."""
         self.close()
 
     def close(self):
+        """Close the MySQL connection if it's open; log any errors."""
         try:
             if self.conn and self.conn.is_connected():
                 self.conn.close()

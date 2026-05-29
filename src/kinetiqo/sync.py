@@ -12,12 +12,28 @@ logger = logging.getLogger("kinetiqo")
 STOP_SIGNAL_FILE = ".sync_stop"
 
 class SyncService:
+    """Service responsible for synchronizing activities from Strava into the database.
+
+    The service yields progress updates (strings/HTML fragments) as it proceeds so
+    they can be streamed to a web UI (SSE) or consumed by the CLI.
+    """
+
     def __init__(self, config: Config):
+        """Initialize SyncService with configuration.
+
+        Args:
+            config (Config): Application configuration instance.
+        """
         self.strava = StravaClient(config)
         self.db = create_repository(config)
 
     def _check_stop_signal(self):
-        """Check if the stop signal file exists."""
+        """Check for an external stop signal.
+
+        The stop signal is represented by the presence of a file named
+        defined by STOP_SIGNAL_FILE; if found, the file is removed and
+        the function returns True to indicate the sync should abort.
+        """
         if os.path.exists(STOP_SIGNAL_FILE):
             try:
                 os.remove(STOP_SIGNAL_FILE)
@@ -243,4 +259,5 @@ class SyncService:
 
 
     def close(self):
+        """Close any resources held by the SyncService (database connection)."""
         self.db.close()

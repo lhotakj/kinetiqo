@@ -148,3 +148,35 @@ tests/
 - **New configuration should be added as an environment variable** in the `Config` dataclass.
 - **When updating CDN library versions**, also update `license.html` to keep the attribution page accurate.
 - **Internal app links must stay in the same browser tab.** Only external links (Strava, documentation, third-party sites) should use `target="_blank"`.
+
+## 8. Development environment: PyCharm SSH terminal mapping
+
+Note: on some developer machines the project files are accessible from Windows as a mapped drive (for example
+`H:\WORKING\kinetiqo`), while the PyCharm built-in terminal is connected to a remote SSH session where the
+same repository is mounted under a POSIX home path (for example `~/WORKING/kinetiqo`). This difference matters when
+running console commands inside the PyCharm terminal — use the SSH/remote path (~/WORKING/kinetiqo) there, not the
+Windows-style `H:\...` path.
+
+Examples:
+
+From the PyCharm terminal (SSH session):
+
+```bash
+cd ~/WORKING/kinetiqo && python -m pip install --user pydocstyle && python -m pydocstyle src
+```
+
+From a local Windows PowerShell or CMD where the repo is mounted as H::
+
+```powershell
+cd H:\WORKING\kinetiqo
+python -m pip install pydocstyle
+python -m pydocstyle src
+```
+
+When you share terminal output or ask for help, please state which path you used and whether the terminal was an
+SSH (remote) session or a local Windows shell. That prevents confusion (for example, `cd H:/WORKING/kinetiqo` will fail
+inside an SSH shell where the code lives under `~/WORKING/kinetiqo`).
+
+This repository note helps contributors and automation know which path to use when running commands in the
+PyCharm-built terminal vs. locally on Windows.
+

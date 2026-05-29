@@ -14,6 +14,14 @@ logger = logging.getLogger("kinetiqo")
 
 class PostgresqlRepository(DatabaseRepository):
     def __init__(self, config: Config):
+        """Initialize PostgreSQL repository and establish a DB connection.
+
+        Attempts to connect to the configured database and will create the
+        target database if it does not exist (when the server permits).
+
+        Args:
+            config (Config): Application configuration instance.
+        """
         self.config = config
         try:
             self.conn = self._connect()
@@ -914,12 +922,15 @@ class PostgresqlRepository(DatabaseRepository):
                   weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
 
     def __enter__(self):
+        """Enter context manager; returns the repository instance."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and close the repository connection."""
         self.close()
 
     def close(self):
+        """Close the PostgreSQL connection if open, ignoring close errors."""
         try:
             if self.conn:
                 self.conn.close()

@@ -11,7 +11,19 @@ logger = logging.getLogger("kinetiqo")
 
 
 class CacheManager:
+    """Manage simple file-based caching for Strava API responses.
+
+    The cache stores JSON files under `config.cache_dir` and honors a TTL
+    configured in `config.cache_ttl` (minutes). Caching can be toggled via
+    `config.enable_strava_cache`.
+    """
+
     def __init__(self, config: Config):
+        """Initialize the cache manager.
+
+        Args:
+            config (Config): Application configuration object.
+        """
         self.config = config
         self.cache_dir = config.cache_dir
         self.ttl_seconds = config.cache_ttl * 60

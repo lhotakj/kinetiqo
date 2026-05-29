@@ -330,7 +330,17 @@ SCHEMA_DEFINITION = {
 
 
 class SchemaManager:
+    """Helper to ensure the database schema matches the repository's
+    SCHEMA_DEFINITION for the target dialect (MySQL, PostgreSQL, Firebird).
+    """
+
     def __init__(self, conn, db_type):
+        """Initialize SchemaManager.
+
+        Args:
+            conn: A DB-API connection object.
+            db_type (str): One of 'mysql', 'postgresql', or 'firebird'.
+        """
         self.conn = conn
         self.db_type = db_type  # 'mysql', 'postgresql', or 'firebird'
 
