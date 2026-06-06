@@ -338,17 +338,19 @@
                 <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="statsOpacityVal" class="text-xs w-8">100%</span>
             </div>
-            <div class="control-row">
-                <label for="statsVisible_distance">Visible Stats</label>
-                <div id="statsVisibility" class="flex flex-wrap gap-2 items-center">
-                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_distance" class="mr-2">Distance</label>
-                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_elevation" class="mr-2">Elevation</label>
-                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_speed" class="mr-2">Avg speed</label>
-                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_cadence" class="mr-2">Avg cadence</label>
-                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_heartrate" class="mr-2">Avg heart rate</label>
-                    <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_time" class="mr-2">Time</label>
+                <div class="control-row">
+                    <label for="statsVisible_distance">Visible Stats</label>
+                    <div id="statsVisibility" class="flex flex-wrap gap-2 items-center">
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_distance" class="mr-2">Distance</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_elevation" class="mr-2">Elevation</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_speed" class="mr-2">Avg speed</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_cadence" class="mr-2">Avg cadence</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_heartrate" class="mr-2">Avg heart rate</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_time" class="mr-2">Time</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_avg_power" class="mr-2">⚡ Avg power</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_max_power" class="mr-2">🔥 Max power</label>
+                    </div>
                 </div>
-            </div>
         </div>
 
         <!-- Elevation Controls -->
@@ -423,6 +425,16 @@
                                    {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
                                </span>
                            </div>
+                           <!-- Avg Weighted Power -->
+                           <div class="stat-item" data-field="avg_power">
+                               <span class="stat-icon" data-icon="/static/icons/thunder.svg"></span>
+                               <span id="statAvgPower">{% if activity.get('weighted_average_watts') is not none %}{{ "%d"|format(activity.get('weighted_average_watts')|round(0)) }} W{% else %}— W{% endif %}</span>
+                           </div>
+                           <!-- Max Power -->
+                           <div class="stat-item" data-field="max_power">
+                               <span class="stat-icon" data-icon="/static/icons/muscle.svg"></span>
+                               <span id="statMaxPower">{% if activity.get('max_watts') is not none %}{{ "%d"|format(activity.get('max_watts')|round(0)) }} W{% else %}— W{% endif %}</span>
+                           </div>
                       </div>
                       <div class="resize-handle" title="Drag to resize"><span></span></div>
                   </div>
@@ -460,7 +472,7 @@
         titleFont: 'Roboto Condensed', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
         statsFont: 'Roboto Condensed', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
         // Which stats are visible on the poster (all enabled by default)
-        statsVisible: { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true },
+        statsVisible: { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true, avg_power: true, max_power: true },
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
         singleLine: true
     };
@@ -890,7 +902,7 @@
     bindControl('elevOpacity', 'elevOpacity', true, 'elevOpacityVal', '%');
 
     // Stats visibility checkboxes: wire up, persist, and reflect rendering
-    const STAT_KEYS = ['distance','elevation','speed','cadence','heartrate','time'];
+    const STAT_KEYS = ['distance','elevation','speed','cadence','heartrate','time','avg_power','max_power'];
     function applyStatsVisibilityControls(s) {
         STAT_KEYS.forEach(k => {
             const el = document.getElementById('statsVisible_' + k);

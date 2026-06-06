@@ -210,6 +210,34 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
     )
     top_speed_kmh = round(max_speed_ms * 3.6, 1)
 
+    # ---- Power stats ----
+    # avg_weighted_power_w: time-weighted average of weighted_average_watts
+    # across activities that have valid (non-null, positive) power data.
+    total_power_joules = 0.0
+    total_power_time_s = 0
+    max_power_w = 0.0
+
+    for a, _ in filtered:
+        wap_raw = a.get('weighted_average_watts')
+        mt = int(a.get('moving_time') or 0)
+        if wap_raw is not None and mt > 0:
+            wap = float(wap_raw)
+            if wap > 0:
+                total_power_joules += wap * mt
+                total_power_time_s += mt
+
+        mx_raw = a.get('max_watts')
+        if mx_raw is not None:
+            mx = float(mx_raw)
+            if mx > max_power_w:
+                max_power_w = mx
+
+    avg_weighted_power_w = (
+        round(total_power_joules / total_power_time_s)
+        if total_power_time_s > 0
+        else 0
+    )
+
     # ---- Active days, streak, monthly aggregates ----
     active_dates: set = set()
     daily_distance: Dict[date, float] = defaultdict(float)
@@ -257,6 +285,8 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
         'longest_activity': longest_activity,
         'highest_elevation_activity': highest_elevation_activity,
         'top_speed_kmh': top_speed_kmh,
+        'avg_weighted_power_w': avg_weighted_power_w,
+        'max_power_w': round(max_power_w),
         'most_active_month': most_active_month,
         'calendar': calendar,
         'month_colors': MONTH_COLORS,
@@ -287,6 +317,8 @@ def _empty_stats(year: int, period: str, start_date: date, end_date: date) -> Di
         'longest_activity': {'name': '', 'distance_km': 0, 'date': ''},
         'highest_elevation_activity': {'name': '', 'elevation_m': 0, 'date': ''},
         'top_speed_kmh': 0,
+        'avg_weighted_power_w': 0,
+        'max_power_w': 0,
         'most_active_month': _empty_month(),
         'calendar': build_calendar(start_date, end_date, {}),
         'month_colors': MONTH_COLORS,

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <!-- Lightning bolt: top segment top-right, angled to centre, then lower segment down-left -->
+  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z" />
+</svg>
+

@@ -241,6 +241,43 @@
             </div>
         </div>
 
+        <!-- Visible Stats -->
+        <div class="control-box">
+            <h4>Visible Stats</h4>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="distance" checked> 📏 Distance
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="elevation" checked> ⛰️ Elevation
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="longest" checked> 📐 Longest
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="highest" checked> 🏔️ Max Elev.
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="speed" checked> 🚀 Top Speed
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="hours" checked> ⏱️ Hours
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="streak" checked> 🔥 Streak
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="best-month" checked> 📅 Best Month
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="avg-power" checked> ⚡ Avg Power
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                    <input type="checkbox" class="stat-toggle" data-stat="max-power" checked> 🔥 Max Power
+                </label>
+            </div>
+        </div>
+
         <!-- Stats Title Font Size -->
         <div class="control-box">
             <h4>Stats title</h4>
@@ -280,44 +317,54 @@
                     <div class="ig-body" id="ig-body" style="display:none;">
                         <!-- Left stats column -->
                         <div class="ig-stats" id="ig-stats">
-                            <div class="ig-stat">
+                            <div class="ig-stat" id="ig-distance-stat">
                                 <div class="ig-stat-label">Total Distance</div>
                                 <div class="ig-stat-value"><span id="ig-distance">0</span><span class="ig-stat-unit">km</span></div>
                             </div>
-                            <div class="ig-stat-divider"></div>
-                            <div class="ig-stat">
+                            <div class="ig-stat-divider" id="ig-distance-divider"></div>
+                            <div class="ig-stat" id="ig-elevation-stat">
                                 <div class="ig-stat-label">Total Elevation</div>
                                 <div class="ig-stat-value"><span id="ig-elevation">0</span><span class="ig-stat-unit">m</span></div>
                             </div>
-                            <div class="ig-stat-divider"></div>
-                            <div class="ig-stat">
+                            <div class="ig-stat-divider" id="ig-elevation-divider"></div>
+                            <div class="ig-stat" id="ig-longest-stat">
                                 <div class="ig-stat-label" id="ig-longest-label">Longest Walk</div>
                                 <div class="ig-stat-value"><span id="ig-longest">0</span><span class="ig-stat-unit">km</span></div>
                                 <div class="ig-stat-detail" id="ig-longest-name"></div>
                             </div>
-                            <div class="ig-stat-divider"></div>
-                            <div class="ig-stat">
+                            <div class="ig-stat-divider" id="ig-longest-divider"></div>
+                            <div class="ig-stat" id="ig-highest-stat">
                                 <div class="ig-stat-label" id="ig-highest-label">Max Elevation Walk</div>
                                 <div class="ig-stat-value"><span id="ig-highest-elev">0</span><span class="ig-stat-unit">m</span></div>
                                 <div class="ig-stat-detail" id="ig-highest-name"></div>
                             </div>
-                            <div class="ig-stat-divider"></div>
+                            <div class="ig-stat-divider" id="ig-highest-divider"></div>
                             <div class="ig-stat" id="ig-speed-stat">
                                 <div class="ig-stat-label">Top Speed</div>
                                 <div class="ig-stat-value"><span id="ig-speed">0</span><span class="ig-stat-unit">km/h</span></div>
                             </div>
                             <div class="ig-stat-divider" id="ig-speed-divider"></div>
-                            <div class="ig-stat">
+                            <div class="ig-stat" id="ig-avg-power-stat">
+                                <div class="ig-stat-label">⚡ Avg Weighted Power</div>
+                                <div class="ig-stat-value"><span id="ig-avg-power">0</span><span class="ig-stat-unit">W</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-avg-power-divider"></div>
+                            <div class="ig-stat" id="ig-max-power-stat">
+                                <div class="ig-stat-label">🔥 Max Power</div>
+                                <div class="ig-stat-value"><span id="ig-max-power">0</span><span class="ig-stat-unit">W</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-max-power-divider"></div>
+                            <div class="ig-stat" id="ig-hours-stat">
                                 <div class="ig-stat-label">Total Hours</div>
                                 <div class="ig-stat-value"><span id="ig-hours">0</span><span class="ig-stat-unit">hrs</span></div>
                             </div>
-                            <div class="ig-stat-divider"></div>
-                            <div class="ig-stat">
+                            <div class="ig-stat-divider" id="ig-hours-divider"></div>
+                            <div class="ig-stat" id="ig-streak-stat">
                                 <div class="ig-stat-label">Max Streak</div>
                                 <div class="ig-stat-value"><span id="ig-streak">0</span><span class="ig-stat-unit">days</span></div>
                             </div>
-                            <div class="ig-stat-divider"></div>
-                            <div class="ig-stat">
+                            <div class="ig-stat-divider" id="ig-streak-divider"></div>
+                            <div class="ig-stat" id="ig-best-month-stat">
                                 <div class="ig-stat-label">Most Active Month</div>
                                 <div class="ig-month-value" id="ig-best-month" style="color:#2ECC40;">–</div>
                                 <div class="ig-stat-detail" id="ig-best-month-detail"></div>
@@ -461,6 +508,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('ig-active-days').textContent     = d.active_days;
         document.getElementById('ig-total-activities').textContent = d.total_activities;
 
+        // Power stats
+        document.getElementById('ig-avg-power').textContent = formatNumber(d.avg_weighted_power_w);
+        document.getElementById('ig-max-power').textContent = formatNumber(d.max_power_w);
+        applyStatVisibility();
+
         const mam   = d.most_active_month;
         const mamEl = document.getElementById('ig-best-month');
         mamEl.textContent = mam.name || '\u2013';
@@ -579,6 +631,75 @@ document.addEventListener('DOMContentLoaded', function() {
         if (n === undefined || n === null) return '0';
         return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
     }
+
+    // ---- Visible-stats toggles ----
+    // Each entry: data-stat value → [stat-el id, divider-el id | null]
+    // The divider for the LAST visible stat is always hidden by re-running
+    // applyStatVisibility after every toggle.
+    var STAT_DEFS = [
+        { key: 'distance',   stat: 'ig-distance-stat',   div: 'ig-distance-divider'  },
+        { key: 'elevation',  stat: 'ig-elevation-stat',  div: 'ig-elevation-divider' },
+        { key: 'longest',    stat: 'ig-longest-stat',    div: 'ig-longest-divider'   },
+        { key: 'highest',    stat: 'ig-highest-stat',    div: 'ig-highest-divider'   },
+        { key: 'speed',      stat: 'ig-speed-stat',      div: 'ig-speed-divider'     },
+        { key: 'avg-power',  stat: 'ig-avg-power-stat',  div: 'ig-avg-power-divider' },
+        { key: 'max-power',  stat: 'ig-max-power-stat',  div: 'ig-max-power-divider' },
+        { key: 'hours',      stat: 'ig-hours-stat',      div: 'ig-hours-divider'     },
+        { key: 'streak',     stat: 'ig-streak-stat',     div: 'ig-streak-divider'    },
+        { key: 'best-month', stat: 'ig-best-month-stat', div: null                   },
+    ];
+
+    function getStatCheckbox(key) {
+        return document.querySelector('.stat-toggle[data-stat="' + key + '"]');
+    }
+
+    function applyStatVisibility() {
+        // First pass: show/hide stat and divider per checkbox
+        var lastVisibleDivId = null;
+        STAT_DEFS.forEach(function(def) {
+            var cb   = getStatCheckbox(def.key);
+            var vis  = cb ? cb.checked : true;
+            var stat = document.getElementById(def.stat);
+            var divEl= def.div ? document.getElementById(def.div) : null;
+            if (stat) stat.style.display = vis ? '' : 'none';
+            if (divEl) {
+                // Will be shown only if stat is visible (we'll hide the last one below)
+                divEl.style.display = vis ? '' : 'none';
+                if (vis) lastVisibleDivId = def.div;
+            }
+        });
+        // Hide the divider after the last visible stat (no trailing separator)
+        if (lastVisibleDivId) {
+            var lastDiv = document.getElementById(lastVisibleDivId);
+            if (lastDiv) lastDiv.style.display = 'none';
+        }
+        // Persist to localStorage
+        var state = {};
+        STAT_DEFS.forEach(function(def) {
+            var cb = getStatCheckbox(def.key);
+            state[def.key] = cb ? cb.checked : true;
+        });
+        localStorage.setItem('statsVisibleStats', JSON.stringify(state));
+    }
+
+    // Restore visible-stats prefs from localStorage
+    ;(function() {
+        var raw = localStorage.getItem('statsVisibleStats');
+        if (!raw) return;
+        try {
+            var state = JSON.parse(raw);
+            STAT_DEFS.forEach(function(def) {
+                if (def.key in state) {
+                    var cb = getStatCheckbox(def.key);
+                    if (cb) cb.checked = state[def.key];
+                }
+            });
+        } catch (_) {}
+    })();
+
+    document.querySelectorAll('.stat-toggle').forEach(function(cb) {
+        cb.addEventListener('change', applyStatVisibility);
+    });
 
     // ---- Event handlers ----
     let lastData = null;
@@ -776,6 +897,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ---- Initial load ----
     applyInfographicSize();
+    applyStatVisibility();
     fetchStats();
 });
 </script>
