@@ -28,7 +28,10 @@ from kinetiqo.web.stats import (
 
 def _make_activity(activity_id, name, sport, start_date, distance_m=10000,
                    elevation=100, moving_time=3600, average_speed=2.78,
-                   max_speed: float | None = 4.0):
+                   max_speed: float | None = 4.0,
+                   average_watts: float | None = None,
+                   max_watts: float | None = None,
+                   weighted_average_watts: float | None = None):
     """Create a mock activity dict matching the shape of ``get_activities_web``."""
     return {
         'id': activity_id,
@@ -40,6 +43,9 @@ def _make_activity(activity_id, name, sport, start_date, distance_m=10000,
         'moving_time': moving_time,
         'average_speed': average_speed,
         'max_speed': max_speed,
+        'average_watts': average_watts,
+        'max_watts': max_watts,
+        'weighted_average_watts': weighted_average_watts,
     }
 
 
@@ -54,8 +60,10 @@ ACTIVITIES_2025 = [
 ]
 
 CYCLING_ACTIVITIES = [
-    _make_activity(10, 'Fast Ride',   'Ride',        '2025-04-10T07:00:00Z', 80000, 500, 10800, 7.41, 15.0),
-    _make_activity(11, 'Gravel Loop', 'GravelRide',  '2025-04-12T09:00:00Z', 60000, 700, 9000,  6.67, 12.0),
+    _make_activity(10, 'Fast Ride',   'Ride',        '2025-04-10T07:00:00Z', 80000, 500, 10800, 7.41, 15.0,
+                   average_watts=220.0, max_watts=850.0, weighted_average_watts=235.0),
+    _make_activity(11, 'Gravel Loop', 'GravelRide',  '2025-04-12T09:00:00Z', 60000, 700, 9000,  6.67, 12.0,
+                   average_watts=195.0, max_watts=720.0, weighted_average_watts=210.0),
 ]
 
 
@@ -284,6 +292,53 @@ class TestComputeMegaStats(unittest.TestCase):
         # Should use average_speed 1.5 m/s = 5.4 km/h
         self.assertAlmostEqual(stats['top_speed_kmh'], 5.4, places=1)
 
+    def test_power_stats_present_in_result(self):
+        """Result dict must always contain avg_weighted_power_w and max_power_w."""
+        stats = compute_mega_stats(ACTIVITIES_2025, 2025, 'year')
+        self.assertIn('avg_weighted_power_w', stats)
+        self.assertIn('max_power_w', stats)
+
+    def test_power_stats_zero_when_no_power_data(self):
+        """Walking activities with no power fields should yield zeroes."""
+        stats = compute_mega_stats(ACTIVITIES_2025, 2025, 'year')
+        self.assertEqual(stats['avg_weighted_power_w'], 0)
+        self.assertEqual(stats['max_power_w'], 0)
+
+    def test_max_power_cycling(self):
+        """Max power should be the highest max_watts across filtered activities."""
+        stats = compute_mega_stats(CYCLING_ACTIVITIES, 2025, 'year')
+        # Fast Ride has max_watts=850, Gravel Loop has 720 → max is 850
+        self.assertEqual(stats['max_power_w'], 850)
+
+    def test_avg_weighted_power_cycling(self):
+        """Avg weighted power should be time-weighted average of weighted_average_watts."""
+        stats = compute_mega_stats(CYCLING_ACTIVITIES, 2025, 'year')
+        # Fast Ride: WAP=235W, moving_time=10800s → 235*10800 = 2538000 J
+        # Gravel Loop: WAP=210W, moving_time=9000s → 210*9000 = 1890000 J
+        # Total joules = 4428000, total time = 19800s → avg = 4428000/19800 ≈ 223.6 → rounds to 224
+        expected = round((235.0 * 10800 + 210.0 * 9000) / (10800 + 9000))
+        self.assertEqual(stats['avg_weighted_power_w'], expected)
+
+    def test_avg_weighted_power_skips_null_power(self):
+        """Activities with no power data must not corrupt the power average."""
+        mixed = CYCLING_ACTIVITIES + [
+            _make_activity(99, 'No Power Ride', 'Ride', '2025-05-10T07:00:00Z',
+                           distance_m=30000, moving_time=3600),
+        ]
+        stats_mixed    = compute_mega_stats(mixed, 2025, 'year')
+        stats_no_null  = compute_mega_stats(CYCLING_ACTIVITIES, 2025, 'year')
+        # Adding an activity without power data must not change the avg
+        self.assertEqual(stats_mixed['avg_weighted_power_w'], stats_no_null['avg_weighted_power_w'])
+
+    def test_max_power_zero_when_all_null(self):
+        """max_power_w must be 0 when no activities have max_watts."""
+        activities = [
+            _make_activity(1, 'No Power', 'Ride', '2025-01-01T08:00:00Z',
+                           max_watts=None),
+        ]
+        stats = compute_mega_stats(activities, 2025, 'year')
+        self.assertEqual(stats['max_power_w'], 0)
+
 
 class TestActivityGroups(unittest.TestCase):
     """Validate the ACTIVITY_GROUPS structure."""
@@ -381,6 +436,8 @@ class TestStatsRoutes(unittest.TestCase):
             'longest_activity': {'name': 'Morning Walk', 'distance_km': 5.0, 'date': '2025-01-15'},
             'highest_elevation_activity': {'name': 'Morning Walk', 'elevation_m': 0, 'date': '2025-01-15'},
             'top_speed_kmh': 0,
+            'avg_weighted_power_w': 0,
+            'max_power_w': 0,
             'most_active_month': {'number': 1, 'name': 'Jan', 'count': 1, 'distance_km': 5.0, 'color': '#FF4136'},
             'calendar': [],
             'month_colors': MONTH_COLORS,
