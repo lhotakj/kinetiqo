@@ -353,14 +353,17 @@ class TestActivityGroups(unittest.TestCase):
                 self.assertIsInstance(grp['types'], list)
                 self.assertGreater(len(grp['types']), 0)
 
-    def test_walking_is_default(self):
-        self.assertIn('walking', ACTIVITY_GROUPS)
-        self.assertIn('Walk', ACTIVITY_GROUPS['walking']['types'])
-
-    def test_cycling_types(self):
+    def test_cycling_variants(self):
+        self.assertIn('cycling', ACTIVITY_GROUPS)
         cycling = ACTIVITY_GROUPS['cycling']
         self.assertIn('Ride', cycling['types'])
         self.assertIn('VirtualRide', cycling['types'])
+        self.assertIn('cycling_indoor', ACTIVITY_GROUPS)
+        self.assertEqual(ACTIVITY_GROUPS['cycling_indoor']['name'], 'Cycling (indoor)')
+        self.assertIn('IndoorRide', ACTIVITY_GROUPS['cycling_indoor']['types'])
+        self.assertIn('cycling_outdoor', ACTIVITY_GROUPS)
+        self.assertEqual(ACTIVITY_GROUPS['cycling_outdoor']['name'], 'Cycling (outdoor)')
+        self.assertNotIn('VirtualRide', ACTIVITY_GROUPS['cycling_outdoor']['types'])
 
 
 class TestStatsRoutes(unittest.TestCase):
@@ -394,8 +397,11 @@ class TestStatsRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.data.decode()
         self.assertIn('Mega Stats', html)
-        self.assertIn('Walking', html)
+        self.assertIn('Cycling', html)
+        self.assertIn('Cycling (indoor)', html)
+        self.assertIn('Cycling (outdoor)', html)
         self.assertIn('2023', html)
+        self.assertIn('option value="cycling" selected', html)
         self.assertIn('stats-column-width', html)
         self.assertIn('statsColumnWidth', html)
         mock_repo.get_activities_web.assert_called_once_with(

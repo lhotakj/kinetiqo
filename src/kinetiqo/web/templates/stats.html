@@ -253,7 +253,7 @@
                 <label>Activities</label>
                 <select id="stats-group" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
                     {% for key, grp in activity_groups.items() %}
-                    <option value="{{ key }}" {% if key == 'walking' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}</option>
+                    <option value="{{ key }}" {% if key == 'cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -472,6 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ---- Stats column width ----
     const statsColumnWidthSlider = document.getElementById('stats-column-width');
     const statsColumnWidthVal    = document.getElementById('stats-column-width-val');
+    const statsGroupStorageKey   = 'statsActivityGroup';
 
     function applyStatsColumnWidth(val) {
         const width = Math.max(20, Math.min(50, parseInt(val, 10) || 20));
@@ -486,6 +487,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.updateStatsFontSize(fontSizeSlider.value);
             }
         }
+    }
+
+    function applyStatsGroup(val) {
+        var allowed = Array.from(elGroup.options).map(function(opt) { return opt.value; });
+        var group = allowed.indexOf(val) >= 0 ? val : 'cycling';
+        elGroup.value = group;
+        localStorage.setItem(statsGroupStorageKey, group);
     }
 
     function updateScaler(width, height) {
@@ -744,6 +752,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (_) {}
     })();
 
+    // Restore selected activity group from localStorage, defaulting to Cycling
+    ;(function() {
+        var stored = localStorage.getItem(statsGroupStorageKey) || localStorage.getItem('statsGroup');
+        applyStatsGroup(stored || 'cycling');
+    })();
+
     document.querySelectorAll('.stat-toggle').forEach(function(cb) {
         cb.addEventListener('change', applyStatVisibility);
     });
@@ -751,7 +765,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // ---- Event handlers ----
     let lastData = null;
 
-    [elYear, elPeriod, elGroup].forEach(function(el) { el.addEventListener('change', fetchStats); });
+    [elYear, elPeriod].forEach(function(el) { el.addEventListener('change', fetchStats); });
+    elGroup.addEventListener('change', function() {
+        applyStatsGroup(this.value);
+        fetchStats();
+    });
 
     elSize.addEventListener('change', function() {
         applyInfographicSize();

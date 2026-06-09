@@ -32,6 +32,16 @@ MONTH_SHORT_NAMES: Dict[int, str] = {
 }
 
 # Activity-type groups surfaced in the infographic selector.
+CYCLING_ACTIVITY_TYPES = [
+    'Ride', 'VirtualRide', 'EBikeRide', 'EMountainBikeRide',
+    'GravelRide', 'MountainBikeRide', 'Velomobile', 'Handcycle',
+]
+CYCLING_INDOOR_ACTIVITY_TYPES = ['IndoorRide', 'VirtualRide']
+CYCLING_OUTDOOR_ACTIVITY_TYPES = [
+    'Ride', 'EBikeRide', 'EMountainBikeRide', 'GravelRide',
+    'MountainBikeRide', 'Velomobile', 'Handcycle',
+]
+
 ACTIVITY_GROUPS: Dict[str, Dict[str, Any]] = {
     'walking': {
         'name': 'Walking',
@@ -43,10 +53,19 @@ ACTIVITY_GROUPS: Dict[str, Dict[str, Any]] = {
         'name': 'Cycling',
         'icon': '🚴',
         'noun': 'ride',
-        'types': [
-            'Ride', 'VirtualRide', 'EBikeRide', 'EMountainBikeRide',
-            'GravelRide', 'MountainBikeRide', 'Velomobile', 'Handcycle',
-        ],
+        'types': CYCLING_ACTIVITY_TYPES,
+    },
+    'cycling_indoor': {
+        'name': 'Cycling (indoor)',
+        'icon': '🚴',
+        'noun': 'ride',
+        'types': CYCLING_INDOOR_ACTIVITY_TYPES,
+    },
+    'cycling_outdoor': {
+        'name': 'Cycling (outdoor)',
+        'icon': '🚴',
+        'noun': 'ride',
+        'types': CYCLING_OUTDOOR_ACTIVITY_TYPES,
     },
     'running': {
         'name': 'Running',
@@ -336,4 +355,3 @@ def _period_label(year: int, period: str) -> str:
         'h2': f'H2 {year}',
     }
     return labels.get(period, str(year))
-
