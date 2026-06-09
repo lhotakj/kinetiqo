@@ -2736,6 +2736,7 @@ def stats_export():
     width  = max(800,  min(int(payload.get('width',  1280)), 2048))
     height = max(600,  min(int(payload.get('height',  960)), 1600))
     font_size = str(payload.get('fontSize', '24'))
+    stats_column_width = str(payload.get('statsColumnWidth', '20'))
     export_format = str(payload.get('format', 'png')).lower()
 
     host_header = request.host
@@ -2801,6 +2802,11 @@ def stats_export():
                     if (bg) bg.value = {_json.dumps(bg)};
                     var ig = document.getElementById('infographic');
                     if (ig) ig.style.backgroundColor = {_json.dumps(bg)};
+                    var statsWidthSlider = document.getElementById('stats-column-width');
+                    if (statsWidthSlider) {{
+                        statsWidthSlider.value = {_json.dumps(stats_column_width)};
+                        statsWidthSlider.dispatchEvent(new Event('input'));
+                    }}
                     // Set font size slider and update
                     var fontSlider = document.getElementById('stats-title-font-size');
                     if (fontSlider) {{

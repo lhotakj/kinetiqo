@@ -21,6 +21,7 @@
         color: #fff;
         position: relative;
         --stats-font-size: 1.5rem;
+        --stats-column-width: 20%;
     }
     /* ---- Header ---- */
     .ig-header {
@@ -52,25 +53,42 @@
     .ig-body { display: flex; flex: 1; gap: 28px; min-height: 0; }
     /* ---- Stats column ---- */
     .ig-stats {
-        width: 17%; flex-shrink: 0;
+        width: var(--stats-column-width, 20%); flex-shrink: 0;
         display: flex; flex-direction: column;
         justify-content: space-between; gap: 4px;
     }
-    .ig-stat { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    .ig-stat {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+    }
     .ig-stat-label {
         font-size: calc(var(--stats-font-size, 1.5rem) * 0.38) !important; /* Unified with slider */
         text-transform: uppercase;
         letter-spacing: 0.12em; opacity: 0.55; font-weight: 600; margin-bottom: 1px;
+        width: 100%;
     }
-    .ig-stat-value { font-size: calc(var(--stats-font-size, 1.5rem) * 1.03) !important; font-weight: 800; line-height: 1.1; }
+    .ig-stat-value {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 1.03) !important;
+        font-weight: 800;
+        line-height: 1.1;
+        width: 100%;
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        flex-wrap: wrap;
+    }
     .ig-stat-unit  { font-size: calc(var(--stats-font-size, 1.5rem) * 0.47) !important; font-weight: 400; opacity: 0.6; margin-left: 2px; }
     .ig-stat-detail {
         font-size: calc(var(--stats-font-size, 1.5rem) * 0.52) !important; /* was 0.40, increased for better readability */
         opacity: 0.45; margin-top: 1px;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;
+        white-space: normal; overflow-wrap: anywhere; width: 100%; max-width: none;
     }
-    .ig-stat-divider { border-top: 1px solid rgba(255,255,255,0.08); }
-    .ig-month-value  { font-size: calc(var(--stats-font-size, 1.5rem) * 1.35) !important; font-weight: 900; line-height: 1; }
+    .ig-stat-divider { border-top: 1px solid rgba(255,255,255,0.08); width: 100%; }
+    .ig-month-value  { font-size: calc(var(--stats-font-size, 1.5rem) * 1.35) !important; font-weight: 900; line-height: 1; width: 100%; }
     /* ---- Calendar heatmap ---- */
     .ig-calendar-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .ig-cal-header { display: flex; gap: 32px; margin-bottom: 10px; align-items: baseline; }
@@ -288,6 +306,16 @@
             </div>
         </div>
 
+        <!-- Stats Column Width -->
+        <div class="control-box">
+            <h4>Stats column</h4>
+            <div class="control-row">
+                <label for="stats-column-width">Width</label>
+                <input type="range" id="stats-column-width" min="20" max="50" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="stats-column-width-val" class="text-xs w-10">20%</span>
+            </div>
+        </div>
+
     </div><!-- end left panel -->
 
     <!-- ===== Preview ===== -->
@@ -439,6 +467,25 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('stats-dimensions').textContent =
             'Mega stats dimension: ' + width + ' \u00d7 ' + height;
         updateScaler(width, height);
+    }
+
+    // ---- Stats column width ----
+    const statsColumnWidthSlider = document.getElementById('stats-column-width');
+    const statsColumnWidthVal    = document.getElementById('stats-column-width-val');
+
+    function applyStatsColumnWidth(val) {
+        const width = Math.max(20, Math.min(50, parseInt(val, 10) || 20));
+        statsColumnWidthSlider.value = width;
+        statsColumnWidthVal.textContent = width + '%';
+        igEl.style.setProperty('--stats-column-width', width + '%');
+        localStorage.setItem('statsColumnWidth', String(width));
+
+        if (lastData && lastData.calendar) {
+            renderCalendar(lastData.calendar, lastData.month_colors);
+            if (window.updateStatsFontSize && fontSizeSlider) {
+                window.updateStatsFontSize(fontSizeSlider.value);
+            }
+        }
     }
 
     function updateScaler(width, height) {
@@ -749,7 +796,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 bg:     elBg.value,
                 width:  width,
                 height: height,
-                fontSize: fontSizeSlider.value
+                fontSize: fontSizeSlider.value,
+                statsColumnWidth: statsColumnWidthSlider.value
             };
             const resp = await fetch('/api/stats/export', {
                 method:  'POST',
@@ -791,6 +839,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 width:  width,
                 height: height,
                 fontSize: fontSizeSlider.value,
+                statsColumnWidth: statsColumnWidthSlider.value,
                 format: 'pdf'
             };
             const resp = await fetch('/api/stats/export', {
@@ -895,6 +944,19 @@ document.addEventListener('DOMContentLoaded', function() {
     fontSizeSlider.addEventListener('input',  function() { window.updateStatsFontSize(this.value); });
     fontSizeSlider.addEventListener('change', function() { window.updateStatsFontSize(this.value); });
 
+    // Restore stats column width from localStorage if available, else apply default
+    ;(function() {
+        var stored = localStorage.getItem('statsColumnWidth');
+        if (stored) {
+            applyStatsColumnWidth(stored);
+        } else {
+            applyStatsColumnWidth(statsColumnWidthSlider.value);
+        }
+    })();
+
+    statsColumnWidthSlider.addEventListener('input',  function() { applyStatsColumnWidth(this.value); });
+    statsColumnWidthSlider.addEventListener('change', function() { applyStatsColumnWidth(this.value); });
+
     // ---- Initial load ----
     applyInfographicSize();
     applyStatVisibility();
@@ -902,7 +964,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-
 
 
 
