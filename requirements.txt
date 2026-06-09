@@ -1,7 +1,7 @@
 mysql-connector-python==9.7.0
-requests==2.33.1
+requests==2.34.2
 python-dateutil==2.9.0
-click==8.3.3
+click==8.4.1
 psycopg2-binary==2.9.12
 firebird-driver==2.0.3
 Flask[async]==3.1.3

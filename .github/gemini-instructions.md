@@ -12,6 +12,7 @@ The web UI includes:
 - **FTP Estimation**: 95% of best 20-minute average power, with history chart.
 - **VO₂max Estimation**: Townsend method from 5-minute MAP power, with trend and classification bands.
 - **Activity Goals**: Weekly/monthly/yearly distance and elevation goals per activity type.
+- **MEGA Stats**: Year/period infographic with persisted font-size, left-column width, and activity-group controls. Cycling is split into Cycling, Cycling (indoor), and Cycling (outdoor), and the page uses the shared `DATE_FORMAT` for its displayed dates.
 - HTMX-powered reactivity for features like real-time sync progress via SSE.
 - An asynchronous, cached check for new application versions against GitHub releases.
 - **Dark mode** support with system preference detection and manual toggle.
@@ -25,7 +26,7 @@ The web UI includes:
 - **When asked to create tests, always provide mocked unit tests by default.** Do not create integration tests that require a live database unless specifically requested.
 - **Use `unittest.mock.patch`** to intercept calls to external services. The primary targets for patching are `kinetiqo.sync.create_repository`, `kinetiqo.cli.create_repository`, and `kinetiqo.sync.StravaClient`.
 - **Canonical Example:** The file `tests/test_sync_logic.py` is the gold standard for how tests should be written in this project. Follow its structure (class-level patches, `subTest` for matrix tests) precisely.
-- **Existing test files:** `test_sync_logic.py`, `test_cli_sync.py`, `test_ftp.py`, `test_vo2max.py`.
+- **Existing test files:** `test_sync_logic.py`, `test_cli_sync.py`, `test_ftp.py`, `test_vo2max.py`, `test_stats.py`.
 - **Running tests:** `PYTHONPATH=src python -m unittest discover -s tests -v` (dependencies must be installed; in Docker the environment is pre-configured).
 
 ## 3. Key Technologies & Versions
@@ -103,6 +104,7 @@ build/
 - The Flask app in `kinetiqo/web/app.py` defines all routes and API endpoints. It uses `flask-compress` for automatic response compression.
 - Data-heavy pages render a template shell, which then calls a JSON API endpoint (e.g., `/api/fitness_data`, `/api/ftp_history`, `/api/vo2max_history`, `/api/activities`) to load data for client-side rendering with Chart.js or DataTables.
 - The activities page uses client-side DataTables processing with extensive localStorage state persistence (column visibility, order, sort, filters, selection).
+- The MEGA Stats page also persists its controls in localStorage (font size, left-column width, selected activity group) and formats dates with `DATE_FORMAT`.
 - Map rendering uses compact `[lat, lng]` arrays via `/api/map/data` with Leaflet Canvas renderer.
 - **Internal app navigation stays in the same tab.** Only external links (Strava, documentation, license URLs) open in new tabs.
 
