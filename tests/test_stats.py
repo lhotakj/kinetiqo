@@ -396,6 +396,8 @@ class TestStatsRoutes(unittest.TestCase):
         self.assertIn('Mega Stats', html)
         self.assertIn('Walking', html)
         self.assertIn('2023', html)
+        self.assertIn('stats-column-width', html)
+        self.assertIn('statsColumnWidth', html)
         mock_repo.get_activities_web.assert_called_once_with(
             limit=1,
             sort_by='start_date',
@@ -497,4 +499,3 @@ class TestConstants(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
