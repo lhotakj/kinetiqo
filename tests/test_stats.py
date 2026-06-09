@@ -5,7 +5,7 @@ class-level patches, subTest for matrix tests, no live database.
 """
 
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from kinetiqo.web.app import app
@@ -405,6 +405,7 @@ class TestStatsRoutes(unittest.TestCase):
         )
 
     @patch('flask_login.utils._get_user')
+    @patch('kinetiqo.web.app.config.date_format', '%d/%m/%Y')
     @patch('kinetiqo.web.app.compute_mega_stats')
     @patch('kinetiqo.web.app.get_db')
     def test_stats_api_returns_augmented_payload(self, mock_get_db, mock_compute_mega_stats, mock_get_user):
@@ -455,6 +456,9 @@ class TestStatsRoutes(unittest.TestCase):
         self.assertEqual(payload['group_noun'], 'walk')
         self.assertEqual(payload['athlete_name'], 'Test Athlete')
         self.assertEqual(payload['period_label'], 'Q1 2025')
+        self.assertEqual(payload['start_date_display'], '01/01/2025')
+        self.assertEqual(payload['end_date_display'], '31/03/2025')
+        self.assertEqual(payload['generated_date_display'], datetime.now().strftime('%d/%m/%Y'))
         mock_repo.get_activities_web.assert_called_once_with(
             limit=100000,
             sort_by='start_date',

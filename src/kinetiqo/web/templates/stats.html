@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('ig-group-name').textContent   = d.group_name;
         document.getElementById('ig-athlete').textContent      = d.athlete_name || '';
         document.getElementById('ig-period-label').textContent = d.period_label;
-        document.getElementById('ig-date-range').textContent   = d.start_date + ' \u2192 ' + d.end_date;
+        document.getElementById('ig-date-range').textContent   = d.start_date_display + ' \u2192 ' + d.end_date_display;
 
         document.getElementById('ig-distance').textContent  = formatNumber(d.total_distance_km);
         document.getElementById('ig-elevation').textContent = formatNumber(d.total_elevation_m);
@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         document.getElementById('ig-generated-date').textContent =
-            'Generated ' + new Date().toLocaleDateString();
+            'Generated ' + d.generated_date_display;
     }
 
     // ---- Calendar Rendering ----

@@ -1670,12 +1670,26 @@ def stats_data_api():
         except Exception:
             pass
         stats['athlete_name'] = athlete_name
+        stats['start_date_display'] = _format_stats_date(stats.get('start_date'))
+        stats['end_date_display'] = _format_stats_date(stats.get('end_date'))
+        stats['generated_date_display'] = datetime.now().strftime(config.date_format)
 
         return jsonify(stats)
 
     except Exception as e:
         logger.error(f"Error computing mega stats: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+def _format_stats_date(date_value):
+    """Format a stats date using the shared configured date format."""
+    if not date_value:
+        return ''
+    try:
+        dt = datetime.fromisoformat(str(date_value).replace('Z', '+00:00'))
+    except Exception:
+        return str(date_value)
+    return dt.strftime(config.date_format)
 
 
 @app.route('/logs')
