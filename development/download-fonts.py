@@ -54,6 +54,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 from kinetiqo.web.fonts import (  # noqa: E402
+    ALLOWED_SCRIPTS,
     BASE_GOOGLE_FONTS_URL,
     LOCAL_FONTS_CSS_NAME,
     POSTER_GOOGLE_FONTS_URL,
@@ -89,6 +90,7 @@ def _download_set(
     resp.raise_for_status()
 
     blocks = parse_font_blocks(resp.text)
+    blocks = [b for b in blocks if b["script"] in ALLOWED_SCRIPTS]
     if not blocks:
         print(f"  ERROR: no @font-face blocks found for {label}.", file=sys.stderr)
         return 0, 0

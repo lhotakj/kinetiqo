@@ -204,6 +204,10 @@ POSTER_GOOGLE_FONTS_URL: str = build_google_fonts_stylesheet_url(POSTER_GOOGLE_F
 LOCAL_FONTS_CSS_NAME: str = "google_fonts_local.css"
 POSTER_LOCAL_FONTS_CSS_NAME: str = "google_fonts_poster_local.css"
 
+# Scripts to download/serve — latin covers standard ASCII; latin-ext covers
+# Czech diacritics (á, č, ď, é, ě, í, ň, ó, ř, š, ť, ú, ů, ý, ž).
+ALLOWED_SCRIPTS: frozenset[str] = frozenset({"latin", "latin-ext"})
+
 # User-Agent that makes Google Fonts return woff2 (modern browser format).
 _BROWSER_UA: str = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -316,7 +320,7 @@ def ensure_fonts_local(static_dir: str) -> str:
         )
         resp.raise_for_status()
 
-        blocks = parse_font_blocks(resp.text)
+        blocks = [b for b in parse_font_blocks(resp.text) if b["script"] in ALLOWED_SCRIPTS]
         fonts_dir = Path(static_dir) / "fonts"
         fonts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -367,7 +371,7 @@ def ensure_poster_fonts_local(static_dir: str) -> str:
         )
         resp.raise_for_status()
 
-        blocks = parse_font_blocks(resp.text)
+        blocks = [b for b in parse_font_blocks(resp.text) if b["script"] in ALLOWED_SCRIPTS]
         fonts_dir = Path(static_dir) / "fonts"
         fonts_dir.mkdir(parents=True, exist_ok=True)
 
