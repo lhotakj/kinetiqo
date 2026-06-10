@@ -5,10 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Kinetiqo</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- NOSONAR: Google Fonts CDN used intentionally -->
-    <link href="{{ login_google_fonts_url }}" rel="stylesheet">
+    <!-- Preload the fonts used on this page to prevent FOUT -->
+    <link rel="preload" href="/static/fonts/inter_normal_latin.woff2"
+          as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/italiana_normal_latin.woff2"
+          as="font" type="font/woff2" crossorigin>
+    <!-- NOSONAR: self-hosted Inter+Italiana; Merriweather from CDN -->
+    <link href="{{ base_google_fonts_url }}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap"
+          rel="stylesheet">
 
     <script>
         tailwind.config = {

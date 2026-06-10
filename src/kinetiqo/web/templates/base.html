@@ -31,9 +31,22 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- NOSONAR: Google Fonts CDN used intentionally -->
+    <!--
+        Preload the critical woff2 files so font data is in memory before the
+        first paint.  With font-display: swap the browser would otherwise paint
+        text in the fallback font first, then swap — causing FOUT.  Preloading
+        eliminates that window.  crossorigin is required for font preloads even
+        for same-origin resources (browser CORS requirement for @font-face).
+    -->
+    <link rel="preload" href="/static/fonts/inter_normal_latin.woff2"
+          as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/inter_italic_latin.woff2"
+          as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/fonts/italiana_normal_latin.woff2"
+          as="font" type="font/woff2" crossorigin>
+
+    <!-- Drop the preconnect hints — fonts are now served locally -->
+    <!-- NOSONAR: self-hosted copy of Google Fonts (see development/download-fonts.py) -->
     <link href="{{ base_google_fonts_url }}" rel="stylesheet">
 
     <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css">
