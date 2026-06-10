@@ -31,156 +31,18 @@
                 </tr>
             </thead>
             <tbody class="text-gray-700 dark:text-gray-300">
-                                                <tr>
-                                                    <td class="py-2 pr-4 font-medium">Nunito</td>
-                                                    <td class="py-2 pr-4">Vernon Adams, Cyreal, Jacques Le Bailly</td>
-                                                    <td class="py-2 pr-4">
-                                                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                                                    </td>
-                                                    <td class="py-2">
-                                                        <a href="https://fonts.google.com/specimen/Nunito" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="py-2 pr-4 font-medium">Cinzel</td>
-                                                    <td class="py-2 pr-4">Natanael Gama</td>
-                                                    <td class="py-2 pr-4">
-                                                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                                                    </td>
-                                                    <td class="py-2">
-                                                        <a href="https://fonts.google.com/specimen/Cinzel" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="py-2 pr-4 font-medium">Cormorant</td>
-                                                    <td class="py-2 pr-4">Christian Thalmann</td>
-                                                    <td class="py-2 pr-4">
-                                                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                                                    </td>
-                                                    <td class="py-2">
-                                                        <a href="https://fonts.google.com/specimen/Cormorant" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                                                    </td>
-                                                </tr>
+                {% for font in google_fonts %}
                 <tr>
-                    <td class="py-2 pr-4 font-medium">Roboto</td>
-                    <td class="py-2 pr-4">Christian Robertson</td>
+                    <td class="py-2 pr-4 font-medium">{{ font.name }}</td>
+                    <td class="py-2 pr-4">{{ font.designer }}</td>
                     <td class="py-2 pr-4">
                         <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
                     </td>
                     <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Roboto" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
+                        <a href="{{ font.specimen_url }}" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
                     </td>
                 </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Inter</td>
-                    <td class="py-2 pr-4">Rasmus Andersson</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Inter" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Limelight</td>
-                    <td class="py-2 pr-4">Santiago Orozco</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Limelight" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Roboto Condensed</td>
-                    <td class="py-2 pr-4">Christian Robertson</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Roboto+Condensed" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">PT Sans Narrow</td>
-                    <td class="py-2 pr-4">Alexandra Korolkova, Olga Umpeleva, Vladimir Yefimov</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/PT+Sans+Narrow" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">PT Sans</td>
-                    <td class="py-2 pr-4">Alexandra Korolkova, Olga Umpeleva, Vladimir Yefimov</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/PT+Sans" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">IBM Plex Serif</td>
-                    <td class="py-2 pr-4">Mike Abbink (IBM), Bold Monday</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/IBM+Plex+Serif" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">IBM Plex Sans Condensed</td>
-                    <td class="py-2 pr-4">Mike Abbink (IBM), Bold Monday</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/IBM+Plex+Sans+Condensed" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Open Sans</td>
-                    <td class="py-2 pr-4">Steve Matteson</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Open+Sans" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Faculty Glyphic</td>
-                    <td class="py-2 pr-4">Dalton Maag</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Faculty+Glyphic" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Yanone Kaffeesatz</td>
-                    <td class="py-2 pr-4">Yanone</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Yanone+Kaffeesatz" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="py-2 pr-4 font-medium">Amatic SC</td>
-                    <td class="py-2 pr-4">Vernon Adams, Ben Nathan, Thomas Jockin</td>
-                    <td class="py-2 pr-4">
-                        <a href="https://scripts.sil.org/OFL" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">OFL 1.1</a>
-                    </td>
-                    <td class="py-2">
-                        <a href="https://fonts.google.com/specimen/Amatic+SC" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a>
-                    </td>
-                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -425,6 +287,12 @@ SOFTWARE.</pre>
                     <td class="py-2 pr-4">—</td>
                     <td class="py-2 pr-4">OFL 1.1</td>
                     <td class="py-2"><a href="https://fonts.google.com/specimen/Italiana" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">Merriweather (font)</td>
+                    <td class="py-2 pr-4">Sorkin Type Co</td>
+                    <td class="py-2 pr-4">OFL 1.1</td>
+                    <td class="py-2"><a href="https://fonts.google.com/specimen/Merriweather" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">Google Fonts</a></td>
                 </tr>
             </tbody>
         </table>

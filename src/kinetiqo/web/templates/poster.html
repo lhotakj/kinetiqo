@@ -3,10 +3,8 @@
 {% block head %}
 <!-- NOSONAR: loading Chart.js from CDN intentionally; add SRI in future if required -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- NOSONAR: Google Fonts CDN used intentionally -->
-<link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Faculty+Glyphic&family=IBM+Plex+Sans+Condensed:wght@400;700&family=IBM+Plex+Serif:wght@400;700&family=Inter:wght@400;700&family=Limelight&family=Open+Sans:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Sans+Narrow:wght@400;700&family=Roboto:wght@400;700&family=Roboto+Condensed:wght@400;700&family=Yanone+Kaffeesatz:wght@400;700&family=Nunito:wght@400;700&family=Cinzel:wght@400;700&family=Cormorant:wght@400;700&display=swap" rel="stylesheet">
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet">
 <style>
     .poster-container {
         position: relative;
@@ -981,7 +979,9 @@
          { boxId: 'boxStats',     default: { left: 0.5, top: 0.5,  width: 0.4 } },
          { boxId: 'boxElevation', default: { left: 0.5, top: 0.92, width: 0.9 } },
      ];
-    const POS_KEY = () => `posterPositions_${ACTIVITY_ID}`;
+    function POS_KEY() {
+        return `posterPositions_${ACTIVITY_ID}`;
+    }
     // Enable draggable boxes now (script is at end of body so DOM exists). Apply positions
     // immediately so a reload (F5) restores the last layout. Placed after DRAGGABLES
     // declaration so the function has the data it needs.

@@ -2,23 +2,36 @@
 import hashlib
 import logging
 import os
+import secrets
 import shutil
 import mimetypes
 import threading
 import time as _time
 from datetime import datetime
 from typing import Dict, List, Optional
+from urllib.parse import urlencode
 
 import httpx
 import requests
 
 import json as json_module
-from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session
 from flask_compress import Compress
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import STRAVA_TYPE_TO_GOAL_TYPE
+from kinetiqo.web.fonts import (
+    BASE_GOOGLE_FONTS_URL,
+    GOOGLE_FONTS,
+    LOGIN_GOOGLE_FONTS_URL,
+    POSTER_GOOGLE_FONTS_URL,
+    ensure_fonts_local,
+    get_google_fonts,
+    POSTER_GOOGLE_FONT_NAMES,
+)
+from kinetiqo.profile_sync import seed_profile_from_strava
+from kinetiqo.strava import StravaClient
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
 from kinetiqo.web.fitness import calculate_fitness_freshness
@@ -59,6 +72,9 @@ import platform
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kinetiqo.web")
 
+STRAVA_REAUTH_SCOPES = "read,activity:read_all,profile:read_all"
+STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
+
 app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
@@ -75,6 +91,11 @@ mimetypes.add_type('image/svg+xml', '.svg')
 mimetypes.add_type('font/woff2', '.woff2')
 mimetypes.add_type('font/woff', '.woff')
 mimetypes.add_type('font/ttf', '.ttf')
+
+# --- Self-hosted Google Fonts (base fonts only) ---
+# Download Inter + Italiana on first startup; serves from /static/ afterward.
+# Falls back transparently to the CDN URL if the download fails.
+_BASE_FONTS_URL: str = ensure_fonts_local(app.static_folder)
 
 
 @app.after_request
@@ -189,6 +210,19 @@ def set_config(new_config: Config):
     """
     global config
     config = new_config
+
+
+def _build_strava_authorize_url(state: str) -> str:
+    """Build the Strava OAuth authorize URL for reconnecting the account."""
+    params = {
+        "client_id": config.strava_client_id,
+        "response_type": "code",
+        "approval_prompt": "force",
+        "scope": STRAVA_REAUTH_SCOPES,
+        "redirect_uri": url_for("strava_oauth_callback", _external=True),
+        "state": state,
+    }
+    return f"{STRAVA_AUTHORIZE_URL}?{urlencode(params)}"
 
 
 # --- Login Configuration ---
@@ -909,13 +943,20 @@ def _get_athlete_weight() -> tuple[float, str]:
         human-friendly label such as ``"profile"`` or ``"ATHLETE_WEIGHT env var"``.
     """
     try:
-        profile = get_db().get_profile()
+        repo = get_db()
+        profile = repo.get_profile()
         if profile:
             w = float(profile.get("weight", 0) or 0)
             if w > 0:
                 return w, "profile"
+
+        seeded = seed_profile_from_strava(config, repo)
+        if seeded:
+            w = float(seeded.get("weight", 0) or 0)
+            if w > 0:
+                return w, "Strava"
     except Exception as e:
-        logger.warning(f"Could not read athlete weight from profile table: {e}")
+        logger.warning(f"Could not resolve athlete weight from profile table or Strava: {e}")
 
     # Fall back to env-var / config value
     if config.athlete_weight > 0:
@@ -1744,6 +1785,82 @@ def settings():
     return render_template('settings.html', title="Settings")
 
 
+@app.route('/strava/reconnect')
+@login_required
+def strava_reconnect():
+    """Start a Strava OAuth reauthorization flow with the needed scopes."""
+    if not config.strava_client_id or not config.strava_client_secret:
+        flash('Strava reconnect is not configured. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET.', 'error')
+        return redirect(url_for('settings'))
+
+    state = secrets.token_urlsafe(24)
+    session['strava_oauth_state'] = state
+    return redirect(_build_strava_authorize_url(state))
+
+
+@app.route('/strava/callback')
+@login_required
+def strava_oauth_callback():
+    """Complete the Strava OAuth reconnect flow."""
+    error = request.args.get('error')
+    if error:
+        return render_template(
+            'strava_reconnect.html',
+            title='Reconnect with Strava',
+            error_message=f'Strava cancelled the reconnect flow: {error}',
+            settings_url=url_for('settings'),
+        )
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+    expected_state = session.pop('strava_oauth_state', None)
+
+    if not code:
+        return render_template(
+            'strava_reconnect.html',
+            title='Reconnect with Strava',
+            error_message='Strava did not return an authorization code.',
+            settings_url=url_for('settings'),
+        )
+
+    if not state or state != expected_state:
+        return render_template(
+            'strava_reconnect.html',
+            title='Reconnect with Strava',
+            error_message='Strava reconnect state did not match. Please try again.',
+            settings_url=url_for('settings'),
+        )
+
+    try:
+        token_data = StravaClient(config).exchange_authorization_code(code)
+        new_refresh_token = token_data.get('refresh_token', '')
+        if new_refresh_token:
+            config.strava_refresh_token = new_refresh_token
+
+        repo = get_db()
+        seeded_profile = seed_profile_from_strava(config, repo)
+        weight = float(seeded_profile.get('weight', 0) or 0) if seeded_profile else 0.0
+
+        return render_template(
+            'strava_reconnect.html',
+            title='Reconnect with Strava',
+            success=True,
+            refresh_token=new_refresh_token,
+            scope=token_data.get('scope', ''),
+            athlete=token_data.get('athlete', {}),
+            seeded_weight=weight,
+            settings_url=url_for('settings'),
+        )
+    except Exception as e:
+        logger.error(f"Error reconnecting with Strava: {e}")
+        return render_template(
+            'strava_reconnect.html',
+            title='Reconnect with Strava',
+            error_message=str(e),
+            settings_url=url_for('settings'),
+        )
+
+
 
 @app.route('/license', methods=['GET'])
 @login_required
@@ -1830,7 +1947,14 @@ def get_profile_api():
         payload.
     """
     try:
-        profile = get_db().get_profile()
+        repo = get_db()
+        profile = repo.get_profile()
+        if not profile:
+            try:
+                profile = seed_profile_from_strava(config, repo) or repo.get_profile()
+            except Exception as e:
+                logger.warning(f"Could not seed athlete profile from Strava: {e}")
+                profile = None
         if not profile:
             return jsonify({'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0})
         return jsonify(profile)
@@ -3009,7 +3133,14 @@ def inject_version():
                 version = vf.read().strip()
     except:
         pass
-    return dict(app_version=version)
+    return dict(
+        app_version=version,
+        google_fonts=GOOGLE_FONTS,
+        base_google_fonts_url=_BASE_FONTS_URL,
+        login_google_fonts_url=LOGIN_GOOGLE_FONTS_URL,
+        poster_google_fonts_url=POSTER_GOOGLE_FONTS_URL,
+        poster_google_fonts=get_google_fonts(*POSTER_GOOGLE_FONT_NAMES),
+    )
 
 
 def run_app():
