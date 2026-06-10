@@ -10,6 +10,7 @@ import click
 from kinetiqo.cache import CacheManager
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository, get_version
+from kinetiqo.profile_sync import seed_profile_from_strava
 from kinetiqo.sync import SyncService
 
 # -----------------------------
@@ -178,34 +179,10 @@ def _seed_profile(config):
     Runs once at web startup.  Failures are logged but never block the
     web server from starting.
     """
-    from kinetiqo.strava import StravaClient
     repo = None
     try:
-        strava = StravaClient(config)
-        athlete = strava.get_athlete()
-        athlete_id = int(athlete.get("id", 0))
-        if athlete_id <= 0:
-            logger.warning("Strava athlete profile has no valid ID — skipping profile seed.")
-            return
-
-        first_name = athlete.get("firstname", "") or ""
-        last_name = athlete.get("lastname", "") or ""
-        strava_weight = float(athlete.get("weight", 0) or 0)
-
         repo = create_repository(config)
-
-        # Preserve the existing DB weight when Strava returns null/0
-        existing = repo.get_profile()
-        if strava_weight > 0:
-            weight = strava_weight
-        elif existing:
-            weight = float(existing.get("weight", 0) or 0)
-        else:
-            weight = 0.0
-
-        repo.upsert_profile(athlete_id, first_name, last_name, weight)
-        logger.info(f"Profile seeded from Strava: {first_name} {last_name}, {weight} kg"
-                     + (" (weight kept from DB — Strava returned 0)" if strava_weight <= 0 and weight > 0 else ""))
+        seed_profile_from_strava(config, repo)
     except Exception as e:
         logger.warning(f"Could not seed profile from Strava (non-fatal): {e}")
     finally:

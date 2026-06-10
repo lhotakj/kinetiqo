@@ -37,6 +37,16 @@
                 </div>
             </div>
             <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-warm-100 dark:border-zinc-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
+                    Need to refresh your Strava authorization? Reconnecting requests <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>
+                    so the app can read your current weight.
+                </p>
+                <a href="{{ url_for('strava_reconnect') }}"
+                   class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition">
+                    Reconnect with Strava
+                </a>
+            </div>
         </div>
     </div>
 

@@ -8,7 +8,7 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 
 - 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
 - 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics with activity calendar heatmaps for any year or period. Export as PNG or PDF.
-- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, and sizes (800–2048px). Live WYSIWYG preview with Playwright-powered PNG export.
+- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts from the shared Google Fonts catalog, colors, and sizes (800–2048px). Live WYSIWYG preview with Playwright-powered PNG export.
 - 🔄 **Smart Sync**:
   - **Full Sync**: Complete library audit—fetches everything, fills gaps, and prunes deleted activities.
   - **Fast Sync**: Lightning-fast updates for your latest workouts.
@@ -56,7 +56,7 @@ Kinetiqo is configured entirely via environment variables.
 |----------|-------------|----------|
 | `STRAVA_CLIENT_ID` | Your Strava Application Client ID | ✅ |
 | `STRAVA_CLIENT_SECRET` | Your Strava Application Client Secret | ✅ |
-| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` scope | ✅ |
+| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` and `profile:read_all` scopes | ✅ |
 
 ### Database (PostgreSQL Default)
 | Variable | Description | Default |
