@@ -74,18 +74,25 @@ src/
     │   ├── mysql.py             # MySQL/MariaDB implementation (raw SQL)
     │   └── firebird.py          # Firebird implementation (raw SQL)
     └── web/
-        ├── app.py               # Flask app, all routes & JSON API endpoints (~1667 lines)
+        ├── app.py               # Flask app, all routes & JSON API endpoints (~1700 lines)
         ├── auth.py              # flask-login User model & auth helpers
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
+        ├── fonts.py             # Single source of truth for all 20 Google Fonts
         ├── vo2max.py            # VO₂max estimation (Townsend method)
         ├── progress.py          # SSE sync progress stream
-        ├── static/              # Static assets (CSS, JS, images)
+        ├── static/
+        │   ├── css/google_fonts_local.css   # Generated @font-face CSS (self-hosted)
+        │   └── fonts/           # 15 woff2 files baked into Docker image (Inter, Italiana)
         └── templates/           # Jinja2 templates (base.html + 15 page/partial templates)
 tests/
 ├── test_sync_logic.py           # Canonical mocked unit test example
 ├── test_cli_sync.py             # CLI sync command tests
 ├── test_ftp.py                  # FTP estimation tests
-└── test_vo2max.py               # VO₂max estimation tests
+├── test_vo2max.py               # VO₂max estimation tests
+└── test_web_fonts.py            # Google Fonts catalog & local font helpers
+development/
+├── download-fonts.py            # Refresh self-hosted Google Fonts from CDN
+└── setup-direnv.sh              # Configure direnv for automated env management
 build/
 ├── Dockerfile                   # Application image (Phase 2)
 ├── Dockerfile.firebird-base     # Firebird base image (Phase 1)
@@ -96,9 +103,10 @@ build/
 ## 5. Architecture & Design Patterns
 
 ### 5.1 Repository Pattern (Database)
-- **`DatabaseRepository`** (ABC in `db/repository.py`) defines the contract. Key methods include `upsert_activity`, `get_activities_web`, `get_activities_totals`, `get_profile`, `upsert_profile`, `get_goals`, `upsert_goal`, `get_activity_streams`, etc.
+- **`DatabaseRepository`** (ABC in `db/repository.py`) defines the contract. Key methods include `upsert_activity`, `get_activities_web`, `get_activities_totals`, `get_profile`, `upsert_profile`, `get_goals`, `upsert_goal`, `get_activity_streams`, `get_elevation_streams_for_activity`, etc.
 - The **`create_repository()`** factory in `db/factory.py` is the single entry point for creating a database object. **This is the primary function to mock in tests.**
 - All three backends (`postgresql.py`, `mysql.py`, `firebird.py`) implement identical SQL logic adapted to each dialect.
+- **Firebird** uses `?` parameter placeholders and quoted identifiers; **PostgreSQL** and **MySQL** use `%s`.
 
 ### 5.2 Web Layer & Data Visualization
 - The Flask app in `kinetiqo/web/app.py` defines all routes and API endpoints. It uses `flask-compress` for automatic response compression.
@@ -132,7 +140,14 @@ build/
 - Grid state (column visibility, order, sort) is persisted to `localStorage` with a schema version key for migrations.
 - SortableJS handles visual drag-and-drop on the `<thead>` row; ColReorder API applies the reorder to DataTables internally.
 
-### 5.7 Docker & Deployment
+### 5.7 Self-Hosted Fonts (no CDN for base UI)
+- **`kinetiqo/web/fonts.py`** is the single source of truth for all 20 Google Fonts used by the app. Adding a font means adding it here.
+- **Inter** and **Italiana** (the two fonts used on every page) are **self-hosted**: woff2 files are committed to `src/kinetiqo/web/static/fonts/` and baked into the Docker image. Zero internet dependency at runtime.
+- `google_fonts_local.css` contains the `@font-face` declarations pointing to the local woff2 files. It is committed to the repo; regenerate with `python development/download-fonts.py --force`.
+- `base.html` uses `<link rel="preload" as="font" crossorigin>` for the three critical woff2 files to prevent FOUT. **`crossorigin` is mandatory on font preloads** even for same-origin — the browser requires it for `@font-face` resources.
+- The **poster page** uses a CDN URL for its 15+ poster-specific fonts (Oswald, Ubuntu, Bebas Neue, etc.) since they are not used on other pages and not worth self-hosting.
+
+### 5.8 Docker & Deployment
 - Two-phase Docker build: Firebird base image (`Dockerfile.firebird-base`) + app image (`Dockerfile`).
 - Production: Gunicorn with 4 workers, 180s timeout, port 4444.
 - `dcron` in the Alpine container handles scheduled sync jobs (`FULL_SYNC`, `FAST_SYNC` env vars).
@@ -156,6 +171,13 @@ build/
 2.  Verify plugin compatibility — DataTables plugins must be compatible with the core DataTables version.
 3.  Update the version number in `license.html` in the Frontend Libraries table.
 
+### Add or refresh a Google Font
+1.  Add the font name to `GOOGLE_FONTS` in `kinetiqo/web/fonts.py` and to the relevant `*_FONT_NAMES` tuple.
+2.  Run `python development/download-fonts.py` to download the woff2 files and regenerate `google_fonts_local.css`. Use `--force` to re-download existing files.
+3.  Commit the new woff2 file(s) and the updated CSS to the repository.
+4.  Add a `<link rel="preload">` hint in `base.html` if the font is used on every page (FOUT prevention).
+5.  Update the font attribution table in `license.html`.
+
 ## 7. Gemini-Specific Behaviour
 
 - **You are capable of multi-file updates. When a task requires changing multiple files (e.g., updating a repository and its callers), please do so in a single turn.**
@@ -168,3 +190,5 @@ build/
 - **New configuration should be added as an environment variable** in the `Config` dataclass.
 - **When updating CDN library versions**, also update `license.html` to keep the attribution page accurate.
 - **Internal app links must stay in the same browser tab.** Only external links (Strava, documentation, third-party sites) should use `target="_blank"`.
+- **When adding a Google Font**, update `fonts.py` (single source of truth), run `development/download-fonts.py`, commit woff2 + CSS, and update `license.html`.
+- **Poster elevation data** (`/api/poster/elevation/<id>`) reads from the local `streams` DB table first via `repo.get_elevation_streams_for_activity()`. Strava is only called if DB has no rows for that activity. Never add direct Strava calls to endpoints that serve already-synced data.

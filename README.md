@@ -203,19 +203,30 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 6.  **Secure Secret Storage with GPG (Optional):**
     For enhanced security, environment files can be encrypted using GPG. The included `.envrc` script supports automatic decryption.
     
-    1. **Import GPG Key:**
+    1. **Import GPG Key and get the ID of your key:**
        ```shell
        gpg --import ~/.ssh/id_rsa
        gpg --list-secret-keys
        ```
+       You will get something like this:
+       ```
+       $ gpg --list-secret-keys
+       /home/<username>/.gnupg/pubring.kbx
+       ------------------------------
+       sec   rsa4096 YYYY-DD-MM [SCEAR]
+             AEF3913052EEAA5039B14A73F0AE6963F52751B6
+       uid           [ultimate] name <email>
+       ssb   rsa4096 YYYY-DD-MM [SEA]
+       ```
+       your key ID is the 40-character string after `rsa4096` (e.g., `AEF3913052EEAA5039B14A73F0AE6963F52751B6`).
 
     2. **Encrypt Environment File:**
-       The following command encrypts `.env.development`.
+       The following command encrypts `.secrets.<username>.development`.
        ```shell
        mkdir -p secrets
-       gpg -r <your-key-id> -o secrets/development.gpg -e .env.development
+       gpg -r <your-key-id> -o ./secrets/<username>.development.gpg -e ./.secrets.<username>.development
        ```
-       Ensure the unencrypted source file (`.env.development`) is included in `.gitignore`.
+       Ensure the unencrypted source file (`.secrets.*`) is included in [`.gitignore`](.gitignore).
 
 ### Configuration
 
@@ -228,7 +239,7 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 |----------|-------------|----------|
 | `STRAVA_CLIENT_ID` | Strava Application Client ID. | ✅ |
 | `STRAVA_CLIENT_SECRET` | Strava Application Client Secret. | ✅ |
-| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` scope. | ✅ |
+| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. | ✅ |
 
 #### 2. Database Configuration
 Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
@@ -437,10 +448,14 @@ src/
         ├── app.py               # Flask app, all routes & API endpoints
         ├── auth.py              # flask-login User model & auth helpers
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
+        ├── fonts.py             # Single source of truth for all Google Fonts
         ├── vo2max.py            # VO₂max estimation (Townsend method)
         ├── progress.py          # SSE sync progress stream
         ├── stats.py             # MEGA Stats infographic data aggregation
-        ├── static/              # Static assets (CSS, JS, images)
+        ├── static/
+        │   ├── css/
+        │   │   └── google_fonts_local.css   # Generated @font-face CSS (self-hosted)
+        │   └── fonts/           # Self-hosted woff2 files (baked into Docker image)
         └── templates/           # Jinja2 templates
             ├── base.html            # Base layout (sidebar, dark mode, CDN imports)
             ├── activities.html      # Activity list (DataTables, Select2, DateRangePicker)
@@ -467,6 +482,9 @@ tests/
 ├── test-docker-postgresql.sh    # Docker integration test (PostgreSQL)
 ├── test-docker-mysql.sh         # Docker integration test (MySQL)
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
+development/
+├── download-fonts.py            # Refresh self-hosted Google Fonts from CDN
+└── setup-direnv.sh              # Configure direnv for automated env management
 build/
 ├── Dockerfile                   # Application image (Phase 2)
 ├── Dockerfile.firebird-base     # Firebird base image (Phase 1)
@@ -502,7 +520,7 @@ build/
 | Dropdowns | Select2 | 4.1 |
 | Date pickers | DateRangePicker + Moment.js | latest / 2.30 |
 | Drag & drop | SortableJS | 1.15 |
-| Fonts | Inter (variable), Italiana | Google Fonts |
+| Fonts | Self-hosted Inter + Italiana (woff2, baked into Docker image); all other fonts via Google Fonts CDN. Single catalog in `fonts.py`. Refresh with `python development/download-fonts.py`. | — |
 | Container base | python:3.14-slim | — |
 | Scheduler | dcron | Linux package |
 | Testing | unittest + unittest.mock | stdlib |
