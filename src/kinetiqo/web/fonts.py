@@ -1,4 +1,4 @@
-"""Shared Google Fonts catalog and URL helpers for the web UI."""
+﻿"""Shared Google Fonts catalog and URL helpers for the web UI."""
 
 from __future__ import annotations
 
@@ -149,13 +149,10 @@ GOOGLE_FONT_CATALOG: dict[str, GoogleFont] = {font.name: font for font in GOOGLE
 BASE_GOOGLE_FONT_NAMES: tuple[str, ...] = (
     "Inter",
     "Italiana",
-)
-
-LOGIN_GOOGLE_FONT_NAMES: tuple[str, ...] = (
-    "Inter",
-    "Italiana",
     "Merriweather",
 )
+
+LOGIN_GOOGLE_FONT_NAMES: tuple[str, ...] = BASE_GOOGLE_FONT_NAMES
 
 POSTER_GOOGLE_FONT_NAMES: tuple[str, ...] = (
     "Amatic SC",
@@ -205,6 +202,7 @@ POSTER_GOOGLE_FONTS_URL: str = build_google_fonts_stylesheet_url(POSTER_GOOGLE_F
 
 # Filename written to static/css/ when fonts are successfully self-hosted.
 LOCAL_FONTS_CSS_NAME: str = "google_fonts_local.css"
+POSTER_LOCAL_FONTS_CSS_NAME: str = "google_fonts_poster_local.css"
 
 # User-Agent that makes Google Fonts return woff2 (modern browser format).
 _BROWSER_UA: str = (
@@ -329,12 +327,12 @@ def ensure_fonts_local(static_dir: str) -> str:
                 font_resp.raise_for_status()
                 tmp = local_file.with_suffix(".tmp")
                 tmp.write_bytes(font_resp.content)
-                tmp.rename(local_file)
+                tmp.replace(local_file)
 
         css_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_css = css_path.with_suffix(".tmp")
         tmp_css.write_text(generate_local_css(blocks), encoding="utf-8")
-        tmp_css.rename(css_path)
+        tmp_css.replace(css_path)
 
         logger.info("Google Fonts downloaded and served locally from /static/")
         return f"/static/css/{LOCAL_FONTS_CSS_NAME}"
@@ -342,4 +340,56 @@ def ensure_fonts_local(static_dir: str) -> str:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not download Google Fonts locally (%s); using CDN.", exc)
         return BASE_GOOGLE_FONTS_URL
+
+
+def ensure_poster_fonts_local(static_dir: str) -> str:
+    """Return the URL for locally served poster Google Fonts CSS.
+
+    All poster fonts (Amatic SC, Bebas Neue, Cinzel, etc.) are downloaded to
+    ``static/fonts/`` on first use and referenced via ``static/css/google_fonts_poster_local.css``.
+
+    Falls back to the CDN URL only if the download fails (e.g. no network access
+    at startup time).  To refresh intentionally, run ``python development/download-fonts.py``.
+    """
+    css_path = Path(static_dir) / "css" / POSTER_LOCAL_FONTS_CSS_NAME
+    if css_path.exists():
+        return f"/static/css/{POSTER_LOCAL_FONTS_CSS_NAME}"
+
+    logger.warning("Local poster Google Fonts not found in %s; downloading from CDN.", static_dir)
+    try:
+        import httpx  # already in requirements.txt
+
+        resp = httpx.get(
+            POSTER_GOOGLE_FONTS_URL,
+            headers={"User-Agent": _BROWSER_UA},
+            follow_redirects=True,
+            timeout=15,
+        )
+        resp.raise_for_status()
+
+        blocks = parse_font_blocks(resp.text)
+        fonts_dir = Path(static_dir) / "fonts"
+        fonts_dir.mkdir(parents=True, exist_ok=True)
+
+        for block in blocks:
+            local_file = fonts_dir / block["filename"]
+            if not local_file.exists():
+                font_resp = httpx.get(block["src_url"], timeout=30, follow_redirects=True)
+                font_resp.raise_for_status()
+                tmp = local_file.with_suffix(".tmp")
+                tmp.write_bytes(font_resp.content)
+                tmp.replace(local_file)
+
+        css_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_css = css_path.with_suffix(".tmp")
+        tmp_css.write_text(generate_local_css(blocks), encoding="utf-8")
+        tmp_css.replace(css_path)
+
+        logger.info("Poster Google Fonts downloaded and served locally from /static/")
+        return f"/static/css/{POSTER_LOCAL_FONTS_CSS_NAME}"
+
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not download poster Google Fonts locally (%s); using CDN.", exc)
+        return POSTER_GOOGLE_FONTS_URL
+
 

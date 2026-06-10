@@ -27,6 +27,7 @@ from kinetiqo.web.fonts import (
     LOGIN_GOOGLE_FONTS_URL,
     POSTER_GOOGLE_FONTS_URL,
     ensure_fonts_local,
+    ensure_poster_fonts_local,
     get_google_fonts,
     POSTER_GOOGLE_FONT_NAMES,
 )
@@ -92,10 +93,11 @@ mimetypes.add_type('font/woff2', '.woff2')
 mimetypes.add_type('font/woff', '.woff')
 mimetypes.add_type('font/ttf', '.ttf')
 
-# --- Self-hosted Google Fonts (base fonts only) ---
-# Download Inter + Italiana on first startup; serves from /static/ afterward.
+# --- Self-hosted Google Fonts ---
+# Downloads fonts on first startup; serves from /static/ afterward.
 # Falls back transparently to the CDN URL if the download fails.
 _BASE_FONTS_URL: str = ensure_fonts_local(app.static_folder)
+_POSTER_FONTS_URL: str = ensure_poster_fonts_local(app.static_folder)
 
 
 @app.after_request
@@ -3143,7 +3145,7 @@ def inject_version():
         google_fonts=GOOGLE_FONTS,
         base_google_fonts_url=_BASE_FONTS_URL,
         login_google_fonts_url=LOGIN_GOOGLE_FONTS_URL,
-        poster_google_fonts_url=POSTER_GOOGLE_FONTS_URL,
+        poster_google_fonts_url=_POSTER_FONTS_URL,
         poster_google_fonts=get_google_fonts(*POSTER_GOOGLE_FONT_NAMES),
     )
 
