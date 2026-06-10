@@ -3140,12 +3140,18 @@ def inject_version():
                 version = vf.read().strip()
     except:
         pass
+    def _versioned(url: str) -> str:
+        """Append ?v=<version> cache-buster to local /static/ URLs."""
+        if url.startswith('/static/'):
+            return f"{url}?v={version}"
+        return url
+
     return dict(
         app_version=version,
         google_fonts=GOOGLE_FONTS,
-        base_google_fonts_url=_BASE_FONTS_URL,
-        login_google_fonts_url=LOGIN_GOOGLE_FONTS_URL,
-        poster_google_fonts_url=_POSTER_FONTS_URL,
+        base_google_fonts_url=_versioned(_BASE_FONTS_URL),
+        login_google_fonts_url=_versioned(LOGIN_GOOGLE_FONTS_URL),
+        poster_google_fonts_url=_versioned(_POSTER_FONTS_URL),
         poster_google_fonts=get_google_fonts(*POSTER_GOOGLE_FONT_NAMES),
     )
 

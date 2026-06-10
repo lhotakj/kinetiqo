@@ -38,11 +38,11 @@
         eliminates that window.  crossorigin is required for font preloads even
         for same-origin resources (browser CORS requirement for @font-face).
     -->
-    <link rel="preload" href="/static/fonts/inter_normal_latin.woff2"
+    <link rel="preload" href="/static/fonts/inter_normal_latin.woff2?v={{ app_version }}"
           as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/static/fonts/inter_italic_latin.woff2"
+    <link rel="preload" href="/static/fonts/inter_italic_latin.woff2?v={{ app_version }}"
           as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="/static/fonts/italiana_normal_latin.woff2"
+    <link rel="preload" href="/static/fonts/italiana_normal_latin.woff2?v={{ app_version }}"
           as="font" type="font/woff2" crossorigin>
 
     <!-- Drop the preconnect hints — fonts are now served locally -->
