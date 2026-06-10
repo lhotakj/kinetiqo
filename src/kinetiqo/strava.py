@@ -8,6 +8,29 @@ from .config import Config
 
 logger = logging.getLogger("kinetiqo")
 
+_MAX_ERROR_BODY_LEN = 300
+
+
+def _summarise_error_body(response: requests.Response) -> str:
+    """Return a concise single-line summary of an error response body.
+
+    Strava returns a full HTML maintenance page (several KB) on outages.
+    Logging the raw body fills the log with noise.  This helper detects HTML
+    and replaces it with a brief description; JSON bodies are truncated.
+    """
+    content_type = response.headers.get("Content-Type", "")
+    body = response.text or ""
+    if "text/html" in content_type or body.lstrip().startswith("<!"):
+        title = ""
+        import re
+        m = re.search(r"<title>([^<]+)</title>", body, re.IGNORECASE)
+        if m:
+            title = f": {m.group(1).strip()}"
+        return f"[HTML response{title}]"
+    if len(body) > _MAX_ERROR_BODY_LEN:
+        return body[:_MAX_ERROR_BODY_LEN] + "…"
+    return body
+
 
 class StravaClient:
     """Simple Strava API client used by Kinetiqo for fetching activities,
@@ -58,21 +81,47 @@ class StravaClient:
             raise
 
         if r.status_code != 200:
-            logger.error(f"Token exchange failed: {r.status_code}")
-            logger.error(f"Response: {r.text}")
+            logger.error("Token exchange failed: %s — %s", r.status_code, _summarise_error_body(r))
             r.raise_for_status()
 
         data = r.json()
         self._access_token = data["access_token"]
-        logger.debug("Access token refreshed successfully.")
-
-        # Strava returns a new refresh token - store it for next time
         new_refresh_token = data.get("refresh_token")
         if new_refresh_token and new_refresh_token != self.config.strava_refresh_token:
-            logger.warning(f"⚠ New refresh token issued: {new_refresh_token}")
-            logger.warning("Update your STRAVA_REFRESH_TOKEN environment variable!")
+            self.config.strava_refresh_token = new_refresh_token
+        logger.debug("Access token refreshed successfully.")
+
+        if new_refresh_token:
+            logger.debug("New Strava refresh token issued and stored in memory.")
 
         return self._access_token
+
+    def exchange_authorization_code(self, code: str) -> dict:
+        """Exchange an OAuth authorization code for tokens."""
+        url = "https://www.strava.com/oauth/token"
+        payload = {
+            "client_id": self.config.strava_client_id,
+            "client_secret": self.config.strava_client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+        }
+
+        logger.debug(f"POST {url} (authorization_code exchange)")
+        try:
+            r = requests.post(url, data=payload, timeout=self.request_timeout)
+        except Exception as e:
+            logger.exception(f"Authorization code exchange failed: {e}")
+            raise
+
+        if r.status_code != 200:
+            logger.error("Authorization code exchange failed: %s — %s", r.status_code, _summarise_error_body(r))
+            r.raise_for_status()
+
+        data = r.json()
+        new_refresh_token = data.get("refresh_token")
+        if new_refresh_token and new_refresh_token != self.config.strava_refresh_token:
+            self.config.strava_refresh_token = new_refresh_token
+        return data
 
     def _headers(self) -> dict:
         """Return HTTP headers for authenticated requests.
