@@ -204,7 +204,88 @@ LOGIN_GOOGLE_FONTS_URL: str = build_google_fonts_stylesheet_url(LOGIN_GOOGLE_FON
 POSTER_GOOGLE_FONTS_URL: str = build_google_fonts_stylesheet_url(POSTER_GOOGLE_FONT_NAMES)
 
 # Filename written to static/css/ when fonts are successfully self-hosted.
-_LOCAL_FONTS_CSS_NAME = "google_fonts_local.css"
+LOCAL_FONTS_CSS_NAME: str = "google_fonts_local.css"
+
+# User-Agent that makes Google Fonts return woff2 (modern browser format).
+_BROWSER_UA: str = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+def parse_font_blocks(css_text: str) -> list[dict]:
+    """Parse a Google Fonts CSS response into a list of structured block dicts.
+
+    Each dict contains:
+    ``script``, ``family``, ``style``, ``weight``, ``display``,
+    ``unicode_range``, ``src_url`` (original CDN URL), ``filename``
+    (human-readable local filename, e.g. ``inter_italic_latin.woff2``).
+    """
+    block_re = re.compile(
+        r"/\*\s*([^*]+?)\s*\*/\s*@font-face\s*\{([^}]+)\}",
+        re.DOTALL,
+    )
+    blocks: list[dict] = []
+    for m in block_re.finditer(css_text):
+        script = m.group(1).strip()
+        body = m.group(2)
+
+        def _prop(name: str, default: str = "") -> str:
+            mo = re.search(rf"{name}:\s*([^;]+)", body)
+            return mo.group(1).strip() if mo else default
+
+        family = _prop("font-family").strip("'\"")
+        style = _prop("font-style", "normal")
+        weight = _prop("font-weight", "400")
+        display = _prop("font-display", "swap")
+        unicode_range = _prop("unicode-range")
+
+        url_match = re.search(r"url\(([^)]+\.woff2[^)]*)\)", body)
+        if not url_match:
+            continue
+        src_url = url_match.group(1).strip("'\"")
+
+        # Human-readable filename: family_style_script.woff2
+        # e.g. inter_italic_latin.woff2, italiana_normal_latin.woff2
+        family_slug = re.sub(r"[^a-z0-9]+", "-", family.lower()).strip("-")
+        script_slug = re.sub(r"\s+", "-", script.lower())
+        filename = f"{family_slug}_{style}_{script_slug}.woff2"
+
+        blocks.append(
+            {
+                "script": script,
+                "family": family,
+                "style": style,
+                "weight": weight,
+                "display": display,
+                "unicode_range": unicode_range,
+                "src_url": src_url,
+                "filename": filename,
+            }
+        )
+    return blocks
+
+
+def generate_local_css(
+    blocks: list[dict],
+    static_fonts_path: str = "/static/fonts",
+) -> str:
+    """Render a ``@font-face`` CSS file with all ``url()`` pointing to *static_fonts_path*."""
+    lines: list[str] = []
+    for b in blocks:
+        lines += [
+            f"/* {b['script']} */",
+            "@font-face {",
+            f"  font-family: '{b['family']}';",
+            f"  font-style: {b['style']};",
+            f"  font-weight: {b['weight']};",
+            f"  font-display: {b['display']};",
+            f"  src: url('{static_fonts_path}/{b['filename']}') format('woff2');",
+            f"  unicode-range: {b['unicode_range']};",
+            "}",
+            "",
+        ]
+    return "\n".join(lines)
 
 
 def ensure_fonts_local(static_dir: str) -> str:
@@ -217,20 +298,17 @@ def ensure_fonts_local(static_dir: str) -> str:
     On a fresh clone without the committed assets (e.g. a stripped checkout),
     this function downloads them from Google Fonts CDN as a one-time recovery
     step.  Falls back to the CDN URL if the download fails.
-    """
-    css_path = Path(static_dir) / "css" / _LOCAL_FONTS_CSS_NAME
-    if css_path.exists():
-        return f"/static/css/{_LOCAL_FONTS_CSS_NAME}"
 
-    # Fonts are missing — attempt a one-time download (dev / stripped clone).
+    To refresh fonts intentionally, run ``python development/download-fonts.py``.
+    """
+    css_path = Path(static_dir) / "css" / LOCAL_FONTS_CSS_NAME
+    if css_path.exists():
+        return f"/static/css/{LOCAL_FONTS_CSS_NAME}"
+
+    # Fonts are missing — attempt a one-time recovery download.
     logger.warning("Local Google Fonts not found in %s; downloading from CDN.", static_dir)
     try:
         import httpx  # already in requirements.txt
-
-        _BROWSER_UA = (
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        )
 
         resp = httpx.get(
             BASE_GOOGLE_FONTS_URL,
@@ -239,32 +317,27 @@ def ensure_fonts_local(static_dir: str) -> str:
             timeout=15,
         )
         resp.raise_for_status()
-        css_text = resp.text
 
+        blocks = parse_font_blocks(resp.text)
         fonts_dir = Path(static_dir) / "fonts"
         fonts_dir.mkdir(parents=True, exist_ok=True)
 
-        def _fetch_and_replace(match: re.Match) -> str:
-            woff2_url: str = match.group(1).strip("'\"")
-            filename = woff2_url.rsplit("/", 1)[-1].split("?")[0]
-            local_file = fonts_dir / filename
+        for block in blocks:
+            local_file = fonts_dir / block["filename"]
             if not local_file.exists():
-                font_resp = httpx.get(woff2_url, timeout=30, follow_redirects=True)
+                font_resp = httpx.get(block["src_url"], timeout=30, follow_redirects=True)
                 font_resp.raise_for_status()
                 tmp = local_file.with_suffix(".tmp")
                 tmp.write_bytes(font_resp.content)
                 tmp.rename(local_file)
-            return f"url('/static/fonts/{filename}')"
-
-        local_css = re.sub(r"url\(([^)]+\.woff2[^)]*)\)", _fetch_and_replace, css_text)
 
         css_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_css = css_path.with_suffix(".tmp")
-        tmp_css.write_text(local_css, encoding="utf-8")
+        tmp_css.write_text(generate_local_css(blocks), encoding="utf-8")
         tmp_css.rename(css_path)
 
         logger.info("Google Fonts downloaded and served locally from /static/")
-        return f"/static/css/{_LOCAL_FONTS_CSS_NAME}"
+        return f"/static/css/{LOCAL_FONTS_CSS_NAME}"
 
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not download Google Fonts locally (%s); using CDN.", exc)
