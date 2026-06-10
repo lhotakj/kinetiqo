@@ -879,16 +879,31 @@
             renderPoster();
         });
     }
+    // Font-picker variant: waits for the chosen font to be ready before re-rendering
+    // so the poster never repaints with a fallback/incorrect typeface.
+    function bindFontControl(id, settingKey, fontSize) {
+        const el = document.getElementById(id);
+        el.addEventListener('input', function() {
+            const fontName = this.value;
+            settings[settingKey] = fontName;
+            saveSettings(settings);
+            document.fonts.load(`bold ${fontSize || 24}px "${fontName}"`).then(function() {
+                renderPoster();
+            }).catch(function() {
+                renderPoster(); // fallback: render anyway
+            });
+        });
+    }
 
     bindControl('posterSize', 'posterSize', true);
     bindControl('ratioSelect', 'ratio', false);
-    bindControl('titleFont', 'titleFont', false);
+    bindFontControl('titleFont', 'titleFont');
     bindControl('titleFontSize', 'titleFontSize', true, 'titleFontSizeVal', 'px');
     bindControl('titleColor', 'titleColor', false);
     bindControl('titleOutlineColor', 'titleOutlineColor', false);
     bindControl('titleOutlineWidth', 'titleOutlineWidth', true, 'titleOutlineWidthVal', '');
     bindControl('titleOpacity', 'titleOpacity', true, 'titleOpacityVal', '%');
-    bindControl('statsFont', 'statsFont', false);
+    bindFontControl('statsFont', 'statsFont');
     bindControl('statsFontSize', 'statsFontSize', true, 'statsFontSizeVal', 'px');
     bindControl('statsColor', 'statsColor', false);
     bindControl('statsOutlineColor', 'statsOutlineColor', false);
@@ -948,31 +963,35 @@
         });
     }
 
-    // Init
-    applyToControls(settings);
-    renderPoster();
-    loadPhoto();
-    loadElevation();
-    loadInlineSvgs();
-    // Ensure watermark is initialised and sized
-    try { updateWatermark(); } catch (e) { console.debug('initial updateWatermark failed', e); }
-    // If there are no saved positions (first use or corrupted localStorage), apply a sensible default layout
-    try {
-        const raw = localStorage.getItem(POS_KEY());
-        console.debug('init: raw posterPositions key=', POS_KEY(), raw);
-        const existing = loadPositions();
-        console.debug('init: cleaned positions=', existing);
-        if (!raw || Object.keys(existing).length === 0) {
-            // Defer a tick to ensure renderPoster() has set container size
-            console.debug('init: no saved positions found; applying default layout');
-            setTimeout(() => resetBoxPositions(), 0);
-        } else {
-            console.debug('init: found saved positions, applying them');
-            // applyBoxPositions already called in init after enableDraggableBoxes
+    // Init — wait for all poster fonts (loaded from CDN <link>) to be ready before
+    // rendering. document.fonts.ready resolves once every @font-face in the current
+    // CSS has finished downloading, ensuring no FOUT on the poster canvas.
+    document.fonts.ready.then(function() {
+        applyToControls(settings);
+        renderPoster();
+        loadPhoto();
+        loadElevation();
+        loadInlineSvgs();
+        // Ensure watermark is initialised and sized
+        try { updateWatermark(); } catch (e) { console.debug('initial updateWatermark failed', e); }
+        // If there are no saved positions (first use or corrupted localStorage), apply a sensible default layout
+        try {
+            const raw = localStorage.getItem(POS_KEY());
+            console.debug('init: raw posterPositions key=', POS_KEY(), raw);
+            const existing = loadPositions();
+            console.debug('init: cleaned positions=', existing);
+            if (!raw || Object.keys(existing).length === 0) {
+                // Defer a tick to ensure renderPoster() has set container size
+                console.debug('init: no saved positions found; applying default layout');
+                setTimeout(() => resetBoxPositions(), 0);
+            } else {
+                console.debug('init: found saved positions, applying them');
+                // applyBoxPositions already called in init after enableDraggableBoxes
+            }
+        } catch (e) {
+            console.warn('init: loadPositions failed', e);
         }
-    } catch (e) {
-        console.warn('init: loadPositions failed', e);
-    }
+    });
     // --- Draggable poster elements ---
      const DRAGGABLES = [
          { boxId: 'boxTitle',     default: { left: 0.5, top: 0.16, width: 0.6 } },
