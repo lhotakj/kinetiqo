@@ -222,6 +222,21 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_elevation_streams_for_activity(
+        self, activity_id: str
+    ) -> tuple[list[float], list[float]]:
+        """Return (distance_m, altitude_m) arrays for *activity_id* from the DB.
+
+        Both lists are ordered by timestamp (1 sample per second, same row
+        order as the streams table).  Either list may be empty if the activity
+        has no streams or no altitude/distance data was recorded.
+
+        :param activity_id: The activity ID to query.
+        :return: Tuple of (distance_array, altitude_array).
+        """
+        pass
+
+    @abstractmethod
     def close(self):
         """Close database connection."""
         pass

@@ -697,6 +697,29 @@ class MySQLRepository(DatabaseRepository):
             row = cur.fetchone()
             return float(row[0]) if row and row[0] is not None else None
 
+    def get_elevation_streams_for_activity(
+        self, activity_id: str
+    ) -> tuple[list[float], list[float]]:
+        """Return (distance_m, altitude_m) arrays for *activity_id* (MySQL)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT distance, altitude FROM streams
+                WHERE activity_id = %s
+                  AND distance IS NOT NULL
+                  AND altitude IS NOT NULL
+                ORDER BY ts
+                """,
+                (int(activity_id),),
+            )
+            rows = cur.fetchall()
+        if not rows:
+            return [], []
+        distance = [float(r[0]) for r in rows]
+        altitude = [float(r[1]) for r in rows]
+        return distance, altitude
+
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
         self._ensure_connected()

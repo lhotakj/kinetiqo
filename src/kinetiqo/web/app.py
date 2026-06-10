@@ -2555,6 +2555,10 @@ def poster_photo_upload(activity_id):
 def poster_elevation_data(activity_id):
     """Return elevation profile data (distance and altitude arrays) for an activity.
 
+    Checks the local database first.  Only falls back to the Strava API if the
+    activity has no streams cached locally (e.g. activity synced before streams
+    support was added).
+
     Args:
         activity_id (str): Activity identifier whose streams to fetch.
 
@@ -2562,18 +2566,19 @@ def poster_elevation_data(activity_id):
         flask.Response: JSON object with ``distance`` and ``altitude`` arrays or
         empty arrays if unavailable.
     """
-    from kinetiqo.strava import StravaClient
     try:
+        repo = create_repository(config)
+        distance_data, altitude_data = repo.get_elevation_streams_for_activity(activity_id)
+        if distance_data and altitude_data:
+            return jsonify({'distance': distance_data, 'altitude': altitude_data})
+
+        # Not in DB — fall back to Strava (activity pre-dates streams sync)
+        from kinetiqo.strava import StravaClient
         client = StravaClient(config)
         streams = client.get_streams(int(activity_id))
         distance_data = streams.get('distance', {}).get('data', [])
         altitude_data = streams.get('altitude', {}).get('data', [])
-        if not distance_data or not altitude_data:
-            return jsonify({'distance': [], 'altitude': []})
-        return jsonify({
-            'distance': distance_data,
-            'altitude': altitude_data
-        })
+        return jsonify({'distance': distance_data, 'altitude': altitude_data})
     except Exception as e:
         logger.error(f"Failed to get elevation data for {activity_id}: {e}")
         return jsonify({'distance': [], 'altitude': []})
