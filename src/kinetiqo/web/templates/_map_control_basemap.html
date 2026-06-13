@@ -1,0 +1,13 @@
+<div class="flex items-center gap-1.5">
+    <label for="basemapPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Base Map:</label>
+    <select id="basemapPicker"
+            class="h-8 px-2 rounded border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+        {% for key, provider in tile_providers.items() %}
+        {% set is_disabled = provider.get('disabled', False) %}
+        <option value="{{ key }}"
+                {{ 'selected' if key == current_basemap else '' }}
+                {{ 'disabled' if is_disabled else '' }}
+                style="{{ 'color:#9ca3af;' if is_disabled else '' }}">{{ provider.name }}{{ ' (API key required)' if is_disabled else '' }}</option>
+        {% endfor %}
+    </select>
+</div>

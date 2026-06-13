@@ -57,7 +57,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🫁 **VO₂max Estimation**: Estimates your VO₂max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
 - 🏃 **Fitness & Freshness**: CTL / ATL / TSB chart calculated from suffer score, with configurable time constants.
 - 🎯 **Activity Goals**: Set weekly, monthly, and yearly distance and elevation goals per activity type (Cycling, Running, Hiking, etc.) with progress tracking on the Settings page.
-- 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with multiple tile providers (OpenStreetMap, Mapy.cz, Thunderforest, CARTO, Esri). Tiles are served through a server-side proxy that satisfies the OSM usage policy. Canvas renderer for performance with large datasets.
+- 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with multiple tile providers (OpenStreetMap, Mapy.cz, Thunderforest, CARTO, Esri). Tiles are served through a server-side proxy that satisfies the OSM usage policy. Canvas renderer for performance with large datasets, plus persisted route styling, map opacity, and an optional color tone overlay.
 - 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
 - 📝 **Audit Logging**: Records all synchronization operations and data modifications, viewable in the Web UI.
 - 🔄 **Intelligent Synchronization**:
@@ -82,7 +82,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 |---|---|---|
 | `/` | Dashboard | Redirects to Activities |
 | `/activities` | Activities | Searchable, filterable activity list (DataTables 2.x) with bulk selection, delete, map, Power Skills, and CSV export actions |
-| `/map` | Map | Interactive Leaflet map displaying selected activity GPS tracks with multiple tile layers |
+| `/map` | Map | Interactive Leaflet map displaying selected activity GPS tracks with multiple tile layers plus saved route styling and map tone controls |
 | `/powerskills` | Power Skills | Spider chart of best average power over 5s, 30s, 1min, 5min, 10min, 20min, 1h durations |
 | `/ftp` | FTP | FTP estimation history chart (95% of best 20-min power) |
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
@@ -362,6 +362,8 @@ Kinetiqo ships with **8 map tile layers** from 5 providers. Two providers (Mapy.
 
 > Layers that require a missing API key appear **greyed-out** in the map selector with a hint. They are not removed — just disabled until the key is configured.
 
+> The map page also persists route styling, map opacity, and an optional map-tone colour in `localStorage` so your preferred look comes back on the next visit.
+
 **How to get API keys:**
 
 | Provider | Free Tier | How to Get the Key |
@@ -370,6 +372,8 @@ Kinetiqo ships with **8 map tile layers** from 5 providers. Two providers (Mapy.
 | **Thunderforest** | Up to 150,000 tiles/month for hobby / personal projects | 1. Go to [manage.thunderforest.com/signup](https://manage.thunderforest.com/signup) → 2. Register for a free "Hobby Project" account → 3. Copy the API key from the dashboard → 4. Set `THUNDERFOREST_API_KEY` env var |
 
 > **OSM tile proxy:** OpenStreetMap tiles are served through a built-in server-side proxy (`/tiles/osm/...`) so the browser never contacts `tile.openstreetmap.org` directly. This satisfies the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) by attaching a proper `User-Agent` and `Referer` header from the server.
+
+> **Map controls:** The map page remembers route color, width, and route opacity together with base-map opacity (default `100%`), tone opacity (default `50%`), and an optional color tone overlay in `localStorage`. When base-map opacity is set to `0%`, the selected tone fills the map exactly.
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 

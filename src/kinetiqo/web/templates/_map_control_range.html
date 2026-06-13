@@ -1,0 +1,11 @@
+<div class="flex items-center gap-1.5">
+    <label for="{{ control_id }}" class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ label }}</label>
+    <input type="range"
+           id="{{ control_id }}"
+           min="{{ min_value }}"
+           max="{{ max_value }}"
+           value="{{ value }}"
+           step="1"
+           class="w-20 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+    <span id="{{ control_id|replace('Picker', 'Value') }}" class="text-sm text-gray-500 dark:text-gray-400 w-11 text-right">{{ value }}{{ suffix }}</span>
+</div>

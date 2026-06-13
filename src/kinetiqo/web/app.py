@@ -631,6 +631,9 @@ def map_view():
     color = request.args.get('color', '#FC4C02')
     width = request.args.get('width', '2')
     opacity = request.args.get('opacity', '100')
+    map_opacity = request.args.get('map_opacity', '100')
+    tone_opacity = request.args.get('tone_opacity', '50')
+    map_tone_color = request.args.get('map_tone_color', '')
     basemap = request.args.get('basemap', 'openstreetmap')
 
     # Just render the template with IDs, don't generate map yet
@@ -640,6 +643,9 @@ def map_view():
                            current_color=color,
                            current_width=width,
                            current_opacity=opacity,
+                           current_map_opacity=map_opacity,
+                           current_tone_opacity=tone_opacity,
+                           current_map_tone_color=map_tone_color,
                            current_basemap=basemap,
                            tile_providers=_build_tile_providers())
 

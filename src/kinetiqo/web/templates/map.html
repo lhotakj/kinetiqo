@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block head %}
 <!-- Leaflet CSS & JS loaded directly — no Folium server-side rendering -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -22,6 +21,15 @@
     .leaflet-highlight-pane path {
         pointer-events: none !important;
         animation: route-pulse 0.5s ease-in-out infinite alternate;
+    }
+    .leaflet-map-tone-pane {
+        pointer-events: none !important;
+    }
+    .leaflet-map-tone-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none !important;
+        opacity: 0;
     }
     @keyframes route-pulse {
         0%   { opacity: 0.35; }
@@ -52,46 +60,66 @@
                 Loading activity data…
             </p>
         </div>
-        <div class="flex flex-wrap items-center gap-4">
-            <!-- Base Map Selector -->
-            <div class="flex items-center gap-2">
-                <label for="basemapPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Base
-                    Map:</label>
-                <select id="basemapPicker"
-                        class="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
-                    {% for key, provider in tile_providers.items() %}
-                    {% set is_disabled = provider.get('disabled', False) %}
-                    <option value="{{ key }}"
-                            {{ 'selected' if key == current_basemap else '' }}
-                            {{ 'disabled' if is_disabled else '' }}
-                            style="{{ 'color:#9ca3af;' if is_disabled else '' }}">{{ provider.name }}{{ ' (API key required)' if is_disabled else '' }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% include "_map_control_basemap.html" %}
+            {% include "_map_control_separator.html" %}
 
-            <!-- Color Picker -->
-            <div class="flex items-center gap-2">
-                <label for="colorPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Color:</label>
-                <input type="color" id="colorPicker" value="{{ current_color }}"
-                       class="h-9 w-16 p-1 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
-            </div>
+            {% set control_id = 'mapOpacityPicker' %}
+            {% set label = 'Map Opacity:' %}
+            {% set value = current_map_opacity %}
+            {% set min_value = 0 %}
+            {% set max_value = 100 %}
+            {% set suffix = '%' %}
+            {% include "_map_control_range.html" %}
+            {% include "_map_control_separator.html" %}
 
-            <!-- Width Slider -->
-            <div class="flex items-center gap-2">
-                <label for="widthPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Width:</label>
-                <input type="range" id="widthPicker" min="1" max="20" value="{{ current_width }}"
-                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
-                <span id="widthValue" class="text-sm text-gray-500 dark:text-gray-400 w-6">{{ current_width }}</span>
-            </div>
+            {% set map_tone_value = current_map_tone_color if current_map_tone_color else '#ffffff' %}
+            {% set map_tone_text = current_map_tone_color if current_map_tone_color else 'None' %}
+            {% set control_id = 'mapTonePicker' %}
+            {% set label = 'Map Color Tone:' %}
+            {% set value = map_tone_value %}
+            {% set clear_button_id = 'mapToneClearBtn' %}
+            {% set clear_button_label = 'None' %}
+            {% set value_text_id = 'mapToneValue' %}
+            {% set value_text = map_tone_text %}
+            {% include "_map_control_color.html" %}
+            {% include "_map_control_separator.html" %}
 
-            <!-- Opacity Slider -->
-            <div class="flex items-center gap-2">
-                <label for="opacityPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Opacity:</label>
-                <input type="range" id="opacityPicker" min="0" max="100" value="{{ current_opacity }}"
-                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
-                <span id="opacityValue"
-                      class="text-sm text-gray-500 dark:text-gray-400 w-8">{{ current_opacity }}%</span>
-            </div>
+            {% set control_id = 'toneOpacityPicker' %}
+            {% set label = 'Tone Opacity:' %}
+            {% set value = current_tone_opacity %}
+            {% set min_value = 0 %}
+            {% set max_value = 100 %}
+            {% set suffix = '%' %}
+            {% include "_map_control_range.html" %}
+            {% include "_map_control_separator.html" %}
+
+            {% set control_id = 'colorPicker' %}
+            {% set label = 'Route Color:' %}
+            {% set value = current_color %}
+            {% set clear_button_id = None %}
+            {% set clear_button_label = 'Clear' %}
+            {% set value_text_id = None %}
+            {% set value_text = '' %}
+            {% include "_map_control_color.html" %}
+            {% include "_map_control_separator.html" %}
+
+            {% set control_id = 'widthPicker' %}
+            {% set label = 'Route Width:' %}
+            {% set value = current_width %}
+            {% set min_value = 1 %}
+            {% set max_value = 20 %}
+            {% set suffix = '' %}
+            {% include "_map_control_range.html" %}
+            {% include "_map_control_separator.html" %}
+
+            {% set control_id = 'opacityPicker' %}
+            {% set label = 'Route Opacity:' %}
+            {% set value = current_opacity %}
+            {% set min_value = 0 %}
+            {% set max_value = 100 %}
+            {% set suffix = '%' %}
+            {% include "_map_control_range.html" %}
 
             <!-- Export Button -->
             <button id="exportBtn" disabled
@@ -135,6 +163,7 @@
 
         <!-- Leaflet map target (rendered directly, no iframe) -->
         <div id="leaflet-map" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></div>
+        <div id="map-tone-overlay" class="leaflet-map-tone-overlay" style="display: none; z-index: 250;"></div>
 
         <!-- Error State -->
         <div id="error-state"
@@ -161,24 +190,54 @@
 
     // Server-side defaults (used when localStorage has no saved value)
     const DEFAULTS = {
-        color:   "{{ current_color }}",
-        width:   parseInt("{{ current_width }}", 10) || 2,
-        opacity: parseInt("{{ current_opacity }}", 10) || 100,
+        routeColor: "{{ current_color }}",
+        routeWidth: (function() {
+            var parsed = parseInt("{{ current_width }}", 10);
+            return Number.isNaN(parsed) ? 2 : parsed;
+        })(),
+        routeOpacity: (function() {
+            var parsed = parseInt("{{ current_opacity }}", 10);
+            return Number.isNaN(parsed) ? 100 : parsed;
+        })(),
+        mapOpacity: (function() {
+            var parsed = parseInt("{{ current_map_opacity }}", 10);
+            return Number.isNaN(parsed) ? 100 : parsed;
+        })(),
+        toneOpacity: (function() {
+            var parsed = parseInt("{{ current_tone_opacity }}", 10);
+            return Number.isNaN(parsed) ? 50 : parsed;
+        })(),
+        mapToneColor: "{{ current_map_tone_color }}",
         basemap: "{{ current_basemap }}"
     };
 
     const STORAGE_KEY = 'kinetiqo_map_settings';
+
+    function isValidHexColor(value) {
+        return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+    }
+
+    function normalizeInteger(value, fallback, minValue, maxValue) {
+        var parsed = Number(value);
+        if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return fallback;
+        if (parsed < minValue || parsed > maxValue) return fallback;
+        return parsed;
+    }
 
     function loadSettings() {
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return Object.assign({}, DEFAULTS);
             var saved = JSON.parse(raw);
+            var mapToneColor = isValidHexColor(saved.mapToneColor || saved.toneColor) ? (saved.mapToneColor || saved.toneColor) : DEFAULTS.mapToneColor;
             return {
-                color:   (typeof saved.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.color)) ? saved.color : DEFAULTS.color,
-                width:   (Number.isInteger(saved.width)   && saved.width >= 1   && saved.width <= 20)  ? saved.width   : DEFAULTS.width,
-                opacity: (Number.isInteger(saved.opacity) && saved.opacity >= 0 && saved.opacity <= 100) ? saved.opacity : DEFAULTS.opacity,
-                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap])            ? saved.basemap : DEFAULTS.basemap
+                routeColor: isValidHexColor(saved.routeColor || saved.color) ? (saved.routeColor || saved.color) : DEFAULTS.routeColor,
+                routeWidth: normalizeInteger((saved.routeWidth !== undefined ? saved.routeWidth : saved.width), DEFAULTS.routeWidth, 1, 20),
+                routeOpacity: normalizeInteger((saved.routeOpacity !== undefined ? saved.routeOpacity : saved.opacity), DEFAULTS.routeOpacity, 0, 100),
+                mapOpacity: normalizeInteger(saved.mapOpacity, DEFAULTS.mapOpacity, 0, 100),
+                toneOpacity: normalizeInteger(saved.toneOpacity, DEFAULTS.toneOpacity, 0, 100),
+                mapToneColor: mapToneColor,
+                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap]) ? saved.basemap : DEFAULTS.basemap
             };
         } catch (e) {
             return Object.assign({}, DEFAULTS);
@@ -188,9 +247,16 @@
     function saveSettings() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                color:   currentColor,
-                width:   currentWidth,
+                routeColor: currentColor,
+                color: currentColor,
+                routeWidth: currentWidth,
+                width: currentWidth,
+                routeOpacity: currentOpacity,
                 opacity: currentOpacity,
+                mapOpacity: currentMapOpacity,
+                toneOpacity: currentToneOpacity,
+                mapToneColor: currentMapToneColor,
+                toneColor: currentMapToneColor,
                 basemap: currentBasemap
             }));
         } catch (e) { /* quota exceeded or private browsing — silently ignore */ }
@@ -198,14 +264,18 @@
 
     // Initialise from localStorage (or server defaults)
     var _s = loadSettings();
-    let currentColor   = _s.color;
-    let currentWidth   = _s.width;
-    let currentOpacity = _s.opacity;
-    let currentBasemap = _s.basemap;
+    let currentColor        = _s.routeColor;
+    let currentWidth        = _s.routeWidth;
+    let currentOpacity      = _s.routeOpacity;
+    let currentMapOpacity   = _s.mapOpacity;
+    let currentToneOpacity  = _s.toneOpacity;
+    let currentMapToneColor = _s.mapToneColor;
+    let currentBasemap      = _s.basemap;
 
     // --- Leaflet state ---
     let leafletMap = null;
     let tileLayer  = null;
+    let mapToneOverlay = null;
     let canvasRenderer = null;
     let highlightRenderer = null; // shared SVG renderer for the highlight overlay
     let polylines  = [];          // Array of L.Polyline instances
@@ -280,6 +350,37 @@
 
         // Set initial tile layer
         setTileLayer(currentBasemap);
+        ensureMapToneLayer();
+        applyMapVisualState();
+    }
+
+    function ensureMapToneLayer() {
+        if (mapToneOverlay) return;
+        mapToneOverlay = document.getElementById('map-tone-overlay');
+    }
+
+    function updateMapToneLayer() {
+        if (!mapToneOverlay) return;
+
+        if (currentMapToneColor) {
+            mapToneOverlay.style.display = 'block';
+            mapToneOverlay.style.backgroundColor = currentMapToneColor;
+            mapToneOverlay.style.opacity = currentMapOpacity === 0 ? '1' : String(currentToneOpacity / 100.0);
+        } else {
+            mapToneOverlay.style.display = 'none';
+            mapToneOverlay.style.backgroundColor = 'transparent';
+            mapToneOverlay.style.opacity = '0';
+        }
+    }
+
+    function updateMapOpacityLayer() {
+        if (!tileLayer || typeof tileLayer.setOpacity !== 'function') return;
+        tileLayer.setOpacity(currentMapOpacity / 100.0);
+    }
+
+    function applyMapVisualState() {
+        updateMapOpacityLayer();
+        updateMapToneLayer();
     }
 
     // --- Complementary color helper ---
@@ -400,6 +501,7 @@
             opts.subdomains = provider.subdomains;
         }
         tileLayer = L.tileLayer(provider.url, opts).addTo(leafletMap);
+        applyMapVisualState();
     }
 
     // --- Render polylines from cached data ---
@@ -607,6 +709,13 @@
         var widthValue    = document.getElementById('widthValue');
         var opacityPicker = document.getElementById('opacityPicker');
         var opacityValue  = document.getElementById('opacityValue');
+        var mapOpacityPicker = document.getElementById('mapOpacityPicker');
+        var mapOpacityValue  = document.getElementById('mapOpacityValue');
+        var toneOpacityPicker = document.getElementById('toneOpacityPicker');
+        var toneOpacityValue  = document.getElementById('toneOpacityValue');
+        var mapTonePicker = document.getElementById('mapTonePicker');
+        var mapToneClearBtn = document.getElementById('mapToneClearBtn');
+        var mapToneValue = document.getElementById('mapToneValue');
         var basemapPicker = document.getElementById('basemapPicker');
 
         if (colorPicker)   colorPicker.value         = currentColor;
@@ -614,6 +723,12 @@
         if (widthValue)    widthValue.textContent     = currentWidth;
         if (opacityPicker) opacityPicker.value        = currentOpacity;
         if (opacityValue)  opacityValue.textContent   = currentOpacity + '%';
+        if (mapOpacityPicker) mapOpacityPicker.value  = currentMapOpacity;
+        if (mapOpacityValue)  mapOpacityValue.textContent = currentMapOpacity + '%';
+        if (toneOpacityPicker) toneOpacityPicker.value  = currentToneOpacity;
+        if (toneOpacityValue)  toneOpacityValue.textContent = currentToneOpacity + '%';
+        if (mapTonePicker) mapTonePicker.value = currentMapToneColor || '#ffffff';
+        if (mapToneValue) mapToneValue.textContent = currentMapToneColor || 'None';
         if (basemapPicker) basemapPicker.value        = currentBasemap;
 
         // Start loading map data
@@ -658,6 +773,50 @@
                 currentOpacity = parseInt(e.target.value, 10);
                 saveSettings();
                 updatePolylineStyles();
+            });
+        }
+
+        // Map Opacity Picker — updates the Leaflet tile layer opacity only
+        if (mapOpacityPicker && mapOpacityValue) {
+            mapOpacityPicker.addEventListener('input', function(e) {
+                mapOpacityValue.textContent = e.target.value + '%';
+            });
+            mapOpacityPicker.addEventListener('change', function(e) {
+                currentMapOpacity = parseInt(e.target.value, 10);
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        // Tone Opacity Picker — adjusts how strongly the tone overlay is applied
+        if (toneOpacityPicker && toneOpacityValue) {
+            toneOpacityPicker.addEventListener('input', function(e) {
+                toneOpacityValue.textContent = e.target.value + '%';
+            });
+            toneOpacityPicker.addEventListener('change', function(e) {
+                currentToneOpacity = parseInt(e.target.value, 10);
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        // Map Tone Picker — applies/removes the overlay wash above the tiles
+        if (mapTonePicker && mapToneValue) {
+            mapTonePicker.addEventListener('change', function(e) {
+                currentMapToneColor = e.target.value;
+                mapToneValue.textContent = currentMapToneColor || 'None';
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        if (mapToneClearBtn && mapTonePicker && mapToneValue) {
+            mapToneClearBtn.addEventListener('click', function() {
+                currentMapToneColor = '';
+                mapTonePicker.value = '#ffffff';
+                mapToneValue.textContent = 'None';
+                saveSettings();
+                applyMapVisualState();
             });
         }
 
