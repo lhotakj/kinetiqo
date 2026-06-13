@@ -493,24 +493,38 @@
         updateMapToneLayer();
     }
 
-    // Export helper: render leaflet map container to PNG
+    // Export helper: render exact leaflet map area to PNG (cropped to map viewport)
     function exportMapToPNG(filename = 'kinetiqo-map.png') {
         if (!leafletMap) return;
         const mapEl = leafletMap.getContainer();
-        const exportWidth = mapEl.offsetWidth;
-        const exportHeight = mapEl.offsetHeight;
-        const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-        html2canvas(mapEl, {
+        const rect = mapEl.getBoundingClientRect();
+        const scale = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+        html2canvas(document.body, {
             useCORS: true,
             allowTaint: true,
-            width: exportWidth,
-            height: exportHeight,
-            scale: scale
+            x: Math.round(rect.left + window.scrollX),
+            y: Math.round(rect.top + window.scrollY),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            scale: scale,
+            onclone: function(clonedDoc) {
+                var clonedContainer = clonedDoc.getElementById('map-container');
+                if (clonedContainer) clonedContainer.classList.add('png-export');
+            }
         })
         .then(function(canvas) {
+            // If the canvas aspect/size differs, resize to exact dimensions at 1x for download
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = Math.round(rect.width * 1);
+            finalCanvas.height = Math.round(rect.height * 1);
+            const ctx = finalCanvas.getContext('2d');
+            // Draw the captured canvas scaled down to 1x to remove extra white area introduced by scaling
+            ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, finalCanvas.width, finalCanvas.height);
+
             const link = document.createElement('a');
             link.download = filename;
-            link.href = canvas.toDataURL();
+            link.href = finalCanvas.toDataURL();
             link.click();
         })
         .catch(function(err) {
