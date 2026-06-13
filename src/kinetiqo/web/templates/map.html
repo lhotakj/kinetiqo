@@ -38,7 +38,8 @@
         opacity: 0;
     }
     /* PNG export-only styling: keep Leaflet defaults and apply minimal adjustments. */
-    #map-container.png-export .leaflet-control-zoom {
+    #map-container.png-export .leaflet-control-zoom,
+    #map-container.png-export .leaflet-control-fullscreen {
         display: none !important;
     }
     @keyframes route-pulse {
@@ -366,6 +367,57 @@
         setTileLayer(currentBasemap);
         ensureMapToneLayer();
         applyMapVisualState();
+
+        // --- Fullscreen control (placed next to zoom) ---
+        (function() {
+            let originalView = null;
+            function isInFullscreen() {
+                return document.fullscreenElement === document.getElementById('map-container');
+            }
+            const FullscreenControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-control-fullscreen leaflet-bar');
+                    const btn = L.DomUtil.create('a', '', container);
+                    btn.href = '#';
+                    btn.title = 'Toggle Fullscreen';
+                    btn.style.display = 'inline-flex';
+                    btn.style.alignItems = 'center';
+                    btn.style.justifyContent = 'center';
+                    btn.style.width = '26px';
+                    btn.style.height = '26px';
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+                    L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
+                        if (!document.fullscreenElement) {
+                            // entering fullscreen: store original view
+                            originalView = { center: leafletMap.getCenter(), zoom: leafletMap.getZoom() };
+                            document.getElementById('map-container').requestFullscreen().catch(()=>{});
+                        } else {
+                            document.exitFullscreen().catch(()=>{});
+                        }
+                    });
+                    document.addEventListener('fullscreenchange', function() {
+                        if (isInFullscreen()) {
+                            // replace button with back-to-original view control
+                            btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l6 6M3 12l6-6"/></svg>';
+                            btn.title = 'Back to original view';
+                            L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
+                                if (originalView) {
+                                    leafletMap.setView(originalView.center, originalView.zoom);
+                                }
+                                if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+                            });
+                        } else {
+                            // restore fullscreen icon
+                            btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+                            btn.title = 'Toggle Fullscreen';
+                        }
+                    });
+                    return container;
+                }
+            });
+            leafletMap.addControl(new FullscreenControl());
+        })();
     }
 
     function ensureMapToneLayer() {
