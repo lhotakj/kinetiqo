@@ -181,52 +181,92 @@
         <div class="flex-grow"></div>
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
             <button id="selectAllBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activity types">
-                Select All
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Select all activity types">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>Select All</span>
             </button>
             <button id="deselectAllBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Deselect all activity types">
-                Deselect All
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Deselect all activity types">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>Deselect All</span>
             </button>
         </div>
     </div>
     <div class="w-full mt-4 flex justify-between items-center flex-wrap gap-4">
         <div class="flex gap-2 items-center flex-wrap">
             <button id="selectAllOnAllPagesBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activities that match the current filters, across all pages">
-                Select all activities on all pages
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Select all activities that match the current filters, across all pages">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 12h6M7 17h10M3 5h.01M3 12h.01M3 19h.01"/></svg>
+                <span>Select all activities on all pages</span>
             </button>
             <button id="clearSelectionBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Clear the current selection of activities">
-                Clear selection
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Clear the current selection of activities">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
+                <span>Clear selection</span>
             </button>
             <button id="deleteSelectedBtn"
                     class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Delete the selected activities from the database">Delete selected
+                    disabled title="Delete the selected activities from the database">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+                <span>Delete selected</span>
             </button>
             <button id="displayOnMapBtn"
                     class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Display the selected activities on a map">Display on map
+                    disabled title="Display the selected activities on a map">
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor">
+                  <!-- simplified, outline-only folded-map icon (no fills) -->
+                  <path d="M3 6.5L9 3l6 3 6-3v14l-6 3-6-3-6 3V6.5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                  <path d="M9 3v17" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                  <path d="M15 6v15" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                </svg>
+                <span>Display on map</span>
             </button>
             <button id="powerSkillsBtn"
                     class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Analyze the power skills for the selected activities">⚡ Power Skills
+                    disabled title="Analyze the power skills for the selected activities">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>Power Skills</span>
             </button>
             <button id="selectColumnsBtn"
                     class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    title="Choose which columns to display in the table">Select columns
+                    title="Choose which columns to display in the table">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+                <span>Select columns</span>
             </button>
             <button id="resetViewBtn"
                     class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    title="Reset columns to default configuration">Reset View
+                    title="Reset columns to default configuration">
+                <!-- Reset icon adapted: stroke-only, no fill, inherits currentColor -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M27,8H6.83l3.58-3.59L9,3,3,9l6,6,1.41-1.41L6.83,10H27V26H7V19H5v7a2,2,0,0,0,2,2H27a2,2,0,0,0,2-2V10A2,2,0,0,0,27,8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Reset View</span>
             </button>
             <button id="exportCsvBtn"
                     class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Export the selected activities to a CSV file">Export to CSV
+                    disabled title="Export the selected activities to a CSV file">
+                <!-- CSV icon adapted: stroke-only, no fill, inherits currentColor -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M3 9.5H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M3 14.5H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 4.5V19.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6.2 19.5H17.8C18.9201 19.5 19.4802 19.5 19.908 19.282C20.2843 19.0903 20.5903 18.7843 20.782 18.408C21 17.9802 21 17.4201 21 16.3V7.7C21 6.5799 21 6.01984 20.782 5.59202C20.5903 5.21569 20.2843 4.90973 19.908 4.71799C19.4802 4.5 18.9201 4.5 17.8 4.5H6.2C5.0799 4.5 4.51984 4.5 4.09202 4.71799C3.71569 4.90973 3.40973 5.21569 3.21799 5.59202C3 6.01984 3 6.57989 3 7.7V16.3C3 17.4201 3 17.9802 3.21799 18.408C3.40973 18.7843 3.71569 19.0903 4.09202 19.282C4.51984 19.5 5.07989 19.5 6.2 19.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Export to CSV</span>
             </button>
             <button id="exportXlsxBtn"
                     class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Export the selected activities to an Excel XLSX file">Export as XLSX
+                    disabled title="Export the selected activities to an Excel XLSX file">
+                <!-- XLS/XLSX icon: adapted from provided SVG and styled to match PNG/PDF stroke-only icons -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M11.5 13L11.5 17L13 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M16.5 13H16C15.4477 13 15 13.4477 15 14V14C15 14.5523 15.4477 15 16 15V15C16.5523 15 17 15.4477 17 16V16C17 16.5523 16.5523 17 16 17H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9.5 13L7 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 13L9.5 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Export as XLSX</span>
             </button>
         </div>
         <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
