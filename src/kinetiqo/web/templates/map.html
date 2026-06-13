@@ -45,18 +45,28 @@
     }
 
     /* Match fullscreen & export control sizing/appearance to Leaflet zoom buttons */
-    .leaflet-control-fullscreen.leaflet-bar,
-    .leaflet-control-export.leaflet-bar {
-        box-sizing: border-box;
-    }
+    .leaflet-bar a,
     .leaflet-control-fullscreen.leaflet-bar a,
     .leaflet-control-export.leaflet-bar a {
         display: block;
-        width: 26px;
-        height: 26px;
-        line-height: 26px;
+        width: 34px;
+        height: 34px;
+        line-height: 34px;
         text-align: center;
         padding: 0;
+        background: #ffffff;
+        color: #333333;
+        border: 1px solid rgba(0,0,0,0.12);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        border-radius: 4px;
+        margin-bottom: 6px;
+    }
+    .leaflet-control-fullscreen.leaflet-bar a svg,
+    .leaflet-control-export.leaflet-bar a svg {
+        display: block;
+        width: 16px;
+        height: 16px;
+        margin: auto;
     }
     @keyframes route-pulse {
         0%   { opacity: 0.35; }
@@ -399,7 +409,7 @@
                     btn.href = '#';
                     btn.title = 'Export PNG';
                     btn.setAttribute('aria-label', 'Export PNG');
-                    btn.innerHTML = '<svg class="w-4 h-4" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>';
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>';
                     L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
                         exportMapToPNG();
                     });
@@ -415,7 +425,7 @@
                     btn.href = '#';
                     btn.title = 'Toggle Fullscreen';
                     btn.setAttribute('aria-label', 'Toggle Fullscreen');
-                    btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
                     L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
                         if (!document.fullscreenElement) {
                             // entering fullscreen: store original view
@@ -428,7 +438,7 @@
                     document.addEventListener('fullscreenchange', function() {
                         if (isInFullscreen()) {
                             // replace button with back-to-original view control
-                            btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l6 6M3 12l6-6"/></svg>';
+                            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l6 6M3 12l6-6"/></svg>';
                             btn.title = 'Back to original view';
                             L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
                                 if (originalView) {
@@ -438,7 +448,7 @@
                             });
                         } else {
                             // restore fullscreen icon
-                            btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+                            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
                             btn.title = 'Toggle Fullscreen';
                         }
                     });
@@ -481,22 +491,19 @@
         updateMapToneLayer();
     }
 
-    // Export helper: render map-container to PNG, hiding controls marked for PNG export
+    // Export helper: render leaflet map container to PNG
     function exportMapToPNG(filename = 'kinetiqo-map.png') {
-        const mapContainer = document.getElementById('map-container');
-        if (!mapContainer) return;
-        const exportWidth = mapContainer.offsetWidth;
-        const exportHeight = mapContainer.offsetHeight;
-        html2canvas(mapContainer, {
+        if (!leafletMap) return;
+        const mapEl = leafletMap.getContainer();
+        const exportWidth = mapEl.offsetWidth;
+        const exportHeight = mapEl.offsetHeight;
+        const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        html2canvas(mapEl, {
             useCORS: true,
             allowTaint: true,
             width: exportWidth,
             height: exportHeight,
-            onclone: function(clonedDoc) {
-                var clonedContainer = clonedDoc.getElementById('map-container');
-                if (!clonedContainer) return;
-                clonedContainer.classList.add('png-export');
-            }
+            scale: scale
         })
         .then(function(canvas) {
             const link = document.createElement('a');
