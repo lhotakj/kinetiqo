@@ -346,7 +346,7 @@ def get_dynamic_limit_days():
 from kinetiqo.web.progress import bp as progress_bp
 app.register_blueprint(progress_bp)
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     """Root route that redirects authenticated users to the activities page.
 
@@ -391,7 +391,7 @@ def login():
     return render_template('login.html', current_year=datetime.now().year)
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET','POST'])
 @login_required
 def logout():
     """Log out the current user and redirect to the login page.
@@ -403,7 +403,7 @@ def logout():
     return redirect(url_for('login'))
 
 
-@app.route('/activities')
+@app.route('/activities', methods=['GET'])
 @login_required
 def activities():
     """Render the activities listing page.
@@ -552,7 +552,7 @@ def _build_tile_providers() -> dict:
 _OSM_SUBDOMAINS = ('a', 'b', 'c')
 
 
-@app.route('/tiles/osm/<int:z>/<int:x>/<int:y>.png')
+@app.route('/tiles/osm/<int:z>/<int:x>/<int:y>.png', methods=['GET'])
 @login_required
 async def osm_tile_proxy(z: int, x: int, y: int):
     """Server-side proxy for OpenStreetMap raster tiles.
@@ -1210,7 +1210,7 @@ class _PowerCache:
 _power_cache = _PowerCache()
 
 
-@app.route('/ftp')
+@app.route('/ftp', methods=['GET'])
 @login_required
 def ftp():
     """Estimate FTP as 95% of the best 20-minute average power.
@@ -1312,7 +1312,7 @@ def ftp():
     )
 
 
-@app.route('/api/ftp_history')
+@app.route('/api/ftp_history', methods=['GET'])
 @login_required
 def ftp_history():
     """Return per-ride FTP estimates as JSON for charting purposes.
@@ -1399,7 +1399,7 @@ def ftp_history():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/fitness')
+@app.route('/fitness', methods=['GET'])
 @login_required
 def fitness():
     """Render the Fitness & Freshness chart page.
@@ -1414,7 +1414,7 @@ def fitness():
     return render_template('fitness.html', title="Fitness & Freshness", current_period=period)
 
 
-@app.route('/api/fitness_data')
+@app.route('/api/fitness_data', methods=['GET'])
 @login_required
 def fitness_data():
     """API endpoint to compute and return fitness/freshness (CTL/ATL/TSB).
@@ -1439,7 +1439,7 @@ def fitness_data():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/vo2max')
+@app.route('/vo2max', methods=['GET'])
 @login_required
 def vo2max():
     """Render the VO₂max estimation page.
@@ -1529,7 +1529,7 @@ def vo2max():
     )
 
 
-@app.route('/api/vo2max_history')
+@app.route('/api/vo2max_history', methods=['GET'])
 @login_required
 def vo2max_history():
     """Return per-ride VO₂max estimates as a JSON time-series for the chart.
@@ -1608,7 +1608,7 @@ def vo2max_history():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/stats')
+@app.route('/stats', methods=['GET'])
 @login_required
 def stats():
     """Render the Mega Stats infographic page.
@@ -1657,7 +1657,7 @@ def stats():
     )
 
 
-@app.route('/api/stats_data')
+@app.route('/api/stats_data', methods=['GET'])
 @login_required
 def stats_data_api():
     """Return computed Mega Stats as JSON for the infographic.
@@ -1741,7 +1741,7 @@ def _format_stats_date(date_value):
     return dt.strftime(config.date_format)
 
 
-@app.route('/logs')
+@app.route('/logs', methods=['GET'])
 def logs():
     """Render the sync logs page showing recent sync actions.
 
@@ -1782,7 +1782,7 @@ def logs():
     return render_template('logs.html', title="Sync Logs", log_text=log_text)
 
 
-@app.route('/settings')
+@app.route('/settings', methods=['GET'])
 @login_required
 def settings():
     """Render the Settings page shell.
@@ -1793,7 +1793,7 @@ def settings():
     return render_template('settings.html', title="Settings")
 
 
-@app.route('/strava/reconnect')
+@app.route('/strava/reconnect', methods=['GET'])
 @login_required
 def strava_reconnect():
     """Start a Strava OAuth reauthorization flow with the needed scopes."""
@@ -1806,7 +1806,7 @@ def strava_reconnect():
     return redirect(_build_strava_authorize_url(state))
 
 
-@app.route('/strava/callback')
+@app.route('/strava/callback', methods=['GET'])
 @login_required
 def strava_oauth_callback():
     """Complete the Strava OAuth reconnect flow."""
@@ -1889,7 +1889,7 @@ def license_page():
     )
 
 
-@app.route('/api/settings')
+@app.route('/api/settings', methods=['GET'])
 @login_required
 def get_settings():
     """Return runtime and database settings as JSON for the UI settings panel.
