@@ -14,6 +14,12 @@
     .leaflet-container .leaflet-control-zoom a {
         text-decoration: none;
     }
+    /* Pin attribution text metrics locally so live view and PNG export clones match. */
+    .leaflet-container .leaflet-control-attribution {
+        font: 11px/1.4 "Helvetica Neue", Arial, Helvetica, sans-serif;
+        padding: 0 5px;
+        box-sizing: border-box;
+    }
     /* Pulsing glow for hovered route — the highlight pane must be
        transparent to pointer events so canvas mouseover/mouseout still fire. */
     .leaflet-highlight-pane { pointer-events: none !important; }
@@ -30,6 +36,10 @@
         inset: 0;
         pointer-events: none !important;
         opacity: 0;
+    }
+    /* PNG export-only styling: keep Leaflet defaults and apply minimal adjustments. */
+    #map-container.png-export .leaflet-control-zoom {
+        display: none !important;
     }
     @keyframes route-pulse {
         0%   { opacity: 0.35; }
@@ -123,8 +133,8 @@
 
             <!-- Export Button -->
             <button id="exportBtn" disabled
-                    class="px-4 py-2 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed transition shadow-sm flex items-center">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="h-10 px-4 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-md text-sm font-medium cursor-not-allowed transition shadow-sm inline-flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
@@ -133,7 +143,11 @@
 
             <!-- Back to List -->
             <a href="{{ url_for('activities') }}"
-               class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+               class="h-10 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium transition inline-flex items-center justify-center gap-2 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path>
+                </svg>
                 Back to List
             </a>
         </div>
@@ -141,7 +155,7 @@
 
     <!-- Map Container -->
     <div id="map-container"
-         class="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden relative z-0">
+         class="flex-1 min-h-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm relative z-0">
         <!-- Loading State -->
         <div id="loading-state"
              class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 z-10">
@@ -826,7 +840,20 @@
             exportBtn.addEventListener('click', function() {
                 if (exportBtn.disabled) return;
                 const mapContainer = document.getElementById('map-container');
-                html2canvas(mapContainer, { useCORS: true, allowTaint: true })
+                // Use border-box dimensions so controls pinned to edges are not clipped.
+                const exportWidth = mapContainer.offsetWidth;
+                const exportHeight = mapContainer.offsetHeight;
+                html2canvas(mapContainer, {
+                    useCORS: true,
+                    allowTaint: true,
+                    width: exportWidth,
+                    height: exportHeight,
+                    onclone: function(clonedDoc) {
+                        var clonedContainer = clonedDoc.getElementById('map-container');
+                        if (!clonedContainer) return;
+                        clonedContainer.classList.add('png-export');
+                    }
+                })
                     .then(function(canvas) {
                         const link = document.createElement('a');
                         link.download = 'kinetiqo-map.png';
