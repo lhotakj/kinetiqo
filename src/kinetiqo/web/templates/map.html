@@ -48,27 +48,65 @@
     .leaflet-bar a,
     .leaflet-control-fullscreen.leaflet-bar a,
     .leaflet-control-export.leaflet-bar a {
-        display: block;
-        width: 30px;
-        height: 30px;
-        line-height: 30px;
-        text-align: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
         padding: 0;
         background: #ffffff;
         color: #333333;
         border: 1px solid rgba(0,0,0,0.12);
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-        border-radius: 4px;
-        margin-bottom: 4px;
-        font-size: 18px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        -webkit-font-smoothing: antialiased;
+        background-clip: padding-box;
     }
+    .leaflet-bar a svg,
     .leaflet-control-fullscreen.leaflet-bar a svg,
-    .leaflet-control-export.leaflet-bar a svg,
-    .leaflet-bar a svg {
+    .leaflet-control-export.leaflet-bar a svg {
         display: block;
-        width: 18px;
-        height: 18px;
-        margin: auto;
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+    }
+
+    /* Ensure zoom anchors are stacked with a single 1px outer border (zoom out on top) */
+    .leaflet-control-zoom.leaflet-bar {
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 0;
+        background: #ffffff; /* single panel background */
+        border: 1px solid rgba(0,0,0,0.12); /* single 1px outer border */
+        border-radius: 8px;
+        overflow: hidden; /* clip inner corners */
+        padding: 0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .leaflet-control-zoom.leaflet-bar a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+        color: #333333;
+        border: none; /* anchors have no border; container provides the border */
+        box-shadow: none;
+    }
+    .leaflet-control-zoom.leaflet-bar a svg { width: 16px; height: 16px; }
+
+    /* Remove extra outer container styling for the other controls so they remain standalone */
+    .leaflet-control-fullscreen.leaflet-bar,
+    .leaflet-control-export.leaflet-bar {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
     }
     @keyframes route-pulse {
         0%   { opacity: 0.35; }
@@ -85,6 +123,36 @@
         0%   { transform: translateX(-100%); }
         60%  { transform: translateX(250%); }
         100% { transform: translateX(250%); }
+    }
+
+    /* Export confirmation modal */
+    .export-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .export-modal {
+        background: #ffffff;
+        color: #111827;
+        padding: 1rem 1.25rem;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        min-width: 260px;
+        text-align: center;
+        font-weight: 600;
+    }
+    .export-modal button {
+        margin-top: 0.5rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        border: none;
+        background: #FC4C02;
+        color: white;
+        cursor: pointer;
     }
 </style>
 {% endblock %}
@@ -493,44 +561,203 @@
         updateMapToneLayer();
     }
 
+    // Wait until the map is stable (no ongoing tile loads / movement) before capturing
+    function waitForMapStable(timeout = 800) {
+        return new Promise(function(resolve) {
+            var done = function() { try { resolve(); } catch(e) { resolve(); } };
+
+            try {
+                // If the map is already idle, resolve quickly
+                leafletMap.once('idle', done);
+
+                // Also listen for tile layer load (if present)
+                if (tileLayer && typeof tileLayer.once === 'function') {
+                    tileLayer.once('load', done);
+                }
+            } catch (e) {
+                // ignore and fallback to timeout
+            }
+
+            // Fallback timeout
+            setTimeout(done, timeout);
+        });
+    }
+
     // Export helper: render exact leaflet map area to PNG (cropped to map viewport)
-    function exportMapToPNG(filename = 'kinetiqo-map.png') {
+    async function exportMapToPNG(filename = 'kinetiqo-map.png') {
         if (!leafletMap) return;
         const mapEl = leafletMap.getContainer();
         const rect = mapEl.getBoundingClientRect();
-        const scale = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+        // Use actual devicePixelRatio for high-DPI screens, but cap to avoid huge canvases
+        const dpr = (window.devicePixelRatio && Number(window.devicePixelRatio)) || 1;
+        const scale = Math.max(1, Math.min(4, dpr));
 
-        html2canvas(document.body, {
-            useCORS: true,
-            allowTaint: true,
-            x: Math.round(rect.left + window.scrollX),
-            y: Math.round(rect.top + window.scrollY),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-            scale: scale,
-            onclone: function(clonedDoc) {
-                var clonedContainer = clonedDoc.getElementById('map-container');
-                if (clonedContainer) clonedContainer.classList.add('png-export');
-            }
-        })
-        .then(function(canvas) {
-            // If the canvas aspect/size differs, resize to exact dimensions at 1x for download
+        // Give clear UI feedback while export runs
+        const exportBtn = document.getElementById('exportBtn');
+        let originalBtnHTML = null;
+        if (exportBtn) {
+            originalBtnHTML = exportBtn.innerHTML;
+            exportBtn.disabled = true;
+            exportBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            exportBtn.textContent = 'Exporting…';
+        }
+
+        // Ensure Leaflet has recalculated sizes and finished loading tiles
+        try { leafletMap.invalidateSize(); } catch(e) {}
+        await waitForMapStable(1200);
+
+        try {
+            // Ask html2canvas to render at the requested scale. Also pass explicit width/height
+            const canvas = await html2canvas(mapEl, {
+                useCORS: true,
+                allowTaint: true,
+                scale: scale,
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+                onclone: function(clonedDoc) {
+                    try {
+                        // reset clone document layout so positions match
+                        clonedDoc.documentElement.style.margin = '0';
+                        clonedDoc.body.style.margin = '0';
+                        clonedDoc.body.style.overflow = 'hidden';
+
+                        // sync scroll positions so cloned layout aligns with original
+                        try { clonedDoc.documentElement.scrollTop = document.documentElement.scrollTop; } catch(e) {}
+                        try { clonedDoc.documentElement.scrollLeft = document.documentElement.scrollLeft; } catch(e) {}
+                        try { clonedDoc.body.scrollTop = document.body.scrollTop; } catch(e) {}
+                        try { clonedDoc.body.scrollLeft = document.body.scrollLeft; } catch(e) {}
+                        try { if (clonedDoc.defaultView && clonedDoc.defaultView.scrollTo) clonedDoc.defaultView.scrollTo(window.scrollX || window.pageXOffset, window.scrollY || window.pageYOffset); } catch(e) {}
+                    } catch(e) {}
+
+                    var clonedContainer = clonedDoc.getElementById('map-container');
+                    var originalContainer = document.getElementById('map-container');
+                    if (clonedContainer && originalContainer) {
+                        clonedContainer.classList.add('png-export');
+
+                        // Force exact pixel size for the cloned container
+                        clonedContainer.style.width = Math.round(rect.width) + 'px';
+                        clonedContainer.style.height = Math.round(rect.height) + 'px';
+                        clonedContainer.style.margin = '0';
+                        clonedContainer.style.padding = '0';
+                        clonedContainer.style.boxSizing = 'border-box';
+
+                        // Position the cloned container so its internal panes line up with the original render
+                        var origRect = originalContainer.getBoundingClientRect();
+                        var left = Math.round(origRect.left - (window.scrollX || window.pageXOffset));
+                        var top = Math.round(origRect.top - (window.scrollY || window.pageYOffset));
+                        clonedContainer.style.position = 'absolute';
+                        clonedContainer.style.left = left + 'px';
+                        clonedContainer.style.top = top + 'px';
+
+                        // Copy computed transform and positioning from original map panes to preserve tile offsets
+                        try {
+                            var origMapPane = originalContainer.querySelector('.leaflet-map-pane');
+                            var clonedMapPane = clonedContainer.querySelector('.leaflet-map-pane');
+                            if (origMapPane && clonedMapPane) {
+                                var paneCS = window.getComputedStyle(origMapPane);
+                                clonedMapPane.style.transform = paneCS.transform || '';
+                                clonedMapPane.style.left = paneCS.left || '';
+                                clonedMapPane.style.top = paneCS.top || '';
+                            }
+
+                            var origTilePane = originalContainer.querySelector('.leaflet-tile-pane');
+                            var clonedTilePane = clonedContainer.querySelector('.leaflet-tile-pane');
+                            if (origTilePane && clonedTilePane) {
+                                var tileCS = window.getComputedStyle(origTilePane);
+                                clonedTilePane.style.transform = tileCS.transform || '';
+                            }
+                        } catch(e) {}
+
+                        // Ensure tile images are not constrained in the clone
+                        var imgs = clonedContainer.querySelectorAll('img');
+                        imgs.forEach(function(i){
+                            i.style.maxWidth = 'none';
+                            i.style.maxHeight = 'none';
+                            i.style.width = 'auto';
+                            i.style.height = 'auto';
+                        });
+
+                        // Remove any scroll offset in the clone
+                        try { clonedContainer.scrollTop = 0; clonedContainer.scrollLeft = 0; } catch(e) {}
+                    }
+                }
+            });
+
+            // Create final canvas at device pixels so PNG matches screen pixel size (fullscreen on 4k)
             const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = Math.round(rect.width * 1);
-            finalCanvas.height = Math.round(rect.height * 1);
+            finalCanvas.width = Math.round(rect.width * scale);
+            finalCanvas.height = Math.round(rect.height * scale);
             const ctx = finalCanvas.getContext('2d');
-            // Draw the captured canvas scaled down to 1x to remove extra white area introduced by scaling
+
+            // Draw the captured canvas into the final canvas (should already be at the same scale)
             ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, finalCanvas.width, finalCanvas.height);
 
             const link = document.createElement('a');
             link.download = filename;
-            link.href = finalCanvas.toDataURL();
+            link.href = finalCanvas.toDataURL('image/png');
             link.click();
-        })
-        .catch(function(err) {
+
+            // Show a short confirmation modal
+            try { showExportCompleteModal(filename); } catch(e) { /* ignore */ }
+        } catch (err) {
             console.error('Export failed:', err);
             alert('Could not export map to image. Try taking a screenshot instead.');
-        });
+        } finally {
+            if (exportBtn) {
+                exportBtn.disabled = false;
+                exportBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                if (originalBtnHTML) exportBtn.innerHTML = originalBtnHTML;
+            }
+        }
+    }
+
+    // Show a transient modal to confirm export completion
+    function showExportCompleteModal(filename) {
+        // Remove existing modal if present
+        var existing = document.getElementById('export-modal-backdrop');
+        if (existing) { existing.remove(); }
+
+        var backdrop = document.createElement('div');
+        backdrop.id = 'export-modal-backdrop';
+        backdrop.className = 'export-modal-backdrop';
+
+        var box = document.createElement('div');
+        box.className = 'export-modal';
+        box.innerHTML = '<div>Map export complete</div><div style="font-weight:400;font-size:0.9rem;color:#374151;margin-top:6px;">Downloaded: ' + (filename || 'kinetiqo-map.png') + '</div>';
+
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = 'OK';
+        closeBtn.addEventListener('click', function() { backdrop.remove(); });
+        box.appendChild(closeBtn);
+
+        backdrop.appendChild(box);
+
+        // Determine where to attach the modal so it is visible in fullscreen
+        var mapContainer = document.getElementById('map-container');
+        var fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || null;
+        var host = document.body;
+        var useAbsolute = false;
+        if (fullscreenEl && mapContainer && fullscreenEl === mapContainer) {
+            host = mapContainer;
+            useAbsolute = true;
+        }
+
+        if (useAbsolute) {
+            // Append inside the fullscreen map container and use absolute positioning
+            backdrop.style.position = 'absolute';
+            backdrop.style.inset = '0';
+            backdrop.style.zIndex = '99999';
+            host.appendChild(backdrop);
+        } else {
+            // Append to body and fixed-position (normal mode)
+            backdrop.style.position = 'fixed';
+            backdrop.style.inset = '0';
+            backdrop.style.zIndex = '9999';
+            document.body.appendChild(backdrop);
+        }
+
+        // Auto-dismiss after 3 seconds
+        setTimeout(function() { try { backdrop.remove(); } catch(e) {} }, 3000);
     }
 
     // --- Complementary color helper ---
