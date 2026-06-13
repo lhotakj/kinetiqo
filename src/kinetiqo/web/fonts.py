@@ -281,7 +281,7 @@ def generate_local_css(
             f"  font-family: '{b['family']}';",
             f"  font-style: {b['style']};",
             f"  font-weight: {b['weight']};",
-            f"  font-display: block;",
+             "  font-display: block;",
             f"  src: url('{static_fonts_path}/{b['filename']}') format('woff2');",
             f"  unicode-range: {b['unicode_range']};",
             "}",
