@@ -5,8 +5,9 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/lhotakj/kinetiqo?style=flat-square&logo=docker)](https://hub.docker.com/r/lhotakj/kinetiqo)
 [![Python Version](https://img.shields.io/badge/python-3.13%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
 <img src="https://img.shields.io/github/v/release/lhotakj/kinetiqo.svg" alt="Releases"></img>
-<img src="https://img.shields.io/badge/dependabot-up--to--date-brightgreen.svg" alt="Dependabot Status"></img>
-<img src="https://snyk.io/test/github/lhotakj/<REPO>/badge.svg" alt="Known Vulnerabilities"></img>
+![Dependabot Alerts](https://img.shields.io/github/dependabot/alerts/lhotakj/kinetiqo)
+![Dependabot Status](https://img.shields.io/badge/Dependabot-enabled-brightgreen?logo=dependabot)
+<img src="https://snyk.io/test/github/lhotakj/kinetiqo/badge.svg" alt="Known Vulnerabilities"></img>
 
 Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**), providing full ownership and control over your fitness history.
 
