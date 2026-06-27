@@ -3,6 +3,8 @@ set -e
 # entrypoint.sh
 
 VERSION=$(cat /app/version.txt)
+LOG_LEVEL="${LOG_LEVEL:-INFO}"
+GUNICORN_LOG_LEVEL=$(printf '%s' "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
 
 
 # Logging functions
@@ -31,6 +33,7 @@ echo "  |_| \_)_|_| |_|_____)  \__)_|\__  |\___/ "
 echo "                                  |_|      "
 echo ""
 info " Starting Kinetiqo v.${VERSION} ..."
+info " Gunicorn log level: ${GUNICORN_LOG_LEVEL}"
 
 CRON_ADDED=0
 CRONFILE=/tmp/crontab
@@ -101,6 +104,10 @@ if [ $CRON_ADDED -eq 1 ]; then
   # process is visible and its output goes to docker logs.
   cron -f &
   info "Cron daemon started (PID $!)"
+fi
+
+if [ "${1:-}" = "gunicorn" ]; then
+    export GUNICORN_CMD_ARGS="${GUNICORN_CMD_ARGS:+$GUNICORN_CMD_ARGS }--log-level ${GUNICORN_LOG_LEVEL}"
 fi
 
 # Execute the command passed to docker run

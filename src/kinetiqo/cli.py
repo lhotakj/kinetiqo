@@ -10,25 +10,10 @@ import click
 from kinetiqo.cache import CacheManager
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository, get_version
+from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
 from kinetiqo.profile_sync import seed_profile_from_strava
 from kinetiqo.sync import SyncService
-
-# -----------------------------
-# LOGGING SETUP
-# -----------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 logger = logging.getLogger("kinetiqo")
-logger.setLevel(logging.INFO)
-
-# Reduce noise from libraries
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("werkzeug").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def print_version():
@@ -119,18 +104,27 @@ def _load_api_keys(config):
 
 
 @click.group(help="Kinetiqo - Strava Sync Tool")
+@click.option('--log-level',
+              envvar='LOG_LEVEL',
+              type=click.Choice(LOG_LEVEL_CHOICES, case_sensitive=False),
+              default='INFO',
+              show_default=True,
+              help='Set the log verbosity for CLI commands.')
 @click.option('--database', '-d',
               type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
               default=None,
               help='Database backend to use (overrides config).')
 @click.pass_context
-def cli(ctx, database):
+def cli(ctx, log_level, database):
     """Main CLI entry point."""
     ctx.obj = State()
     config = Config()
     if database:
         config.database_type = database.lower()
+    config.log_level = log_level.upper()
     ctx.obj.config = config
+    ctx.obj.log_level = config.log_level
+    configure_logging(config.log_level)
 
     if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
         validate_config(config)

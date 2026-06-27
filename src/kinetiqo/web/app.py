@@ -20,6 +20,7 @@ from flask_compress import Compress
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
+from kinetiqo.logging_utils import configure_logging
 from kinetiqo.web.fonts import (
     GOOGLE_FONTS,
     LOGIN_GOOGLE_FONTS_URL,
@@ -66,8 +67,6 @@ documentation.
 import platform  # noqa: E402
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("kinetiqo.web")
 
 STRAVA_REAUTH_SCOPES = "read,activity:read_all,profile:read_all"
@@ -160,6 +159,7 @@ def set_static_headers(response):
 # --- Configuration & Database ---
 # Default config, will be overwritten by set_config
 config = Config()
+configure_logging(config.log_level)
 
 
 def get_db():
@@ -210,6 +210,7 @@ def set_config(new_config: Config):
     """
     global config
     config = new_config
+    configure_logging(new_config.log_level)
 
 
 def _build_strava_authorize_url(state: str) -> str:
@@ -760,6 +761,7 @@ def map_data_api():
             return jsonify({'error': 'No activity IDs provided'}), 400
 
         repo = get_db()
+        started_at = _time.perf_counter()
 
         # Step 1: Get activity names
         activities_data = repo.get_activities_by_ids(activity_ids)
@@ -812,6 +814,14 @@ def map_data_api():
         # Browsers strip Content-Length when transparently decompressing gzip,
         # so the client reads this to know the final decompressed size.
         response.headers['X-Uncompressed-Length'] = uncompressed_len
+
+        elapsed_seconds = _time.perf_counter() - started_at
+        logger.debug(
+            "Map data retrieved from database in %.3fs (activities=%d, points=%d)",
+            elapsed_seconds,
+            len(activities_data),
+            total_points,
+        )
 
         return response
 

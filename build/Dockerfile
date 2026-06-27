@@ -46,6 +46,7 @@ LABEL maintainer="jarda@lhotak.net" \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    LOG_LEVEL=INFO \
     FULL_SYNC="" \
     FAST_SYNC="" \
     PYTHONPATH=/usr/local/lib/python3.14/site-packages

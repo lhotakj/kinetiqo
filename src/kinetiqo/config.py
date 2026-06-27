@@ -56,6 +56,9 @@ class Config:
     # Athlete
     athlete_weight: float = 0.0  # kg — set via ATHLETE_WEIGHT env var for VO2max estimation
 
+    # Logging
+    log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
     # Map API keys
     mapy_api_key: str = os.getenv("MAPY_API_KEY", "")
     thunderforest_api_key: str = os.getenv("THUNDERFOREST_API_KEY", "")

@@ -33,10 +33,11 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - [1. Strava API Credentials](#1-strava-api-credentials)
     - [2. Database Configuration](#2-database-configuration)
     - [3. Scheduling (Cron)](#3-scheduling-cron)
-    - [4. Web Interface Configuration](#4-web-interface-configuration)
-    - [5. Athlete Configuration](#5-athlete-configuration)
-    - [6. Display Configuration](#6-display-configuration)
-    - [7. Map Configuration](#7-map-configuration)
+    - [4. Logging Configuration](#4-logging-configuration)
+    - [5. Web Interface Configuration](#5-web-interface-configuration)
+    - [6. Athlete Configuration](#6-athlete-configuration)
+    - [7. Display Configuration](#7-display-configuration)
+    - [8. Map Configuration](#8-map-configuration)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
@@ -53,6 +54,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - [Docker Compose](#docker-compose)
 - [License](#license)
   - [Map Tile Attributions](#map-tile-attributions)
+- [Benchmark of databases](#benchmark-of-databases)
 
 ## Features
 
@@ -199,6 +201,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     FIREBIRD_USER=firebird
     FIREBIRD_PASSWORD=firebird
     FIREBIRD_DATABASE=/db/data/kinetiqo.fdb
+    LOG_LEVEL=INFO
     # API for Maps
     MAPY_API_KEY="abc123"
     THUNDERFOREST_API_KEY="abc456"
@@ -294,6 +297,8 @@ Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
 > - Once the database exists, the user needs rights to **create tables, sequences, triggers, and indexes**
 > - For embedded Firebird, ensure the application has **write access** to the database file directory
 
+See [Benchmark of databases](#benchmark-of-databases) for basic comparison of all databases
+
 #### 3. Scheduling (Cron)
 The Docker image includes a built-in cron scheduler powered by `dcron`. When the container starts, the entrypoint script registers cron jobs for any sync schedules you define via environment variables. If neither variable is set, no automatic synchronization occurs.
 
@@ -329,23 +334,28 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 | `0 3 * * 0` | Weekly on Sunday at 3:00 AM |
 | `0 */6 * * *` | Every 6 hours |
 
-#### 4. Web Interface Configuration
+#### 4. Logging Configuration
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOG_LEVEL` | Log verbosity for the CLI, web app, and Dockerized Gunicorn process (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). | `INFO` |
+
+#### 5. Web Interface Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `WEB_LOGIN` | Username for web access. | `admin` |
 | `WEB_PASSWORD` | Password for web access. | `admin123` |
 
-#### 5. Athlete Configuration
+#### 6. Athlete Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ATHLETE_WEIGHT` | Athlete body weight in kilograms, used for VO₂max estimation. This is a **fallback only** — the primary source is the Strava profile (synced automatically) or the **Settings → Athlete** page in the Web UI. | `0` (not set) |
 
-#### 6. Display Configuration
+#### 7. Display Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATE_FORMAT` | Date format string (Python `strftime` syntax). | `%b %d, %Y` |
 
-#### 7. Map Configuration
+#### 8. Map Configuration
 
 Kinetiqo ships with **13 map tile layers** from 6 providers. Three providers (Mapy.cz, Thunderforest, and MapTiler) require a free API key; the rest work out of the box.
 
@@ -398,6 +408,7 @@ The CLI tool is located in the `src` directory.
 ### CLI Commands
 
 -   `--database` / `-d`: Selects the database backend (`mysql`, `postgresql`, or `firebird`), overriding environment variables.
+-   `--log-level`: Sets CLI/web/app log verbosity. Defaults to `INFO` and also reads `LOG_LEVEL`.
 -   `sync`: Initiates data synchronization.
     -   `--full-sync` / `-f`: Executes a full synchronization audit.
     -   `--fast-sync` / `-q`: Executes an incremental synchronization.
@@ -421,6 +432,9 @@ python kinetiqo.py sync --full-sync
 
 # Execute full synchronization limited to the last 30 days
 python kinetiqo.py sync --full-sync --period 30d
+
+# Run a verbose fast sync
+python kinetiqo.py --log-level DEBUG sync --fast-sync
 
 # Execute incremental synchronization
 python kinetiqo.py sync --fast-sync
@@ -650,6 +664,7 @@ docker run -d \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
+  -e LOG_LEVEL="INFO" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -e WEB_LOGIN="admin" \
@@ -696,6 +711,7 @@ services:
       - MAPY_API_KEY="${MAPY_API_KEY}"
       - THUNDERFOREST_API_KEY="${THUNDERFOREST_API_KEY}"
       - MAPTILER_API_KEY="${MAPTILER_API_KEY}"
+      - LOG_LEVEL="${LOG_LEVEL:-INFO}"
       - FAST_SYNC="*/15 * * * *"
       - FULL_SYNC="0 3 * * *"
       - WEB_LOGIN=admin
@@ -739,6 +755,7 @@ GRAFANA_ADMIN_PASSWORD=your_grafana_admin_password
 MAPY_API_KEY=your_mapy_com_api_token
 THUNDERFOREST_API_KEY=your_thunderforest_api_token
 MAPTILER_API_KEY=your_maptiler_api_token
+LOG_LEVEL=INFO
 KINETIQO_WEB_PASSWORD=your_password_for_web_interface
 ```
 
@@ -767,3 +784,17 @@ Kinetiqo displays map tiles from the following third-party providers. Their resp
 | [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | © Esri, Maxar, Earthstar Geographics |
 
 For API key setup instructions, see [Map Configuration](#7-map-configuration) above.
+
+## Benchmark of databases
+
+Please see a few metrics of all three databases on common operations in Kinetiqo. The benchmarking was done on the same host with using dockerized databases with default setup.
+
+*Fetch data for rendering map of activities (141 activities and 656,429 GPS points)*
+
+| Database   | Load Time (s)   |
+|------------|-----------------|
+| PostgreSQL |   1.411         |
+| MySQL      |   3.685         |
+| Firebird   |   9.840         |
+
+

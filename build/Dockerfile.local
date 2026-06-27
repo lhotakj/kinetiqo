@@ -80,6 +80,7 @@ LABEL maintainer="jarda@lhotak.net" \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    LOG_LEVEL=INFO \
     FULL_SYNC="" \
     FAST_SYNC="" \
     PYTHONPATH=/usr/local/lib/python3.14/site-packages \
@@ -145,4 +146,3 @@ EXPOSE 4444
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:4444", "--workers", "4", "--timeout", "180", "kinetiqo.web.app:app"]
-
