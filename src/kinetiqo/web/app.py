@@ -72,6 +72,7 @@ logger = logging.getLogger("kinetiqo.web")
 
 STRAVA_REAUTH_SCOPES = "read,activity:read_all,profile:read_all"
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
+STRAVA_RECONNECT_TITLE = "Reconnect with Strava"
 
 app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
@@ -522,15 +523,90 @@ def _build_tile_providers() -> dict:
             'maxZoom': 22
         }
 
+    # MapTiler – use the official tile API (no proxy required).
+    # Free tier key from https://cloud.maptiler.com/account/keys/
+    mt_key = config.maptiler_api_key
+    mt_attr = ('&copy; <a href="https://www.maptiler.com/">MapTiler</a>, '
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
+    if mt_key:
+        providers['maptiler_bright'] = {
+            'name': 'MapTiler (Bright)',
+            'url': f'https://api.maptiler.com/maps/bright-v2/{{z}}/{{x}}/{{y}}.png?key={mt_key}',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_outdoor'] = {
+            'name': 'MapTiler (Outdoor)',
+            'url': f'https://api.maptiler.com/maps/outdoor-v2/{{z}}/{{x}}/{{y}}.png?key={mt_key}',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_topo'] = {
+            'name': 'MapTiler (Topo)',
+            'url': f'https://api.maptiler.com/maps/topo-v2/{{z}}/{{x}}/{{y}}.png?key={mt_key}',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_satellite'] = {
+            'name': 'MapTiler (Satellite)',
+            'url': f'https://api.maptiler.com/maps/satellite/{{z}}/{{x}}/{{y}}.jpg?key={mt_key}',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_aquarelle'] = {
+            'name': 'MapTiler (Aquarelle)',
+            'url': f'https://api.maptiler.com/maps/aquarelle/{{z}}/{{x}}/{{y}}.png?key={mt_key}',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+    else:
+        # No API key — include entries as disabled so the UI can show them
+        # greyed-out with a hint that a key is needed.
+        providers['maptiler_bright'] = {
+            'name': 'MapTiler (Bright)',
+            'disabled': True,
+            'url': '',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_outdoor'] = {
+            'name': 'MapTiler (Outdoor)',
+            'disabled': True,
+            'url': '',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_topo'] = {
+            'name': 'MapTiler (Topo)',
+            'disabled': True,
+            'url': '',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_satellite'] = {
+            'name': 'MapTiler (Satellite)',
+            'disabled': True,
+            'url': '',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+        providers['maptiler_aquarelle'] = {
+            'name': 'MapTiler (Aquarelle)',
+            'disabled': True,
+            'url': '',
+            'attr': mt_attr,
+            'maxZoom': 20
+        }
+
     providers.update({
         'cartodbpositron': {
-            'name': 'CartoDB Positron',
+            'name': 'CartoDB (Positron)',
             'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
             'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
             'maxZoom': 20
         },
         'cartodbdark': {
-            'name': 'CartoDB Dark',
+            'name': 'CartoDB (Dark)',
             'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
             'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
             'maxZoom': 20
@@ -1811,7 +1887,7 @@ def strava_oauth_callback():
     if error:
         return render_template(
             'strava_reconnect.html',
-            title='Reconnect with Strava',
+            title=STRAVA_RECONNECT_TITLE,
             error_message=f'Strava cancelled the reconnect flow: {error}',
             settings_url=url_for('settings'),
         )
@@ -1823,7 +1899,7 @@ def strava_oauth_callback():
     if not code:
         return render_template(
             'strava_reconnect.html',
-            title='Reconnect with Strava',
+            title=STRAVA_RECONNECT_TITLE,
             error_message='Strava did not return an authorization code.',
             settings_url=url_for('settings'),
         )
@@ -1831,7 +1907,7 @@ def strava_oauth_callback():
     if not state or state != expected_state:
         return render_template(
             'strava_reconnect.html',
-            title='Reconnect with Strava',
+            title=STRAVA_RECONNECT_TITLE,
             error_message='Strava reconnect state did not match. Please try again.',
             settings_url=url_for('settings'),
         )
@@ -1848,7 +1924,7 @@ def strava_oauth_callback():
 
         return render_template(
             'strava_reconnect.html',
-            title='Reconnect with Strava',
+            title=STRAVA_RECONNECT_TITLE,
             success=True,
             refresh_token=new_refresh_token,
             scope=token_data.get('scope', ''),
@@ -1860,7 +1936,7 @@ def strava_oauth_callback():
         logger.error(f"Error reconnecting with Strava: {e}")
         return render_template(
             'strava_reconnect.html',
-            title='Reconnect with Strava',
+            title=STRAVA_RECONNECT_TITLE,
             error_message=str(e),
             settings_url=url_for('settings'),
         )

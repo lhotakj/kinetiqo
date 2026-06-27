@@ -64,7 +64,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🫁 **VO₂max Estimation**: Estimates your VO₂max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
 - 🏃 **Fitness & Freshness**: CTL / ATL / TSB chart calculated from suffer score, with configurable time constants.
 - 🎯 **Activity Goals**: Set weekly, monthly, and yearly distance and elevation goals per activity type (Cycling, Running, Hiking, etc.) with progress tracking on the Settings page.
-- 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with multiple tile providers (OpenStreetMap, Mapy.cz, Thunderforest, CARTO, Esri). Tiles are served through a server-side proxy that satisfies the OSM usage policy. Canvas renderer for performance with large datasets, plus persisted route styling, map opacity, and an optional color tone overlay.
+- 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with multiple tile providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, CARTO, Esri). Tiles are served through a server-side proxy that satisfies the OSM usage policy. Canvas renderer for performance with large datasets, plus persisted route styling, map opacity, and an optional color tone overlay.
 - 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
 - 📝 **Audit Logging**: Records all synchronization operations and data modifications, viewable in the Web UI.
 - 🔄 **Intelligent Synchronization**:
@@ -347,12 +347,13 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 
 #### 7. Map Configuration
 
-Kinetiqo ships with **8 map tile layers** from 5 providers. Two providers (Mapy.cz and Thunderforest) require a free API key; the rest work out of the box.
+Kinetiqo ships with **13 map tile layers** from 6 providers. Three providers (Mapy.cz, Thunderforest, and MapTiler) require a free API key; the rest work out of the box.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MAPY_API_KEY` | API key for Mapy.cz tile layers (Basic & Outdoor). | _(empty)_ |
 | `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers (OpenCycleMap & Outdoors). | _(empty)_ |
+| `MAPTILER_API_KEY` | API key for MapTiler tile layers (Bright, Outdoor, Topo, Satellite, Aquarelle). | _(empty)_ |
 
 **Available map layers:**
 
@@ -363,9 +364,14 @@ Kinetiqo ships with **8 map tile layers** from 5 providers. Two providers (Mapy.
 | 3 | **Mapy.cz (Outdoor)** | Seznam.cz | `MAPY_API_KEY` | 19 | Hiking & outdoor trails |
 | 4 | **Thunderforest (OpenCycleMap)** | Thunderforest | `THUNDERFOREST_API_KEY` | 22 | Cycling routes, bike infrastructure |
 | 5 | **Thunderforest (Outdoors)** | Thunderforest | `THUNDERFOREST_API_KEY` | 22 | Hiking, contours, terrain |
-| 6 | **CartoDB Positron** | CARTO | No | 20 | Minimalist light basemap |
-| 7 | **CartoDB Dark** | CARTO | No | 20 | Dark theme basemap |
-| 8 | **Esri World Imagery** | Esri | No | 18 | Satellite imagery |
+| 6 | **MapTiler (Bright)** | MapTiler | `MAPTILER_API_KEY` | 20 | Clean, modern basemap |
+| 7 | **MapTiler (Outdoor)** | MapTiler | `MAPTILER_API_KEY` | 20 | Hiking, terrain, contours |
+| 8 | **MapTiler (Topo)** | MapTiler | `MAPTILER_API_KEY` | 20 | Topographic map for outdoor activities |
+| 9 | **MapTiler (Satellite)** | MapTiler | `MAPTILER_API_KEY` | 20 | Satellite imagery |
+| 10 | **MapTiler (Aquarelle)** | MapTiler | `MAPTILER_API_KEY` | 20 | Artistic watercolor-style map |
+| 11 | **CartoDB (Positron)** | CARTO | No | 20 | Minimalist light basemap |
+| 12 | **CartoDB (Dark)** | CARTO | No | 20 | Dark theme basemap |
+| 13 | **Esri World Imagery** | Esri | No | 18 | Satellite imagery |
 
 > Layers that require a missing API key appear **greyed-out** in the map selector with a hint. They are not removed — just disabled until the key is configured.
 
@@ -377,6 +383,7 @@ Kinetiqo ships with **8 map tile layers** from 5 providers. Two providers (Mapy.
 |---|---|---|
 | **Mapy.cz** (Seznam.cz) | Up to 250,000 credits/month for non-commercial / personal use | 1. Go to [developer.mapy.com](https://developer.mapy.com) → 2. Register or sign in with a Seznam account → 3. Create a new project → 4. Copy the API key → 5. Set `MAPY_API_KEY` env var |
 | **Thunderforest** | Up to 150,000 tiles/month for hobby / personal projects | 1. Go to [manage.thunderforest.com/signup](https://manage.thunderforest.com/signup) → 2. Register for a free "Hobby Project" account → 3. Copy the API key from the dashboard → 4. Set `THUNDERFOREST_API_KEY` env var |
+| **MapTiler** | Up to 100,000 requests/month for development & personal use | 1. Go to [cloud.maptiler.com](https://cloud.maptiler.com) → 2. Register for a free account → 3. Go to [Account → Keys](https://cloud.maptiler.com/account/keys/) → 4. Copy your API key → 5. Set `MAPTILER_API_KEY` env var |
 
 > **OSM tile proxy:** OpenStreetMap tiles are served through a built-in server-side proxy (`/tiles/osm/...`) so the browser never contacts `tile.openstreetmap.org` directly. This satisfies the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) by attaching a proper `User-Agent` and `Referer` header from the server.
 
@@ -625,7 +632,7 @@ Triggered **manually** (with `publish` and `create_release` boolean inputs) or a
 
 ### Docker Run
 
-Example command to deploy Kinetiqo as a standalone container with PostgreSQL as database and providing API keys for mapy.com and thunderforest.com maps:
+Example command to deploy Kinetiqo as a standalone container with PostgreSQL as database and providing API keys for mapy.com, thunderforest.com, and maptiler.com maps:
 
 ```bash
 docker run -d \
@@ -642,6 +649,7 @@ docker run -d \
   -e POSTGRESQL_DATABASE="kinetiqo" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
+  -e MAPTILER_API_KEY="your_maptiler_api_token" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -e WEB_LOGIN="admin" \
@@ -687,6 +695,7 @@ services:
       - POSTGRESQL_DATABASE=kinetiqo
       - MAPY_API_KEY="${MAPY_API_KEY}"
       - THUNDERFOREST_API_KEY="${THUNDERFOREST_API_KEY}"
+      - MAPTILER_API_KEY="${MAPTILER_API_KEY}"
       - FAST_SYNC="*/15 * * * *"
       - FULL_SYNC="0 3 * * *"
       - WEB_LOGIN=admin
@@ -729,6 +738,7 @@ POSTGRESQL_PASSWORD=your_secure_password
 GRAFANA_ADMIN_PASSWORD=your_grafana_admin_password
 MAPY_API_KEY=your_mapy_com_api_token
 THUNDERFOREST_API_KEY=your_thunderforest_api_token
+MAPTILER_API_KEY=your_maptiler_api_token
 KINETIQO_WEB_PASSWORD=your_password_for_web_interface
 ```
 
