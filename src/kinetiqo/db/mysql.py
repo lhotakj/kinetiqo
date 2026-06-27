@@ -107,10 +107,10 @@ class MySQLRepository(DatabaseRepository):
 
             self.conn.database = self.config.mysql_database
 
-        except Exception as err:
+        except Exception:
             try:
                 self.conn.database = self.config.mysql_database
-            except:
+            except Exception as err:
                 logger.warning(f"Cannot create/select database: {err}")
                 sys.exit(1)
 

@@ -119,7 +119,7 @@ def test_chromium_detection():
             return False
 
     # Scenario 2: Playwright bundled Chromium
-    print(f"\n      [Scenario 2] Playwright bundled Chromium (default)")
+    print("\n      [Scenario 2] Playwright bundled Chromium (default)")
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -142,13 +142,13 @@ def test_chromium_detection():
                 launch_kwargs['executable_path'] = exe_path
                 print(f"      ✓ Will use system Chromium: {exe_path}")
             else:
-                print(f"      ℹ Will use Playwright's bundled Chromium")
+                print("      ℹ Will use Playwright's bundled Chromium")
 
             browser = p.chromium.launch(**launch_kwargs)
             version = browser.version
             browser.close()
 
-            print(f"      ✓ Combined detection launched successfully")
+            print("      ✓ Combined detection launched successfully")
             print(f"      ✓ Final Chromium version: {version}")
 
     except Exception as e:

@@ -47,7 +47,7 @@ class SyncService:
         if os.path.exists(STOP_SIGNAL_FILE):
             try:
                 os.remove(STOP_SIGNAL_FILE)
-            except:
+            except Exception:
                 pass
             return True
         return False
@@ -113,7 +113,7 @@ class SyncService:
                 return f"data: {log_content}\n\n"
 
         try:
-            stop_button_html = f"""<button id="start-sync-btn" 
+            stop_button_html = """<button id="start-sync-btn" 
                     hx-post="/api/sync/stop" 
                     hx-swap="none"
                     hx-swap-oob="true"

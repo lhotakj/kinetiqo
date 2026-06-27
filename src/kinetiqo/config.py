@@ -73,21 +73,21 @@ class Config:
             try:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))
             except ValueError:
-                logger.error(f"Environment variable POSTGRESQL_PORT should be a number")
+                logger.error("Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
 
         if os.getenv("MYSQL_PORT"):
             try:
                 self.mysql_port = int(os.getenv("MYSQL_PORT"))
             except ValueError:
-                logger.error(f"Environment variable MYSQL_PORT should be a number")
+                logger.error("Environment variable MYSQL_PORT should be a number")
                 sys.exit(1)
 
         if os.getenv("FIREBIRD_PORT"):
             try:
                 self.firebird_port = int(os.getenv("FIREBIRD_PORT"))
             except ValueError:
-                logger.error(f"Environment variable FIREBIRD_PORT should be a number")
+                logger.error("Environment variable FIREBIRD_PORT should be a number")
                 sys.exit(1)
 
         if os.getenv("ATHLETE_WEIGHT"):

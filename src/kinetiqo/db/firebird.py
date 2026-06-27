@@ -8,6 +8,15 @@ from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 
+# Optional Firebird driver module.  Only the top-level module is imported here;
+# subcomponents (driver.connect, base.tpb, Isolation, TraAccessMode) are
+# resolved dynamically in _connect() to handle variations between versions.
+try:
+    import firebird
+except Exception:
+    firebird = None
+
+
 logger = logging.getLogger("kinetiqo")
 
 
@@ -34,18 +43,21 @@ class FirebirdRepository(DatabaseRepository):
         """
         self.config = config
         self._last_verified: float = 0.0
+        # Ensure attribute exists even if _connect() fails so close() is safe.
+        self.conn = None
         try:
             self.conn = self._connect()
             self._last_verified = time.monotonic()
         except Exception as err:
             logger.warning(f"Cannot connect to Firebird: {err}")
-            sys.exit(1)
+            # Re-raise a clearer error for callers to handle (avoids AttributeError later).
+            raise
 
         try:
             self._ensure_database()
         except Exception as err:
             logger.warning(f"Cannot ensure database: {err}")
-            sys.exit(1)
+            raise
 
     def _validate_timestamp(self, timestamp: datetime) -> datetime:
         """Validate and fix timestamps that are before Unix epoch."""
@@ -54,24 +66,81 @@ class FirebirdRepository(DatabaseRepository):
         return timestamp
 
     def _connect(self):
-        """Helper to connect to the Firebird database."""
+        """Helper to connect to the Firebird database.
+
+        This function is tolerant to multiple layouts of the installed
+        Firebird package. It tries to locate a connect() callable in the
+        most common locations and also attempts to load TPB helpers where
+        available. If the installed package does not expose a connector,
+        an informative ImportError is raised containing available attributes
+        for easier debugging.
+        """
+        if firebird is None:
+            raise ImportError(
+                "Firebird driver not available. Install the runtime dependency 'firebird-driver' "
+                "(pip install firebird-driver) or switch to a different database backend."
+            )
+
+        import importlib
+
+        # Determine the connect() callable from the installed package.
+        connect_func = None
         try:
+            if hasattr(firebird, 'driver') and hasattr(firebird.driver, 'connect'):
+                connect_func = firebird.driver.connect
+            elif hasattr(firebird, 'connect'):
+                connect_func = firebird.connect
+            else:
+                # Try to import firebird.driver module explicitly
+                try:
+                    drv = importlib.import_module('firebird.driver')
+                    if hasattr(drv, 'connect'):
+                        connect_func = drv.connect
+                except Exception:
+                    pass
+
+            if connect_func is None:
+                available = ', '.join(sorted(dir(firebird)))
+                raise ImportError(
+                    f"Installed 'firebird' module does not expose a connection function. "
+                    f"Available attributes: {available}"
+                )
+
             dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
 
-            conn = firebird.driver.connect(
+            conn = connect_func(
                 database=dsn,
                 user=self.config.firebird_user,
                 password=self.config.firebird_password,
                 charset='UTF8'
             )
 
-            # READ COMMITTED RECORD VERSION ensures we see the latest committed data
-            # without the overhead of SNAPSHOT isolation.
-            rc_tpb = tpb(isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
-                         access_mode=TraAccessMode.WRITE)
-            conn.main_transaction.default_tpb = rc_tpb
+            # Try to locate TPB helpers from common module locations and set TPB if available.
+            tpb = None
+            Isolation = None
+            TraAccessMode = None
+            for mod_name in ('firebird.base', 'firebird.driver', 'firebird'):
+                try:
+                    m = importlib.import_module(mod_name)
+                except Exception:
+                    continue
+                if tpb is None and hasattr(m, 'tpb'):
+                    tpb = getattr(m, 'tpb')
+                if Isolation is None and hasattr(m, 'Isolation'):
+                    Isolation = getattr(m, 'Isolation')
+                if TraAccessMode is None and hasattr(m, 'TraAccessMode'):
+                    TraAccessMode = getattr(m, 'TraAccessMode')
+
+            if tpb and Isolation and TraAccessMode:
+                try:
+                    rc_tpb = tpb(isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
+                                 access_mode=TraAccessMode.WRITE)
+                    conn.main_transaction.default_tpb = rc_tpb
+                except Exception:
+                    logger.warning("Could not set TPB on Firebird connection; continuing without it.")
 
             return conn
+
         except Exception as e:
             logger.exception(f"Failed to connect to Firebird: {e}")
             raise
@@ -125,7 +194,7 @@ class FirebirdRepository(DatabaseRepository):
                 if self.conn:
                     try:
                         self.conn.close()
-                    except:
+                    except Exception:
                         pass
                 dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
                 firebird.driver.create_database(
@@ -1153,8 +1222,9 @@ class FirebirdRepository(DatabaseRepository):
     def close(self):
         """Close Firebird connection if open; log any errors."""
         try:
-            if self.conn:
-                self.conn.close()
+            conn = getattr(self, 'conn', None)
+            if conn:
+                conn.close()
         except Exception as e:
             logger.warning(f"Error closing Firebird connection: {e}")
 

@@ -70,10 +70,14 @@ def parse_period(period_str):
     value = int(match.group(1))
     unit = match.group(2).lower()
 
-    if unit == 'd': return value
-    if unit == 'w': return value * 7
-    if unit == 'm': return value * 30
-    if unit == 'y': return value * 365
+    if unit == 'd':
+        return value
+    if unit == 'w':
+        return value * 7
+    if unit == 'm':
+        return value * 30
+    if unit == 'y':
+        return value * 365
     return 0
 
 

@@ -20,12 +20,9 @@ from flask_compress import Compress
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
-from kinetiqo.db.repository import STRAVA_TYPE_TO_GOAL_TYPE
 from kinetiqo.web.fonts import (
-    BASE_GOOGLE_FONTS_URL,
     GOOGLE_FONTS,
     LOGIN_GOOGLE_FONTS_URL,
-    POSTER_GOOGLE_FONTS_URL,
     ensure_fonts_local,
     ensure_poster_fonts_local,
     get_google_fonts,
@@ -66,7 +63,7 @@ documentation.
 """
 
 # --- Python version detection ---
-import platform
+import platform  # noqa: E402
 
 
 # Configure logging
@@ -278,7 +275,7 @@ def describe_cron(expression):
         if minute != "*" and hour != "*" and day == "*" and month == "*" and dow == "*":
             return f"Daily at {hour}:{minute.zfill(2)}"
 
-    except:
+    except Exception:
         pass
 
     return expression
@@ -343,7 +340,7 @@ def get_dynamic_limit_days():
 # --- Routes ---
 
 # Import additional routes from modules
-from kinetiqo.web.progress import bp as progress_bp
+from kinetiqo.web.progress import bp as progress_bp  # noqa: E402
 app.register_blueprint(progress_bp)
 
 @app.route('/', methods=['GET'])
@@ -822,7 +819,7 @@ def powerskills():
             try:
                 dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
                 date_str = dt.strftime(config.date_format)
-            except:
+            except Exception:
                 date_str = a['start_date']
             
             activity_map[str(a['id'])] = {
@@ -1241,7 +1238,7 @@ def ftp():
         # Push the date cut-off to SQL so the DB returns only the relevant rows.
         # The composite index idx_activities_sport_start_date (sport, start_date DESC)
         # covers both the sport filter and the date predicate efficiently.
-        from datetime import timedelta, timezone as tz
+        from datetime import timedelta
 
         # Fetch cycling activities first (we'll compute an anchor date from the
         # returned rows and apply the period filter relative to the most
@@ -1333,7 +1330,7 @@ def ftp_history():
 
         # Push the date cut-off to SQL — avoids loading the full activity list
         # into Python just to discard old rows.
-        from datetime import timedelta, timezone as tz
+        from datetime import timedelta
 
         # Fetch cycling activities first and then apply a period filter
         # relative to the latest activity. This ensures deterministic
@@ -1764,7 +1761,7 @@ def logs():
             try:
                 dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
                 ts_str = dt.strftime("%b %d, %Y %H:%M")
-            except:
+            except Exception:
                 ts_str = str(ts)[:20]
 
             status = "success" if log['success'] else "failed"
@@ -2169,7 +2166,8 @@ def get_activities_api():
         offset = 0
     else:
         # Server-side processing mode
-        if page is None: page = 1
+        if page is None:
+            page = 1
         limit = per_page
         offset = (page - 1) * per_page
 
@@ -2613,7 +2611,6 @@ def poster_export(activity_id):
       ``playwright install chromium``.
     """
     import json as _json
-    import shutil
 
     try:
         from playwright.sync_api import sync_playwright
@@ -2655,7 +2652,7 @@ def poster_export(activity_id):
     # TLS termination.  The Flask dev server and gunicorn both bind on 4444;
     # fall back to the port embedded in request.host if different.
     host_header = request.host  # e.g. "localhost:4444" or "kinetiqo.example.com"
-    host_domain = host_header.split(':')[0]  # strip port for cookie domain
+    host_header.split(':')[0]  # strip port for cookie domain
     port = host_header.split(':')[1] if ':' in host_header else '4444'
     internal_url = f"http://127.0.0.1:{port}/poster/{activity_id}"
 
@@ -2869,7 +2866,6 @@ def stats_export():
     page screenshot captures exactly width×height pixels of the infographic.
     """
     import json as _json
-    import os
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -2938,7 +2934,7 @@ def stats_export():
 
             # ── Step 1: inject the correct settings into the form controls and
             #           trigger a re-fetch so the right year/period/group/bg is shown.
-            font_size_js = _json.dumps(font_size)
+            _json.dumps(font_size)
             js_code = f"""
                 (function() {{
                     function setVal(id, val) {{
@@ -3144,7 +3140,7 @@ def inject_version():
         if os.path.exists(version_path):
             with open(version_path, "r") as vf:
                 version = vf.read().strip()
-    except:
+    except Exception:
         pass
     def _versioned(url: str) -> str:
         """Append ?v=<version> cache-buster to local /static/ URLs."""
