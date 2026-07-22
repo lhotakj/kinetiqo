@@ -20,6 +20,7 @@ from flask_compress import Compress
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
+from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 from kinetiqo.logging_utils import configure_logging
 from kinetiqo.web.fonts import (
     GOOGLE_FONTS,
@@ -69,7 +70,7 @@ import platform  # noqa: E402
 
 logger = logging.getLogger("kinetiqo.web")
 
-STRAVA_REAUTH_SCOPES = "read,activity:read_all,profile:read_all"
+STRAVA_REAUTH_SCOPES = "activity:read_all,profile:read_all,activity:write"
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_RECONNECT_TITLE = "Reconnect with Strava"
 
@@ -2047,7 +2048,9 @@ def get_profile_api():
                 logger.warning(f"Could not seed athlete profile from Strava: {e}")
                 profile = None
         if not profile:
-            return jsonify({'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0})
+            default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0}
+            default_profile.update({field: '' for field in UPDATE_STRAVA_FIELDS})
+            return jsonify(default_profile)
         return jsonify(profile)
     except Exception as e:
         logger.error(f"Error fetching profile: {e}")
@@ -2090,7 +2093,13 @@ def update_profile_api():
         else:
             weight = existing['weight']
 
-        repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight)
+        # UPDATE_STRAVA_* templates are read-only in the UI — always preserve
+        # whatever is currently stored. They are only auto-populated by
+        # sync_update_strava_from_env() while still empty in the database;
+        # once set, they're left untouched even if the env var later changes.
+        preserved_templates = {field: existing.get(field, '') for field in UPDATE_STRAVA_FIELDS}
+        repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
+                           **preserved_templates)
 
         return jsonify({
             'athlete_id': existing['athlete_id'],

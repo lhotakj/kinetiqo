@@ -38,6 +38,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - [6. Athlete Configuration](#6-athlete-configuration)
     - [7. Display Configuration](#7-display-configuration)
     - [8. Map Configuration](#8-map-configuration)
+    - [9. Strava Description Auto-Update (`UPDATE_STRAVA_*`)](#9-strava-description-auto-update-update_strava_)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
@@ -66,6 +67,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🫁 **VO₂max Estimation**: Estimates your VO₂max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
 - 🏃 **Fitness & Freshness**: CTL / ATL / TSB chart calculated from suffer score, with configurable time constants.
 - 🎯 **Activity Goals**: Set weekly, monthly, and yearly distance and elevation goals per activity type (Cycling, Running, Hiking, etc.) with progress tracking on the Settings page.
+- ✍️ **Strava Description Auto-Update**: Optionally render a custom template of 150+ placeholders (distance, elevation, activity count, ordinal, goal, percent-of-goal, and ahead/behind-plan deviation, per activity type and per week/month/year) into every synced activity's Strava description (appended at the end by default, or prepended — configurable via `UPDATE_STRAVA_PLACEMENT`), controlled per activity-type/scope via six independent environment variables (`UPDATE_STRAVA_CYCLING_INDOOR`/`_OUTDOOR`, `UPDATE_STRAVA_RUNNING_INDOOR`/`_OUTDOOR`, `UPDATE_STRAVA_WALKING`, `UPDATE_STRAVA_SWIMMING`). See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
 - 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with multiple tile providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, CARTO, Esri). Tiles are served through a server-side proxy that satisfies the OSM usage policy. Canvas renderer for performance with large datasets, plus persisted route styling, map opacity, and an optional color tone overlay.
 - 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
 - 📝 **Audit Logging**: Records all synchronization operations and data modifications, viewable in the Web UI.
@@ -249,7 +251,7 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 |----------|-------------|----------|
 | `STRAVA_CLIENT_ID` | Strava Application Client ID. | ✅ |
 | `STRAVA_CLIENT_SECRET` | Strava Application Client Secret. | ✅ |
-| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. | ✅ |
+| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. Also requires `activity:write` if you use the [Strava Description Auto-Update](#9-strava-description-auto-update-update_strava_) feature. | ✅ |
 
 #### 2. Database Configuration
 Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
@@ -400,6 +402,69 @@ Kinetiqo ships with **13 map tile layers** from 6 providers. Three providers (Ma
 > **Map controls:** The map page remembers route color, width, and route opacity together with base-map opacity (default `100%`), tone opacity (default `50%`), and an optional color tone overlay in `localStorage`. When base-map opacity is set to `0%`, the selected tone fills the map exactly.
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
+
+#### 9. Strava Description Auto-Update (`UPDATE_STRAVA_*`)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UPDATE_STRAVA_CYCLING_INDOOR` | Template for indoor rides (`VirtualRide`, `IndoorRide`). | _(empty — disabled)_ |
+| `UPDATE_STRAVA_CYCLING_OUTDOOR` | Template for outdoor rides (all other Ride variants). | _(empty — disabled)_ |
+| `UPDATE_STRAVA_RUNNING_INDOOR` | Template for indoor runs (`VirtualRun`). | _(empty — disabled)_ |
+| `UPDATE_STRAVA_RUNNING_OUTDOOR` | Template for outdoor runs (`Run`, `TrailRun`, etc.). | _(empty — disabled)_ |
+| `UPDATE_STRAVA_WALKING` | Template for walks/hikes (`Walk`, `Hike` — no indoor/outdoor split in Strava's taxonomy). | _(empty — disabled)_ |
+| `UPDATE_STRAVA_SWIMMING` | Template for swims (`Swim` — no indoor/outdoor split in Strava's taxonomy). | _(empty — disabled)_ |
+| `UPDATE_STRAVA_PLACEMENT` | Where a brand-new stats block is inserted: `begin` or `end`. Invalid values fall back to `end` with a warning. | `end` |
+
+Each variable is a text template containing `{{placeholder}}` tokens
+(distance, elevation, count, ordinal, goal, percent, deviation stats — see
+below). Every activity picks **exactly one** of the six templates based on
+its own sport type; when that template is non-empty, the activity's Strava
+description is rendered from it and inserted/updated in the description,
+without disturbing the rest of the text. Activities whose sport type doesn't
+map to one of the six buckets (e.g. `WeightTraining`) are never touched. When
+all six variables are empty/unset (the default), no description updates are
+performed and no extra Strava API calls are made.
+
+> ⚠️ **Requires the `activity:write` scope.** Updating a description is a
+> *write* call, unlike the rest of Kinetiqo's Strava usage (which is
+> read-only). If your `STRAVA_REFRESH_TOKEN` was only ever authorized with
+> `activity:read_all`/`profile:read_all`, every description update will fail
+> with `401 Unauthorized` even though syncing activities themselves works
+> fine. Reconnect via **Settings → Reconnect with Strava** to grant
+> `activity:write` (the button now requests it automatically). Once the
+> first update in a sync run 401s, Kinetiqo stops trying for the rest of
+> that run instead of retrying every remaining activity.
+
+Basic example — a single template applied to outdoor rides only:
+
+```bash
+UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled ({{cycling-distance-percent-total-year}} of the {{current-year}} goal, {{cycling-distance-deviation-total-year}}).{{new-line}}"
+```
+
+This renders to something like:
+
+```
+Year-to-date: 6,540.0 km cycled (56.10% of the 2026 goal, ahead of the plan by 1,201 km).
+```
+
+On every sync, the applicable template is re-rendered per activity (using
+data "as of" that activity's own date) and merged into the Strava description
+via a smart regex match: if a previously-rendered block is found, it is
+replaced in place; otherwise the new block is inserted at the position set by
+`UPDATE_STRAVA_PLACEMENT` (**end** of the description by default, or
+**beginning** if set to `begin`). Placeholders that can't be resolved
+(unrecognized name, no goal configured, etc.) resolve to an empty string and
+log a warning — they never break the sync.
+
+The current values of all six variables are also shown (read-only) on the
+**Settings → Athlete** page. This display value is seeded into the database
+the first time each template is non-empty; once seeded, it keeps showing that
+value even if the env var is later changed or removed — env var edits only
+take effect for a bucket whose database value is still empty. (Actual
+description rendering during sync always uses the live env var directly, so
+this only affects what the Settings page displays.)
+
+📖 **Full placeholder reference, formatting rules, and known limitations: [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md)**
 
 ## Command-Line Interface (CLI)
 
@@ -716,6 +781,13 @@ services:
       - FULL_SYNC="0 3 * * *"
       - WEB_LOGIN=admin
       - WEB_PASSWORD="${KINETIQO_WEB_PASSWORD}"
+      - UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}"
+      - UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}.{{new-line}}"
+      - UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run.{{new-line}}"
+      - UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}.{{new-line}}"
+      - UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked.{{new-line}}"
+      - UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum.{{new-line}}"
+      - UPDATE_STRAVA_PLACEMENT=end  # or "begin" to insert above existing description text
     depends_on:
       - postgresql
   postgresql:
@@ -757,6 +829,7 @@ THUNDERFOREST_API_KEY=your_thunderforest_api_token
 MAPTILER_API_KEY=your_maptiler_api_token
 LOG_LEVEL=INFO
 KINETIQO_WEB_PASSWORD=your_password_for_web_interface
+UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}"
 ```
 
 Deploy the stack:

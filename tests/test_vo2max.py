@@ -423,7 +423,11 @@ class TestProfileAPI(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(data['first_name'], 'Jane')
         self.assertEqual(data['weight'], 65.5)
-        mock_repo.upsert_profile.assert_called_once_with(123, 'Jane', 'User', 65.5)
+        mock_repo.upsert_profile.assert_called_once_with(
+            123, 'Jane', 'User', 65.5,
+            update_strava_cycling_indoor='', update_strava_cycling_outdoor='',
+            update_strava_running_indoor='', update_strava_running_outdoor='',
+            update_strava_walking='', update_strava_swimming='')
 
     @patch('kinetiqo.web.app.create_repository')
     def test_update_profile_invalid_weight(self, mock_create_repo):
@@ -487,6 +491,7 @@ class TestStravaReconnectFlow(unittest.TestCase):
         self.assertEqual(params['approval_prompt'][0], 'force')
         self.assertIn('read', params['scope'][0])
         self.assertIn('activity:read_all', params['scope'][0])
+        self.assertIn('activity:write', params['scope'][0])
         self.assertIn('profile:read_all', params['scope'][0])
 
     @patch('kinetiqo.web.app.seed_profile_from_strava')

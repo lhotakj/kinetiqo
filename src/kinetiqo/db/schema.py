@@ -290,6 +290,21 @@ SCHEMA_DEFINITION = {
              "type_firebird": "VARCHAR(255)"},
             {"name": "weight", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
              "type_firebird": _DOUBLE_PRECISION},
+            # Per activity-type/scope UPDATE_STRAVA_* templates, synced from their
+            # respective environment variables on every application start.
+            # Read-only in the UI — see docs/UPDATE_STRAVA.md.
+            {"name": "update_strava_cycling_indoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(4000)"},
+            {"name": "update_strava_cycling_outdoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(4000)"},
+            {"name": "update_strava_running_indoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(4000)"},
+            {"name": "update_strava_running_outdoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(4000)"},
+            {"name": "update_strava_walking", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(4000)"},
+            {"name": "update_strava_swimming", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(4000)"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"

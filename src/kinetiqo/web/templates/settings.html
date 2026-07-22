@@ -36,11 +36,76 @@
                     <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
                 </div>
             </div>
+            <div class="space-y-3">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    UPDATE_STRAVA_* templates
+                    <span class="font-normal text-gray-400 dark:text-gray-500">(read-only, one per activity type/scope, each set via its own environment variable)</span>
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="profile-update-strava-cycling-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Cycling (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_INDOOR</code></span>
+                        </label>
+                        <textarea id="profile-update-strava-cycling-indoor" rows="3" readonly disabled
+                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
+                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-cycling-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Cycling (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_OUTDOOR</code></span>
+                        </label>
+                        <textarea id="profile-update-strava-cycling-outdoor" rows="3" readonly disabled
+                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
+                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-running-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Running (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_INDOOR</code></span>
+                        </label>
+                        <textarea id="profile-update-strava-running-indoor" rows="3" readonly disabled
+                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
+                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-running-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Running (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_OUTDOOR</code></span>
+                        </label>
+                        <textarea id="profile-update-strava-running-outdoor" rows="3" readonly disabled
+                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
+                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-walking" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Walking / Hiking <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_WALKING</code></span>
+                        </label>
+                        <textarea id="profile-update-strava-walking" rows="3" readonly disabled
+                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
+                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-swimming" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Swimming <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_SWIMMING</code></span>
+                        </label>
+                        <textarea id="profile-update-strava-swimming" rows="3" readonly disabled
+                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
+                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    When set, the applicable template (chosen per activity by its own sport type) is rendered and
+                    merged into that synced activity's Strava description — appended at the end by default, or
+                    prepended if <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_PLACEMENT=begin</code>
+                    is set. See
+                    <a href="https://github.com/lhotakj/kinetiqo/blob/main/docs/UPDATE_STRAVA.md" target="_blank" class="underline hover:text-blue-500">docs/UPDATE_STRAVA.md</a>
+                    for the full placeholder reference.
+                </p>
+            </div>
             <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
             <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-warm-100 dark:border-zinc-700">
                 <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
                     Need to refresh your Strava authorization? Reconnecting requests <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>
-                    so the app can read your current weight.
+                    so the app can read your current weight, and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>
+                    so the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature above can update activity descriptions.
                 </p>
                 <a href="{{ url_for('strava_reconnect') }}"
                    class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition">
@@ -182,6 +247,14 @@
         const lastNameInput = document.getElementById('profile-last-name');
         const weightInput = document.getElementById('profile-weight');
         const weightError = document.getElementById('profile-weight-error');
+        const updateStravaInputs = {
+            update_strava_cycling_indoor: document.getElementById('profile-update-strava-cycling-indoor'),
+            update_strava_cycling_outdoor: document.getElementById('profile-update-strava-cycling-outdoor'),
+            update_strava_running_indoor: document.getElementById('profile-update-strava-running-indoor'),
+            update_strava_running_outdoor: document.getElementById('profile-update-strava-running-outdoor'),
+            update_strava_walking: document.getElementById('profile-update-strava-walking'),
+            update_strava_swimming: document.getElementById('profile-update-strava-swimming'),
+        };
         const profileStatus = document.getElementById('profile-status');
 
         function showStatus(msg, isError) {
@@ -200,6 +273,9 @@
                 firstNameInput.value = data.first_name || '';
                 lastNameInput.value = data.last_name || '';
                 weightInput.value = data.weight || '';
+                for (const field in updateStravaInputs) {
+                    updateStravaInputs[field].value = data[field] || '';
+                }
                 firstNameInput.placeholder = '';
                 lastNameInput.placeholder = '';
                 weightInput.placeholder = '';

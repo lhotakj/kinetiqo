@@ -1,15 +1,48 @@
+import html
 import logging
 import time
 import os
 from datetime import datetime, timezone, timedelta
 
+import requests
+
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
-from kinetiqo.strava import StravaClient
+from kinetiqo.strava import StravaClient, StravaFetchError
+from kinetiqo.profile_sync import sync_update_strava_from_env
+from kinetiqo.strava_description import DescriptionContext, any_update_strava_template_configured, get_template_for_activity
 
 logger = logging.getLogger("kinetiqo")
 
 STOP_SIGNAL_FILE = ".sync_stop"
+
+# ---------------------------------------------------------------------------
+# Brief per-activity UPDATE_STRAVA description status, surfaced inline next
+# to each activity's sync log line (see _update_strava_description() and the
+# "Phase 1"/"Phase 2" loops in sync()).
+# ---------------------------------------------------------------------------
+DESC_NOT_CONFIGURED = "not_configured"  # no template for this activity's bucket — feature inactive, nothing to show
+DESC_UNCHANGED = "unchanged"            # template rendered identically to what's already on Strava — no API call made
+DESC_SKIPPED = "skipped"                # skipped because a prior 401 already disabled updates for this run
+DESC_UPDATED = "updated"                # Strava description was successfully updated
+DESC_FAILED = "failed"                  # the update attempt raised an error (see the returned message)
+
+_DESC_STATUS_LABELS = {
+    DESC_UNCHANGED: "description: up to date",
+    DESC_SKIPPED: "description: skipped (missing scope)",
+    DESC_UPDATED: "description: updated",
+    DESC_FAILED: "description: failed",
+}
+
+
+def _description_status_suffix(status: str) -> str:
+    """Return a brief ``" — description: ..."`` suffix for a per-activity log line.
+
+    Returns an empty string for :data:`DESC_NOT_CONFIGURED` (the feature isn't
+    active for this activity's sport type, so there's nothing worth showing).
+    """
+    label = _DESC_STATUS_LABELS.get(status)
+    return f" — {label}" if label else ""
 
 class SyncService:
     """Service responsible for synchronizing activities from Strava into the database.
@@ -24,6 +57,7 @@ class SyncService:
         Args:
             config (Config): Application configuration instance.
         """
+        self.config = config
         self.strava = StravaClient(config)
         # If the StravaClient has been patched in tests the returned object
         # may be a MagicMock. Reset its stream-call counters so repeated CLI
@@ -36,6 +70,11 @@ class SyncService:
             pass
 
         self.db = create_repository(config)
+        # Set the first time update_activity_description() hits a 401 (missing
+        # activity:write scope) so the rest of *this* sync run skips further
+        # description-update attempts entirely instead of retrying/failing on
+        # every single remaining activity (see _update_strava_description()).
+        self._update_strava_unauthorized = False
 
     def _check_stop_signal(self):
         """Check for an external stop signal.
@@ -52,6 +91,77 @@ class SyncService:
             return True
         return False
 
+    def _update_strava_description(self, description_context: "DescriptionContext", activity: dict) -> "tuple[str, str | None]":
+        """Render the applicable UPDATE_STRAVA_* template for *activity* and push it to Strava if changed.
+
+        Selects the template based on the activity's own sport type (cycling
+        indoor/outdoor, running indoor/outdoor, walking or swimming — see
+        :func:`get_template_for_activity`); if the activity's sport type does
+        not map to any bucket, or the applicable template is unset, this is a
+        no-op (no Strava API calls at all).
+
+        Otherwise fetches the activity's current (full) description from
+        Strava, merges in the freshly rendered stats block (replacing any
+        previously-rendered block in place, or inserting a new one at the
+        position configured by ``UPDATE_STRAVA_PLACEMENT``), and only calls
+        the Strava update API if the resulting description actually differs.
+
+        If the update call ever 401s (refresh token missing the
+        ``activity:write`` scope), further description-update attempts are
+        skipped for the *rest of this sync run* (see
+        ``self._update_strava_unauthorized``) rather than retried/failed on
+        every remaining activity.
+
+        Returns:
+            A ``(status, message)`` tuple. ``status`` is one of
+            :data:`DESC_NOT_CONFIGURED`, :data:`DESC_UNCHANGED`,
+            :data:`DESC_SKIPPED`, :data:`DESC_UPDATED`, or :data:`DESC_FAILED`
+            — used by the caller to show a brief inline status next to each
+            activity's sync log line. ``message`` is a full human-readable
+            warning/error string (for the sync UI's warnings summary) when
+            something notable happened, or ``None`` otherwise.
+        """
+        template = get_template_for_activity(self.config, activity.get("sport_type", ""))
+        if not template:
+            return DESC_NOT_CONFIGURED, None
+        if self._update_strava_unauthorized:
+            # Already confirmed this run that the refresh token lacks
+            # activity:write — every further call would just 401 again, so
+            # skip the API calls entirely for the rest of this sync. Already
+            # reported once, so stay silent here to avoid spamming the log.
+            return DESC_SKIPPED, None
+        activity_id = activity["id"]
+        try:
+            detail = self.strava.get_activity_detail(activity_id)
+            existing_description = (detail or {}).get("description") or ""
+            new_description = description_context.render_for_activity(
+                template,
+                activity.get("start_date"),
+                existing_description,
+            )
+            if new_description is None or new_description == existing_description:
+                return DESC_UNCHANGED, None
+            self.strava.update_activity_description(activity_id, new_description)
+            logger.info(f"Updated Strava description for activity {activity_id}.")
+            return DESC_UPDATED, None
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 401:
+                self._update_strava_unauthorized = True
+                msg = (
+                    "UPDATE_STRAVA: disabling further description updates for this sync run — "
+                    "the Strava refresh token appears to be missing the 'activity:write' scope. "
+                    "Reconnect via Settings -> Reconnect with Strava to grant it."
+                )
+                logger.warning(msg)
+                return DESC_FAILED, msg
+            msg = f"UPDATE_STRAVA: failed to update description for activity {activity_id}: {e}"
+            logger.warning(msg)
+            return DESC_FAILED, msg
+        except Exception as e:
+            msg = f"UPDATE_STRAVA: failed to update description for activity {activity_id}: {e}"
+            logger.warning(msg)
+            return DESC_FAILED, msg
+
     def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0):
         """
         Perform sync of Strava activities, yielding progress updates.
@@ -62,6 +172,7 @@ class SyncService:
         self._check_stop_signal()  # clear any leftover stop signal before starting
 
         log_buffer = []
+        sync_warnings = []
         sync_type_str = 'full' if full_sync else 'fast'
         action = 'full-sync' if full_sync else 'fast-sync'
         added_count = 0
@@ -89,11 +200,24 @@ class SyncService:
                 elif "failed" in msg.lower():
                     status_color = "text-red-600"
                     status_msg = "Sync failed."
+                elif sync_warnings:
+                    status_color = "text-yellow-600"
+                    status_msg = f"Sync completed with {len(sync_warnings)} warning(s)."
+                warnings_html = ""
+                if sync_warnings:
+                    warning_items = "".join(
+                        f'<li>{html.escape(w)}</li>' for w in sync_warnings
+                    )
+                    warnings_html = f"""<div class="mt-3 text-left bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p class="text-xs font-semibold text-yellow-800 mb-1">⚠️ {len(sync_warnings)} warning(s) during sync:</p>
+                        <ul class="text-xs text-yellow-700 list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto">{warning_items}</ul>
+                    </div>"""
                 wrapper_html = f"""<div id="sync-log-area" hx-swap-oob="true">
                     <div class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
                         <div class="mb-4">{log_content}</div>
                         <div class="text-center pt-4 border-t border-gray-200">
                             <p class="text-sm {status_color} font-medium mb-3">{status_msg}</p>
+                            {warnings_html}
                         </div>
                     </div>
                 </div>"""
@@ -125,6 +249,15 @@ class SyncService:
             yield yield_log(f"Starting {sync_type_str} sync (limit: {limit_days} days)...")
 
             self.db.initialize_schema()
+            try:
+                sync_update_strava_from_env(self.config, self.db)
+            except Exception as e:
+                logger.warning(f"UPDATE_STRAVA: failed to sync template from environment: {e}")
+
+            description_context = None
+            if any_update_strava_template_configured(self.config):
+                description_context = DescriptionContext(self.config, self.db)
+
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
 
@@ -165,24 +298,43 @@ class SyncService:
             #  tolerant of both styles we accept and merge any yielded
             #  non-string iterable into the local ``activities`` list.
             activities = []
-            for item in self.strava.get_activities(activities, after=after):
-                if isinstance(item, str):
-                    yield yield_log(item)
-                else:
-                    # If the mock yields the activity batch directly, merge it.
-                    try:
-                        if isinstance(item, (list, tuple)):
-                            activities.extend(item)
-                        elif isinstance(item, dict):
-                            activities.append(item)
-                    except Exception:
-                        # Fall back to ignoring the item if it's not iterable
-                        pass
+            fetch_failed = False
+            try:
+                for item in self.strava.get_activities(activities, after=after):
+                    if isinstance(item, str):
+                        yield yield_log(item)
+                    else:
+                        # If the mock yields the activity batch directly, merge it.
+                        try:
+                            if isinstance(item, (list, tuple)):
+                                activities.extend(item)
+                            elif isinstance(item, dict):
+                                activities.append(item)
+                        except Exception:
+                            # Fall back to ignoring the item if it's not iterable
+                            pass
 
-                    if self._check_stop_signal():
-                        stopped = True
-                        yield yield_log("Stop signal received during fetch. Aborting...", final=True, is_stopped=True)
-                        return
+                        if self._check_stop_signal():
+                            stopped = True
+                            yield yield_log("Stop signal received during fetch. Aborting...", final=True,
+                                             is_stopped=True)
+                            return
+            except StravaFetchError as e:
+                # Fetching the activity list failed after all retries (e.g. an expired/
+                # revoked token, or Strava being unreachable). ``activities`` is now
+                # incomplete/empty — it must NEVER be treated as "the full current set
+                # on Strava", or every activity missing from it would look stale and
+                # get deleted from the local database. Skip stale-activity detection
+                # entirely for this run instead (see below).
+                fetch_failed = True
+                msg = (
+                    f"Strava activities fetch failed: {e}. Skipping stale-activity "
+                    f"deletion this run to avoid deleting data due to a temporary "
+                    f"outage or authorization problem."
+                )
+                logger.error(msg)
+                sync_warnings.append(msg)
+                yield yield_log(msg)
 
             yield yield_log(f"Found {len(activities)} activities from Strava.")
 
@@ -192,20 +344,30 @@ class SyncService:
 
             # --- Identify stale DB entries within the fetched window ---
             strava_ids = {str(a["id"]) for a in activities}
-            if after is None:
-                ids_to_delete = synced_ids - strava_ids
+            if fetch_failed:
+                # The fetched activity list is incomplete/unreliable (see the
+                # StravaFetchError handling above) — never derive "missing from
+                # Strava" from it, or a temporary outage/expired token would wipe
+                # out local activities that are still perfectly fine on Strava.
+                ids_to_delete = set()
+                yield yield_log(
+                    "Skipping stale-activity check because the Strava fetch failed for this run."
+                )
             else:
-                # Strava's `after` param is exclusive (strictly >), meaning the activity
-                # sitting exactly at `after` is our anchor — it will never be returned
-                # by Strava and must never be considered stale. Use after+1 to match
-                # the same exclusive boundary.
-                scoped_synced_ids = self.db.get_synced_activity_ids_since(after + 1)
-                ids_to_delete = scoped_synced_ids - strava_ids
+                if after is None:
+                    ids_to_delete = synced_ids - strava_ids
+                else:
+                    # Strava's `after` param is exclusive (strictly >), meaning the activity
+                    # sitting exactly at `after` is our anchor — it will never be returned
+                    # by Strava and must never be considered stale. Use after+1 to match
+                    # the same exclusive boundary.
+                    scoped_synced_ids = self.db.get_synced_activity_ids_since(after + 1)
+                    ids_to_delete = scoped_synced_ids - strava_ids
 
-            if ids_to_delete:
-                yield yield_log(f"Found {len(ids_to_delete)} activities in database missing from Strava.")
-            else:
-                yield yield_log("No stale activities to delete.")
+                if ids_to_delete:
+                    yield yield_log(f"Found {len(ids_to_delete)} activities in database missing from Strava.")
+                else:
+                    yield yield_log("No stale activities to delete.")
 
             if self._check_stop_signal():
                 stopped = True
@@ -215,12 +377,26 @@ class SyncService:
             # --- Phase 1: Update metadata for existing activities ---
             if existing_activities:
                 yield yield_log(f"Updating metadata for {len(existing_activities)} existing activities...")
-                for activity in existing_activities:
+                total_existing = len(existing_activities)
+                for i, activity in enumerate(existing_activities, 1):
+                    name = activity.get("name", "Unknown Activity")
+                    sport = activity.get("sport_type", "?")
+                    percent = (i / total_existing) * 100 if total_existing > 0 else 0
+                    desc_suffix = ""
                     try:
                         self.db.write_activity(activity)
                         updated_count += 1
+                        if description_context is not None:
+                            status, warning = self._update_strava_description(description_context, activity)
+                            desc_suffix = _description_status_suffix(status)
+                            if warning:
+                                sync_warnings.append(warning)
+                        yield yield_log(f"[{i}/{total_existing}] ({percent:.1f}%) Updated: {name} ({sport}){desc_suffix}")
                     except Exception as e:
-                        logger.warning(f"Failed to update activity {activity['id']}: {e}")
+                        msg = f"Failed to update activity {activity['id']}: {e}"
+                        logger.warning(msg)
+                        sync_warnings.append(msg)
+                        yield yield_log(f"[{i}/{total_existing}] ({percent:.1f}%) Failed: {name} ({sport}) — {e}")
                 yield yield_log(f"Updated {updated_count} existing activities.")
 
             if self._check_stop_signal():
@@ -240,18 +416,31 @@ class SyncService:
                 name = activity.get("name", "Unknown Activity")
                 percent = (i / total_new) * 100 if total_new > 0 else 0
                 yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Syncing: {name} ({sport})")
+                desc_suffix = ""
                 try:
                     self.db.write_activity(activity)
                     streams = self.strava.get_streams(activity_id)
                     point_count = len(streams.get('time', {}).get('data', []))
+                    stream_note = ""
                     if point_count > 0:
                         self.db.write_activity_streams(activity, streams)
                         added_count += 1
                     else:
-                        logger.warning(f"Activity {activity_id} has no stream data.")
+                        msg = f"Activity {activity_id} has no stream data."
+                        logger.warning(msg)
+                        sync_warnings.append(msg)
+                        stream_note = " — no stream data"
+                    if description_context is not None:
+                        status, warning = self._update_strava_description(description_context, activity)
+                        desc_suffix = _description_status_suffix(status)
+                        if warning:
+                            sync_warnings.append(warning)
+                    yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Synced: {name} ({sport}){stream_note}{desc_suffix}")
                 except Exception as e:
-                    yield yield_log(f"Error syncing activity {activity_id}: {e}")
-                    logger.error(f"Error syncing activity {activity_id}: {e}")
+                    msg = f"Error syncing activity {activity_id}: {e}"
+                    sync_warnings.append(msg)
+                    logger.error(msg)
+                    yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Failed: {name} ({sport}) — {e}")
                 time.sleep(0.1)
 
             # --- Phase 3: Delete stale activities ---
@@ -261,7 +450,9 @@ class SyncService:
                     removed_count = len(ids_to_delete)
                     yield yield_log(f"Deleted {removed_count} stale activities from database.")
                 except Exception as e:
-                    yield yield_log(f"Error deleting stale activities: {e}")
+                    msg = f"Error deleting stale activities: {e}"
+                    sync_warnings.append(msg)
+                    yield yield_log(msg)
 
             yield yield_log(
                 f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",

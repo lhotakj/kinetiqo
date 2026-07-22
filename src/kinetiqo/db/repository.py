@@ -8,6 +8,21 @@ from typing import Optional, Set, List, Dict, Any, Tuple
 GOAL_TYPE_CYCLING = 1   # Ride, VirtualRide, EBikeRide, GravelRide, …
 GOAL_TYPE_WALKING = 2   # Walk, Hike
 
+# ---------------------------------------------------------------------------
+# UPDATE_STRAVA_* per activity-type/scope description-template columns on the
+# ``profile`` table. Cycling and running are split by indoor/outdoor; walking
+# and swimming have no such distinction in Strava's taxonomy and get a single
+# template each. See docs/UPDATE_STRAVA.md.
+# ---------------------------------------------------------------------------
+UPDATE_STRAVA_FIELDS: Tuple[str, ...] = (
+    "update_strava_cycling_indoor",
+    "update_strava_cycling_outdoor",
+    "update_strava_running_indoor",
+    "update_strava_running_outdoor",
+    "update_strava_walking",
+    "update_strava_swimming",
+)
+
 
 def compute_best_average_power(watts_series: List[float], duration_seconds: int) -> float:
     """O(N) sliding-window maximum average power for a single activity.
@@ -143,7 +158,13 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def count_activities(self, types=None):
+    def count_activities(self, types=None, start_date=None, end_date=None):
+        """Get total count of activities, optionally filtered by sport type and date range.
+
+        :param types: Optional list of sport-type strings to filter on.
+        :param start_date: Optional inclusive lower bound on ``start_date`` (ISO string or datetime).
+        :param end_date: Optional inclusive upper bound on ``start_date`` (ISO string or datetime).
+        """
         pass
 
     @abstractmethod
@@ -338,18 +359,34 @@ class DatabaseRepository(ABC):
     def get_profile(self) -> Optional[Dict[str, Any]]:
         """Return the first athlete profile row, or ``None`` if the table is empty.
 
-        :return: Dict with ``athlete_id``, ``first_name``, ``last_name``, ``weight`` keys.
+        :return: Dict with ``athlete_id``, ``first_name``, ``last_name``, ``weight``,
+            and the six ``UPDATE_STRAVA_FIELDS`` keys (the raw per activity-type/scope
+            description templates synced from their environment variables — see
+            docs/UPDATE_STRAVA.md).
         """
         pass
 
     @abstractmethod
-    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float) -> None:
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
+                       update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
+                       update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
+                       update_strava_walking: str = "", update_strava_swimming: str = "") -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).
         :param first_name: Athlete first name.
         :param last_name: Athlete last name.
         :param weight: Athlete body weight in kilograms.
+        :param update_strava_cycling_indoor: Raw UPDATE_STRAVA_CYCLING_INDOOR template.
+        :param update_strava_cycling_outdoor: Raw UPDATE_STRAVA_CYCLING_OUTDOOR template.
+        :param update_strava_running_indoor: Raw UPDATE_STRAVA_RUNNING_INDOOR template.
+        :param update_strava_running_outdoor: Raw UPDATE_STRAVA_RUNNING_OUTDOOR template.
+        :param update_strava_walking: Raw UPDATE_STRAVA_WALKING template.
+        :param update_strava_swimming: Raw UPDATE_STRAVA_SWIMMING template.
+
+        All six ``update_strava_*`` values are synced from their environment
+        variables. Callers that don't want to change these fields should pass
+        through the current values (e.g. from a prior ``get_profile()`` call).
         """
         pass
 

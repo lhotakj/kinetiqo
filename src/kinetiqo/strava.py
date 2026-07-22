@@ -11,6 +11,17 @@ logger = logging.getLogger("kinetiqo")
 _MAX_ERROR_BODY_LEN = 300
 
 
+class StravaFetchError(RuntimeError):
+    """Raised when fetching activities from Strava fails after all retries.
+
+    Callers (see :class:`kinetiqo.sync.SyncService`) must treat this as a
+    signal that the fetched activity set is incomplete/unreliable and must
+    **not** infer that any activity missing from it was deleted on Strava —
+    doing so would wrongly delete local data during an outage or an expired
+    token, rather than only when Strava genuinely no longer has the activity.
+    """
+
+
 def _summarise_error_body(response: requests.Response) -> str:
     """Return a concise single-line summary of an error response body.
 
@@ -174,7 +185,11 @@ class StravaClient:
                     yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
                     if attempt > self.request_retries:
                         yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
-                        return
+                        # Preserve any complete pages fetched before this failure, but
+                        # signal the failure to the caller so it never treats the
+                        # (incomplete) result as authoritative for stale-activity deletion.
+                        result_container.extend(activities)
+                        raise StravaFetchError(str(e)) from e
                     # For HTTP 429 (rate-limited), honour the server's Retry-After header if present
                     if e.response is not None and e.response.status_code == 429:
                         retry_after = e.response.headers.get("Retry-After")
@@ -188,14 +203,16 @@ class StravaClient:
                     yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
                     if attempt > self.request_retries:
                         yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
-                        return
+                        result_container.extend(activities)
+                        raise StravaFetchError(str(e)) from e
                     time.sleep(2 ** attempt)
             try:
                 batch = r.json()
             except Exception as e:
                 logger.exception(f"Failed to decode Strava response JSON: {e}")
                 yield f"Error: Failed to decode Strava response: {e}"
-                return
+                result_container.extend(activities)
+                raise StravaFetchError(str(e)) from e
 
             msg = f"Page {page}: Found {len(batch)} activities."
             logger.debug(msg)
@@ -285,3 +302,89 @@ class StravaClient:
         self.cache.set(f"streams/{activity_id}", streams)
 
         return streams
+
+    def get_activity_detail(self, activity_id) -> dict:
+        """Fetch the full (detailed) activity representation from Strava.
+
+        Unlike the summary activities returned by :meth:`get_activities`, the
+        detailed representation includes the ``description`` field, which is
+        required by the ``UPDATE_STRAVA`` description-update feature. This call
+        always hits the network (never cached) so the description we read is
+        never stale relative to our own prior updates.
+
+        :param activity_id: Strava activity ID.
+        :return: Detailed activity dictionary (includes ``description``).
+        """
+        url = f"{self.BASE_URL}/activities/{activity_id}"
+        logger.debug(f"GET {url}")
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = requests.get(url, headers=self._headers(), timeout=self.request_timeout)
+                r.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Strava activity detail request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.error(f"Failed to fetch activity detail for {activity_id} after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+
+        return r.json()
+
+    def update_activity_description(self, activity_id, description: str) -> dict:
+        """Update an activity's description on Strava.
+
+        Note that this endpoint requires the ``activity:write`` OAuth scope
+        in addition to the read scopes used everywhere else in this client.
+        A ``401 Unauthorized`` here — even though reads (activity list,
+        streams, activity detail) succeed fine — almost always means the
+        stored refresh token was never authorized with ``activity:write``.
+        This is a permanent condition (not a transient auth glitch), so it is
+        **not retried**: retrying would just burn the same 401 three times
+        with exponential backoff for every single activity in the sync,
+        which for e.g. 50+ activities in one run can add several minutes of
+        pure waiting for a call that can never succeed until the token is
+        reauthorized (Settings → Reconnect with Strava, which now requests
+        ``activity:write``).
+
+        :param activity_id: Strava activity ID.
+        :param description: New full description text to store.
+        :return: The updated activity dictionary as returned by Strava.
+        """
+        url = f"{self.BASE_URL}/activities/{activity_id}"
+        payload = {"description": description}
+        logger.debug(f"PUT {url} (updating description)")
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = requests.put(url, headers=self._headers(), data=payload, timeout=self.request_timeout)
+                r.raise_for_status()
+                break
+            except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code == 401:
+                    logger.error(
+                        "UPDATE_STRAVA: 401 Unauthorized updating description for activity %s — "
+                        "the stored Strava refresh token most likely lacks the 'activity:write' scope "
+                        "(reads work, writes don't). Reconnect via Settings -> Reconnect with Strava to "
+                        "grant it; not retrying since this won't resolve on its own.",
+                        activity_id,
+                    )
+                    raise
+                logger.warning(f"Strava update-description request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.error(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Strava update-description request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.error(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+
+        return r.json()

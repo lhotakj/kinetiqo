@@ -402,15 +402,29 @@ class MySQLRepository(DatabaseRepository):
             result = cur.fetchone()
             return dict(result) if result else {'total_distance': 0, 'total_elevation': 0, 'total_moving_time': 0}
 
-    def count_activities(self, types=None):
-        """Get total count of activities"""
+    def count_activities(self, types=None, start_date=None, end_date=None):
+        """Get total count of activities, optionally filtered by sport type and date range."""
         self._ensure_connected()
-        where_clause = ""
+        where_conditions = []
         params = []
         if types:
             placeholders = ', '.join(['%s'] * len(types))
-            where_clause = f"WHERE sport IN ({placeholders})"
+            where_conditions.append(f"sport IN ({placeholders})")
             params.extend(types)
+
+        if start_date:
+            where_conditions.append("start_date >= %s")
+            params.append(start_date)
+
+        if end_date:
+            if len(end_date) == 10:
+                end_date += " 23:59:59.999999"
+            where_conditions.append("start_date <= %s")
+            params.append(end_date)
+
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
 
         with self.conn.cursor() as cur:
             cur.execute(f"SELECT COUNT(*) FROM activities {where_clause}", tuple(params))
@@ -893,20 +907,41 @@ class MySQLRepository(DatabaseRepository):
     def get_profile(self):
         self._ensure_connected()
         with self.conn.cursor(dictionary=True) as cur:
-            cur.execute("SELECT athlete_id, first_name, last_name, weight FROM profile LIMIT 1")
+            cur.execute(
+                "SELECT athlete_id, first_name, last_name, weight, "
+                "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
+                "update_strava_running_indoor, update_strava_running_outdoor, "
+                "update_strava_walking, update_strava_swimming "
+                "FROM profile LIMIT 1"
+            )
             return cur.fetchone()
 
-    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float):
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
+                       update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
+                       update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
+                       update_strava_walking: str = "", update_strava_swimming: str = ""):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO profile (athlete_id, first_name, last_name, weight)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO profile (athlete_id, first_name, last_name, weight,
+                    update_strava_cycling_indoor, update_strava_cycling_outdoor,
+                    update_strava_running_indoor, update_strava_running_outdoor,
+                    update_strava_walking, update_strava_swimming)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
-                    weight     = VALUES(weight)
-            """, (athlete_id, first_name, last_name, weight))
+                    weight     = VALUES(weight),
+                    update_strava_cycling_indoor = VALUES(update_strava_cycling_indoor),
+                    update_strava_cycling_outdoor = VALUES(update_strava_cycling_outdoor),
+                    update_strava_running_indoor = VALUES(update_strava_running_indoor),
+                    update_strava_running_outdoor = VALUES(update_strava_running_outdoor),
+                    update_strava_walking = VALUES(update_strava_walking),
+                    update_strava_swimming = VALUES(update_strava_swimming)
+            """, (athlete_id, first_name, last_name, weight,
+                  update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
+                  update_strava_running_indoor or "", update_strava_running_outdoor or "",
+                  update_strava_walking or "", update_strava_swimming or ""))
 
     # ------------------------------------------------------------------
     # Activity goals

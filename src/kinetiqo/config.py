@@ -6,6 +6,13 @@ from pathlib import Path
 
 logger = logging.getLogger("kinetiqo")
 
+# Where the rendered UPDATE_STRAVA_* stats block is inserted within (or, once
+# found, replaces in place within) an activity's Strava description.
+UPDATE_STRAVA_PLACEMENT_BEGIN = "begin"
+UPDATE_STRAVA_PLACEMENT_END = "end"
+UPDATE_STRAVA_PLACEMENT = (UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END)
+DEFAULT_UPDATE_STRAVA_PLACEMENT = UPDATE_STRAVA_PLACEMENT_END
+
 
 @dataclass
 class Config:
@@ -67,6 +74,23 @@ class Config:
     # Date Format
     date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
+    # Strava description auto-update (see docs/UPDATE_STRAVA.md)
+    # One independent template per activity-type/scope bucket. Cycling and
+    # running are split by indoor/outdoor (Strava's sport_type reliably tells
+    # them apart); walking and swimming have no such distinction, so they get
+    # a single template each.
+    update_strava_cycling_indoor: str = os.getenv("UPDATE_STRAVA_CYCLING_INDOOR", "") or ""
+    update_strava_cycling_outdoor: str = os.getenv("UPDATE_STRAVA_CYCLING_OUTDOOR", "") or ""
+    update_strava_running_indoor: str = os.getenv("UPDATE_STRAVA_RUNNING_INDOOR", "") or ""
+    update_strava_running_outdoor: str = os.getenv("UPDATE_STRAVA_RUNNING_OUTDOOR", "") or ""
+    update_strava_walking: str = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
+    update_strava_swimming: str = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
+
+    # Where the rendered block goes: "begin" (start of the description) or
+    # "end" (appended after any existing text). Invalid values fall back to
+    # the default with a logged warning (see __post_init__).
+    update_strava_placement: str = (os.getenv("UPDATE_STRAVA_PLACEMENT", DEFAULT_UPDATE_STRAVA_PLACEMENT) or DEFAULT_UPDATE_STRAVA_PLACEMENT).strip().lower()
+
     def __post_init__(self):
         """Post-initialization to coerce and validate environment values.
 
@@ -100,5 +124,13 @@ class Config:
             except ValueError:
                 logger.error("Environment variable ATHLETE_WEIGHT should be a number (kg)")
                 sys.exit(1)
+
+        if self.update_strava_placement not in UPDATE_STRAVA_PLACEMENT:
+            logger.warning(
+                "Environment variable UPDATE_STRAVA_PLACEMENT=%r is not one of %s — "
+                "falling back to the default (%r).",
+                self.update_strava_placement, UPDATE_STRAVA_PLACEMENT, DEFAULT_UPDATE_STRAVA_PLACEMENT,
+            )
+            self.update_strava_placement = DEFAULT_UPDATE_STRAVA_PLACEMENT
 
     database_connect_verbose: bool = True  # Show verbose output in init

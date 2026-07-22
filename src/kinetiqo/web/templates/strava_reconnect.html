@@ -4,7 +4,7 @@
 <div class="max-w-3xl">
     <div class="mb-6">
         <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Reconnect with Strava</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400">Reauthorize the app so it can read your full athlete profile, including weight.</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Reauthorize the app so it can read your full athlete profile (including weight) and update activity descriptions.</p>
     </div>
 
     {% if error_message %}
@@ -52,7 +52,7 @@
         <div class="rounded-lg border border-dashed border-gray-300 dark:border-zinc-600 p-4 text-sm text-gray-600 dark:text-gray-300 space-y-2">
             <p><strong>What to do next:</strong></p>
             <p>1. Paste the refresh token into <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">STRAVA_REFRESH_TOKEN</code>.</p>
-            <p>2. Make sure the token was authorized with <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>.</p>
+            <p>2. Make sure the token was authorized with <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code> and, if you use the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature, <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>.</p>
             <p>3. Restart Kinetiqo so it uses the new token.</p>
         </div>
 

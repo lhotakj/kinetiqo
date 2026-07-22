@@ -678,15 +678,34 @@ class FirebirdRepository(DatabaseRepository):
                 'total_moving_time': result[2] if result else 0
             }
 
-    def count_activities(self, types=None):
-        """Get total count of activities"""
+    def count_activities(self, types=None, start_date=None, end_date=None):
+        """Get total count of activities, optionally filtered by sport type and date range."""
         self._ensure_connected()
-        where_clause = ""
+        where_conditions = []
         params = []
         if types:
             placeholders = ', '.join(['?'] * len(types))
-            where_clause = f'WHERE "sport" IN ({placeholders})'
+            where_conditions.append(f'"sport" IN ({placeholders})')
             params.extend(types)
+
+        if start_date:
+            where_conditions.append('"start_date" >= ?')
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date)
+            params.append(start_date)
+
+        if end_date:
+            where_conditions.append('"start_date" <= ?')
+            if isinstance(end_date, str):
+                if len(end_date) == 10:
+                    end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                else:
+                    end_date = datetime.fromisoformat(end_date)
+            params.append(end_date)
+
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
 
         with self.conn.cursor() as cur:
             cur.execute(f'SELECT COUNT(*) FROM "activities" {where_clause}', tuple(params))
@@ -1150,7 +1169,10 @@ class FirebirdRepository(DatabaseRepository):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(
-                'SELECT "athlete_id", "first_name", "last_name", "weight" '
+                'SELECT "athlete_id", "first_name", "last_name", "weight", '
+                '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
+                '"update_strava_running_indoor", "update_strava_running_outdoor", '
+                '"update_strava_walking", "update_strava_swimming" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
@@ -1161,17 +1183,32 @@ class FirebirdRepository(DatabaseRepository):
                 'first_name': row[1],
                 'last_name': row[2],
                 'weight': row[3],
+                'update_strava_cycling_indoor': row[4],
+                'update_strava_cycling_outdoor': row[5],
+                'update_strava_running_indoor': row[6],
+                'update_strava_running_outdoor': row[7],
+                'update_strava_walking': row[8],
+                'update_strava_swimming': row[9],
             }
 
-    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float):
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
+                       update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
+                       update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
+                       update_strava_walking: str = "", update_strava_swimming: str = ""):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
-                '("athlete_id", "first_name", "last_name", "weight") '
-                'VALUES (?, ?, ?, ?) '
+                '("athlete_id", "first_name", "last_name", "weight", '
+                '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
+                '"update_strava_running_indoor", "update_strava_running_outdoor", '
+                '"update_strava_walking", "update_strava_swimming") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
-                (athlete_id, first_name, last_name, weight)
+                (athlete_id, first_name, last_name, weight,
+                 update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
+                 update_strava_running_indoor or "", update_strava_running_outdoor or "",
+                 update_strava_walking or "", update_strava_swimming or "")
             )
         self.conn.commit()
 

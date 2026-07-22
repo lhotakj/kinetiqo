@@ -56,7 +56,7 @@ Kinetiqo is configured entirely via environment variables.
 |----------|-------------|----------|
 | `STRAVA_CLIENT_ID` | Your Strava Application Client ID | ✅ |
 | `STRAVA_CLIENT_SECRET` | Your Strava Application Client Secret | ✅ |
-| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` and `profile:read_all` scopes | ✅ |
+| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` and `profile:read_all` scopes (also `activity:write` if using `UPDATE_STRAVA_*`) | ✅ |
 
 ### Database (PostgreSQL Default)
 | Variable | Description | Default |

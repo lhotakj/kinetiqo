@@ -11,7 +11,7 @@ from kinetiqo.cache import CacheManager
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository, get_version
 from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
-from kinetiqo.profile_sync import seed_profile_from_strava
+from kinetiqo.profile_sync import seed_profile_from_strava, sync_update_strava_from_env
 from kinetiqo.sync import SyncService
 logger = logging.getLogger("kinetiqo")
 
@@ -181,6 +181,7 @@ def _seed_profile(config):
     try:
         repo = create_repository(config)
         seed_profile_from_strava(config, repo)
+        sync_update_strava_from_env(config, repo)
     except Exception as e:
         logger.warning(f"Could not seed profile from Strava (non-fatal): {e}")
     finally:
