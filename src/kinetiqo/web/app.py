@@ -2389,11 +2389,11 @@ def delete_activity_api(activity_id):
         try:
             repo.log_sync(added=0, removed=1, trigger="web", success=True, action="delete", user=current_user.id)
         except Exception as log_err:
-        logger.exception(f"Failed to log deletion: {log_err}")
+            logger.exception(f"Failed to log deletion: {log_err}")
 
         return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
     except Exception as e:
-    logger.exception(f"Error deleting activity {activity_id}: {e}")
+        logger.exception(f"Error deleting activity {activity_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -3173,7 +3173,7 @@ def stats_export():
                     }
                 )
     except Exception as e:
-        logger.error(f"Playwright stats export failed: {e}", exc_info=True)
+        logger.warning(f"Playwright stats export failed: {e}")
         return jsonify({'error': str(e)}), 500
 
 

@@ -1110,10 +1110,10 @@
                     const box = document.getElementById(boxId);
                     if (!container || !box) return;
                     const current = loadPositions();
-                    const leftPct = parseFloat(box.style.left) / 100;
-                    const topPct  = parseFloat(box.style.top)  / 100;
+                    const leftPct = Number.parseFloat(box.style.left) / 100;
+                    const topPct  = Number.parseFloat(box.style.top)  / 100;
                     current[boxId] = current[boxId] || {};
-                    if (!isNaN(leftPct)) current[boxId].left = leftPct;
+                    if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
                     if (!isNaN(topPct))  current[boxId].top  = topPct;
                     current[boxId].width  = box.offsetWidth  / container.offsetWidth;
                     if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
@@ -1219,11 +1219,11 @@
                        try {
                            const current = loadPositions();
                            // box.style.left/top are percentages like '50%'
-                           const leftPct = parseFloat(box.style.left) / 100;
-                           const topPct  = parseFloat(box.style.top)  / 100;
+                           const leftPct = Number.parseFloat(box.style.left) / 100;
+                           const topPct  = Number.parseFloat(box.style.top)  / 100;
                            if (!current[boxId]) current[boxId] = {};
-                           if (!isNaN(leftPct)) current[boxId].left = leftPct;
-                           if (!isNaN(topPct))  current[boxId].top  = topPct;
+                           if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
+                           if (!Number.isNaN(topPct))  current[boxId].top  = topPct;
                            current[boxId].width = box.offsetWidth / container.offsetWidth;
                            if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
                            savePositions(current);
@@ -1288,10 +1288,10 @@
                                current[boxId].width  = box.offsetWidth  / container.offsetWidth;
                                current[boxId].height = box.offsetHeight / container.offsetHeight;
                                // Also persist current center percent
-                               const leftPct = parseFloat(box.style.left) / 100;
-                               const topPct  = parseFloat(box.style.top)  / 100;
-                               if (!isNaN(leftPct)) current[boxId].left = leftPct;
-                               if (!isNaN(topPct))  current[boxId].top  = topPct;
+                               const leftPct = Number.parseFloat(box.style.left) / 100;
+                               const topPct  = Number.parseFloat(box.style.top)  / 100;
+                               if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
+                               if (!Number.isNaN(topPct))  current[boxId].top  = topPct;
                                savePositions(current);
                            } catch (e) {
                                console.warn('Failed to persist resize', e);
