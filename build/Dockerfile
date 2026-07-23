@@ -19,7 +19,7 @@
 FROM python:3.14-slim AS builder
 
 WORKDIR /app
-COPY requirements.txt .
+COPY requirements.lock .
 
 # No build tools needed — every package in requirements.txt ships a
 # pre-built manylinux binary wheel so nothing is compiled from source.
@@ -27,7 +27,7 @@ COPY requirements.txt .
 # --no-compile skips .pyc pre-compilation (~40 MB saved).
 # Post-install find cleanup strips test dirs and bytecode (~80-100 MB saved).
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN pip install --no-cache-dir --no-compile --prefix=/install -r requirements.txt \
+RUN pip install --only-binary=:all: --no-cache-dir --no-compile --prefix=/install -r requirements.lock \
     && find /install -type d -name "tests"       -exec rm -rf {} + 2>/dev/null || true \
     && find /install -type d -name "test"        -exec rm -rf {} + 2>/dev/null || true \
     && find /install -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
