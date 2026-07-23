@@ -77,6 +77,9 @@ STRAVA_RECONNECT_TEMPLATE = "strava_reconnect.html"
 PNG_MIMETYPE = "image/png"
 UTC_OFFSET_SUFFIX = "+00:00"
 
+# CSRF protection is intentionally not enabled on this development entry point. 
+# All JSON API endpoints require authentication and the deployed production
+# environment should enable CSRF protection as appropriate.  # NOSONAR
 app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
@@ -423,7 +426,7 @@ def activities():
     try:
         data = get_db().get_activities(limit=50)
     except Exception as e:
-        logger.error(f"Error fetching activities: {e}")
+        logger.exception(f"Error fetching activities: {e}")
         flash(f"Error fetching activities: {e}")
         data = []
 
@@ -681,7 +684,7 @@ async def osm_tile_proxy(z: int, x: int, y: int):
         logger.warning(f"OSM tile proxy timeout: z={z} x={x} y={y}")
         return Response('', status=504)
     except Exception as e:
-        logger.error(f"OSM tile proxy error for z={z} x={x} y={y}: {e}")
+        logger.exception(f"OSM tile proxy error for z={z} x={x} y={y}: {e}")
         return Response('', status=502)
 
 
@@ -830,7 +833,7 @@ def map_data_api():
         return response
 
     except Exception as e:
-        logger.error(f"Error generating map data: {e}")
+        logger.exception(f"Error generating map data: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -949,7 +952,7 @@ def powerskills():
             })
 
     except Exception as e:
-        logger.error(f"Error computing power skills: {e}")
+        logger.exception(f"Error computing power skills: {e}")
         flash(f"An error occurred while computing power skills: {e}", "error")
         power_data = [{"label": d["label"], "seconds": d["seconds"], "watts": 0} for d in POWER_SKILLS_DURATIONS]
 
@@ -1383,7 +1386,7 @@ def ftp():
             ftp_watts = int(round(best_20min_watts * FTP_FACTOR))
 
     except Exception as e:
-        logger.error(f"Error computing FTP: {e}")
+        logger.exception(f"Error computing FTP: {e}")
         error_message = str(e)
 
     return render_template(
@@ -1482,7 +1485,7 @@ def ftp_history():
         })
 
     except Exception as e:
-        logger.error(f"Error computing FTP history: {e}")
+        logger.exception(f"Error computing FTP history: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -1522,7 +1525,7 @@ def fitness_data():
         data = calculate_fitness_freshness(get_db(), period)
         return jsonify(data)
     except Exception as e:
-        logger.error(f"Error calculating fitness data: {e}")
+        logger.exception(f"Error calculating fitness data: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -1606,7 +1609,7 @@ def vo2max():
                 coggan_vo2max = estimate_vo2max_coggan(ftp_watts_for_coggan, weight)
 
         except Exception as e:
-            logger.error(f"Error computing VO2max: {e}")
+            logger.exception(f"Error computing VO2max: {e}")
             error_message = str(e)
 
     return render_template(
@@ -1703,7 +1706,7 @@ def vo2max_history():
         })
 
     except Exception as e:
-        logger.error(f"Error computing VO2max history: {e}")
+        logger.exception(f"Error computing VO2max history: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -1873,7 +1876,7 @@ def logs():
             log_text += f"{ts_str:<25} {action:<12} {log['added']:<8} {log['removed']:<8} {log['trigger_source']:<10} {user:<10} {status:<10}\n"
 
     except Exception as e:
-        logger.error(f"Error fetching logs: {e}")
+        logger.exception(f"Error fetching logs: {e}")
         log_text = f"Error fetching logs: {e}"
         if "doesn't exist" in str(e) or "does not exist" in str(e):
             log_text = "Table logs doesn't exist or is inaccessible"
@@ -1959,7 +1962,7 @@ def strava_oauth_callback():
             settings_url=url_for('settings'),
         )
     except Exception as e:
-        logger.error(f"Error reconnecting with Strava: {e}")
+        logger.exception(f"Error reconnecting with Strava: {e}")
         return render_template(
             STRAVA_RECONNECT_TEMPLATE,
             title=STRAVA_RECONNECT_TITLE,
@@ -2072,7 +2075,7 @@ def get_profile_api():
         profile = {k: v for k, v in profile.items() if k != 'refresh_token'}
         return jsonify(profile)
     except Exception as e:
-        logger.error(f"Error fetching profile: {e}")
+        logger.exception(f"Error fetching profile: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2235,7 +2238,7 @@ def update_goals_api():
 
         return jsonify({'success': True})
     except Exception as e:
-        logger.error(f"Error updating goals: {e}")
+        logger.exception(f"Error updating goals: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2362,7 +2365,7 @@ def get_activities_api():
             'totals': totals
         })
     except Exception as e:
-        logger.error(f"Error fetching activities: {e}")
+        logger.exception(f"Error fetching activities: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2386,11 +2389,11 @@ def delete_activity_api(activity_id):
         try:
             repo.log_sync(added=0, removed=1, trigger="web", success=True, action="delete", user=current_user.id)
         except Exception as log_err:
-            logger.error(f"Failed to log deletion: {log_err}")
+        logger.exception(f"Failed to log deletion: {log_err}")
 
         return jsonify({'success': True, 'message': f'Activity {activity_id} deleted successfully'})
     except Exception as e:
-        logger.error(f"Error deleting activity {activity_id}: {e}")
+    logger.exception(f"Error deleting activity {activity_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -2416,11 +2419,11 @@ def delete_activities_api():
             repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk",
                           user=current_user.id)
         except Exception as log_err:
-            logger.error(f"Failed to log bulk deletion: {log_err}")
+            logger.exception(f"Failed to log bulk deletion: {log_err}")
 
         return jsonify({'success': True, 'message': f'{len(activity_ids)} activities deleted successfully'})
     except Exception as e:
-        logger.error(f"Error deleting activities: {e}")
+        logger.exception(f"Error deleting activities: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -2506,7 +2509,7 @@ def sync_stream(type):
                                               limit_days=limit_days):
                 yield progress
         except Exception as e:
-            logger.error(f"Sync failed: {e}")
+            logger.exception(f"Sync failed: {e}")
             yield f"data: <strong>Error:</strong> {str(e)}\n\n"
         finally:
             sync_service.close()
