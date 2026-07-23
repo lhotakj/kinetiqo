@@ -360,9 +360,12 @@ class DatabaseRepository(ABC):
         """Return the first athlete profile row, or ``None`` if the table is empty.
 
         :return: Dict with ``athlete_id``, ``first_name``, ``last_name``, ``weight``,
-            and the six ``UPDATE_STRAVA_FIELDS`` keys (the raw per activity-type/scope
+            the six ``UPDATE_STRAVA_FIELDS`` keys (the raw per activity-type/scope
             description templates synced from their environment variables — see
-            docs/UPDATE_STRAVA.md).
+            docs/UPDATE_STRAVA.md), and ``refresh_token`` (the current Strava OAuth2
+            refresh token; see :mod:`kinetiqo.profile_sync`). Callers that expose
+            this dict over an API **must** strip ``refresh_token`` before returning
+            it to the client.
         """
         pass
 
@@ -370,7 +373,8 @@ class DatabaseRepository(ABC):
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
-                       update_strava_walking: str = "", update_strava_swimming: str = "") -> None:
+                       update_strava_walking: str = "", update_strava_swimming: str = "",
+                       refresh_token: str = "") -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).
@@ -383,10 +387,17 @@ class DatabaseRepository(ABC):
         :param update_strava_running_outdoor: Raw UPDATE_STRAVA_RUNNING_OUTDOOR template.
         :param update_strava_walking: Raw UPDATE_STRAVA_WALKING template.
         :param update_strava_swimming: Raw UPDATE_STRAVA_SWIMMING template.
+        :param refresh_token: The current Strava OAuth2 refresh token. Strava
+            rotates and invalidates the previous refresh token on every token
+            exchange, so this is the durable, authoritative copy — see
+            :mod:`kinetiqo.profile_sync`.
 
-        All six ``update_strava_*`` values are synced from their environment
-        variables. Callers that don't want to change these fields should pass
-        through the current values (e.g. from a prior ``get_profile()`` call).
+        All six ``update_strava_*`` values and ``refresh_token`` are only
+        changed when the caller intends to change them. Callers that don't
+        want to change one of these fields should pass through its current
+        value (e.g. from a prior ``get_profile()`` call) rather than omitting
+        it, since omitting it would overwrite the stored value with an empty
+        string.
         """
         pass
 

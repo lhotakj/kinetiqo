@@ -1,8 +1,9 @@
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable, Optional
 
 logger = logging.getLogger("kinetiqo")
 
@@ -25,6 +26,13 @@ class Config:
     strava_client_id: str = os.getenv("STRAVA_CLIENT_ID")
     strava_client_secret: str = os.getenv("STRAVA_CLIENT_SECRET")
     strava_refresh_token: str = os.getenv("STRAVA_REFRESH_TOKEN")
+
+    # Optional callback invoked with the new token whenever StravaClient
+    # receives a rotated refresh_token from Strava (Strava issues a new one
+    # — invalidating the previous one — on every token exchange). Wired up
+    # at startup (see kinetiqo.profile_sync.wire_refresh_token_persistence)
+    # to persist the rotated token to the database so it survives a restart.
+    on_refresh_token_changed: Optional[Callable[[str], None]] = field(default=None, repr=False, compare=False)
 
     # Cache
     enable_strava_cache: bool = False

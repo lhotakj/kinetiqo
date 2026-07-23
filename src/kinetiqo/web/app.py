@@ -73,6 +73,9 @@ logger = logging.getLogger("kinetiqo.web")
 STRAVA_REAUTH_SCOPES = "activity:read_all,profile:read_all,activity:write"
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_RECONNECT_TITLE = "Reconnect with Strava"
+STRAVA_RECONNECT_TEMPLATE = "strava_reconnect.html"
+PNG_MIMETYPE = "image/png"
+UTC_OFFSET_SUFFIX = "+00:00"
 
 app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
@@ -671,7 +674,7 @@ async def osm_tile_proxy(z: int, x: int, y: int):
         return Response(
             osm_resp.content,
             status=osm_resp.status_code,
-            mimetype=osm_resp.headers.get('content-type', 'image/png'),
+            mimetype=osm_resp.headers.get('content-type', PNG_MIMETYPE),
         )
 
     except httpx.TimeoutException:
@@ -904,7 +907,7 @@ def powerskills():
         for a in activities_meta:
             # Format date nicely
             try:
-                dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
                 date_str = dt.strftime(config.date_format)
             except Exception:
                 date_str = a['start_date']
@@ -1011,7 +1014,7 @@ def _build_activity_map(cycling_activities):
     activity_map = {}
     for a in cycling_activities:
         try:
-            dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
             date_str = dt.strftime(config.date_format)
         except Exception:
             date_str = a['start_date']
@@ -1277,7 +1280,7 @@ class _PowerCache:
         Returns:
             str: Deterministic string key used to lookup cache entries.
         """
-        ids_hash = hashlib.md5(",".join(sorted(activity_ids)).encode()).hexdigest()
+        ids_hash = hashlib.sha256(",".join(sorted(activity_ids)).encode()).hexdigest()
         return f"{ids_hash}:{duration}:{min_total}"
 
     def _evict(self, now: float) -> None:
@@ -1341,7 +1344,7 @@ def ftp():
             # expectation of 'last N days' relative to recent data rather
             # than the current wall-clock time which may differ in CI.
             try:
-                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', '+00:00')) for a in cycling_activities)
+                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX)) for a in cycling_activities)
                 since_cutoff = anchor - timedelta(days=int(period))
             except Exception:
                 since_cutoff = None
@@ -1350,7 +1353,7 @@ def ftp():
                 filtered = []
                 for a in cycling_activities:
                     try:
-                        dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
                         if dt >= since_cutoff:
                             filtered.append(a)
                     except Exception:
@@ -1431,7 +1434,7 @@ def ftp_history():
 
         if period != 'all':
             try:
-                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', '+00:00')) for a in cycling_activities)
+                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX)) for a in cycling_activities)
                 since_cutoff = anchor - timedelta(days=int(period))
             except Exception:
                 since_cutoff = None
@@ -1440,7 +1443,7 @@ def ftp_history():
                 filtered = []
                 for a in cycling_activities:
                     try:
-                        dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
                         if dt >= since_cutoff:
                             filtered.append(a)
                     except Exception:
@@ -1819,7 +1822,7 @@ def _format_stats_date(date_value):
     if not date_value:
         return ''
     try:
-        dt = datetime.fromisoformat(str(date_value).replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(str(date_value).replace('Z', UTC_OFFSET_SUFFIX))
     except Exception:
         return str(date_value)
     return dt.strftime(config.date_format)
@@ -1846,7 +1849,7 @@ def logs():
             ts = log['timestamp']
             # Try to format timestamp nicely if it's a string
             try:
-                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(ts.replace('Z', UTC_OFFSET_SUFFIX))
                 ts_str = dt.strftime("%b %d, %Y %H:%M")
             except Exception:
                 ts_str = str(ts)[:20]
@@ -1897,7 +1900,7 @@ def strava_oauth_callback():
     error = request.args.get('error')
     if error:
         return render_template(
-            'strava_reconnect.html',
+            STRAVA_RECONNECT_TEMPLATE,
             title=STRAVA_RECONNECT_TITLE,
             error_message=f'Strava cancelled the reconnect flow: {error}',
             settings_url=url_for('settings'),
@@ -1909,7 +1912,7 @@ def strava_oauth_callback():
 
     if not code:
         return render_template(
-            'strava_reconnect.html',
+            STRAVA_RECONNECT_TEMPLATE,
             title=STRAVA_RECONNECT_TITLE,
             error_message='Strava did not return an authorization code.',
             settings_url=url_for('settings'),
@@ -1917,7 +1920,7 @@ def strava_oauth_callback():
 
     if not state or state != expected_state:
         return render_template(
-            'strava_reconnect.html',
+            STRAVA_RECONNECT_TEMPLATE,
             title=STRAVA_RECONNECT_TITLE,
             error_message='Strava reconnect state did not match. Please try again.',
             settings_url=url_for('settings'),
@@ -1934,7 +1937,7 @@ def strava_oauth_callback():
         weight = float(seeded_profile.get('weight', 0) or 0) if seeded_profile else 0.0
 
         return render_template(
-            'strava_reconnect.html',
+            STRAVA_RECONNECT_TEMPLATE,
             title=STRAVA_RECONNECT_TITLE,
             success=True,
             refresh_token=new_refresh_token,
@@ -1946,7 +1949,7 @@ def strava_oauth_callback():
     except Exception as e:
         logger.error(f"Error reconnecting with Strava: {e}")
         return render_template(
-            'strava_reconnect.html',
+            STRAVA_RECONNECT_TEMPLATE,
             title=STRAVA_RECONNECT_TITLE,
             error_message=str(e),
             settings_url=url_for('settings'),
@@ -2049,8 +2052,12 @@ def get_profile_api():
                 profile = None
         if not profile:
             default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0}
-            default_profile.update({field: '' for field in UPDATE_STRAVA_FIELDS})
+            default_profile.update(dict.fromkeys(UPDATE_STRAVA_FIELDS, ''))
             return jsonify(default_profile)
+        # Never expose the Strava refresh token to the client — it is stored
+        # in the database purely so it survives an app restart (see
+        # kinetiqo.profile_sync) and has no business being in the UI/API.
+        profile = {k: v for k, v in profile.items() if k != 'refresh_token'}
         return jsonify(profile)
     except Exception as e:
         logger.error(f"Error fetching profile: {e}")
@@ -2099,6 +2106,7 @@ def update_profile_api():
         # once set, they're left untouched even if the env var later changes.
         preserved_templates = {field: existing.get(field, '') for field in UPDATE_STRAVA_FIELDS}
         repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
+                           refresh_token=existing.get('refresh_token', '') or '',
                            **preserved_templates)
 
         return jsonify({
@@ -2292,7 +2300,7 @@ def get_activities_api():
             # Format date
             try:
                 # Parse ISO format (e.g., 2023-05-15T10:30:00Z)
-                dt = datetime.fromisoformat(a['start_date'].replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
                 formatted_date = dt.strftime(config.date_format)
                 # Keep original timestamp for sorting
                 timestamp = int(dt.timestamp())
@@ -2404,7 +2412,7 @@ def delete_activities_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/fullsync')
+@app.route('/fullsync', methods=['GET'])
 @login_required
 def fullsync():
     """Render the Full Sync UI page which triggers a full Strava sync.
@@ -2415,7 +2423,7 @@ def fullsync():
     return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days())
 
 
-@app.route('/fastsync')
+@app.route('/fastsync', methods=['GET'])
 @login_required
 def fastsync():
     """Render the Fast Sync UI page for incremental syncs.
@@ -2428,7 +2436,7 @@ def fastsync():
 
 # --- HTMX / Reactive API Endpoints ---
 
-@app.route('/sync/start/<type>')
+@app.route('/sync/start/<type>', methods=['GET'])
 @login_required
 def start_sync_ui(type):
     """Return an HTML snippet that connects the client to the SSE sync stream.
@@ -2462,7 +2470,7 @@ def start_sync_ui(type):
     '''
 
 
-@app.route('/api/sync/stream/<type>')
+@app.route('/api/sync/stream/<type>', methods=['GET'])
 @login_required
 def sync_stream(type):
     """Stream synchronization progress via Server-Sent Events (SSE).
@@ -2516,7 +2524,7 @@ def stop_sync():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/poster/<activity_id>')
+@app.route('/poster/<activity_id>', methods=['GET'])
 @login_required
 def poster(activity_id):
     """Render the poster page for a given activity id.
@@ -2548,7 +2556,7 @@ def poster_photo_get(activity_id):
         activity_id (str): Activity identifier for which to serve the poster photo.
 
     Returns:
-        Response: PNG bytes with mimetype 'image/png' on success, or an empty
+        Response: PNG bytes on success, or an empty
         404 response on failure.
     """
     import pathlib
@@ -2556,7 +2564,7 @@ def poster_photo_get(activity_id):
     cache_dir.mkdir(exist_ok=True)
     cached = cache_dir / f"{activity_id}.png"
     if cached.exists():
-        return Response(cached.read_bytes(), mimetype='image/png')
+        return Response(cached.read_bytes(), mimetype=PNG_MIMETYPE)
     # Try to fetch from Strava
     try:
         photo_url = _fetch_strava_activity_photo(activity_id)
@@ -2564,7 +2572,7 @@ def poster_photo_get(activity_id):
             img_data = _download_and_convert_to_png(photo_url)
             if img_data:
                 cached.write_bytes(img_data)
-                return Response(img_data, mimetype='image/png')
+                return Response(img_data, mimetype=PNG_MIMETYPE)
     except Exception as e:
         logger.error(f"Failed to fetch poster photo for {activity_id}: {e}")
     return '', 404
@@ -2591,7 +2599,7 @@ def poster_photo_reload(activity_id):
             img_data = _download_and_convert_to_png(photo_url)
             if img_data:
                 cached.write_bytes(img_data)
-                return Response(img_data, mimetype='image/png')
+                return Response(img_data, mimetype=PNG_MIMETYPE)
         return jsonify({'error': 'No photo found on Strava'}), 404
     except Exception as e:
         logger.error(f"Failed to reload poster photo for {activity_id}: {e}")
@@ -2645,13 +2653,13 @@ def poster_photo_upload(activity_id):
         png_data = buf.getvalue()
         cached = cache_dir / f"{activity_id}.png"
         cached.write_bytes(png_data)
-        return Response(png_data, mimetype='image/png')
+        return Response(png_data, mimetype=PNG_MIMETYPE)
     except Exception as e:
         logger.error(f"Failed to process uploaded image for {activity_id}: {e}")
         return jsonify({'error': f'Failed to process image: {e}'}), 500
 
 
-@app.route('/api/poster/elevation/<activity_id>')
+@app.route('/api/poster/elevation/<activity_id>', methods=['GET'])
 @login_required
 def poster_elevation_data(activity_id):
     """Return elevation profile data (distance and altitude arrays) for an activity.
@@ -2747,7 +2755,6 @@ def poster_export(activity_id):
     # TLS termination.  The Flask dev server and gunicorn both bind on 4444;
     # fall back to the port embedded in request.host if different.
     host_header = request.host  # e.g. "localhost:4444" or "kinetiqo.example.com"
-    host_header.split(':')[0]  # strip port for cookie domain
     port = host_header.split(':')[1] if ':' in host_header else '4444'
     internal_url = f"http://127.0.0.1:{port}/poster/{activity_id}"
 
@@ -2933,7 +2940,7 @@ def poster_export(activity_id):
         )
         return Response(
             png_bytes,
-            mimetype='image/png',
+            mimetype=PNG_MIMETYPE,
             headers={
                 'Content-Disposition':
                     f'attachment; filename="poster_{activity_id}.png"',
@@ -3144,7 +3151,7 @@ def stats_export():
                 logger.info(f"Stats PNG export OK: {width}x{height}, size={len(png_bytes)//1024} KB")
                 return Response(
                     png_bytes,
-                    mimetype='image/png',
+                    mimetype=PNG_MIMETYPE,
                     headers={
                         'Content-Disposition': 'attachment; filename="kinetiqo-megastats.png"',
                         'Content-Length': str(len(png_bytes)),
@@ -3210,7 +3217,7 @@ def _download_and_convert_to_png(url: str) -> bytes | None:
     return buf.getvalue()
 
 
-@app.route('/latest-version')
+@app.route('/latest-version', methods=['GET'])
 async def latest_version():
     """Return an asynchronous message indicating whether a newer release exists.
 
@@ -3243,14 +3250,14 @@ def inject_version():
             return f"{url}?v={version}"
         return url
 
-    return dict(
-        app_version=version,
-        google_fonts=GOOGLE_FONTS,
-        base_google_fonts_url=_versioned(_BASE_FONTS_URL),
-        login_google_fonts_url=_versioned(LOGIN_GOOGLE_FONTS_URL),
-        poster_google_fonts_url=_versioned(_POSTER_FONTS_URL),
-        poster_google_fonts=get_google_fonts(*POSTER_GOOGLE_FONT_NAMES),
-    )
+    return {
+        'app_version': version,
+        'google_fonts': GOOGLE_FONTS,
+        'base_google_fonts_url': _versioned(_BASE_FONTS_URL),
+        'login_google_fonts_url': _versioned(LOGIN_GOOGLE_FONTS_URL),
+        'poster_google_fonts_url': _versioned(_POSTER_FONTS_URL),
+        'poster_google_fonts': get_google_fonts(*POSTER_GOOGLE_FONT_NAMES),
+    }
 
 
 def run_app():

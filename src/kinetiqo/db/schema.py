@@ -305,6 +305,13 @@ SCHEMA_DEFINITION = {
              "type_firebird": "VARCHAR(4000)"},
             {"name": "update_strava_swimming", "type_mysql": "TEXT", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(4000)"},
+            # The current Strava OAuth2 refresh token. Strava issues a new
+            # refresh token on every token exchange and invalidates the
+            # previous one, so this column — not the STRAVA_REFRESH_TOKEN env
+            # var — is authoritative once a profile row exists. See
+            # kinetiqo.profile_sync.resolve_refresh_token_from_db().
+            {"name": "refresh_token", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"

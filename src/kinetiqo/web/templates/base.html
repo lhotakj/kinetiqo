@@ -28,8 +28,12 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"
+            integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+            crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"
+            integrity="sha384-fw+eTlCc7suMV/1w/7fr2/PmwElUIt5i82bi+qTiLXvjRXZ2/FkiTNA/w0MhXnGI"
+            crossorigin="anonymous"></script>
 
     <!--
         Preload the critical woff2 files so font data is in memory before the
@@ -49,9 +53,15 @@
     <!-- NOSONAR: self-hosted copy of Google Fonts (see development/download-fonts.py) -->
     <link href="{{ base_google_fonts_url }}" rel="stylesheet">
 
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css"
+          integrity="sha384-iRTWPXZquQySBE9K96fgJXUIrnm8TpdtPAbiCNR+qjpP24qFZw9PHFA91JtWy7Ul"
+          crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+            integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.min.js"
+            integrity="sha384-Lo2E+ASlyar6zUXt6sPEy5uaDGtDGHXo300rohaW4/AV26JdoLBT9zhcOhV8BtL8"
+            crossorigin="anonymous"></script>
 
     <script>
         tailwind.config = {
@@ -96,7 +106,7 @@
 <aside class="w-64 bg-warm-100 flex flex-col h-screen border-r border-warm-200 flex-shrink-0 transition-colors duration-300">
     <div class="p-6 pb-2">
         <div class="flex flex-col items-center gap-2 mb-6">
-            <img src="{{ url_for('static', filename='img/kinetiqo_logo.png', v=app_version) }}"/>
+            <img src="{{ url_for('static', filename='img/kinetiqo_logo.png', v=app_version) }}" alt="Kinetiqo logo"/>
             <span class="italiana text-xl font-bold text-warm-900 tracking-tight">Kinetiqo</span>
         </div>
 

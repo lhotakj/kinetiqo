@@ -6,10 +6,15 @@ fully in isolation.
 """
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
-from kinetiqo.profile_sync import sync_update_strava_from_env
+from kinetiqo.profile_sync import (
+    sync_update_strava_from_env,
+    resolve_refresh_token_from_db,
+    persist_refresh_token,
+    wire_refresh_token_persistence,
+)
 
 
 def _make_config(**overrides):
@@ -113,6 +118,132 @@ class TestSyncUpdateStravaFromEnv(unittest.TestCase):
         sync_update_strava_from_env(config, repo)
 
         repo.upsert_profile.assert_not_called()
+
+
+class TestResolveRefreshTokenFromDb(unittest.TestCase):
+    """Unit tests for resolve_refresh_token_from_db().
+
+    Strava rotates and invalidates the previous refresh token on every token
+    exchange, so the database copy (once a profile row exists) must win over
+    the — possibly stale — STRAVA_REFRESH_TOKEN env var.
+    """
+
+    def test_noop_when_no_profile_exists_yet(self):
+        config = _make_config(strava_refresh_token="env-token")
+
+        resolve_refresh_token_from_db(config, None)
+
+        self.assertEqual(config.strava_refresh_token, "env-token")
+
+    def test_database_token_overrides_env_var(self):
+        config = _make_config(strava_refresh_token="stale-env-token")
+        existing = _make_profile(refresh_token="fresh-db-token")
+
+        resolve_refresh_token_from_db(config, existing)
+
+        self.assertEqual(config.strava_refresh_token, "fresh-db-token")
+
+    def test_noop_when_database_token_is_empty(self):
+        config = _make_config(strava_refresh_token="env-token")
+        existing = _make_profile(refresh_token="")
+
+        resolve_refresh_token_from_db(config, existing)
+
+        self.assertEqual(config.strava_refresh_token, "env-token")
+
+    def test_noop_when_database_token_already_matches(self):
+        config = _make_config(strava_refresh_token="same-token")
+        existing = _make_profile(refresh_token="same-token")
+
+        resolve_refresh_token_from_db(config, existing)
+
+        self.assertEqual(config.strava_refresh_token, "same-token")
+
+
+class TestPersistRefreshToken(unittest.TestCase):
+    """Unit tests for persist_refresh_token()."""
+
+    def test_noop_when_no_profile_exists_yet(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+
+        result = persist_refresh_token(repo, "new-token")
+
+        self.assertFalse(result)
+        repo.upsert_profile.assert_not_called()
+
+    def test_noop_when_token_unchanged(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = _make_profile(refresh_token="same-token")
+
+        result = persist_refresh_token(repo, "same-token")
+
+        self.assertTrue(result)
+        repo.upsert_profile.assert_not_called()
+
+    def test_noop_for_empty_token(self):
+        repo = MagicMock()
+
+        result = persist_refresh_token(repo, "")
+
+        self.assertFalse(result)
+        repo.get_profile.assert_not_called()
+        repo.upsert_profile.assert_not_called()
+
+    def test_persists_rotated_token_and_preserves_other_fields(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = _make_profile(
+            refresh_token="old-token", update_strava_walking="Keep me."
+        )
+
+        result = persist_refresh_token(repo, "new-token")
+
+        self.assertTrue(result)
+        repo.upsert_profile.assert_called_once_with(
+            42, "Jane", "Doe", 65.0,
+            refresh_token="new-token",
+            **{field: ("Keep me." if field == "update_strava_walking" else "") for field in UPDATE_STRAVA_FIELDS},
+        )
+
+
+class TestWireRefreshTokenPersistence(unittest.TestCase):
+    """Unit tests for wire_refresh_token_persistence()."""
+
+    @patch("kinetiqo.db.factory.create_repository")
+    def test_callback_persists_token_via_its_own_repo(self, mock_create_repo):
+        repo = MagicMock()
+        repo.get_profile.return_value = _make_profile(refresh_token="old-token")
+        mock_create_repo.return_value = repo
+        config = _make_config()
+
+        wire_refresh_token_persistence(config)
+        config.on_refresh_token_changed("rotated-token")
+
+        mock_create_repo.assert_called_once_with(config)
+        repo.upsert_profile.assert_called_once()
+        repo.close.assert_called_once()
+
+    @patch("kinetiqo.db.factory.create_repository")
+    def test_callback_swallows_errors_and_still_closes_repo(self, mock_create_repo):
+        repo = MagicMock()
+        repo.get_profile.side_effect = RuntimeError("db down")
+        mock_create_repo.return_value = repo
+        config = _make_config()
+
+        wire_refresh_token_persistence(config)
+        # Must not raise even though persisting failed.
+        config.on_refresh_token_changed("rotated-token")
+
+        repo.close.assert_called_once()
+
+    @patch("kinetiqo.db.factory.create_repository")
+    def test_callback_handles_repo_creation_failure(self, mock_create_repo):
+        mock_create_repo.side_effect = RuntimeError("cannot connect")
+        config = _make_config()
+
+        wire_refresh_token_persistence(config)
+        # Must not raise even though repo creation failed.
+        config.on_refresh_token_changed("rotated-token")
 
 
 if __name__ == "__main__":

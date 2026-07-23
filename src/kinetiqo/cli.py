@@ -11,7 +11,12 @@ from kinetiqo.cache import CacheManager
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository, get_version
 from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
-from kinetiqo.profile_sync import seed_profile_from_strava, sync_update_strava_from_env
+from kinetiqo.profile_sync import (
+    seed_profile_from_strava,
+    sync_update_strava_from_env,
+    resolve_refresh_token_from_db,
+    wire_refresh_token_persistence,
+)
 from kinetiqo.sync import SyncService
 logger = logging.getLogger("kinetiqo")
 
@@ -140,6 +145,14 @@ def cli(ctx, log_level, database):
 
             repo.initialize_schema()
             # _load_api_keys(config)
+
+            # Install the refresh-token persistence callback and prefer any
+            # refresh token already stored in the database over the (possibly
+            # stale) STRAVA_REFRESH_TOKEN env var — see docstrings in
+            # kinetiqo.profile_sync for why this is required: Strava rotates
+            # and invalidates the previous refresh token on every exchange.
+            wire_refresh_token_persistence(config)
+            resolve_refresh_token_from_db(config, repo.get_profile())
 
         except Exception as e:
             logger.exception(f"Failed to initialize database: {e}", exc_info=True)

@@ -908,7 +908,7 @@ class PostgresqlRepository(DatabaseRepository):
                 "SELECT athlete_id, first_name, last_name, weight, "
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
-                "update_strava_walking, update_strava_swimming "
+                "update_strava_walking, update_strava_swimming, refresh_token "
                 "FROM profile LIMIT 1"
             )
             row = cur.fetchone()
@@ -917,15 +917,16 @@ class PostgresqlRepository(DatabaseRepository):
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
-                       update_strava_walking: str = "", update_strava_swimming: str = ""):
+                       update_strava_walking: str = "", update_strava_swimming: str = "",
+                       refresh_token: str = ""):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO profile (athlete_id, first_name, last_name, weight,
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
-                    update_strava_walking, update_strava_swimming)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    update_strava_walking, update_strava_swimming, refresh_token)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
@@ -935,11 +936,12 @@ class PostgresqlRepository(DatabaseRepository):
                         update_strava_running_indoor = EXCLUDED.update_strava_running_indoor,
                         update_strava_running_outdoor = EXCLUDED.update_strava_running_outdoor,
                         update_strava_walking = EXCLUDED.update_strava_walking,
-                        update_strava_swimming = EXCLUDED.update_strava_swimming
+                        update_strava_swimming = EXCLUDED.update_strava_swimming,
+                        refresh_token = EXCLUDED.refresh_token
             """, (athlete_id, first_name, last_name, weight,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
-                  update_strava_walking or "", update_strava_swimming or ""))
+                  update_strava_walking or "", update_strava_swimming or "", refresh_token or ""))
 
     # ------------------------------------------------------------------
     # Activity goals

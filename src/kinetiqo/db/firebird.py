@@ -1172,7 +1172,7 @@ class FirebirdRepository(DatabaseRepository):
                 'SELECT "athlete_id", "first_name", "last_name", "weight", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming" '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
@@ -1189,12 +1189,14 @@ class FirebirdRepository(DatabaseRepository):
                 'update_strava_running_outdoor': row[7],
                 'update_strava_walking': row[8],
                 'update_strava_swimming': row[9],
+                'refresh_token': row[10],
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
-                       update_strava_walking: str = "", update_strava_swimming: str = ""):
+                       update_strava_walking: str = "", update_strava_swimming: str = "",
+                       refresh_token: str = ""):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(
@@ -1202,13 +1204,13 @@ class FirebirdRepository(DatabaseRepository):
                 '("athlete_id", "first_name", "last_name", "weight", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight,
                  update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                  update_strava_running_indoor or "", update_strava_running_outdoor or "",
-                 update_strava_walking or "", update_strava_swimming or "")
+                 update_strava_walking or "", update_strava_swimming or "", refresh_token or "")
             )
         self.conn.commit()
 

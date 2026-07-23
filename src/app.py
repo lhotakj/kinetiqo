@@ -5,24 +5,20 @@ from datetime import datetime
 from auth import User, users
 from flask import Flask, request, redirect, url_for, flash
 from flask import render_template
-# Import CSRFProtect with robust fallbacks so the app can run in dev without
-# Flask-WTF installed. In production, ensure Flask-WTF is installed and
-# enabled to provide CSRF protection.
+# Import CSRF protection if available. Production must have Flask-WTF so the
+# app never runs with CSRF protection silently disabled.
 try:
     from flask_wtf import CSRFProtect
 except Exception:
     try:
         from flask_wtf.csrf import CSRFProtect
-    except Exception:
-        import logging
+    except Exception as exc:
+        if os.environ.get("FLASK_ENV") == "production" or os.environ.get("KINETIQO_PRODUCTION") == "1":
+            raise RuntimeError("Flask-WTF is required in production to enable CSRF protection.") from exc
         logging.getLogger(__name__).warning(
-            "flask-wtf not installed; CSRF protection disabled. "
-            "Install Flask-WTF in production!"
+            "flask-wtf not installed; CSRF protection is disabled in this dev/test run."
         )
-
-        class CSRFProtect:  # no-op fallback for development/test environments
-            def init_app(self):
-                return None
+        CSRFProtect = None
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from mock_data import get_mock_activities
@@ -30,8 +26,9 @@ from mock_data import get_mock_activities
 
 # --- Flask App & Security Configuration ---
 app = Flask(__name__)
-csrf = CSRFProtect()
-csrf.init_app(app) # Compliant
+csrf = CSRFProtect() if CSRFProtect is not None else None
+if csrf is not None:
+    csrf.init_app(app) # Compliant
 
 # Enforce SECRET_KEY in production
 secret = os.environ.get("SECRET_KEY")

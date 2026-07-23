@@ -100,12 +100,32 @@ class StravaClient:
         new_refresh_token = data.get("refresh_token")
         if new_refresh_token and new_refresh_token != self.config.strava_refresh_token:
             self.config.strava_refresh_token = new_refresh_token
+            self._notify_refresh_token_changed(new_refresh_token)
         logger.debug("Access token refreshed successfully.")
 
         if new_refresh_token:
             logger.debug("New Strava refresh token issued and stored in memory.")
 
         return self._access_token
+
+    def _notify_refresh_token_changed(self, new_refresh_token: str) -> None:
+        """Invoke the configured callback so the rotated token can be persisted.
+
+        Strava issues a new refresh token — and invalidates the previous one
+        — on every token exchange. If the rotated token is only kept on the
+        in-memory ``Config`` instance, it is lost when the process exits,
+        which then makes the *next* startup fail immediately with an
+        "invalid" refresh_token error (even though the previous run ended
+        cleanly). See :mod:`kinetiqo.profile_sync` for the callback that
+        persists it to the database.
+        """
+        callback = getattr(self.config, "on_refresh_token_changed", None)
+        if not callback:
+            return
+        try:
+            callback(new_refresh_token)
+        except Exception:
+            logger.exception("Failed to persist rotated Strava refresh token.")
 
     def exchange_authorization_code(self, code: str) -> dict:
         """Exchange an OAuth authorization code for tokens."""
@@ -132,6 +152,7 @@ class StravaClient:
         new_refresh_token = data.get("refresh_token")
         if new_refresh_token and new_refresh_token != self.config.strava_refresh_token:
             self.config.strava_refresh_token = new_refresh_token
+            self._notify_refresh_token_changed(new_refresh_token)
         return data
 
     def _headers(self) -> dict:
