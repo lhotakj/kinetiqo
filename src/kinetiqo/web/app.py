@@ -36,7 +36,7 @@ from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
 from kinetiqo.web.fitness import calculate_fitness_freshness
 from kinetiqo.web.vo2max import (
-    estimate_vo2max, classify_vo2max, smooth_vo2max_history,
+    estimate_vo2max, estimate_vo2max_coggan, classify_vo2max, smooth_vo2max_history,
     filter_qualifying_rides, MIN_WATTS_SAMPLES,
 )
 from kinetiqo.web.stats import (
@@ -1545,6 +1545,8 @@ def vo2max():
     vo2max_value = 0.0
     classification = "N/A"
     best_5min_watts = 0.0
+    coggan_vo2max = 0.0
+    ftp_watts_for_coggan = 0
     activity_name = None
     activity_date = None
     activity_id = None
@@ -1594,6 +1596,14 @@ def vo2max():
                 vo2max_value = round(estimate_vo2max(best_5min_watts, weight), 1)
                 classification = classify_vo2max(vo2max_value)
 
+                # Coggan FTP-based alternative estimate: FTP = 95 % of best 20-min power.
+                # Uses the same power cache so no extra DB query is needed.
+                best_20min = _power_cache.get_best_power(
+                    repo, activity_ids, FTP_DURATION_SECONDS,
+                )
+                best_20min_watts = max(best_20min.values(), default=0.0)
+                ftp_watts_for_coggan = int(round(best_20min_watts * FTP_FACTOR))
+                coggan_vo2max = estimate_vo2max_coggan(ftp_watts_for_coggan, weight)
 
         except Exception as e:
             logger.error(f"Error computing VO2max: {e}")
@@ -1605,6 +1615,8 @@ def vo2max():
         vo2max_value=vo2max_value,
         classification=classification,
         best_5min_watts=int(round(best_5min_watts)),
+        coggan_vo2max=coggan_vo2max,
+        ftp_watts_for_coggan=ftp_watts_for_coggan,
         athlete_weight=weight,
         weight_source=weight_source,
         activity_name=activity_name,
