@@ -54,11 +54,11 @@ RUN mkdir -p /firebird-lib \
 FROM python:${PYTHON_VERSION}-slim AS python-builder
 
 WORKDIR /app
-COPY requirements.lock .
+COPY requirements.txt .
 
 # No build tools needed — every package ships a pre-built manylinux wheel.
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN pip install --only-binary=:all: --no-cache-dir --no-compile --prefix=/install -r requirements.lock \
+RUN pip install --only-binary=:all: --no-cache-dir --no-compile --prefix=/install -r requirements.txt \
     && find /install -type d -name "tests"       -exec rm -rf {} + 2>/dev/null || true \
     && find /install -type d -name "test"        -exec rm -rf {} + 2>/dev/null || true \
     && find /install -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
