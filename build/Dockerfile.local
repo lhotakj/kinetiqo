@@ -21,18 +21,18 @@ ARG FIREBIRD_VERSION
 
 # libtomcrypt-dev: system libtomcrypt avoids the bundled libtool build issue.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        libicu-dev \
-        zlib1g-dev \
-        wget \
-        unzip \
         autoconf \
         automake \
-        libtool \
-        pkg-config \
-        libtommath-dev \
-        libtomcrypt-dev \
+        build-essential \
+        libicu-dev \
         libncurses-dev \
+        libtool \
+        libtomcrypt-dev \
+        libtommath-dev \
+        pkg-config \
+        unzip \
+        wget \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /firebird-lib \
@@ -94,11 +94,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Chromium is installed here (system package) so Playwright can use it via
 # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH without downloading its own binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libtommath1 \
-        libtomcrypt1 \
-        libpq5 \
-        cron \
         chromium \
+        cron \
+        libpq5 \
+        libtomcrypt1 \
+        libtommath1 \
     && rm -rf /var/lib/apt/lists/* \
     && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
     && rm -rf /usr/share/man /usr/share/groff /usr/share/info /usr/share/lintian
