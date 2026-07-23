@@ -1625,10 +1625,10 @@ var table = null;
                         const disp = (row.date && row.date.display) ? row.date.display : row.date;
                         return disp ? new Date(disp) : '';
                     },
-                4:  row => parseFloat((row.distance / 1000).toFixed(2)),
-                5:  row => parseFloat(Number(row.elevation).toFixed(2)),
+                4:  row => Number.parseFloat((row.distance / 1000).toFixed(2)),
+                5:  row => Number.parseFloat(Number(row.elevation).toFixed(2)),
                 6:  row => formatDuration(row.moving_time),
-                7:  row => parseFloat((row.average_speed * 3.6).toFixed(1)),
+                7:  row => Number.parseFloat((row.average_speed * 3.6).toFixed(1)),
                 8:  row => row.average_watts > 0 ? Math.round(row.average_watts) : '',
                 9:  row => row.max_watts > 0 ? Math.round(row.max_watts) : '',
                 10: row => row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '',
@@ -1640,9 +1640,9 @@ var table = null;
                 16: row => row.pr_count || 0,
                 17: row => row.suffer_score ? Math.round(row.suffer_score) : '',
                 18: row => (row.average_temp !== null && row.average_temp !== undefined)
-                              ? parseFloat(Number(row.average_temp).toFixed(1)) : '',
-                19: row => row.elev_high ? parseFloat(Number(row.elev_high).toFixed(2)) : '',
-                20: row => row.elev_low  ? parseFloat(Number(row.elev_low).toFixed(2))  : '',
+                              ? Number.parseFloat(Number(row.average_temp).toFixed(1)) : '',
+                19: row => row.elev_high ? Number.parseFloat(Number(row.elev_high).toFixed(2)) : '',
+                20: row => row.elev_low  ? Number.parseFloat(Number(row.elev_low).toFixed(2))  : '',
                 21: row => row.gear_id || '',
                 22: row => row.has_heartrate ? 'Yes' : 'No',
                 23: row => row.workout_type || '',

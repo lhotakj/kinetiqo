@@ -1,5 +1,7 @@
 ﻿#!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC2155  # shellcheck-format ignore for Sonar rule shell:S6573
+# NOSONAR: Sonar rule shell:S6573 is acknowledged and ignored for this installer script.
 
 # Install Firebird client libraries and the Python Firebird driver on Ubuntu.
 # If CMake config fails (common with policy/version differences), fall back to autogen/configure.
