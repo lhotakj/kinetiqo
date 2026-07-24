@@ -276,6 +276,20 @@
                 </select>
             </div>
             <div class="control-row">
+                <label for="titleStyle">Font Style</label>
+                <select id="titleStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                    <option value="bold">Bold</option>
+                    <option value="bolditalic">Bold Italic</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="titleLineHeight">Line Height</label>
+                <input type="range" id="titleLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleLineHeightVal" class="text-xs w-10">0%</span>
+            </div>
+            <div class="control-row">
                 <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
                 <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
             </div>
@@ -314,9 +328,31 @@
                 </select>
             </div>
             <div class="control-row">
+                <label for="statsStyle">Font Style</label>
+                <select id="statsStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                    <option value="bold">Bold</option>
+                    <option value="bolditalic">Bold Italic</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="statsAlign">Text Align</label>
+                <select id="statsAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                </select>
+            </div>
+            <div class="control-row">
                 <label for="statsFontSize">Font Size</label>
                 <input type="range" id="statsFontSize" min="10" max="48" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                 <span id="statsFontSizeVal" class="text-xs w-8">20px</span>
+            </div>
+            <div class="control-row">
+                <label for="statsLineHeight">Line Height</label>
+                <input type="range" id="statsLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsLineHeightVal" class="text-xs w-10">0%</span>
             </div>
             <div class="control-row">
                 <label for="statsColor">Color</label>
@@ -468,7 +504,15 @@
     const DEFAULTS = {
         posterSize: 1280, ratio: '4/3',
         titleFont: 'Roboto Condensed', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
+        // Title style tweaks
+        titleStyle: 'normal',        // options: normal, italic, bold, bolditalic
+        titleLineHeight: 0,          // percent offset (-20 .. 20)
+        titleAlign: 'left',
         statsFont: 'Roboto Condensed', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
+        // Stats layout tweaks
+        statsStyle: 'normal',        // options: normal, italic, bold, bolditalic
+        statsLineHeight: 0,          // percent offset (-20 .. 20)
+        statsAlign: 'left',
         // Which stats are visible on the poster (all enabled by default)
         statsVisible: { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true, avg_power: true, max_power: true },
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
@@ -508,6 +552,12 @@
         document.getElementById('titleOutlineWidthVal').textContent = s.titleOutlineWidth;
         document.getElementById('titleOpacity').value = s.titleOpacity;
         document.getElementById('titleOpacityVal').textContent = s.titleOpacity + '%';
+        // Title style controls
+        if (document.getElementById('titleStyle')) document.getElementById('titleStyle').value = s.titleStyle || 'normal';
+        if (document.getElementById('titleLineHeight')) {
+            document.getElementById('titleLineHeight').value = s.titleLineHeight || 0;
+            document.getElementById('titleLineHeightVal').textContent = (s.titleLineHeight || 0) + '%';
+        }
         document.getElementById('statsFont').value = s.statsFont;
         document.getElementById('statsFontSize').value = s.statsFontSize;
         document.getElementById('statsFontSizeVal').textContent = s.statsFontSize + 'px';
@@ -517,6 +567,13 @@
         document.getElementById('statsOutlineWidthVal').textContent = s.statsOutlineWidth;
         document.getElementById('statsOpacity').value = s.statsOpacity;
         document.getElementById('statsOpacityVal').textContent = s.statsOpacity + '%';
+        // Stats style controls
+        if (document.getElementById('statsStyle')) document.getElementById('statsStyle').value = s.statsStyle || 'normal';
+        if (document.getElementById('statsLineHeight')) {
+            document.getElementById('statsLineHeight').value = s.statsLineHeight || 0;
+            document.getElementById('statsLineHeightVal').textContent = (s.statsLineHeight || 0) + '%';
+        }
+        if (document.getElementById('statsAlign')) document.getElementById('statsAlign').value = s.statsAlign || 'left';
         document.getElementById('elevFontSize').value = s.elevFontSize;
         document.getElementById('elevFontSizeVal').textContent = s.elevFontSize + 'px';
         document.getElementById('elevColor').value = s.elevColor;
@@ -562,6 +619,16 @@
              : '0px transparent';
          titleEl.style.paintOrder = 'stroke fill';
          titleEl.style.opacity = settings.titleOpacity / 100;
+         // Title style (fontStyle/fontWeight) and line-height
+         (function(){
+             const style = (settings.titleStyle || 'normal').toLowerCase();
+             if (style === 'italic') { titleEl.style.fontStyle = 'italic'; titleEl.style.fontWeight = '400'; }
+             else if (style === 'bold') { titleEl.style.fontStyle = 'normal'; titleEl.style.fontWeight = '700'; }
+             else if (style === 'bolditalic') { titleEl.style.fontStyle = 'italic'; titleEl.style.fontWeight = '700'; }
+             else { titleEl.style.fontStyle = 'normal'; titleEl.style.fontWeight = '400'; }
+             const th = 1 + ((settings.titleLineHeight || 0) / 100);
+             titleEl.style.lineHeight = String(th);
+         })();
          titleEl.style.textAlign = settings.titleAlign || 'left';
           // Stats — use -webkit-text-stroke for proper outline
           const statsEl = document.getElementById('posterStats');
@@ -573,6 +640,17 @@
              : '0px transparent';
          statsEl.style.paintOrder = 'stroke fill';
          statsEl.style.opacity = settings.statsOpacity / 100;
+         // Stats style, line-height and align
+         (function(){
+             const style = (settings.statsStyle || 'normal').toLowerCase();
+             if (style === 'italic') { statsEl.style.fontStyle = 'italic'; statsEl.style.fontWeight = '400'; }
+             else if (style === 'bold') { statsEl.style.fontStyle = 'normal'; statsEl.style.fontWeight = '700'; }
+             else if (style === 'bolditalic') { statsEl.style.fontStyle = 'italic'; statsEl.style.fontWeight = '700'; }
+             else { statsEl.style.fontStyle = 'normal'; statsEl.style.fontWeight = '400'; }
+             const sh = 1 + ((settings.statsLineHeight || 0) / 100);
+             statsEl.style.lineHeight = String(sh);
+             statsEl.style.textAlign = settings.statsAlign || 'left';
+         })();
           // Apply visibility flags to stat items
           try {
               statsEl.querySelectorAll('.stat-item[data-field]').forEach(item => {
@@ -903,8 +981,13 @@
     bindControl('titleOutlineColor', 'titleOutlineColor', false);
     bindControl('titleOutlineWidth', 'titleOutlineWidth', true, 'titleOutlineWidthVal', '');
     bindControl('titleOpacity', 'titleOpacity', true, 'titleOpacityVal', '%');
+    bindControl('titleStyle', 'titleStyle', false);
+    bindControl('titleLineHeight', 'titleLineHeight', true, 'titleLineHeightVal', '%');
     bindFontControl('statsFont', 'statsFont');
+    bindControl('statsStyle', 'statsStyle', false);
+    bindControl('statsAlign', 'statsAlign', false);
     bindControl('statsFontSize', 'statsFontSize', true, 'statsFontSizeVal', 'px');
+    bindControl('statsLineHeight', 'statsLineHeight', true, 'statsLineHeightVal', '%');
     bindControl('statsColor', 'statsColor', false);
     bindControl('statsOutlineColor', 'statsOutlineColor', false);
     bindControl('statsOutlineWidth', 'statsOutlineWidth', true, 'statsOutlineWidthVal', '');
