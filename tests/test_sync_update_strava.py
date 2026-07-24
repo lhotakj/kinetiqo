@@ -142,16 +142,16 @@ class TestDescriptionStatusSuffix(unittest.TestCase):
         self.assertEqual(_description_status_suffix(DESC_NOT_CONFIGURED), "")
 
     def test_unchanged_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_UNCHANGED), " — description: up to date")
+        self.assertEqual(_description_status_suffix(DESC_UNCHANGED), " | Kinetiqo description skipped")
 
     def test_skipped_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_SKIPPED), " — description: skipped (missing scope)")
+        self.assertEqual(_description_status_suffix(DESC_SKIPPED), " | Kinetiqo description skipped")
 
     def test_updated_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_UPDATED), " — description: updated")
+        self.assertEqual(_description_status_suffix(DESC_UPDATED), " | Kinetiqo description updated")
 
     def test_failed_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_FAILED), " — description: failed")
+        self.assertEqual(_description_status_suffix(DESC_FAILED), " | Kinetiqo description skipped")
 
 
 class TestSyncSurfacesWarningsInUi(unittest.TestCase):
@@ -217,9 +217,9 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.strava.update_activity_description.return_value = None
 
         events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
-        synced_line = next(e for e in events if "Morning Ride" in e and "Synced:" in e)
+        synced_line = next(e for e in events if "Morning Ride (Ride)" in e and "[1/1]" in e)
 
-        self.assertIn("description: updated", synced_line)
+        self.assertIn("| Kinetiqo description updated", synced_line)
 
     def test_existing_activity_log_line_shows_status_inline(self):
         service = self._make_service()
@@ -233,9 +233,9 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.config.update_strava_cycling_outdoor = "Year: {{current-year}}{{new-line}}"
 
         events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
-        updated_line = next(e for e in events if "Morning Ride" in e and "Updated:" in e)
+        updated_line = next(e for e in events if "Morning Ride (Ride)" in e and "[1/1]" in e)
 
-        self.assertIn("description: up to date", updated_line)
+        self.assertIn("| Kinetiqo description skipped", updated_line)
         service.strava.update_activity_description.assert_not_called()
 
 

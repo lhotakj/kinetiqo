@@ -15,6 +15,7 @@ from kinetiqo.strava_description import DescriptionContext, any_update_strava_te
 logger = logging.getLogger("kinetiqo")
 
 STOP_SIGNAL_FILE = ".sync_stop"
+STOP_SIGNAL_ABORT_MSG = "Stop signal received. Aborting..."
 
 # ---------------------------------------------------------------------------
 # Brief per-activity UPDATE_STRAVA description status, surfaced inline next
@@ -27,22 +28,19 @@ DESC_SKIPPED = "skipped"                # skipped because a prior 401 already di
 DESC_UPDATED = "updated"                # Strava description was successfully updated
 DESC_FAILED = "failed"                  # the update attempt raised an error (see the returned message)
 
-_DESC_STATUS_LABELS = {
-    DESC_UNCHANGED: "description: up to date",
-    DESC_SKIPPED: "description: skipped (missing scope)",
-    DESC_UPDATED: "description: updated",
-    DESC_FAILED: "description: failed",
-}
-
-
 def _description_status_suffix(status: str) -> str:
-    """Return a brief ``" — description: ..."`` suffix for a per-activity log line.
+    """Return a brief ``" | Kinetiqo description ..."`` suffix for a per-activity log line.
 
     Returns an empty string for :data:`DESC_NOT_CONFIGURED` (the feature isn't
-    active for this activity's sport type, so there's nothing worth showing).
+    active for this activity's sport type, so there's nothing to show). All
+    configured-but-not-updated outcomes collapse to ``"skipped"`` to keep sync
+    UI output concise.
     """
-    label = _DESC_STATUS_LABELS.get(status)
-    return f" — {label}" if label else ""
+    if status == DESC_UPDATED:
+        return " | Kinetiqo description updated"
+    if status in (DESC_UNCHANGED, DESC_SKIPPED, DESC_FAILED):
+        return " | Kinetiqo description skipped"
+    return ""
 
 class SyncService:
     """Service responsible for synchronizing activities from Strava into the database.
@@ -263,7 +261,7 @@ class SyncService:
 
             if self._check_stop_signal():
                 stopped = True
-                yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                 return
 
             # --- Determine the time window for fetching from Strava ---
@@ -371,79 +369,50 @@ class SyncService:
 
             if self._check_stop_signal():
                 stopped = True
-                yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                 return
 
-            # --- Phase 1: Update metadata for existing activities ---
-            if existing_activities:
-                yield yield_log(f"Updating metadata for {len(existing_activities)} existing activities...")
-                total_existing = len(existing_activities)
-                for i, activity in enumerate(existing_activities, 1):
-                    name = activity.get("name", "Unknown Activity")
-                    sport = activity.get("sport_type", "?")
-                    percent = (i / total_existing) * 100 if total_existing > 0 else 0
-                    desc_suffix = ""
-                    try:
-                        self.db.write_activity(activity)
-                        updated_count += 1
-                        if description_context is not None:
-                            status, warning = self._update_strava_description(description_context, activity)
-                            desc_suffix = _description_status_suffix(status)
-                            if warning:
-                                sync_warnings.append(warning)
-                        yield yield_log(f"[{i}/{total_existing}] ({percent:.1f}%) Updated: {name} ({sport}){desc_suffix}")
-                    except Exception as e:
-                        msg = f"Failed to update activity {activity['id']}: {e}"
-                        logger.warning(msg)
-                        sync_warnings.append(msg)
-                        yield yield_log(f"[{i}/{total_existing}] ({percent:.1f}%) Failed: {name} ({sport}) — {e}")
-                yield yield_log(f"Updated {updated_count} existing activities.")
-
-            if self._check_stop_signal():
-                stopped = True
-                yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
-                return
-
-            # --- Phase 2: Sync new activities (metadata + streams) ---
-            total_new = len(new_activities)
-            for i, activity in enumerate(new_activities, 1):
+            # --- Phase 1: Sync all activities (existing + new) in one pass ---
+            total_activities = len(activities)
+            for i, activity in enumerate(activities, 1):
                 if self._check_stop_signal():
                     stopped = True
-                    yield yield_log("Stop signal received. Aborting...", final=True, is_stopped=True)
+                    yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                     return
                 activity_id = activity["id"]
                 sport = activity["sport_type"]
                 name = activity.get("name", "Unknown Activity")
-                percent = (i / total_new) * 100 if total_new > 0 else 0
-                yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Syncing: {name} ({sport})")
+                percent = (i / total_activities) * 100 if total_activities > 0 else 0
+                is_existing = str(activity_id) in synced_ids
                 desc_suffix = ""
                 try:
                     self.db.write_activity(activity)
-                    streams = self.strava.get_streams(activity_id)
-                    point_count = len(streams.get('time', {}).get('data', []))
-                    stream_note = ""
-                    if point_count > 0:
-                        self.db.write_activity_streams(activity, streams)
-                        added_count += 1
+                    if is_existing:
+                        updated_count += 1
                     else:
-                        msg = f"Activity {activity_id} has no stream data."
-                        logger.warning(msg)
-                        sync_warnings.append(msg)
-                        stream_note = " — no stream data"
+                        streams = self.strava.get_streams(activity_id)
+                        point_count = len(streams.get('time', {}).get('data', []))
+                        if point_count > 0:
+                            self.db.write_activity_streams(activity, streams)
+                            added_count += 1
+                        else:
+                            msg = f"Activity {activity_id} has no stream data."
+                            logger.warning(msg)
+                            sync_warnings.append(msg)
                     if description_context is not None:
                         status, warning = self._update_strava_description(description_context, activity)
                         desc_suffix = _description_status_suffix(status)
                         if warning:
                             sync_warnings.append(warning)
-                    yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Synced: {name} ({sport}){stream_note}{desc_suffix}")
+                    yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}){desc_suffix}")
                 except Exception as e:
                     msg = f"Error syncing activity {activity_id}: {e}"
                     sync_warnings.append(msg)
                     logger.error(msg)
-                    yield yield_log(f"[{i}/{total_new}] ({percent:.1f}%) Failed: {name} ({sport}) — {e}")
+                    yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}) — failed: {e}")
                 time.sleep(0.1)
 
-            # --- Phase 3: Delete stale activities ---
+            # --- Phase 2: Delete stale activities ---
             if ids_to_delete:
                 try:
                     self.db.delete_activities(list(ids_to_delete))
