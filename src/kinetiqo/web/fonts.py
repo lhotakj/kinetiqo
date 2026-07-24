@@ -142,6 +142,25 @@ GOOGLE_FONTS: tuple[GoogleFont, ...] = (
         specimen_url="https://fonts.google.com/specimen/Yanone+Kaffeesatz",
         stylesheet_fragment="Yanone+Kaffeesatz:wght@400;700",
     ),
+    # Added fonts
+    GoogleFont(
+        name="Quicksand",
+        designer="Pablo Impallari, Rodrigo Fuenzalida, Andrew Paglinawan",
+        specimen_url="https://fonts.google.com/specimen/Quicksand",
+        stylesheet_fragment="Quicksand:wght@300;400;500;600;700",
+    ),
+    GoogleFont(
+        name="Special Elite",
+        designer="Astigmatic",
+        specimen_url="https://fonts.google.com/specimen/Special+Elite",
+        stylesheet_fragment="Special+Elite",
+    ),
+    GoogleFont(
+        name="Asap",
+        designer="Omnibus-Type",
+        specimen_url="https://fonts.google.com/specimen/Asap",
+        stylesheet_fragment="Asap:wght@400;700",
+    ),
 )
 
 GOOGLE_FONT_CATALOG: dict[str, GoogleFont] = {font.name: font for font in GOOGLE_FONTS}
@@ -174,6 +193,9 @@ POSTER_GOOGLE_FONT_NAMES: tuple[str, ...] = (
     "Roboto Condensed",
     "Ubuntu",
     "Yanone Kaffeesatz",
+    "Quicksand",
+    "Special Elite",
+    "Asap",
 )
 
 
