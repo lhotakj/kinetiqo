@@ -17,6 +17,16 @@ import requests
 import json as json_module
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session
 from flask_compress import Compress
+# CSRF helper. Production must not run with CSRF silently disabled.
+try:
+    from flask_wtf import CSRFProtect
+    from flask_wtf.csrf import generate_csrf
+except Exception as exc:
+    if os.environ.get('KINETIQO_PRODUCTION') == '1':
+        raise RuntimeError('Flask-WTF must be installed in production to enable CSRF protection!') from exc
+    CSRFProtect = None
+    generate_csrf = None
+
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository
@@ -77,11 +87,22 @@ STRAVA_RECONNECT_TEMPLATE = "strava_reconnect.html"
 PNG_MIMETYPE = "image/png"
 UTC_OFFSET_SUFFIX = "+00:00"
 
-# CSRF protection is intentionally not enabled on this development entry point. 
-# All JSON API endpoints require authentication and the deployed production
-# environment should enable CSRF protection as appropriate.  # NOSONAR
+# CSRF protection: enabled when Flask-WTF is available. In development, a generated secret is acceptable.
 app = Flask(__name__, template_folder='./templates', static_folder='./static', static_url_path='/static')
-app.secret_key = 'super_secret_key_for_demo_only'
+# Secret key from environment in production; generate a dev key otherwise.
+secret = os.environ.get('SECRET_KEY')
+if not secret:
+    if os.environ.get('KINETIQO_PRODUCTION') == '1':
+        raise RuntimeError('SECRET_KEY must be set in production!')
+    secret = secrets.token_hex(32)
+app.secret_key = secret
+# Initialize CSRF if Flask-WTF is present.
+if CSRFProtect is not None:
+    csrf = CSRFProtect()
+    csrf.init_app(app)
+else:
+    csrf = None
+
 
 @app.route('/favicon.ico', methods=['GET'])
 def favicon():
@@ -171,6 +192,22 @@ def set_static_headers(response):
 # Default config, will be overwritten by set_config
 config = Config()
 configure_logging(config.log_level)
+
+# Expose csrf_token() to Jinja2 templates so templates can render a meta tag
+if generate_csrf is not None:
+    def _csrf_token():
+        try:
+            return generate_csrf()
+        except Exception:
+            return ''
+    @app.context_processor
+    def inject_csrf_token():
+        return {'csrf_token': _csrf_token}
+else:
+    @app.context_processor
+    def inject_csrf_token_noop():
+        return {'csrf_token': lambda: ''}
+
 
 
 def get_db():
@@ -401,7 +438,7 @@ def login():
     return render_template('login.html', current_year=datetime.now().year)
 
 
-@app.route('/logout', methods=['GET','POST'])
+@app.route('/logout', methods=['POST'])
 @login_required
 def logout():
     """Log out the current user and redirect to the login page.

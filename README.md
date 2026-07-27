@@ -194,6 +194,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     STRAVA_CLIENT_ID=12345
     STRAVA_CLIENT_SECRET=your_secret_here
     STRAVA_REFRESH_TOKEN=your_refresh_token_here
+    SECRET_KEY=replace_with_a_long_random_secret
     DATABASE_TYPE=postgresql  # or mysql or firebird
     # PostgreSQL
     POSTGRESQL_HOST=localhost
@@ -358,6 +359,16 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 |----------|-------------|---------|
 | `WEB_LOGIN` | Username for web access. | `admin` |
 | `WEB_PASSWORD` | Password for web access. | `admin123` |
+| `SECRET_KEY` | Long random secret used by Flask to sign session cookies and CSRF tokens. Required for stable and secure production deployments. | Generated at startup in development; required when `KINETIQO_PRODUCTION=1` |
+| `KINETIQO_PRODUCTION` | Set to `1` in production so startup fails if required security settings such as `SECRET_KEY` or Flask-WTF CSRF support are missing. | _(empty)_ |
+
+Set `SECRET_KEY` to a persistent random value and keep it private. It protects login sessions and CSRF validation; if it changes, existing browser sessions and CSRF tokens become invalid, which can cause unexpected logouts or "CSRF token is missing/invalid" errors. In multi-worker or replicated deployments every Kinetiqo instance must use the same `SECRET_KEY`.
+
+Generate one with:
+
+```bash
+openssl rand -hex 32
+```
 
 #### 6. Athlete Configuration
 | Variable | Description | Default |
@@ -739,6 +750,8 @@ docker run -d \
   -e STRAVA_CLIENT_ID="your_id" \
   -e STRAVA_CLIENT_SECRET="your_secret" \
   -e STRAVA_REFRESH_TOKEN="your_token" \
+  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
+  -e KINETIQO_PRODUCTION=1 \
   -e DATABASE_TYPE="postgresql" \
   -e POSTGRESQL_HOST="host.docker.internal" \
   -e POSTGRESQL_PORT=5432 \
@@ -786,6 +799,8 @@ services:
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
+      - SECRET_KEY=${KINETIQO_SECRET_KEY}
+      - KINETIQO_PRODUCTION=1
       - DATABASE_TYPE=postgresql  # or mysql or firebird
       - POSTGRESQL_HOST=postgresql
       - POSTGRESQL_PORT=5432
@@ -841,6 +856,7 @@ Create a `.env` file in the same directory:
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 STRAVA_REFRESH_TOKEN=your_strava_refresh_token
+KINETIQO_SECRET_KEY=replace_with_output_from_openssl_rand_hex_32
 POSTGRESQL_PASSWORD=your_secure_password
 GRAFANA_ADMIN_PASSWORD=your_grafana_admin_password
 MAPY_API_KEY=your_mapy_com_api_token

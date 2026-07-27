@@ -7,3 +7,117 @@
 {% include "_favicons.html" %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v=app_version) }}">
+
+<!-- CSRF token for JS (HTMX/fetch): inserted via server-side generate_csrf() -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<script>
+(function(){
+    if (window._kinetiqo_csrf_patched) return;
+    window._kinetiqo_csrf_patched = true;
+
+    // HTMX support: attach token to HTMX requests
+    document.addEventListener('htmx:configRequest', function(e){
+        try {
+            var m = document.querySelector('meta[name="csrf-token"]');
+            if (m && m.content) {
+                e.detail.headers['X-CSRFToken'] = m.content;
+                e.detail.headers['X-CSRF-Token'] = m.content;
+            }
+        } catch (err) { /* noop */ }
+    });
+
+    function getToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta && meta.content;
+    }
+
+    function setHeader(headers, name, value) {
+        if (headers instanceof Headers) {
+            headers.set(name, value);
+        } else if (Array.isArray(headers)) {
+            headers.push([name, value]);
+        } else {
+            headers[name] = value;
+        }
+    }
+
+    function addCsrfField(form) {
+        var token = getToken();
+        if (!token || !form) return;
+
+        var method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (method === 'GET' || method === 'HEAD') return;
+
+        var existing = form.querySelector('input[name="csrf_token"]');
+        if (!existing) {
+            existing = document.createElement('input');
+            existing.type = 'hidden';
+            existing.name = 'csrf_token';
+            form.appendChild(existing);
+        }
+        existing.value = token;
+    }
+
+    window.kinetiqoAddCsrfField = addCsrfField;
+
+    var token = getToken();
+    if (!token) return;
+
+    // Patch fetch: add CSRF headers for non-GET/HEAD requests
+    var _fetch = window.fetch;
+    if (_fetch) {
+        window.fetch = function(input, init){
+            init = init || {};
+            var method = (init.method || (typeof input === 'string' ? 'GET' : (input && input.method) || 'GET')).toUpperCase();
+            if (method !== 'GET' && method !== 'HEAD') {
+                init.headers = init.headers || {};
+                try {
+                    setHeader(init.headers, 'X-CSRFToken', token);
+                    setHeader(init.headers, 'X-CSRF-Token', token);
+                } catch(e) {}
+            }
+            return _fetch(input, init);
+        };
+    }
+
+    // Patch XMLHttpRequest to set CSRF headers on non-GET/HEAD
+    try {
+        var XHR = window.XMLHttpRequest;
+        if (XHR && XHR.prototype && !XHR.prototype._kinetiqo_csrf_patched) {
+            XHR.prototype._kinetiqo_csrf_patched = true;
+            var _open = XHR.prototype.open;
+            XHR.prototype.open = function(method) {
+                this._kinetiqo_method = (method || '').toUpperCase();
+                return _open.apply(this, arguments);
+            };
+            var _send = XHR.prototype.send;
+            XHR.prototype.send = function() {
+                try {
+                    if (this._kinetiqo_method && this._kinetiqo_method !== 'GET' && this._kinetiqo_method !== 'HEAD') {
+                        this.setRequestHeader('X-CSRFToken', token);
+                        this.setRequestHeader('X-CSRF-Token', token);
+                    }
+                } catch(e){}
+                return _send.apply(this, arguments);
+            };
+        }
+    } catch(e) {}
+
+    // Normal and script-created POST forms need a hidden field; fetch/XHR headers do not apply.
+    document.addEventListener('submit', function(e) {
+        addCsrfField(e.target);
+    }, true);
+
+    try {
+        var proto = window.HTMLFormElement && window.HTMLFormElement.prototype;
+        if (proto && !proto._kinetiqo_csrf_patched) {
+            proto._kinetiqo_csrf_patched = true;
+            var _submit = proto.submit;
+            proto.submit = function() {
+                addCsrfField(this);
+                return _submit.apply(this, arguments);
+            };
+        }
+    } catch(e) {}
+})();
+</script>

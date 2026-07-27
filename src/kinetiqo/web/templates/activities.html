@@ -195,23 +195,23 @@
     <div class="w-full mt-4 flex justify-between items-center flex-wrap gap-4">
         <div class="flex gap-2 items-center flex-wrap">
             <button id="selectAllOnAllPagesBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Select all activities that match the current filters, across all pages">
+                    class="activity-action-btn px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled title="Select all activities that match the current filters, across all pages">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 12h6M7 17h10M3 5h.01M3 12h.01M3 19h.01"/></svg>
                 <span>Select all activities on all pages</span>
             </button>
             <button id="clearSelectionBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Clear the current selection of activities">
+                    class="activity-action-btn px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled title="Clear the current selection of activities">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
                 <span>Clear selection</span>
             </button>
             <button id="deleteSelectedBtn"
-                    class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Delete the selected activities from the database">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
                 <span>Delete selected</span>
             </button>
             <button id="displayOnMapBtn"
-                    class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Display the selected activities on a map">
                 <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor">
                   <!-- simplified, outline-only folded-map icon (no fills) -->
@@ -222,7 +222,7 @@
                 <span>Display on map</span>
             </button>
             <button id="powerSkillsBtn"
-                    class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Analyze the power skills for the selected activities">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 <span>Power Skills</span>
@@ -243,7 +243,7 @@
                 <span>Reset View</span>
             </button>
             <button id="exportCsvBtn"
-                    class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Export the selected activities to a CSV file">
                 <!-- CSV icon adapted: stroke-only, no fill, inherits currentColor -->
                 <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -255,7 +255,7 @@
                 <span>Export to CSV</span>
             </button>
             <button id="exportXlsxBtn"
-                    class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     disabled title="Export the selected activities to an Excel XLSX file">
                 <!-- XLS/XLSX icon: adapted from provided SVG and styled to match PNG/PDF stroke-only icons -->
                 <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -274,7 +274,8 @@
 </div>
 
 <!-- Column selection modal -->
-<div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50 hidden">
+<div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center z-50 hidden"
+     style="background-color: rgba(0, 0, 0, 0.3);">
     <div class="bg-white rounded-lg shadow-lg p-6 w-96 flex flex-col" style="max-height: 90vh;">
         <h3 class="text-lg font-semibold mb-4 flex-shrink-0">Select columns to display</h3>
         <form id="columnSelectForm" class="flex-1 overflow-y-auto min-h-0">
@@ -352,6 +353,33 @@
 
 <style>
 .dt-info { padding-left: 1rem !important; }
+#activityTypeFilter + .select2-container .select2-selection--multiple,
+#activityTypeFilter + .select2-container .select2-selection__choice,
+#activityTypeFilter + .select2-container .select2-selection__choice__remove,
+.select2-results__option,
+.date-preset-btn,
+.activity-action-btn,
+#custom-buttons-wrapper button,
+#selectColumnsBtn,
+#resetViewBtn,
+#closeColumnSelectModal,
+#saveColumnSelect {
+    cursor: pointer;
+}
+#dateFilter,
+#deleteSelectedBtn,
+#displayOnMapBtn,
+#powerSkillsBtn,
+#exportCsvBtn,
+#exportXlsxBtn,
+#selectAllOnPage,
+.activity-checkbox,
+.column-drag-handle {
+    cursor: pointer;
+}
+button:disabled {
+    cursor: not-allowed;
+}
 </style>
 
 <script>
@@ -1037,6 +1065,7 @@ var table = null;
             },
             "drawCallback": function (settings) {
                 updateCheckboxes();
+                updateSelectionButtons();
             }
         });
 
@@ -1351,21 +1380,29 @@ var table = null;
         });
 
         // --- Selection Logic ---
+        function setButtonState(selector, enabled, enabledClasses, disabledClasses) {
+            $(selector)
+                .prop('disabled', !enabled)
+                .toggleClass(enabledClasses, enabled)
+                .toggleClass(disabledClasses, !enabled);
+        }
+
         function updateSelectionButtons() {
+            const hasRows = table && table.rows({filter: 'applied'}).count() > 0;
             const count = selectedActivities.size;
-            if (count > 0) {
-                $('#deleteSelectedBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-red-500');
-                $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
-                $('#powerSkillsBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-purple-600');
-                $('#exportCsvBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-blue-600');
-                $('#exportXlsxBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-green-600');
-            } else {
-                $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
-                $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
-                $('#powerSkillsBtn').prop('disabled', true).removeClass('bg-purple-600').addClass('bg-gray-400');
-                $('#exportCsvBtn').prop('disabled', true).removeClass('bg-blue-600').addClass('bg-gray-400');
-                $('#exportXlsxBtn').prop('disabled', true).removeClass('bg-green-600').addClass('bg-gray-400');
-            }
+            const hasSelection = hasRows && count > 0;
+
+            setButtonState(
+                '#selectAllOnAllPagesBtn, #clearSelectionBtn',
+                hasRows,
+                'bg-gray-100 hover:bg-gray-200 text-gray-700',
+                'bg-gray-400 text-white'
+            );
+            setButtonState('#deleteSelectedBtn', hasSelection, 'bg-red-500 hover:bg-red-600', 'bg-gray-400');
+            setButtonState('#displayOnMapBtn', hasSelection, 'bg-orange-500 hover:bg-orange-600', 'bg-gray-400');
+            setButtonState('#powerSkillsBtn', hasSelection, 'bg-purple-600 hover:bg-purple-700', 'bg-gray-400');
+            setButtonState('#exportCsvBtn', hasSelection, 'bg-blue-600 hover:bg-blue-700', 'bg-gray-400');
+            setButtonState('#exportXlsxBtn', hasSelection, 'bg-green-600 hover:bg-green-700', 'bg-gray-400');
         }
 
         function updateCheckboxes() {
@@ -1518,6 +1555,9 @@ var table = null;
             });
 
             // Append form to body and submit
+            if (window.kinetiqoAddCsrfField) {
+                window.kinetiqoAddCsrfField(form[0]);
+            }
             form.appendTo('body').submit();
             form.remove();
         });
@@ -1541,6 +1581,9 @@ var table = null;
                 }).appendTo(form);
             });
 
+            if (window.kinetiqoAddCsrfField) {
+                window.kinetiqoAddCsrfField(form[0]);
+            }
             form.appendTo('body').submit();
             form.remove();
         });
