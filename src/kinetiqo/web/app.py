@@ -302,7 +302,8 @@ def load_user(user_id):
 def describe_cron(expression):
     """Return a human-friendly description for a cron expression.
 
-    Supports simple patterns such as "*/N * * * *" and daily/hourly forms.
+    Supports simple patterns such as "*/N * * * *", daily, weekly, monthly,
+    and yearly forms.
     If the expression is unrecognised the original expression is returned.
     """
     if not expression:
@@ -314,19 +315,92 @@ def describe_cron(expression):
 
     minute, hour, day, month, dow = parts
 
-    try:
-        if minute.startswith("*/") and hour == "*" and day == "*" and month == "*" and dow == "*":
-            interval = minute.split("/")[1]
-            return f"Every {interval} minutes"
+    day_names = {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday",
+        "7": "Sunday",
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+    }
 
-        if minute == "0" and hour != "*" and day == "*" and month == "*" and dow == "*":
-            return f"Daily at {hour}:00"
+    def is_int(value):
+        return value.isdigit()
 
-        if minute != "*" and hour != "*" and day == "*" and month == "*" and dow == "*":
-            return f"Daily at {hour}:{minute.zfill(2)}"
+    def describe_time(hour_value, minute_value):
+        if not is_int(hour_value) or not is_int(minute_value):
+            return None
+        hour_num = int(hour_value)
+        minute_num = int(minute_value)
+        if hour_num > 23 or minute_num > 59:
+            return None
+        if hour_num == 0 and minute_num == 0:
+            return "midnight"
+        if hour_num == 12 and minute_num == 0:
+            return "noon"
+        return f"{hour_num:02d}:{minute_num:02d}"
 
-    except Exception:
-        pass
+    def describe_ordinal(value):
+        if not is_int(value):
+            return None
+        number = int(value)
+        if number < 1 or number > 31:
+            return None
+        suffix = "th"
+        if number % 100 not in (11, 12, 13):
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(number % 10, "th")
+        return f"{number}{suffix}"
+
+    def describe_weekdays(value):
+        days = []
+        for part in value.split(","):
+            name = day_names.get(part.strip().lower())
+            if name is None:
+                return None
+            days.append(name)
+        if len(days) == 1:
+            return days[0]
+        return f"{', '.join(days[:-1])} and {days[-1]}"
+
+    if minute.startswith("*/") and hour == "*" and day == "*" and month == "*" and dow == "*":
+        interval = minute.split("/", 1)[1]
+        if is_int(interval) and int(interval) > 0:
+            unit = "minute" if int(interval) == 1 else "minutes"
+            return f"Every {interval} {unit}"
+
+    time_description = describe_time(hour, minute)
+    if time_description is None:
+        return expression
+
+    if day == "*" and month == "*" and dow == "*":
+        return f"Daily at {time_description}"
+
+    if day == "*" and month == "*" and dow != "*":
+        weekdays = describe_weekdays(dow)
+        if weekdays is not None:
+            return f"Every {weekdays} at {time_description}"
+
+    if day != "*" and month == "*" and dow == "*":
+        ordinal = describe_ordinal(day)
+        if ordinal is not None:
+            return f"Monthly on the {ordinal} at {time_description}"
+
+    if day != "*" and month != "*" and dow == "*":
+        ordinal = describe_ordinal(day)
+        if ordinal is not None and is_int(month):
+            month_num = int(month)
+            if 1 <= month_num <= 12:
+                month_name = datetime(2000, month_num, 1).strftime("%B")
+                return f"Yearly on {month_name} {ordinal} at {time_description}"
 
     return expression
 
