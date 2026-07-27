@@ -36,46 +36,12 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css"
           integrity="sha384-iRTWPXZquQySBE9K96fgJXUIrnm8TpdtPAbiCNR+qjpP24qFZw9PHFA91JtWy7Ul"
           crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
-            integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
-            crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='vendor/jquery/jquery-3.7.1.min.js', v=app_version) }}"></script>
     <script src="https://cdn.datatables.net/2.3.7/js/dataTables.min.js"
             integrity="sha384-Lo2E+ASlyar6zUXt6sPEy5uaDGtDGHXo300rohaW4/AV26JdoLBT9zhcOhV8BtL8"
             crossorigin="anonymous"></script>
 
     {% include "_shared_head_assets.html" %}
-
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        warm: {
-                            50: '#F9F9F8',  /* Main Background */
-                            100: '#F5F4F0', /* Sidebar Background */
-                            200: '#E8E6E1', /* Borders/Hover */
-                            300: '#D8D6D0',
-                            800: '#4A4844',
-                            900: '#2C2A26', /* Primary Text */
-                        },
-                        dark: {
-                            50: '#1a1a1a',
-                            100: '#262626',
-                            200: '#404040',
-                            300: '#525252',
-                            800: '#d4d4d4',
-                            900: '#f5f5f5',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-//                        serif: ['Merriweather', 'serif'],
-                    }
-                }
-            }
-        }
-    </script>
 
     {% block head %}{% endblock %}
 </head>

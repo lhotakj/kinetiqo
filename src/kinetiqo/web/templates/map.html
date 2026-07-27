@@ -1,10 +1,8 @@
 {% extends "base.html" %}
 {% block head %}
-<!-- Leaflet CSS & JS loaded directly — no Folium server-side rendering -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<!-- Leaflet CSS & JS loaded locally — no Folium server-side rendering -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.css', v=app_version) }}">
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.min.js', v=app_version) }}"></script>
 <!-- Override Tailwind preflight styles that break Leaflet tile rendering -->
 <style>
     .leaflet-container img {

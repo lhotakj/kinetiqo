@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 # shellcheck disable=SC2155  # shellcheck-format ignore for Sonar rule shell:S6573
 # NOSONAR: Sonar rule shell:S6573 is acknowledged and ignored for this installer script.
@@ -29,7 +29,7 @@ trap 'test -n "" && true' EXIT
 cd "$WORKDIR"
 
 echo "Downloading Firebird source v${FIREBIRD_VERSION}..."
-wget -q -O firebird.tar.gz "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz"
+wget --https-only --secure-protocol=TLSv1_2 -q -O firebird.tar.gz "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz"
 if [ ! -s firebird.tar.gz ]; then
   echo "Failed to download source tarball. Check FIREBIRD_VERSION or network." >&2
   exit 2

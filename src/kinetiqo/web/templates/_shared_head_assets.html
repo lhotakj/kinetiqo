@@ -1,13 +1,5 @@
-﻿<!-- Tailwind Play CDN script (self-hosted, version: play-cdn) -->
-<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.js', v=app_version) }}"></script>
-
-<!-- Preload the fonts used on this page to prevent FOUT -->
-<link rel="preload" href="/static/fonts/inter_normal_latin.woff2?v={{ app_version }}"
-      as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/static/fonts/inter_italic_latin.woff2?v={{ app_version }}"
-      as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/static/fonts/italiana_normal_latin.woff2?v={{ app_version }}"
-      as="font" type="font/woff2" crossorigin>
+﻿<!-- Tailwind CSS compiled locally for production -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css', v=app_version) }}">
 
 <!-- NOSONAR: self-hosted Inter, Italiana, Merriweather (see development/download-fonts.py) -->
 <link href="{{ base_google_fonts_url }}" rel="stylesheet">
@@ -15,4 +7,3 @@
 {% include "_favicons.html" %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v=app_version) }}">
-

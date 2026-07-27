@@ -84,6 +84,11 @@ app = Flask(__name__, template_folder='./templates',
             static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
 
+@app.route('/favicon.ico', methods=['GET'])
+def favicon():
+    # Serve the repository favicon via Flask static file to avoid 404s from browsers requesting /favicon.ico
+    return app.send_static_file('favicon/favicon.ico')
+
 # --- Response Compression (gzip / brotli) ---
 Compress(app)
 

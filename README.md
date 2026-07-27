@@ -174,7 +174,19 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     ```
     Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
-5.  **Configure Environment Variables:**
+5.  **Refresh local frontend vendors (Optional):**
+    The `development` directory also contains helper scripts for local copies of frontend assets.
+    ```bash
+    cd development
+    ./download-leaflet.sh
+    ./download-jquery.sh
+    ./download-tailwind-cli.sh
+    ./download-tailwind.sh
+    ```
+    `download-leaflet.sh` writes Leaflet 1.9.4 CSS and JS to `src/kinetiqo/web/static/vendor/leaflet/`.
+    `download-jquery.sh` writes jQuery 3.7.1 to `src/kinetiqo/web/static/vendor/jquery/`.
+
+6.  **Configure Environment Variables:**
     Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
     
     **Example `.env` file:**
@@ -212,7 +224,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
     - Only the relevant database section is required for your selected type.
 
-6.  **Secure Secret Storage with GPG (Optional):**
+7.  **Secure Secret Storage with GPG (Optional):**
     For enhanced security, environment files can be encrypted using GPG. The included `.envrc` script supports automatic decryption.
     
     1. **Import GPG Key and get the ID of your key:**
@@ -582,6 +594,10 @@ tests/
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
 development/
 ├── download-fonts.py            # Refresh self-hosted Google Fonts from CDN
+├── download-leaflet.sh          # Download local Leaflet vendor assets
+├── download-jquery.sh           # Download local jQuery vendor asset
+├── download-tailwind-cli.sh     # Download Tailwind CLI for Ubuntu Bash
+├── download-tailwind.sh         # Build local Tailwind CSS asset
 └── setup-direnv.sh              # Configure direnv for automated env management
 build/
 ├── Dockerfile                   # Application image (Phase 2)
@@ -610,15 +626,17 @@ build/
 | Firebird driver | firebird-driver | 2.0.3 |
 | Image processing | Pillow | ≥12.2.0 |
 | Browser automation | Playwright | ≥1.59.0 |
-| Frontend CSS | Tailwind CSS | CDN (play) |
+| Frontend CSS | Tailwind CSS | Local build (Tailwind CLI 4.3.3) |
 | Reactivity | HTMX + htmx-ext-sse | 2.0.4 / 2.2.2 |
 | Data tables | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 |
 | Charting | Chart.js + chartjs-adapter-moment | 4.x / 1.0 |
-| Maps | Leaflet.js | 1.9 |
+| Maps | Leaflet.js | 1.9.4 (local vendor files) |
 | Dropdowns | Select2 | 4.1 |
 | Date pickers | DateRangePicker + Moment.js | latest / 2.30 |
 | Drag & drop | SortableJS | 1.15 |
 | Fonts | Self-hosted Inter + Italiana (woff2, baked into Docker image); all other fonts via Google Fonts CDN. Single catalog in `fonts.py`. Refresh with `python development/download-fonts.py`. | — |
+| Leaflet.js | 1.9.4 (local vendor files in `src/kinetiqo/web/static/vendor/leaflet/`). Refresh with `bash development/download-leaflet.sh`. | BSD 2-Clause |
+| jQuery | 3.7.1 (local vendor file in `src/kinetiqo/web/static/vendor/jquery/`). Refresh with `bash development/download-jquery.sh`. | — |
 | Container base | python:3.14-slim | — |
 | Scheduler | dcron | Linux package |
 | Testing | unittest + unittest.mock | stdlib |
@@ -870,4 +888,3 @@ Please see a few metrics of all three databases on common operations in Kinetiqo
 | PostgreSQL |   1.411         |
 | MySQL      |   3.685         |
 | Firebird   |   9.840         |
-

@@ -41,7 +41,7 @@ The web UI includes:
 | Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.4 / 2.2.2 | SSE for sync progress |
 | Data tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.x / 1.0 | Client-side rendering |
-| Maps | **Leaflet.js** | 1.9 | Canvas renderer, server-side tile proxy |
+| Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
 | Dropdowns | **Select2** | 4.1 | Activity type filter |
 | Date pickers | **DateRangePicker** + **Moment.js** | latest / 2.30 | Date filter presets |
 | Drag & drop | **SortableJS** | 1.15 | Column reorder in activities grid |
@@ -158,7 +158,7 @@ Example include snippets (replace SRI placeholders and versions)
 
 <!-- JS: Defer non-critical scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-<SRI>" crossorigin="anonymous" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-<SRI>" crossorigin="anonymous" defer></script>
+<script src="/static/vendor/leaflet/leaflet-1.9.4.min.js" defer></script>
 
 When to self-host
 - Self-host fonts used across the site (Inter, Italiana) and critical assets that are required on every page to ensure availability in restricted networks.
@@ -333,7 +333,7 @@ This repository note helps contributors and automation know which path to use wh
 PyCharm-built terminal vs. locally on Windows.
 
 ### Tailwind self-hosting
-- Tailwind Play CDN script is self-hosted at src/kinetiqo/web/static/vendor/tailwind/tailwind.js to avoid CORS issues with the play CDN.
-- Version detected: play-cdn. Record the specific version in the file header when updating.
-- When updating Tailwind: fetch the Play CDN script from https://cdn.tailwindcss.com and replace the local file; update the version comment in the file header and in this note.
-- Prefer building a production CSS via Tailwind CLI for deterministic builds; if unable, self-hosting the Play CDN script is an acceptable fallback for local/offline environments.
+- The production site now uses a locally compiled stylesheet at `src/kinetiqo/web/static/css/tailwind.css`.
+- `development/download-tailwind-cli.sh` downloads the Tailwind CLI binary for Ubuntu Bash.
+- `development/download-tailwind.sh` rebuilds the CSS asset from `src/kinetiqo/web/static/css/tailwind.input.css`.
+- Keep `tailwind.input.css` in sync with the classes used in templates and inline scripts so all pages compile correctly.

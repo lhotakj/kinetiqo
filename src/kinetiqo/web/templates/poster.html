@@ -3,8 +3,10 @@
 {% block head %}
 <!-- NOSONAR: loading Chart.js from CDN intentionally; add SRI in future if required -->
 {% include "_npm_chartjs.html" %}
-<!-- NOSONAR: Google Fonts CDN used intentionally -->
-<link href="{{ poster_google_fonts_url }}" rel="stylesheet">
+<!-- NOSONAR: Google Fonts CDN used intentionally; SRI pins the exact stylesheet response -->
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet"
+      integrity="sha384-NW1YHqwImtS7kvfLOyH6FJ+qkilRspofwyBKPiqLuZvSaBKc1mCwBHIT+rijUAe0"
+      crossorigin="anonymous">
 <style>
     .poster-container {
         position: relative;
@@ -597,8 +599,8 @@
          const ratioMatch = settings.ratio.match(/(\d+)\/(\d+)/);
          let posterHeight = settings.posterSize;
          if (ratioMatch) {
-             const rw = parseInt(ratioMatch[1]);
-             const rh = parseInt(ratioMatch[2]);
+             const rw = Number.parseInt(ratioMatch[1], 10);
+             const rh = Number.parseInt(ratioMatch[2], 10);
              posterHeight = Math.round(settings.posterSize * rh / rw);
          }
          // Set exact dimensions so WYSIWYG preview matches export output.
@@ -838,7 +840,7 @@
         const wm = ensureWatermark();
         if (!wm) return;
         // compute width based on poster container width
-        const cw = container.offsetWidth || parseInt(window.getComputedStyle(container).width, 10) || 0;
+        const cw = container.offsetWidth || Number.parseInt(window.getComputedStyle(container).width, 10) || 0;
         const targetW = Math.max(12, Math.round(cw * WATERMARK_SIZE_PCT));
         wm.style.width = targetW + 'px';
         // Keep the watermark inside the rounded area (respect offsets)
@@ -949,7 +951,7 @@
     function bindControl(id, settingKey, isRange, valSpanId, suffix) {
         const el = document.getElementById(id);
         el.addEventListener('input', function() {
-            settings[settingKey] = isRange ? parseInt(this.value) : this.value;
+            settings[settingKey] = isRange ? Number.parseInt(this.value, 10) : this.value;
             if (valSpanId) {
                 document.getElementById(valSpanId).textContent = this.value + (suffix || '');
             }
@@ -1395,7 +1397,7 @@
           const w = container.offsetWidth, h = container.offsetHeight;
           const pos = {};
           // Title: span full width with 10px padding left/right and 10px from top
-          const titleFontSize = parseInt(settings.titleFontSize, 10) || DEFAULTS.titleFontSize;
+          const titleFontSize = Number.parseInt(settings.titleFontSize, 10) || DEFAULTS.titleFontSize;
           const titleLineHeight = titleFontSize * 1.2;
           const titlePaddingTop = 10;
           const titleHeightPx = Math.round(titleLineHeight + 8);
@@ -1407,7 +1409,7 @@
           };
 
           // Stats: place below title. Make it span the full width with same left/right padding so text fits.
-          const statsFontSize = parseInt(settings.statsFontSize, 10) || DEFAULTS.statsFontSize;
+          const statsFontSize = Number.parseInt(settings.statsFontSize, 10) || DEFAULTS.statsFontSize;
           const statsLineHeight = statsFontSize * 1.2;
           const statsHeightPx = Math.round(statsLineHeight + 8);
           const gap = 8;

@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@source "../../templates";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-warm-50: #f9f9f8;
+  --color-warm-100: #f5f4f0;
+  --color-warm-200: #e8e6e1;
+  --color-warm-300: #d8d6d0;
+  --color-warm-800: #4a4844;
+  --color-warm-900: #2c2a26;
+
+  --font-sans: "Inter", sans-serif;
+  --font-serif: "Merriweather", serif;
+}

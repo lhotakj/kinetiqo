@@ -117,8 +117,8 @@ class FirebirdRepository(DatabaseRepository):
 
             # Try to locate TPB helpers from common module locations and set TPB if available.
             tpb = None
-            Isolation = None
-            TraAccessMode = None
+            isolation = None
+            tra_access_mode = None
             for mod_name in ('firebird.base', 'firebird.driver', 'firebird'):
                 try:
                     m = importlib.import_module(mod_name)
@@ -126,15 +126,15 @@ class FirebirdRepository(DatabaseRepository):
                     continue
                 if tpb is None and hasattr(m, 'tpb'):
                     tpb = getattr(m, 'tpb')
-                if Isolation is None and hasattr(m, 'Isolation'):
-                    Isolation = getattr(m, 'Isolation')
-                if TraAccessMode is None and hasattr(m, 'TraAccessMode'):
-                    TraAccessMode = getattr(m, 'TraAccessMode')
+                if isolation is None and hasattr(m, 'Isolation'):
+                    isolation = getattr(m, 'Isolation')
+                if tra_access_mode is None and hasattr(m, 'TraAccessMode'):
+                    tra_access_mode = getattr(m, 'TraAccessMode')
 
-            if tpb and Isolation and TraAccessMode:
+            if tpb and isolation and tra_access_mode:
                 try:
-                    rc_tpb = tpb(isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
-                                 access_mode=TraAccessMode.WRITE)
+                    rc_tpb = tpb(isolation=isolation.READ_COMMITTED_RECORD_VERSION,
+                                 access_mode=tra_access_mode.WRITE)
                     conn.main_transaction.default_tpb = rc_tpb
                 except Exception:
                     logger.warning("Could not set TPB on Firebird connection; continuing without it.")
