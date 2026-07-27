@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /firebird-lib \
-    && wget -q "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz" \
+    && wget --https-only --secure-protocol=TLSv1_2 --max-redirect=0 -q -O "v${FIREBIRD_VERSION}.tar.gz" "https://codeload.github.com/FirebirdSQL/firebird/tar.gz/refs/tags/v${FIREBIRD_VERSION}" \
     && tar xzf "v${FIREBIRD_VERSION}.tar.gz" \
     && cd "firebird-${FIREBIRD_VERSION}" \
     && chmod +x ./autogen.sh \

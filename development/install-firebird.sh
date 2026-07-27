@@ -29,7 +29,7 @@ trap 'test -n "" && true' EXIT
 cd "$WORKDIR"
 
 echo "Downloading Firebird source v${FIREBIRD_VERSION}..."
-wget --https-only --secure-protocol=TLSv1_2 -q -O firebird.tar.gz "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz"
+wget --https-only --secure-protocol=TLSv1_2 --max-redirect=0 -q -O firebird.tar.gz "https://codeload.github.com/FirebirdSQL/firebird/tar.gz/refs/tags/v${FIREBIRD_VERSION}"
 if [ ! -s firebird.tar.gz ]; then
   echo "Failed to download source tarball. Check FIREBIRD_VERSION or network." >&2
   exit 2
