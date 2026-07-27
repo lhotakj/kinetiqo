@@ -76,7 +76,7 @@ export PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64
 PYTHON_VERSION=$(python3 --version 2>&1)
 
 # Create venv if missing
-if [ ! -d .venv ]; then
+if [[ ! -d .venv ]]; then
     info "Creating Python ${BLUE}$PYTHON_VERSION${RESET} venv ..."
     if ! python3 -m venv .venv; then
         error "Failed to create virtual environment."
@@ -88,7 +88,7 @@ if [ ! -d .venv ]; then
 fi
 
 # Activate venv
-if [ -f .venv/bin/activate ]; then
+if [[ -f .venv/bin/activate ]]; then
     info "Activating Python ${BLUE}$PYTHON_VERSION${RESET} virtual environment ..."
     source .venv/bin/activate
 else
@@ -99,7 +99,7 @@ else
 fi
 
 # Install requirements if file exists
-if [ -f requirements.txt ]; then
+if [[ -f requirements.txt ]]; then
     info "Installing dependencies from ${BLUE}requirements.txt${RESET} ..."
     if ! pip install -q -r requirements.txt; then
         error "Failed to install dependencies."
@@ -108,14 +108,14 @@ if [ -f requirements.txt ]; then
 fi
 
 # Decrypt secrets from secrets/*.gpg to .secrets.*
-if [ -d secrets ]; then
+if [[ -d secrets ]]; then
     for gpg_file in secrets/*.gpg; do
-        if [ -f "$gpg_file" ]; then
+        if [[ -f "$gpg_file" ]]; then
             env_name=$(basename "$gpg_file" .gpg)
             env_file=".secrets.$env_name"
 
             # Decrypt if .env file doesn't exist or is older than the encrypted file
-            if [ ! -f "$env_file" ] || [ "$gpg_file" -nt "$env_file" ]; then
+            if [[ ! -f "$env_file" ]] || [[ "$gpg_file" -nt "$env_file" ]]; then
                 info "Decrypting ${BLUE}$gpg_file${RESET} to ${BLUE}$env_file${RESET} ..."
                 if ! gpg --quiet --batch --yes --decrypt --output "$env_file" "$gpg_file"; then
                     warn "Failed to decrypt ${BLUE}$gpg_file${RESET}"
@@ -127,7 +127,7 @@ fi
 
 # Detect and load .secrets.* files
 for env_file in .secrets.*; do
-    if [ -f "$env_file" ]; then
+    if [[ -f "$env_file" ]]; then
         info "Loading environment variables from ${BLUE}$env_file${RESET} ..."
         set -a
         source "$env_file"

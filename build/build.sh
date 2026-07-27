@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # build.sh — Build and (optionally) push the Kinetiqo application image.
 #
 # This script builds the APPLICATION image only. It relies on the pre-built
@@ -52,7 +52,7 @@ info "Reading version ..."
 VERSION=$(cat ./version.template)
 export VERSION
 
-if [ -n "$GITHUB_RUN_NUMBER" ]; then
+if [[ -n "$GITHUB_RUN_NUMBER" ]]; then
   info "Using GITHUB_RUN_NUMBER value $GITHUB_RUN_NUMBER"
   VERSION=$(echo $VERSION | awk -F. -v runid="$GITHUB_RUN_NUMBER" '{print $1"."$2"."runid}')
 else
@@ -65,7 +65,7 @@ SHORT_VERSION=$(echo $VERSION | cut -d. -f1,2)
 echo "$VERSION" > ./version.txt
 echo "$SHORT_VERSION" > ./short_version.txt
 
-if [ -n "$PUSH_FLAG" ]; then
+if [[ -n "$PUSH_FLAG" ]]; then
     info "Building and pushing version ${VERSION} (Short: ${SHORT_VERSION}) for linux/amd64 and linux/arm64 with timestamp ${TIMESTAMP} ..."
     docker buildx build \
       --platform linux/amd64,linux/arm64 \
@@ -84,7 +84,7 @@ else
     # the non-push path (fresh runner has no local image cache).
     # Locally, use --pull=false so Docker uses the image loaded by build-base.sh
     # instead of hitting DockerHub before you have published the base image.
-    if [ -n "$GITHUB_ACTIONS" ]; then
+    if [[ -n "$GITHUB_ACTIONS" ]]; then
       PULL_FLAG="--pull=true"
       info "CI environment detected — base image will be pulled from DockerHub."
     else

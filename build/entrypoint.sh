@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 # entrypoint.sh
 
@@ -70,7 +70,7 @@ $PYTHON_PATH /app/kinetiqo.py flightcheck
     var_value="${line#*=}"
     # Skip the shell's internal `_` variable (last-command path) — it changes
     # with every command and has no meaning inside a cron job.
-    [ "$var_name" = "_" ] && continue
+    [[ "$var_name" == "_" ]] && continue
     # Escape any embedded double-quotes so the crontab line stays valid.
     var_value=$(printf '%s' "$var_value" | sed 's/"/\\"/g')
     printf '%s="%s"\n' "$var_name" "$var_value"
@@ -81,7 +81,7 @@ $PYTHON_PATH /app/kinetiqo.py flightcheck
 # ---------------------------------------------------------------------------
 # Append cron job entries AFTER the environment variable block
 # ---------------------------------------------------------------------------
-if [ "$FULL_SYNC" != "" ]; then
+if [[ "$FULL_SYNC" != "" ]]; then
   echo "$FULL_SYNC $PYTHON_PATH /app/kinetiqo.py sync --full-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   info "Adding full sync to cron: $FULL_SYNC"
   CRON_ADDED=1
@@ -89,7 +89,7 @@ else
   warn "No full sync schedule set (FULL_SYNC is empty)"
 fi
 
-if [ "$FAST_SYNC" != "" ]; then
+if [[ "$FAST_SYNC" != "" ]]; then
   echo "$FAST_SYNC $PYTHON_PATH /app/kinetiqo.py sync --fast-sync >> /proc/1/fd/1 2>&1" >> $CRONFILE
   info "Adding fast sync to cron: ${FAST_SYNC}"
   CRON_ADDED=1
@@ -97,7 +97,7 @@ else
   warn "No fast sync schedule set (FAST_SYNC is empty)"
 fi
 
-if [ $CRON_ADDED -eq 1 ]; then
+if [[ $CRON_ADDED -eq 1 ]]; then
   crontab $CRONFILE
   # Start Debian cron daemon in foreground mode, backgrounded so exec "$@"
   # can proceed. `-f` keeps it in the foreground (no double-fork) so the
@@ -106,7 +106,7 @@ if [ $CRON_ADDED -eq 1 ]; then
   info "Cron daemon started (PID $!)"
 fi
 
-if [ "${1:-}" = "gunicorn" ]; then
+if [[ "${1:-}" == "gunicorn" ]]; then
     export GUNICORN_CMD_ARGS="${GUNICORN_CMD_ARGS:+$GUNICORN_CMD_ARGS }--log-level ${GUNICORN_LOG_LEVEL}"
 fi
 

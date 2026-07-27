@@ -14,7 +14,7 @@ case "$(uname -m)" in
     ;;
 esac
 
-if [ "$VERSION" = "latest" ]; then
+if [[ "$VERSION" == "latest" ]]; then
   URL="https://github.com/tailwindlabs/tailwindcss/releases/latest/download/${ASSET}"
 else
   URL="https://github.com/tailwindlabs/tailwindcss/releases/download/${VERSION}/${ASSET}"
