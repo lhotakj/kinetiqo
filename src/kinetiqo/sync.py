@@ -200,10 +200,13 @@ class SyncService:
             log_buffer.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
             if len(log_buffer) > 20:
                 log_buffer.pop(0)
-            log_content = '<div class="font-mono text-xs text-gray-600 overflow-y-auto max-h-64 flex flex-col-reverse">'
+            log_content = '<div class="font-mono text-xs text-gray-600 overflow-y-auto space-y-1" style="height: 500px;">'
             for line in log_buffer:
-                log_content += f'<div class="truncate">{line}</div>'
+                log_content += f'<p class="block truncate">{html.escape(line)}</p>'
             log_content += '</div>'
+            status_html = """<div class="text-center pt-4 border-t border-gray-200">
+                <p class="text-sm text-blue-600 font-medium mb-3">Sync in progress...</p>
+            </div>"""
             if final:
                 status_color = "text-green-600"
                 status_msg = "Sync completed successfully."
@@ -247,14 +250,17 @@ class SyncService:
                 </button>"""
                 return f"data: {(wrapper_html + button_html).replace(chr(10), '')}\n\n"
             else:
-                return f"data: {log_content}\n\n"
+                live_html = f'<div class="mb-4">{log_content}</div>{status_html}'
+                return f"data: {live_html.replace(chr(10), '')}\n\n"
 
         try:
-            stop_button_html = """<button id="start-sync-btn" 
-                    hx-post="/api/sync/stop" 
+            stop_button_html = """<button id="start-sync-btn" type="button"
+                    data-sync-stop-button="true"
+                    onclick="window.kinetiqoRequestSyncStop && window.kinetiqoRequestSyncStop(this); return false;"
                     hx-swap="none"
                     hx-swap-oob="true"
-                    class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
+                    class="px-6 py-2.5 text-white rounded-lg text-sm font-semibold transition shadow-lg inline-flex items-center border border-red-300"
+                    style="background-color: #dc2626; color: #ffffff; box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25), 0 10px 15px -3px rgba(0, 0, 0, 0.25);">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 Stop Sync
             </button>""".replace('\n', '')
@@ -317,6 +323,11 @@ class SyncService:
                 for item in self.strava.get_activities(activities, after=after):
                     if isinstance(item, str):
                         yield yield_log(item)
+                        if self._check_stop_signal():
+                            stopped = True
+                            yield yield_log("Stop signal received during fetch. Aborting...", final=True,
+                                             is_stopped=True)
+                            return
                     else:
                         # If the mock yields the activity batch directly, merge it.
                         try:

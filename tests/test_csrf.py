@@ -3,6 +3,7 @@ import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 import re
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -39,6 +40,7 @@ class TestCSRFMeta(unittest.TestCase):
 
         self.assertEqual(rv.status_code, 200)
         data = rv.get_data(as_text=True)
+        self.assertIn('vendor/htmx/htmx-2.0.10.min.js', data)
         self.assertIn("window.kinetiqoAddCsrfField(form[0]);", data)
         self.assertIn("action: '/map'", data)
         self.assertIn("action: '/powerskills'", data)
@@ -81,6 +83,28 @@ class TestCSRFMeta(unittest.TestCase):
         self.assertIn('const MAP_WATERMARK_OPACITY = 0.8;', page)
         self.assertIn('kinetiqo_logo.png', page)
         self.assertIn('await drawMapWatermark(ctx, finalCanvas);', page)
+
+    def test_stop_sync_creates_stop_signal(self):
+        get = self.client.get('/login')
+        html = get.get_data(as_text=True)
+        token_match = re.search(r'name="csrf_token" value="([^"]*)"', html)
+        self.assertIsNotNone(token_match)
+
+        username = next(iter(users))
+        with self.client.session_transaction() as session:
+            session['_user_id'] = username
+            session['_fresh'] = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            stop_signal = os.path.join(tmpdir, '.sync_stop')
+            with patch('kinetiqo.web.app.STOP_SIGNAL_FILE', stop_signal):
+                rv = self.client.post(
+                    '/api/sync/stop',
+                    headers={'X-CSRFToken': token_match.group(1)},
+                )
+
+            self.assertEqual(rv.status_code, 204)
+            self.assertTrue(os.path.exists(stop_signal))
 
     def test_post_without_csrf_is_blocked(self):
         # Skip if CSRF not enabled in this environment

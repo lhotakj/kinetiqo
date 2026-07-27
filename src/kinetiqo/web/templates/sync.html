@@ -75,6 +75,39 @@
 </div>
 
 <script>
+    window.kinetiqoRequestSyncStop = function(button) {
+        if (!button || button.dataset.stopRequested === 'true') {
+            return;
+        }
+        button.dataset.stopRequested = 'true';
+        button.disabled = true;
+        button.textContent = 'Stopping sync...';
+        button.style.backgroundColor = '#b91c1c';
+
+        const headers = {};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+        if (csrfToken && csrfToken.content) {
+            headers['X-CSRFToken'] = csrfToken.content;
+            headers['X-CSRF-Token'] = csrfToken.content;
+        }
+
+        fetch('/api/sync/stop', {
+            method: 'POST',
+            headers: headers,
+            credentials: 'same-origin'
+        }).then(function(response) {
+            if (!response.ok) {
+                throw new Error('Stop request failed with status ' + response.status);
+            }
+            button.textContent = 'Stopping...';
+        }).catch(function() {
+            button.disabled = false;
+            button.dataset.stopRequested = 'false';
+            button.textContent = 'Stop failed - try again';
+            button.style.backgroundColor = '#991b1b';
+        });
+    };
+
     document.addEventListener('DOMContentLoaded', function () {
         const syncLimitDropdown = document.getElementById('syncLimit');
         const noLimitWarning = document.getElementById('noLimitWarning');

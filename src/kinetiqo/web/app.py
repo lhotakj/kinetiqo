@@ -1,5 +1,6 @@
 
 import hashlib
+import html
 import logging
 import os
 import secrets
@@ -720,6 +721,45 @@ def _build_tile_providers() -> dict:
             'attr': mt_attr,
             'maxZoom': 20
         }
+
+    # Geoapify – use the official raster tile API (no proxy required).
+    # Free key from https://myprojects.geoapify.com.
+    ga_key = config.geoapify_api_key
+    ga_attr = ('Powered by <a href="https://www.geoapify.com/">Geoapify</a>, '
+               '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
+    geoapify_styles = {
+        'geoapify_osm_bright': {
+            'name': 'Geoapify (OSM Bright)',
+            'style': 'osm-bright',
+            'maxZoom': 20,
+        },
+        'geoapify_osm_carto': {
+            'name': 'Geoapify (OSM Carto)',
+            'style': 'osm-carto',
+            'maxZoom': 20,
+        },
+        'geoapify_dark_matter': {
+            'name': 'Geoapify (Dark Matter)',
+            'style': 'dark-matter',
+            'maxZoom': 20,
+        },
+    }
+    for provider_key, provider in geoapify_styles.items():
+        if ga_key:
+            providers[provider_key] = {
+                'name': provider['name'],
+                'url': f"https://maps.geoapify.com/v1/tile/{provider['style']}/{{z}}/{{x}}/{{y}}.png?apiKey={ga_key}",
+                'attr': ga_attr,
+                'maxZoom': provider['maxZoom'],
+            }
+        else:
+            providers[provider_key] = {
+                'name': provider['name'],
+                'disabled': True,
+                'url': '',
+                'attr': ga_attr,
+                'maxZoom': provider['maxZoom'],
+            }
 
     providers.update({
         'cartodbpositron': {
@@ -2583,8 +2623,15 @@ def start_sync_ui(type):
     return f'''
     <div id="sync-log-area">
         <div sse-connect="{sse_url}">
-            <div id="sync-result" sse-swap="message" class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
-                <p class="text-sm text-gray-500 italic">Initializing sync...</p>
+            <div id="sync-result" sse-swap="message" hx-swap="innerHTML" class="bg-gray-50 rounded-lg p-4 min-h-[200px] border border-gray-100">
+                <div class="mb-4">
+                    <div class="font-mono text-xs text-gray-600 overflow-y-auto space-y-1" style="height: 500px;">
+                        <p class="block truncate">Initializing sync...</p>
+                    </div>
+                </div>
+                <div class="text-center pt-4 border-t border-gray-200">
+                    <p class="text-sm text-blue-600 font-medium mb-3">Sync in progress...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -2617,6 +2664,21 @@ def sync_stream(type):
 
     logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}")
 
+    def error_event(message: str) -> str:
+        error_html = f"""<div class="mb-4">
+            <div class="font-mono text-xs text-gray-600 overflow-y-auto space-y-1" style="height: 500px;">
+                <p class="block truncate">{html.escape(message)}</p>
+            </div>
+        </div>
+        <div class="text-center pt-4 border-t border-gray-200">
+            <p class="text-sm text-red-600 font-medium mb-3">Sync failed.</p>
+            <div class="mt-3 text-left bg-red-50 border border-red-200 rounded-lg p-3">
+                <p class="text-xs font-semibold text-red-800 mb-1">Error during sync:</p>
+                <p class="text-xs text-red-700">{html.escape(message)}</p>
+            </div>
+        </div>"""
+        return f"data: {error_html.replace(chr(10), '')}\n\n"
+
     def generate():
         sync_service = SyncService(config)
         try:
@@ -2625,7 +2687,7 @@ def sync_stream(type):
                 yield progress
         except Exception as e:
             logger.exception(f"Sync failed: {e}")
-            yield f"data: <strong>Error:</strong> {str(e)}\n\n"
+            yield error_event(str(e))
         finally:
             sync_service.close()
             # Invalidate the power cache so that FTP / VO₂max pages

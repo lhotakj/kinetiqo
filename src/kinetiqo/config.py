@@ -80,6 +80,7 @@ class Config:
     mapy_api_key: str | None = os.getenv("MAPY_API_KEY", "")
     thunderforest_api_key: str | None = os.getenv("THUNDERFOREST_API_KEY", "")
     maptiler_api_key: str | None = os.getenv("MAPTILER_API_KEY", "")
+    geoapify_api_key: str | None = os.getenv("GEOAPIFY_API_KEY", "")
 
     # Date Format
     date_format: str | None = os.getenv("DATE_FORMAT", "%b %d, %Y")

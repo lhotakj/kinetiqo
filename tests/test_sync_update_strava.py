@@ -8,6 +8,8 @@ no live network/database is ever contacted.
 """
 
 import unittest
+import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +18,7 @@ import requests
 from kinetiqo.config import UPDATE_STRAVA_MAX_ITEMS
 from kinetiqo.sync import (
     SyncService,
+    STOP_SIGNAL_FILE,
     DESC_NOT_CONFIGURED,
     DESC_UNCHANGED,
     DESC_SKIPPED,
@@ -202,10 +205,49 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.strava.update_activity_description.return_value = None
 
         events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
+        stop_button_event = events[0]
+        first_log_event = events[1]
         final_event = events[-1]
 
+        self.assertIn('data-sync-stop-button="true"', stop_button_event)
+        self.assertIn('kinetiqoRequestSyncStop', stop_button_event)
+        self.assertIn('background-color: #dc2626', stop_button_event)
+        self.assertIn("Sync in progress...", first_log_event)
         self.assertIn("Sync completed successfully", final_event)
+        self.assertIn('style="height: 500px;"', final_event)
+        self.assertIn('<p class="block truncate">', final_event)
+        self.assertNotIn('<div class="truncate">', final_event)
+        self.assertLess(
+            final_event.index("Starting full sync"),
+            final_event.index("Found 0 already synced activities"),
+        )
         self.assertNotIn("warning", final_event.lower())
+
+    def test_stop_signal_after_fetch_progress_aborts_sync(self):
+        service = self._make_service()
+        activity = {
+            "id": 1, "sport_type": "Ride", "name": "Morning Ride",
+            "start_date": "2026-07-22T08:00:00Z",
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            stop_signal = os.path.join(tmpdir, os.path.basename(STOP_SIGNAL_FILE))
+
+            def progress_then_stop(_activities, after=None):
+                with open(stop_signal, "w", encoding="utf-8") as fh:
+                    fh.write("stop")
+                yield "Fetched first Strava page"
+                yield [activity]
+
+            service.strava.get_activities.side_effect = progress_then_stop
+            with patch("kinetiqo.sync.STOP_SIGNAL_FILE", stop_signal):
+                events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
+
+        joined = "".join(events)
+        self.assertIn("Fetched first Strava page", joined)
+        self.assertIn("Stop signal received during fetch. Aborting...", joined)
+        self.assertIn("Sync stopped by user.", joined)
+        self.assertNotIn("Morning Ride (Ride)", joined)
 
     def test_new_activity_log_line_shows_updated_status_inline(self):
         service = self._make_service()

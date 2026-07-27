@@ -107,6 +107,14 @@ def _load_api_keys(config):
     else:
         logger.warning("No Thunderforest key provided, Thunderforest map layers won't be available")
 
+    geoapify_key = os.getenv("GEOAPIFY_API_KEY", "")
+    if geoapify_key:
+        config.geoapify_api_key = geoapify_key
+    if config.geoapify_api_key:
+        logger.info("API key for Geoapify provided")
+    else:
+        logger.warning("No Geoapify key provided, Geoapify map layers won't be available")
+
 
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--log-level',
