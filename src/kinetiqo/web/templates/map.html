@@ -321,6 +321,39 @@
     };
 
     const STORAGE_KEY = 'kinetiqo_map_settings';
+    const MAP_WATERMARK_SIZE_PCT = 0.05;
+    const MAP_WATERMARK_OPACITY = 0.8;
+    const MAP_WATERMARK_MARGIN_PCT = 10 / 1280;
+    const MAP_WATERMARK_SRC = "{{ url_for('static', filename='img/kinetiqo_logo.png', v=app_version) }}";
+
+    function loadImage(src) {
+        return new Promise(function(resolve, reject) {
+            var img = new Image();
+            img.onload = function() { resolve(img); };
+            img.onerror = function() { reject(new Error('Could not load image: ' + src)); };
+            img.src = src;
+        });
+    }
+
+    async function drawMapWatermark(ctx, canvas) {
+        var img = await loadImage(MAP_WATERMARK_SRC);
+        var naturalWidth = img.naturalWidth || img.width;
+        var naturalHeight = img.naturalHeight || img.height;
+        if (!naturalWidth || !naturalHeight) {
+            throw new Error('Watermark image has invalid dimensions.');
+        }
+
+        var targetWidth = Math.max(12, Math.round(canvas.width * MAP_WATERMARK_SIZE_PCT));
+        var targetHeight = Math.round(targetWidth * naturalHeight / naturalWidth);
+        var margin = Math.max(10, Math.round(canvas.width * MAP_WATERMARK_MARGIN_PCT));
+        var x = canvas.width - targetWidth - margin;
+        var y = canvas.height - targetHeight - margin;
+
+        ctx.save();
+        ctx.globalAlpha = MAP_WATERMARK_OPACITY;
+        ctx.drawImage(img, x, y, targetWidth, targetHeight);
+        ctx.restore();
+    }
 
     function isValidHexColor(value) {
         return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
@@ -689,6 +722,7 @@
 
             // Draw the captured canvas into the final canvas (should already be at the same scale)
             ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, finalCanvas.width, finalCanvas.height);
+            await drawMapWatermark(ctx, finalCanvas);
 
             const link = document.createElement('a');
             link.download = filename;

@@ -2,6 +2,7 @@ import sys, os
 # Ensure src/ is on sys.path when running tests directly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
+import re
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -56,6 +57,28 @@ class TestCSRFMeta(unittest.TestCase):
         rv = self.client.get('/logout')
         self.assertEqual(rv.status_code, 405)
 
+    def test_map_export_includes_watermark(self):
+        get = self.client.get('/login')
+        html = get.get_data(as_text=True)
+        token_match = re.search(r'name="csrf_token" value="([^"]*)"', html)
+
+        username = next(iter(users))
+        with self.client.session_transaction() as session:
+            session['_user_id'] = username
+            session['_fresh'] = True
+
+        data = {'activity_ids[]': ['1']}
+        if token_match:
+            data['csrf_token'] = token_match.group(1)
+
+        rv = self.client.post('/map', data=data)
+        self.assertEqual(rv.status_code, 200)
+        page = rv.get_data(as_text=True)
+        self.assertIn('const MAP_WATERMARK_SIZE_PCT = 0.05;', page)
+        self.assertIn('const MAP_WATERMARK_OPACITY = 0.8;', page)
+        self.assertIn('kinetiqo_logo.png', page)
+        self.assertIn('await drawMapWatermark(ctx, finalCanvas);', page)
+
     def test_post_without_csrf_is_blocked(self):
         # Skip if CSRF not enabled in this environment
         import importlib
@@ -77,7 +100,6 @@ class TestCSRFMeta(unittest.TestCase):
         get = self.client.get('/login')
         self.assertEqual(get.status_code, 200)
         html = get.get_data(as_text=True)
-        import re
         m = re.search(r'name="csrf_token" value="([^"]+)"', html)
         self.assertIsNotNone(m, 'csrf hidden input not found')
         token = m.group(1)
