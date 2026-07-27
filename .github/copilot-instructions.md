@@ -331,3 +331,9 @@ inside an SSH shell where the code lives under `~/WORKING/kinetiqo`).
 
 This repository note helps contributors and automation know which path to use when running commands in the
 PyCharm-built terminal vs. locally on Windows.
+
+### Tailwind self-hosting
+- Tailwind Play CDN script is self-hosted at src/kinetiqo/web/static/vendor/tailwind/tailwind.js to avoid CORS issues with the play CDN.
+- Version detected: play-cdn. Record the specific version in the file header when updating.
+- When updating Tailwind: fetch the Play CDN script from https://cdn.tailwindcss.com and replace the local file; update the version comment in the file header and in this note.
+- Prefer building a production CSS via Tailwind CLI for deterministic builds; if unable, self-hosting the Play CDN script is an acceptable fallback for local/offline environments.

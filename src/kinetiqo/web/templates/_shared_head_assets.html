@@ -1,4 +1,5 @@
-<script src="https://cdn.tailwindcss.com" integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"></script>
+﻿<!-- Tailwind Play CDN script (self-hosted, version: play-cdn) -->
+<script src="{{ url_for('static', filename='vendor/tailwind/tailwind.js', v=app_version) }}"></script>
 
 <!-- Preload the fonts used on this page to prevent FOUT -->
 <link rel="preload" href="/static/fonts/inter_normal_latin.woff2?v={{ app_version }}"
@@ -14,3 +15,4 @@
 {% include "_favicons.html" %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css', v=app_version) }}">
+
