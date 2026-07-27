@@ -32,9 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         libicu-dev \
         libncurses-dev \
-        libtool \
         libtomcrypt-dev \
         libtommath-dev \
+        libtool \
         pkg-config \
         unzip \
         wget \
@@ -125,4 +125,3 @@ RUN ldconfig \
     && python3 -c "import ctypes; ctypes.CDLL('/usr/local/lib/libfbclient.so'); print('Firebird client library v${FIREBIRD_VERSION} — loaded OK')" \
     && chromium --version \
     && echo "Base image sanity checks passed."
-

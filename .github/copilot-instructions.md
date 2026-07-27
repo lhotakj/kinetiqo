@@ -130,6 +130,135 @@ tests/
 - `base.html` uses `<link rel="preload" as="font" crossorigin>` for the three critical woff2 files to prevent FOUT. **`crossorigin` is mandatory on font preloads** even for same-origin — the browser requires it for `@font-face` resources.
 - The **poster page** uses a CDN URL for its 15+ poster-specific fonts (Oswald, Ubuntu, Bebas Neue, etc.) since they are not used on other pages and not worth self-hosting.
 
+### Frontend includes & CDN best-practices
+
+This project relies on CDN-delivered frontend assets but must follow strict rules to ensure security, stability, and performance. Copilot must apply these rules whenever modifying templates, upgrading libraries, or adding includes.
+
+Key rules
+- Pin exact CDN versions in URLs (no "latest" or floating tags).
+- Always include Subresource Integrity (SRI) and set crossorigin="anonymous" when pulling cross-origin resources.
+- Add rel="preconnect" hints for major CDN domains in <head> to reduce connection latency.
+- Preload critical, self-hosted fonts with <link rel="preload" as="font" crossorigin>.
+- Defer/async non-critical scripts and place them at the end of body where appropriate.
+- Confirm plugin compatibility (DataTables core version must match plugins/extensions).
+- Update license.html with library name + pinned version whenever changing CDN URLs.
+
+Example include snippets (replace SRI placeholders and versions)
+
+<!-- Preconnect for Google Fonts and CDN -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+<!-- CSS: DataTables core + extension (pinned) with SRI and crossorigin -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables@2.3.7/css/datatables.min.css" integrity="sha384-<SRI>" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables-buttons@3.2.6/css/buttons.dataTables.min.css" integrity="sha384-<SRI>" crossorigin="anonymous">
+
+<!-- Preload critical woff2 (self-hosted) -->
+<link rel="preload" as="font" href="/static/fonts/Inter-Variable.woff2" type="font/woff2" crossorigin>
+
+<!-- JS: Defer non-critical scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-<SRI>" crossorigin="anonymous" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-<SRI>" crossorigin="anonymous" defer></script>
+
+When to self-host
+- Self-host fonts used across the site (Inter, Italiana) and critical assets that are required on every page to ensure availability in restricted networks.
+- Self-hosted assets should be versioned in filenames and served with long Cache-Control and immutable headers.
+
+Frontend includes checklist (must follow when editing templates)
+1. Pin version in URL.
+2. Add integrity and crossorigin="anonymous" for cross-origin resources.
+3. Add rel="preconnect" for new CDN domains in head.
+4. Preload critical fonts with crossorigin.
+5. Defer/async or place scripts at end-of-body when not required for initial render.
+6. Verify plugin compatibility for DataTables and other plugin-ecosystem libs.
+7. Update license.html with pinned version.
+8. Run automated validation (see below).
+
+SonarQube findings — required handling
+- Web:S6853 (Form label association): ensure every <label> element is associated with a form control and has accessible text. When editing templates:
+  - Prefer using <label for="..."> with a matching control id, or wrap the control inside the <label>.
+  - Do not use <label> for non-form text; use <div> or <span> instead.
+  - For non-standard controls, provide aria-labelledby or aria-label to associate the label.
+  - When modifying templates, update or add id attributes to inputs/selects/textareas so labels can reference them.
+  - Add unit tests (mocked) where appropriate to render templates and assert label-for pairs exist for important forms.
+
+- Web:S5725 (Unsafe template insertion / XSS protections): ensure all user-controlled data is properly escaped or serialized before insertion into HTML or JavaScript. Recommended rules:
+  - Keep Jinja2 autoescape enabled for HTML templates. Use the |e filter for explicit HTML escaping when needed.
+  - When embedding values into JavaScript, use the |tojson filter to safely serialize values.
+  - Avoid marking untrusted input with |safe; only do so after an explicit, reviewed sanitization step.
+  - Avoid constructing HTML via string concatenation in client-side JS using untrusted data; prefer setting textContent, value, attributes, or using template elements and cloning.
+  - Audit and avoid use of innerHTML, document.write or similar with untrusted content. If innerHTML is necessary, sanitize input with a vetted library.
+  - Add/verify CSP (Content-Security-Policy) headers where appropriate and use safe defaults.
+  - Add unit tests that ensure templates escape or serialize example malicious payloads correctly (mocked rendering tests).
+
+Guidance for Copilot edits
+- When Copilot modifies templates, automatically check for label-control associations and missing ids; fix S6853 by adding for/id or replacing non-form <label> with semantic elements.
+- When Copilot inserts dynamic values into templates or JS, favor |e and |tojson and avoid |safe. Add a short comment where a |safe is used explaining why it is safe and link to the security review.
+- Run the automated validation script (see above) after template edits to catch floating CDN tags and missing integrity attributes, and extend it to flag label elements without an associated control.
+- When addressing Sonar findings in a PR, include a brief note in the PR description referencing the Sonar rule(s) and summarizing the applied fixes (e.g., "Fixed Web:S6853 by adding for/id pairs in login and settings templates; fixed Web:S5725 by replacing unsafe innerHTML usage with textContent and using |tojson where needed").
+
+Automated validation (recommended)
+Provide a small script (python/node) that checks templates for:
+- Unpinned CDN URLs (flags any "latest" or floating tag).
+- Presence of integrity and crossorigin attributes for CDN includes.
+- Verifies that rel="preconnect" is present for newly introduced CDN domains.
+- Optionally fetches the resource to verify SRI hash matches the content.
+
+Security & CSP notes
+- SRI requires crossorigin to function for cross-origin resources; ensure both are present.
+- If CSP is in use, update script-src/style-src/font-src/img-src accordingly and prefer nonces for inline scripts over allowing unsafe-inline.
+
+Caching, compression & headers
+- Continue using flask-compress for gzip/brotli responses.
+- Serve static JS/CSS/fonts with far-future Cache-Control and immutable when filename is versioned.
+
+Fonts lifecycle (brief)
+- Add font names to kinetiqo/web/fonts.py when adding Google Fonts.
+- Run development/download-fonts.py --force to fetch woff2 and regenerate google_fonts_local.css. This repository script is the recommended, single-source method because it reads kinetiqo/web/fonts.py and writes consistent @font-face rules.
+- Commit generated woff2 files and CSS to src/kinetiqo/web/static/fonts and src/kinetiqo/web/static/css.
+- Add preload hints for critical fonts in base.html with crossorigin.
+
+Downloading Google Fonts (concrete methods)
+
+A. Project script (recommended)
+- Usage (PowerShell):
+  python development/download-fonts.py --force
+- Usage (Bash):
+  python3 development/download-fonts.py --force
+- The script downloads the families declared in kinetiqo/web/fonts.py (woff2), regenerates src/kinetiqo/web/static/css/google_fonts_local.css, and places files in src/kinetiqo/web/static/fonts. Commit the files after verifying the CSS and preload hints.
+
+B. Using google-webfonts-helper (npm alternative)
+- Install: npm install -g google-webfonts-helper
+- Example (download Inter woff2 and output CSS):
+  google-webfonts-helper --family "Inter" --variants "400;700;variable" --formats "woff2" --output "src/kinetiqo/web/static/fonts" --css > src/kinetiqo/web/static/css/google_fonts_local.css
+- Adjust paths or move files as needed; add preload hints to base.html.
+
+C. Manual method (HTTP + curl/wget)
+- Fetch the Google-provided CSS (use a browser-like User-Agent to get the proper rules):
+  curl -s "https://fonts.googleapis.com/css2?family=Inter:wght@100;400;700&display=swap" -H "User-Agent: Mozilla/5.0" -o inter.css
+- Inspect inter.css for woff2 URLs and download each file:
+  curl -LO "https://fonts.gstatic.com/s/inter/vX/.../inter-VariableFont.woff2"
+- Create or adjust local @font-face rules in src/kinetiqo/web/static/css/google_fonts_local.css to point to the downloaded files in src/kinetiqo/web/static/fonts.
+
+SRI, preloads & headers
+- Add <link rel="preload" as="font" href="/static/fonts/Inter-Variable.woff2" type="font/woff2" crossorigin> for critical fonts.
+- Serve fonts with correct Content-Type and long Cache-Control (immutable) when filenames are versioned.
+- SRI is typically used for JS/CSS; if calculating SRI for a CDN JS/CSS include use: openssl dgst -sha384 -binary | openssl base64 -A (example shown in the appendix).
+
+Notes & best-practices
+- Prefer the project's download-fonts.py to keep a single source of truth and reproducible assets.
+- Always commit downloaded font files and regenerated CSS to ensure offline availability and reproducible builds.
+- Add preload hints and crossorigin to prevent FOUT and to satisfy browser requirements for @font-face resources.
+
+Developer guidance for Copilot
+- Follow the frontend includes checklist when editing templates.
+- When upgrading a library, update license.html and run the validation script.
+- Avoid inline scripts/styles; if necessary for CSP, use nonces and document them.
+
+Applying changes
+- This guidance should be inserted into copilot-instructions.md; follow the checklist and validation script before committing template edits.
+
+
 ## 6. Common Tasks & How-To
 
 ### Add a new feature with a web UI

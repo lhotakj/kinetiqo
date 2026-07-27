@@ -26,9 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         libicu-dev \
         libncurses-dev \
-        libtool \
         libtomcrypt-dev \
         libtommath-dev \
+        libtool \
         pkg-config \
         unzip \
         wget \

@@ -2,7 +2,7 @@
 
 {% block head %}
 <!-- NOSONAR: loading Chart.js from CDN intentionally; add SRI in future if required -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% include "_npm_chartjs.html" %}
 <!-- NOSONAR: Google Fonts CDN used intentionally -->
 <link href="{{ poster_google_fonts_url }}" rel="stylesheet">
 <style>

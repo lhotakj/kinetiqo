@@ -76,15 +76,18 @@ An invalid/unrecognized value falls back to `end` with a `WARNING` logged.
      applicable template is configured).
    - Renders the template using stats **as of that activity's own date and
      time** (not "now" — so re-running a full sync produces the same
-     historically-correct numbers for old activities).
-   - Looks for a block matching the shape of the template anywhere in the
-     existing description (see [Smart merge](#smart-merge-never-loses-your-text)
-     below). If found, that block is replaced in place. If not found, the
-     freshly rendered block is inserted at the position configured by
+     historically-correct numbers for old activities), and automatically
+     prefixes it with `✨ Kinetiqo:` in the final Strava description line.
+     Do **not** include this prefix in your template value.
+   - Removes any existing description line starting with `✨ Kinetiqo:` (see
+     [Smart merge](#smart-merge-never-loses-your-text) below), then inserts
+     the freshly rendered line at the position configured by
      `UPDATE_STRAVA_PLACEMENT` (**end** of the description by default, or
      **beginning** if configured).
    - If the resulting description is identical to what's already on Strava,
      **no update API call is made** (saves your Strava API rate limit).
+   - To protect API rate limits, description writes are attempted only for the
+     latest 30 eligible activities per sync run.
 2. Any failure while resolving a single placeholder, fetching the current
    description, or pushing the update to Strava is logged as a `WARNING`/`ERROR`
    and **never aborts the sync** — at worst, that one activity's description is
@@ -92,26 +95,14 @@ An invalid/unrecognized value falls back to `end` with a `WARNING` logged.
 
 ## Smart merge — never loses your text
 
-Kinetiqo does **not** use an invisible HTML comment or marker to track "its"
-block. Instead, it turns the applicable template into a regex: literal text
-is matched verbatim, and every `{{placeholder}}` becomes a non-greedy
-wildcard. This lets it recognize a previously-rendered block *regardless of
-what numbers were substituted last time*, and replace just that block —
-leaving anything you (or Strava, e.g. a photo/gear caption) wrote below it
-completely untouched.
+Kinetiqo stores its stats as one dedicated line that always starts with
+`✨ Kinetiqo:`. During sync it removes any existing line with that prefix and
+inserts the newly rendered one, leaving the rest of your description untouched.
 
 ```
 Year-to-date: 6,500.0 km cycled (55.80% of the goal).
 <-- rest of your own hand-written description below, always preserved -->
 ```
-
-> ⚠️ **Limitation:** if you *change the wording* of a template (not just
-> re-run it with the same template), the regex derived from the *old*
-> template will no longer match, so the old block won't be found/replaced —
-> the newly-worded block is simply inserted at the position configured by
-> `UPDATE_STRAVA_PLACEMENT` (end by default). You may end up with two stats
-> blocks until you manually remove the stale one. This only happens the first
-> sync after you edit that bucket's template wording.
 
 ## Placeholder grammar
 
@@ -610,18 +601,14 @@ activity types with configurable goals).
   `{{cycling-distance-goal-indoor-year}}` both return the exact same
   configured yearly goal. Only the *achieved* value used by `percent`/
   `deviation` is scope-filtered.
-- **Template wording changes cause temporary duplication** — see
-  [Smart merge](#smart-merge-never-loses-your-text) above. Changing the
-  literal (non-placeholder) text of an `UPDATE_STRAVA_*` template means the
-  old rendered block won't be recognized by the new regex on the next sync,
-  so a new block is inserted (per `UPDATE_STRAVA_PLACEMENT`) alongside the
-  stale one. Manually remove the old block once, and future syncs will
-  correctly find/replace the new one.
 - **Extra Strava API calls**: fetching the current description requires one
   extra `GET /activities/{id}` per synced activity (the summary
   activity-list endpoint doesn't include `description`). This call is only
   made for activities whose applicable `UPDATE_STRAVA_*` template is
   non-empty, and updates are only pushed (`PUT /activities/{id}`) when the
   description actually changed.
+- **Write-cap per sync run:** description updates are attempted only for the
+  latest 30 eligible activities to reduce the chance of hitting Strava's API
+  rate limits on large/full syncs.
 - **No imperial units yet** — `km`/`m` are hard-coded today (as constants, in
   preparation for a future `miles`/`feet` config option).

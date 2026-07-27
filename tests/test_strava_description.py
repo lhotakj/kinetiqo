@@ -8,7 +8,7 @@ API is ever contacted — the ``DatabaseRepository`` is mocked with
 import unittest
 from unittest.mock import MagicMock
 
-from kinetiqo.config import UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END
+from kinetiqo.config import UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END, UPDATE_STRAVA_PREFIX
 from kinetiqo.db.repository import GOAL_TYPE_CYCLING, GOAL_TYPE_WALKING
 from kinetiqo.strava_description import (
     DescriptionContext,
@@ -138,23 +138,22 @@ class TestTemplateRendering(unittest.TestCase):
         result = render_template("X{{token}}Y", bad_resolver)
         self.assertEqual(result, "XY")
 
-    def test_new_line_literal_is_not_a_wildcard_in_match_pattern(self):
-        # {{new-line}} should be treated as literal "\n", not `.*?`.
-        template = "Stats: {{value}}{{new-line}}"
-        pattern = build_match_pattern(template)
-        rendered = "Stats: 42\n"
-        self.assertIsNotNone(pattern.search(rendered))
+    def test_match_pattern_targets_prefixed_line(self):
+        pattern = build_match_pattern("ignored-now")
+        self.assertIsNotNone(pattern.search(f"{UPDATE_STRAVA_PREFIX} Stats: 42\n"))
+        self.assertIsNotNone(pattern.search(f"{UPDATE_STRAVA_PREFIX}Stats: 42\n"))
+        self.assertIsNone(pattern.search("Stats: 42\n"))
 
 
 class TestMergeDescription(unittest.TestCase):
-    """Unit tests for the regex-based find/replace-or-insert (begin/end) merge logic."""
+    """Unit tests for the prefix-based find/replace-or-insert (begin/end) merge logic."""
 
     def test_appends_at_end_by_default_when_no_existing_block_found(self):
         existing = "My hand-written ride notes."
         template = "Stats: {{value}}."
         rendered = "Stats: 42."
         result = merge_description(existing, template, rendered)
-        self.assertTrue(result.endswith(rendered))
+        self.assertTrue(result.endswith(f"{UPDATE_STRAVA_PREFIX} {rendered}\n"))
         self.assertIn(existing, result)
 
     def test_placement_end_explicit_appends_at_end(self):
@@ -162,14 +161,14 @@ class TestMergeDescription(unittest.TestCase):
         template = "Stats: {{value}}."
         rendered = "Stats: 42."
         result = merge_description(existing, template, rendered, placement=UPDATE_STRAVA_PLACEMENT_END)
-        self.assertEqual(result, existing + "\n\n" + rendered)
+        self.assertEqual(result, existing + "\n\n" + f"{UPDATE_STRAVA_PREFIX} {rendered}\n")
 
     def test_placement_begin_prepends(self):
         existing = "My hand-written ride notes."
         template = "Stats: {{value}}."
         rendered = "Stats: 42."
         result = merge_description(existing, template, rendered, placement=UPDATE_STRAVA_PLACEMENT_BEGIN)
-        self.assertTrue(result.startswith(rendered))
+        self.assertTrue(result.startswith(f"{UPDATE_STRAVA_PREFIX} {rendered}\n"))
         self.assertIn(existing, result)
 
     def test_invalid_placement_falls_back_to_end(self):
@@ -177,29 +176,33 @@ class TestMergeDescription(unittest.TestCase):
         template = "Stats: {{value}}."
         rendered = "Stats: 42."
         result = merge_description(existing, template, rendered, placement="somewhere-else")
-        self.assertTrue(result.endswith(rendered))
+        self.assertTrue(result.endswith(f"{UPDATE_STRAVA_PREFIX} {rendered}\n"))
 
-    def test_replaces_previously_rendered_block_in_place_regardless_of_placement(self):
+    def test_replaces_prefixed_block_and_honors_placement(self):
         template = "Stats: {{value}}.{{new-line}}"
-        old_rendered = "Stats: 41.\n"
+        old_rendered = f"{UPDATE_STRAVA_PREFIX} Stats: 41.\n"
         new_rendered = "Stats: 42.\n"
         existing = old_rendered + "My hand-written ride notes."
         for placement in (UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END):
             with self.subTest(placement=placement):
                 result = merge_description(existing, template, new_rendered, placement=placement)
-                self.assertEqual(result, new_rendered + "My hand-written ride notes.")
+                if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
+                    self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} Stats: 42.\nMy hand-written ride notes.")
+                else:
+                    self.assertEqual(result, f"My hand-written ride notes.\n\n{UPDATE_STRAVA_PREFIX} Stats: 42.\n")
 
     def test_empty_existing_description_just_uses_rendered_block(self):
         result = merge_description("", "Stats: {{value}}.", "Stats: 42.")
-        self.assertEqual(result, "Stats: 42.")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} Stats: 42.\n")
 
     def test_user_text_is_never_lost(self):
         template = "Stats: {{value}}.{{new-line}}"
-        existing = "Stats: 10.\nGreat ride with @friend, saw a fox!"
+        existing = f"{UPDATE_STRAVA_PREFIX} Stats: 10.\nGreat ride with @friend, saw a fox!"
         rendered = "Stats: 20.\n"
         result = merge_description(existing, template, rendered)
         self.assertIn("Great ride with @friend, saw a fox!", result)
         self.assertNotIn("Stats: 10.", result)
+        self.assertIn(f"{UPDATE_STRAVA_PREFIX} Stats: 20.\n", result)
 
 
 class TestDescriptionContextResolution(unittest.TestCase):
@@ -221,12 +224,13 @@ class TestDescriptionContextResolution(unittest.TestCase):
             "2026-07-22T08:00:00Z",
             "",
         )
-        self.assertEqual(result, "6,540.0 km / 12,345 m")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 6,540.0 km / 12,345 m\n")
 
     def test_count_with_milestone_celebration(self):
         repo = self._make_repo(count=100)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-count-total-year}}", "2026-07-22T08:00:00Z", "")
+        self.assertIn(f"{UPDATE_STRAVA_PREFIX} ", result)
         self.assertIn("100", result)
         self.assertIn("🎉", result)
 
@@ -234,33 +238,33 @@ class TestDescriptionContextResolution(unittest.TestCase):
         repo = self._make_repo(count=42)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-count-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "42")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 42\n")
 
     def test_ordinal_formatting(self):
         repo = self._make_repo(count=11)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-ordinal-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "11th")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 11th\n")
 
     def test_activities_metric_has_no_celebration_ever(self):
         repo = self._make_repo(count=100)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-activities-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "100")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 100\n")
 
     def test_goal_placeholder_returns_configured_goal(self):
         goals = [{"activity_type_id": GOAL_TYPE_CYCLING, "yearly_distance_goal": 5000, "yearly_elevation_goal": 50000}]
         repo = self._make_repo(goals=goals)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-distance-goal-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "5,000.0 km")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 5,000.0 km\n")
 
     def test_percent_placeholder_computes_percentage(self):
         goals = [{"activity_type_id": GOAL_TYPE_CYCLING, "yearly_distance_goal": 1000}]
         repo = self._make_repo(totals={"total_distance": 550000, "total_elevation": 0}, goals=goals)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-distance-percent-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "55.00%")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 55.00%\n")
 
     def test_deviation_ahead_of_plan(self):
         # Elapsed fraction of year at 2026-01-02 is tiny, so any real achieved
@@ -283,14 +287,14 @@ class TestDescriptionContextResolution(unittest.TestCase):
         repo = self._make_repo(goals=[])
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{cycling-distance-goal-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX}\n")
 
     def test_running_goal_placeholder_unsupported_resolves_empty(self):
         # Only cycling & walking have configurable goals.
         repo = self._make_repo()
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{running-distance-goal-total-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX}\n")
 
     def test_walking_indoor_scope_resolves_to_zero(self):
         repo = self._make_repo(totals={"total_distance": 999000, "total_elevation": 0}, count=5)
@@ -298,19 +302,19 @@ class TestDescriptionContextResolution(unittest.TestCase):
         result = ctx.render_for_activity("{{walking-distance-indoor-year}}", "2026-07-22T08:00:00Z", "")
         # Indoor walking is never distinguishable -> always resolves to 0,
         # regardless of what the mocked repo would otherwise return.
-        self.assertEqual(result, "0.0 km")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 0.0 km\n")
 
     def test_swimming_indoor_scope_resolves_to_zero_count(self):
         repo = self._make_repo(count=5)
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{swimming-count-indoor-year}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "0")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 0\n")
 
     def test_unrecognized_placeholder_resolves_to_empty_string(self):
         repo = self._make_repo()
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity("{{totally-not-a-thing}}", "2026-07-22T08:00:00Z", "")
-        self.assertEqual(result, "")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX}\n")
 
     def test_current_year_and_month_and_new_line(self):
         repo = self._make_repo()
@@ -318,7 +322,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         result = ctx.render_for_activity(
             "{{current-year}}-{{current-month}}{{new-line}}end", "2026-07-22T08:00:00Z", ""
         )
-        self.assertEqual(result, "2026-July\nend")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 2026-July end\n")
 
     def test_goals_are_only_fetched_once_per_context(self):
         goals = [{"activity_type_id": GOAL_TYPE_CYCLING, "yearly_distance_goal": 1000}]
@@ -336,14 +340,14 @@ class TestDescriptionContextResolution(unittest.TestCase):
 
     def test_merge_replaces_previous_render_for_same_context(self):
         repo = self._make_repo(count=5)
-        ctx = DescriptionContext(config=MagicMock(), repo=repo)
+        ctx = DescriptionContext(config=MagicMock(update_strava_placement="begin"), repo=repo)
         template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
         first = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "")
-        self.assertEqual(first, "You have done 5 rides.\n")
+        self.assertEqual(first, f"{UPDATE_STRAVA_PREFIX} You have done 5 rides.\n")
 
         repo.count_activities.return_value = 6
         second = ctx.render_for_activity(template, "2026-07-23T08:00:00Z", first + "My own notes.")
-        self.assertEqual(second, "You have done 6 rides.\nMy own notes.")
+        self.assertEqual(second, f"{UPDATE_STRAVA_PREFIX} You have done 6 rides.\nMy own notes.")
 
     def test_placement_defaults_to_end_when_config_omits_it(self):
         """A Config without update_strava_placement (or a bare MagicMock) should still default to 'end'."""
@@ -352,7 +356,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         ctx = DescriptionContext(config=config, repo=repo)
         template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
         result = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "My own notes.")
-        self.assertEqual(result, "My own notes.\n\nYou have done 5 rides.\n")
+        self.assertEqual(result, f"My own notes.\n\n{UPDATE_STRAVA_PREFIX} You have done 5 rides.\n")
 
     def test_placement_begin_inserts_before_existing_text(self):
         repo = self._make_repo(count=5)
@@ -360,7 +364,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         ctx = DescriptionContext(config=config, repo=repo)
         template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
         result = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "My own notes.")
-        self.assertEqual(result, "You have done 5 rides.\nMy own notes.")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} You have done 5 rides.\nMy own notes.")
 
     def test_placement_end_appends_after_existing_text(self):
         repo = self._make_repo(count=5)
@@ -368,7 +372,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         ctx = DescriptionContext(config=config, repo=repo)
         template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
         result = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "My own notes.")
-        self.assertEqual(result, "My own notes.\n\nYou have done 5 rides.\n")
+        self.assertEqual(result, f"My own notes.\n\n{UPDATE_STRAVA_PREFIX} You have done 5 rides.\n")
 
 
 class TestRenderAndMergeConvenienceWrapper(unittest.TestCase):
@@ -392,7 +396,7 @@ class TestRenderAndMergeConvenienceWrapper(unittest.TestCase):
         repo.get_goals.return_value = []
         activity = {"start_date": "2026-07-22T08:00:00Z", "sport_type": "Ride"}
         result = render_and_merge_description(config, repo, activity, "")
-        self.assertEqual(result, "2026")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 2026\n")
 
     def test_returns_none_when_sport_type_not_in_any_bucket(self):
         config = MagicMock(update_strava_cycling_indoor="{{current-year}}", update_strava_cycling_outdoor="{{current-year}}",

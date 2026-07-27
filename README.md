@@ -448,13 +448,14 @@ Year-to-date: 6,540.0 km cycled (56.10% of the 2026 goal, ahead of the plan by 1
 ```
 
 On every sync, the applicable template is re-rendered per activity (using
-data "as of" that activity's own date) and merged into the Strava description
-via a smart regex match: if a previously-rendered block is found, it is
-replaced in place; otherwise the new block is inserted at the position set by
-`UPDATE_STRAVA_PLACEMENT` (**end** of the description by default, or
-**beginning** if set to `begin`). Placeholders that can't be resolved
-(unrecognized name, no goal configured, etc.) resolve to an empty string and
-log a warning — they never break the sync.
+data "as of" that activity's own date), then wrapped as a single line starting
+with `✨ Kinetiqo:` and merged into the Strava description. Existing lines that
+start with that prefix are replaced, and the new line is inserted at the
+position set by `UPDATE_STRAVA_PLACEMENT` (**end** of the description by
+default, or **beginning** if set to `begin`). To protect Strava API limits,
+description updates are capped to the latest 30 eligible activities per sync.
+Placeholders that can't be resolved (unrecognized name, no goal configured,
+etc.) resolve to an empty string and log a warning — they never break the sync.
 
 The current values of all six variables are also shown (read-only) on the
 **Settings → Athlete** page. This display value is seeded into the database
@@ -869,5 +870,4 @@ Please see a few metrics of all three databases on common operations in Kinetiqo
 | PostgreSQL |   1.411         |
 | MySQL      |   3.685         |
 | Firebird   |   9.840         |
-
 

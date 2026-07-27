@@ -59,6 +59,7 @@ from kinetiqo.config import (
     UPDATE_STRAVA_PLACEMENT,
     UPDATE_STRAVA_PLACEMENT_BEGIN,
     UPDATE_STRAVA_PLACEMENT_END,
+    UPDATE_STRAVA_PREFIX,
 )
 from kinetiqo.db.repository import GOAL_TYPE_CYCLING, GOAL_TYPE_WALKING
 from kinetiqo.web.stats import (
@@ -343,7 +344,7 @@ def _period_bounds(activity_dt: datetime, period: str) -> Tuple[datetime, dateti
 
 
 # ---------------------------------------------------------------------------
-# Template tokenizing / rendering / regex-matching
+# Template tokenizing / rendering / merge helpers
 # ---------------------------------------------------------------------------
 
 def _iter_template_parts(template: str):
@@ -379,50 +380,48 @@ def render_template(template: str, resolver: Callable[[str], str]) -> str:
     return "".join(parts)
 
 
-def build_match_pattern(template: str) -> re.Pattern:
-    """Build a regex, derived from *template*, that matches a previously-rendered block.
+def _normalize_newlines(value: str) -> str:
+    return (value or "").replace("\r\n", "\n").replace("\r", "\n")
 
-    Literal text is matched verbatim; every placeholder becomes a non-greedy
-    wildcard — **except** ``{{new-line}}``, which always renders to the fixed
-    literal ``"\\n"`` and is matched as such (not as a wildcard). This lets us
-    find (and replace) our own auto-generated block in an activity's existing
-    description regardless of what values were substituted the last time it
-    was rendered, without needing an invisible marker/comment in the visible
-    description text, and without accumulating extra blank lines on re-render.
-    """
-    pattern_parts = []
-    for kind, val in _iter_template_parts(template):
-        if kind == "literal":
-            if val:
-                pattern_parts.append(re.escape(val))
-        elif val == "new-line":
-            pattern_parts.append(re.escape("\n"))
-        else:
-            pattern_parts.append(r".*?")
-    pattern = "".join(pattern_parts) or re.escape(template)
-    return re.compile(pattern, re.DOTALL)
+
+def _build_prefixed_stats_line(rendered_block: str) -> str:
+    """Build the canonical one-line stats block persisted in Strava descriptions."""
+    rendered = _normalize_newlines(rendered_block).strip("\n")
+    # New behavior stores Kinetiqo stats as a single line; flatten any
+    # accidental embedded newlines from templates.
+    rendered = " ".join(part.strip() for part in rendered.split("\n") if part.strip())
+    if rendered.startswith(UPDATE_STRAVA_PREFIX):
+        rendered = rendered[len(UPDATE_STRAVA_PREFIX):].strip()
+    if rendered:
+        return f"{UPDATE_STRAVA_PREFIX} {rendered}\n"
+    return f"{UPDATE_STRAVA_PREFIX}\n"
+
+
+def build_match_pattern(template: str) -> re.Pattern:
+    """Return a regex that matches one previously-inserted Kinetiqo stats line."""
+    del template  # Prefix-based replacement no longer derives matching from template text.
+    prefix = re.escape(UPDATE_STRAVA_PREFIX)
+    return re.compile(rf"(?m)^{prefix}[^\n]*(?:\n|$)")
 
 
 def merge_description(existing_description: str, template: str, rendered_block: str,
                        placement: str = DEFAULT_UPDATE_STRAVA_PLACEMENT) -> str:
     """Insert/replace *rendered_block* into *existing_description*.
 
-    If a block matching *template*'s shape is found anywhere in the existing
-    description, it is always replaced **in place** (*placement* only affects
-    where a brand-new block goes; once inserted, re-renders never relocate
-    it). Otherwise the new block is inserted at the beginning or end of
+    Any line starting with :data:`kinetiqo.config.UPDATE_STRAVA_PREFIX` is
+    treated as Kinetiqo-owned and removed before inserting the newly rendered
+    line. The fresh line is inserted at the beginning or end of
     *existing_description*, per *placement* (one of
     :data:`kinetiqo.config.UPDATE_STRAVA_PLACEMENT` — ``"begin"`` or
     ``"end"``, default ``"end"``). The rest of the description (anything the
     user or Strava wrote) is always preserved.
     """
-    existing_description = existing_description or ""
+    existing_description = _normalize_newlines(existing_description or "")
     pattern = build_match_pattern(template)
-    match = pattern.search(existing_description)
-    if match:
-        return existing_description[:match.start()] + rendered_block + existing_description[match.end():]
+    existing_without_kinetiqo = pattern.sub("", existing_description)
+    rendered_block = _build_prefixed_stats_line(rendered_block)
 
-    if not existing_description.strip():
+    if not existing_without_kinetiqo.strip():
         return rendered_block
 
     if placement not in UPDATE_STRAVA_PLACEMENT:
@@ -434,11 +433,11 @@ def merge_description(existing_description: str, template: str, rendered_block: 
 
     if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
         joiner = "" if rendered_block.endswith("\n") else "\n\n"
-        return rendered_block + joiner + existing_description
+        return rendered_block + joiner + existing_without_kinetiqo
 
     assert placement == UPDATE_STRAVA_PLACEMENT_END
-    joiner = "" if existing_description.endswith("\n") else "\n\n"
-    return existing_description + joiner + rendered_block
+    joiner = "" if existing_without_kinetiqo.endswith("\n") else "\n\n"
+    return existing_without_kinetiqo + joiner + rendered_block
 
 
 # ---------------------------------------------------------------------------

@@ -219,18 +219,18 @@
         <div class="control-box">
             <h4>Mega Stats Size</h4>
             <div class="control-row">
-                <label>Width</label>
+                <label for="stats-size">Width</label>
                 <select id="stats-size" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
                     <option value="M">M (width 1280px)</option>
                     <option value="L">L (width 1440px)</option>
                 </select>
             </div>
             <div class="control-row">
-                <label>Ratio</label>
+                <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">Ratio</span>
                 <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">4:3 (fixed)</span>
             </div>
             <div class="control-row">
-                <label>Dimensions</label>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Dimensions</span>
                 <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Mega stats dimension: — × —</span>
             </div>
         </div>
@@ -239,7 +239,7 @@
         <div class="control-box">
             <h4>Period</h4>
             <div class="control-row">
-                <label>Year</label>
+                <label for="stats-year">Year</label>
                 <select id="stats-year" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
                     {% for y in range(current_year, min_year - 1, -1) %}
                     <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
@@ -247,7 +247,7 @@
                 </select>
             </div>
             <div class="control-row">
-                <label>Period</label>
+                <label for="stats-period">Period</label>
                 <select id="stats-period" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
                     <option value="year" selected>Entire Year</option>
                     <option value="h1">H1 (Jan–Jun)</option>
@@ -264,12 +264,12 @@
         <div class="control-box">
             <h4>Appearance</h4>
             <div class="control-row">
-                <label>Background</label>
+                <label for="stats-bg">Background</label>
                 <input type="color" id="stats-bg" value="#4a4a4a"
                        class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
             </div>
             <div class="control-row">
-                <label>Activities</label>
+                <label for="stats-group">Activities</label>
                 <select id="stats-group" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
                     {% for key, grp in activity_groups.items() %}
                     <option value="{{ key }}" {% if key == 'cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}</option>

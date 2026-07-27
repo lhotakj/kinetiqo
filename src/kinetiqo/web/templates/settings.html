@@ -37,10 +37,10 @@
                 </div>
             </div>
             <div class="space-y-3">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     UPDATE_STRAVA_* templates
                     <span class="font-normal text-gray-400 dark:text-gray-500">(read-only, one per activity type/scope, each set via its own environment variable)</span>
-                </label>
+                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label for="profile-update-strava-cycling-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -168,7 +168,7 @@
         <div class="p-6 space-y-6" id="settings-container">
             <!-- Full Sync -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Sync Schedule</label>
+                <label for="full-sync-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Sync Schedule</label>
                 <div class="relative">
                     <input type="text" id="full-sync-input" readonly
                            class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
@@ -179,7 +179,7 @@
 
             <!-- Fast Sync -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fast Sync Schedule</label>
+                <label for="fast-sync-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fast Sync Schedule</label>
                 <div class="relative">
                     <input type="text" id="fast-sync-input" readonly
                            class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
@@ -193,15 +193,15 @@
                 <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h2>
                 <div class="grid grid-cols-3 gap-4 mb-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <label for="db-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
                         <input type="text" id="db-type" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Host</label>
+                        <label for="db-host" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Host</label>
                         <input type="text" id="db-host" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
+                        <label for="db-port" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
                         <input type="text" id="db-port" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                 </div>

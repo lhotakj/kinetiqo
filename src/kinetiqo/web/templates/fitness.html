@@ -2,9 +2,9 @@
 
 {% block head %}
 <!-- Include Chart.js and the Moment.js adapter -->
-<script src="https://cdn.jsdelivr.net/npm/moment@2.30.1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1" crossorigin="anonymous"></script>
+{% include "_npm_moment.html" %}
+{% include "_npm_chartjs.html" %}
+{% include "_npm_chartjs_adapter_moment.html" %}
 {% endblock %}
 
 {% block content %}

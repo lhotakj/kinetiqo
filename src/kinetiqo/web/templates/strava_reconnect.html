@@ -27,7 +27,7 @@
         {% endif %}
 
         <div class="space-y-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">New refresh token</label>
+            <label for="refresh-token" class="block text-sm font-medium text-gray-700 dark:text-gray-300">New refresh token</label>
             <textarea id="refresh-token" readonly rows="3"
                       class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-gray-50 dark:bg-zinc-700 text-gray-900 dark:text-gray-100 text-sm p-3">{{ refresh_token }}</textarea>
             <button type="button" id="copy-token"

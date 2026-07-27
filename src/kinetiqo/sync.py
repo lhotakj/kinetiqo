@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 import requests
 
-from kinetiqo.config import Config
+from kinetiqo.config import Config, UPDATE_STRAVA_MAX_ITEMS
 from kinetiqo.db.factory import create_repository
 from kinetiqo.strava import StravaClient, StravaFetchError
 from kinetiqo.profile_sync import sync_update_strava_from_env
@@ -160,6 +160,21 @@ class SyncService:
             logger.warning(msg)
             return DESC_FAILED, msg
 
+    def _description_update_activity_ids(self, activities: list[dict]) -> set[str]:
+        """Return IDs of latest activities eligible for UPDATE_STRAVA description writes."""
+        if UPDATE_STRAVA_MAX_ITEMS <= 0:
+            return set()
+        eligible_activities = [
+            activity for activity in activities
+            if get_template_for_activity(self.config, activity.get("sport_type", ""))
+        ]
+        eligible_activities.sort(key=lambda item: item.get("start_date") or "", reverse=True)
+        return {
+            str(activity["id"])
+            for activity in eligible_activities[:UPDATE_STRAVA_MAX_ITEMS]
+            if "id" in activity
+        }
+
     def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0):
         """
         Perform sync of Strava activities, yielding progress updates.
@@ -253,6 +268,7 @@ class SyncService:
                 logger.warning(f"UPDATE_STRAVA: failed to sync template from environment: {e}")
 
             description_context = None
+            description_update_ids: set[str] = set()
             if any_update_strava_template_configured(self.config):
                 description_context = DescriptionContext(self.config, self.db)
 
@@ -339,6 +355,17 @@ class SyncService:
             new_activities = [a for a in activities if str(a["id"]) not in synced_ids]
             existing_activities = [a for a in activities if str(a["id"]) in synced_ids]
             yield yield_log(f"Identified {len(new_activities)} new and {len(existing_activities)} existing activities.")
+            if description_context is not None:
+                description_update_ids = self._description_update_activity_ids(activities)
+                total_eligible = sum(
+                    1 for activity in activities
+                    if get_template_for_activity(self.config, activity.get("sport_type", ""))
+                )
+                if total_eligible > UPDATE_STRAVA_MAX_ITEMS:
+                    yield yield_log(
+                        f"UPDATE_STRAVA: limiting description updates to latest "
+                        f"{UPDATE_STRAVA_MAX_ITEMS} eligible activities."
+                    )
 
             # --- Identify stale DB entries within the fetched window ---
             strava_ids = {str(a["id"]) for a in activities}
@@ -400,7 +427,13 @@ class SyncService:
                             logger.warning(msg)
                             sync_warnings.append(msg)
                     if description_context is not None:
-                        status, warning = self._update_strava_description(description_context, activity)
+                        if str(activity_id) in description_update_ids:
+                            status, warning = self._update_strava_description(description_context, activity)
+                        else:
+                            # Template may be absent for this activity's bucket;
+                            # preserve the old "no status suffix" behavior there.
+                            status = DESC_SKIPPED if get_template_for_activity(self.config, sport) else DESC_NOT_CONFIGURED
+                            warning = None
                         desc_suffix = _description_status_suffix(status)
                         if warning:
                             sync_warnings.append(warning)

@@ -13,6 +13,8 @@ UPDATE_STRAVA_PLACEMENT_BEGIN = "begin"
 UPDATE_STRAVA_PLACEMENT_END = "end"
 UPDATE_STRAVA_PLACEMENT = (UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END)
 DEFAULT_UPDATE_STRAVA_PLACEMENT = UPDATE_STRAVA_PLACEMENT_END
+UPDATE_STRAVA_MAX_ITEMS = 30
+UPDATE_STRAVA_PREFIX = "✨ Kinetiqo:"
 
 
 @dataclass
@@ -23,9 +25,9 @@ class Config:
     credentials, cache options, database connection parameters, and map API keys.
     """
     # Strava
-    strava_client_id: str = os.getenv("STRAVA_CLIENT_ID")
-    strava_client_secret: str = os.getenv("STRAVA_CLIENT_SECRET")
-    strava_refresh_token: str = os.getenv("STRAVA_REFRESH_TOKEN")
+    strava_client_id: str | None = os.getenv("STRAVA_CLIENT_ID")
+    strava_client_secret: str | None = os.getenv("STRAVA_CLIENT_SECRET")
+    strava_refresh_token: str | None = os.getenv("STRAVA_REFRESH_TOKEN")
 
     # Optional callback invoked with the new token whenever StravaClient
     # receives a rotated refresh_token from Strava (Strava issues a new one
@@ -43,27 +45,27 @@ class Config:
     database_type: str = os.getenv("DATABASE_TYPE", "postgresql").lower()  # mysql, postgresql, or firebird
 
     # MySQL
-    mysql_host: str = os.getenv("MYSQL_HOST")
+    mysql_host: str | None = os.getenv("MYSQL_HOST")
     mysql_port: int = 3306
-    mysql_user: str = os.getenv("MYSQL_USER")
-    mysql_password: str = os.getenv("MYSQL_PASSWORD")
-    mysql_database: str = os.getenv("MYSQL_DATABASE")
+    mysql_user: str | None = os.getenv("MYSQL_USER")
+    mysql_password: str | None = os.getenv("MYSQL_PASSWORD")
+    mysql_database: str | None = os.getenv("MYSQL_DATABASE")
     mysql_ssl_mode: str = os.getenv("MYSQL_SSL_MODE", "disable")
 
     # PostgreSQL
-    postgresql_host: str = os.getenv("POSTGRESQL_HOST")
+    postgresql_host: str | None = os.getenv("POSTGRESQL_HOST")
     postgresql_port: int = 5432
-    postgresql_user: str = os.getenv("POSTGRESQL_USER")
-    postgresql_password: str = os.getenv("POSTGRESQL_PASSWORD")
-    postgresql_database: str = os.getenv("POSTGRESQL_DATABASE")
+    postgresql_user: str | None = os.getenv("POSTGRESQL_USER")
+    postgresql_password: str | None = os.getenv("POSTGRESQL_PASSWORD")
+    postgresql_database: str | None = os.getenv("POSTGRESQL_DATABASE")
     postgresql_ssl_mode: str = os.getenv("POSTGRESQL_SSL_MODE",
                                          "disable")  # e.g., disable, allow, prefer, require, verify-ca, verify-full
 
     # Firebird
-    firebird_host: str = os.getenv("FIREBIRD_HOST")
-    firebird_user: str = os.getenv("FIREBIRD_USER")
-    firebird_password: str = os.getenv("FIREBIRD_PASSWORD")
-    firebird_database: str = os.getenv("FIREBIRD_DATABASE")
+    firebird_host: str | None = os.getenv("FIREBIRD_HOST")
+    firebird_user: str | None = os.getenv("FIREBIRD_USER")
+    firebird_password: str | None = os.getenv("FIREBIRD_PASSWORD")
+    firebird_database: str | None = os.getenv("FIREBIRD_DATABASE")
 
     # Firebird port needs to be parsed in __post_init__ to handle errors properly
     firebird_port: int = 3050
@@ -75,12 +77,12 @@ class Config:
     log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
 
     # Map API keys
-    mapy_api_key: str = os.getenv("MAPY_API_KEY", "")
-    thunderforest_api_key: str = os.getenv("THUNDERFOREST_API_KEY", "")
-    maptiler_api_key: str = os.getenv("MAPTILER_API_KEY", "")
+    mapy_api_key: str | None = os.getenv("MAPY_API_KEY", "")
+    thunderforest_api_key: str | None = os.getenv("THUNDERFOREST_API_KEY", "")
+    maptiler_api_key: str | None = os.getenv("MAPTILER_API_KEY", "")
 
     # Date Format
-    date_format: str = os.getenv("DATE_FORMAT", "%b %d, %Y")
+    date_format: str | None = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
     # Strava description auto-update (see docs/UPDATE_STRAVA.md)
     # One independent template per activity-type/scope bucket. Cycling and

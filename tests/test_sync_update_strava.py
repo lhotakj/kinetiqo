@@ -8,10 +8,12 @@ no live network/database is ever contacted.
 """
 
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import requests
 
+from kinetiqo.config import UPDATE_STRAVA_MAX_ITEMS
 from kinetiqo.sync import (
     SyncService,
     DESC_NOT_CONFIGURED,
@@ -112,7 +114,7 @@ class TestSyncServiceUpdateStravaDescription(unittest.TestCase):
 
     def test_unchanged_description_returns_unchanged_status(self):
         service = self._make_service()
-        service.strava.get_activity_detail.return_value = {"description": "Year: 2026\n"}
+        service.strava.get_activity_detail.return_value = {"description": "✨ Kinetiqo: Year: 2026\n"}
         ctx = DescriptionContext(config=service.config, repo=MagicMock())
         activity = {"id": 1, "sport_type": "Ride", "start_date": "2026-07-22T08:00:00Z"}
         service.config.update_strava_cycling_outdoor = "Year: {{current-year}}{{new-line}}"
@@ -229,7 +231,7 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         }
         service.db.get_synced_activity_ids.return_value = {"1"}
         service.strava.get_activities.return_value = iter([[activity]])
-        service.strava.get_activity_detail.return_value = {"description": "Year: 2026\n"}
+        service.strava.get_activity_detail.return_value = {"description": "✨ Kinetiqo: Year: 2026\n"}
         service.config.update_strava_cycling_outdoor = "Year: {{current-year}}{{new-line}}"
 
         events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
@@ -237,6 +239,29 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
 
         self.assertIn("| Kinetiqo description skipped", updated_line)
         service.strava.update_activity_description.assert_not_called()
+
+    def test_sync_limits_description_updates_to_latest_eligible_activities(self):
+        service = self._make_service()
+        base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        activities = []
+        for i in range(35):
+            activities.append({
+                "id": i + 1,
+                "sport_type": "Ride",
+                "name": f"Ride {i + 1}",
+                "start_date": (base + timedelta(days=i)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            })
+
+        service.strava.get_activities.return_value = iter([activities])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+        service.strava.get_activity_detail.return_value = {"description": ""}
+        service.strava.update_activity_description.return_value = None
+
+        list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
+
+        self.assertEqual(service.strava.update_activity_description.call_count, UPDATE_STRAVA_MAX_ITEMS)
+        updated_ids = {call.args[0] for call in service.strava.update_activity_description.call_args_list}
+        self.assertEqual(updated_ids, set(range(6, 36)))
 
 
 if __name__ == "__main__":
