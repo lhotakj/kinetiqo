@@ -80,8 +80,7 @@ UTC_OFFSET_SUFFIX = "+00:00"
 # CSRF protection is intentionally not enabled on this development entry point. 
 # All JSON API endpoints require authentication and the deployed production
 # environment should enable CSRF protection as appropriate.  # NOSONAR
-app = Flask(__name__, template_folder='./templates',
-            static_folder='./static', static_url_path='/static')
+app = Flask(__name__, template_folder='./templates', static_folder='./static', static_url_path='/static')
 app.secret_key = 'super_secret_key_for_demo_only'
 
 @app.route('/favicon.ico', methods=['GET'])

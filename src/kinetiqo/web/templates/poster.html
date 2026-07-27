@@ -4,9 +4,7 @@
 <!-- NOSONAR: loading Chart.js from CDN intentionally; add SRI in future if required -->
 {% include "_npm_chartjs.html" %}
 <!-- NOSONAR: Google Fonts CDN used intentionally; SRI pins the exact stylesheet response -->
-<link href="{{ poster_google_fonts_url }}" rel="stylesheet"
-      integrity="sha384-NW1YHqwImtS7kvfLOyH6FJ+qkilRspofwyBKPiqLuZvSaBKc1mCwBHIT+rijUAe0"
-      crossorigin="anonymous">
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
 <style>
     .poster-container {
         position: relative;
@@ -651,7 +649,11 @@
              else { statsEl.style.fontStyle = 'normal'; statsEl.style.fontWeight = '400'; }
              const sh = 1 + ((settings.statsLineHeight || 0) / 100);
              statsEl.style.lineHeight = String(sh);
-             statsEl.style.textAlign = settings.statsAlign || 'left';
+             // Align stats horizontally — poster-stats is a flex container, so use justifyContent
+             try {
+                 const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+                 statsEl.style.justifyContent = alignMap[settings.statsAlign] || 'flex-start';
+             } catch (e) { statsEl.style.justifyContent = 'flex-start'; }
          })();
           // Apply visibility flags to stat items
           try {
@@ -733,17 +735,7 @@
               singleLineCheckbox.checked = settings.singleLine !== false;
               applySingleLineMode(singleLineCheckbox.checked);
           }
-         // --- Text Align logic for activity name ---
-         if (settings.titleAlign !== 'center' && settings.titleAlign !== 'right') settings.titleAlign = 'left';
-         const titleAlignSelect = document.getElementById('titleAlign');
-         if (titleAlignSelect) {
-             titleAlignSelect.value = settings.titleAlign;
-             titleAlignSelect.addEventListener('change', function() {
-                 settings.titleAlign = this.value;
-                 saveSettings(settings);
-                 renderPoster();
-             });
-         }
+        // Title align now handled by bindControl('titleAlign', 'titleAlign', false) below
           renderElevationChart();
           // Ensure positions are applied after rendering (container size may have changed)
           try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed in renderPoster', e); }
@@ -984,6 +976,7 @@
     bindControl('titleOutlineWidth', 'titleOutlineWidth', true, 'titleOutlineWidthVal', '');
     bindControl('titleOpacity', 'titleOpacity', true, 'titleOpacityVal', '%');
     bindControl('titleStyle', 'titleStyle', false);
+    bindControl('titleAlign', 'titleAlign', false);
     bindControl('titleLineHeight', 'titleLineHeight', true, 'titleLineHeightVal', '%');
     bindFontControl('statsFont', 'statsFont');
     bindControl('statsStyle', 'statsStyle', false);

@@ -312,7 +312,7 @@ def generate_local_css(
     return "\n".join(lines)
 
 
-def ensure_fonts_local(static_dir: str) -> str:
+def ensure_fonts_local(static_dir: str | None) -> str:
     """Return the URL for locally served base Google Fonts CSS.
 
     The Inter and Italiana woff2 files and the rewritten CSS are committed to
@@ -325,6 +325,8 @@ def ensure_fonts_local(static_dir: str) -> str:
 
     To refresh fonts intentionally, run ``python development/download-fonts.py``.
     """
+    static_dir = "" if static_dir is None else static_dir
+
     css_path = Path(static_dir) / "css" / LOCAL_FONTS_CSS_NAME
     if css_path.exists():
         return f"/static/css/{LOCAL_FONTS_CSS_NAME}"
@@ -368,7 +370,7 @@ def ensure_fonts_local(static_dir: str) -> str:
         return BASE_GOOGLE_FONTS_URL
 
 
-def ensure_poster_fonts_local(static_dir: str) -> str:
+def ensure_poster_fonts_local(static_dir: str | None) -> str:
     """Return the URL for locally served poster Google Fonts CSS.
 
     All poster fonts (Amatic SC, Bebas Neue, Cinzel, etc.) are downloaded to
@@ -377,6 +379,9 @@ def ensure_poster_fonts_local(static_dir: str) -> str:
     Falls back to the CDN URL only if the download fails (e.g. no network access
     at startup time).  To refresh intentionally, run ``python development/download-fonts.py``.
     """
+
+    static_dir = "" if static_dir is None else static_dir
+
     css_path = Path(static_dir) / "css" / POSTER_LOCAL_FONTS_CSS_NAME
     if css_path.exists():
         return f"/static/css/{POSTER_LOCAL_FONTS_CSS_NAME}"
