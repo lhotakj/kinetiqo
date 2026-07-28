@@ -85,10 +85,20 @@ class TestFormattingHelpers(unittest.TestCase):
         self.assertEqual(_ordinal(1001), "1,001st")
 
     def test_milestone_detection(self):
-        for n in (1, 100, 500, 1000, 2000, 3000):
+        for n in (1, 100, 200, 500, 1000, 1500, 2000, 3000):
             self.assertTrue(_is_milestone(n), f"{n} should be a milestone")
-        for n in (0, 2, 99, 101, 499, 999, 1500):
+        for n in (0, 2, 99, 101, 499, 999):
             self.assertFalse(_is_milestone(n), f"{n} should not be a milestone")
+
+    def test_distance_and_elevation_milestones(self):
+        from kinetiqo.strava_description import _is_distance_milestone, _is_elevation_milestone
+        self.assertTrue(_is_distance_milestone(1000.0))
+        self.assertTrue(_is_distance_milestone(6000.0))
+        self.assertFalse(_is_distance_milestone(650.0))
+
+        self.assertTrue(_is_elevation_milestone(1000.0))
+        self.assertTrue(_is_elevation_milestone(5000.0))
+        self.assertFalse(_is_elevation_milestone(750.0))
 
 
 class TestPeriodBounds(unittest.TestCase):

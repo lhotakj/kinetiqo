@@ -237,12 +237,26 @@ def _format_percent(value: float) -> str:
 
 
 def _is_milestone(n: int) -> bool:
-    """Whether *n* activities/count deserves a 🎉 (1, 100, 500, or any multiple of 1000)."""
+    """Whether *n* activities/count deserves a 🎉 (1, or any multiple of 100)."""
     if n <= 0:
         return False
-    if n in (1, 100, 500):
-        return True
-    return n % 1000 == 0
+    return n == 1 or n % 100 == 0
+
+
+def _is_distance_milestone(value_km: float) -> bool:
+    """Whether distance in km reaches a positive multiple of 1000 (e.g. 1000, 2000, 6000 km)."""
+    if value_km <= 0:
+        return False
+    val_int = int(round(value_km))
+    return val_int > 0 and val_int % 1000 == 0 and abs(value_km - val_int) < 0.05
+
+
+def _is_elevation_milestone(value_m: float) -> bool:
+    """Whether elevation gain in m reaches a positive multiple of 1000 (e.g. 1000, 2000, 10000 m)."""
+    if value_m <= 0:
+        return False
+    val_int = int(round(value_m))
+    return val_int > 0 and val_int % 1000 == 0 and abs(value_m - val_int) < 0.5
 
 
 def _ordinal(n: int) -> str:
@@ -530,7 +544,12 @@ class DescriptionContext:
         achieved = stats["distance_km"] if metric_key == "distance" else stats["elevation_m"]
 
         if parsed.modifier is None:
-            return _format_distance(achieved) if metric_key == "distance" else _format_elevation(achieved)
+            if metric_key == "distance":
+                suffix = _CELEBRATION_SUFFIX if _is_distance_milestone(achieved) else ""
+                return _format_distance(achieved) + suffix
+            else:
+                suffix = _CELEBRATION_SUFFIX if _is_elevation_milestone(achieved) else ""
+                return _format_elevation(achieved) + suffix
 
         goal_type_id = GOAL_TYPE_BY_ACTIVITY.get(parsed.activity_type)
         goal_row = self._goals().get(goal_type_id) if goal_type_id else None
