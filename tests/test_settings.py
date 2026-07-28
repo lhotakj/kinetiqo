@@ -71,5 +71,21 @@ class TestSettingsApi(unittest.TestCase):
         self.assertEqual(data["fast_sync"]["description"], "Every 15 minutes")
 
 
+class TestDatabaseEnvConfig(unittest.TestCase):
+    """Unit tests for database environment variable fallback."""
+
+    def test_database_type_fallback_to_database_env(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {"DATABASE": "firebird"}, clear=True):
+            config = Config()
+            self.assertEqual(config.database_type, "firebird")
+
+    def test_database_type_env_takes_precedence(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {"DATABASE_TYPE": "mysql", "DATABASE": "firebird"}, clear=True):
+            config = Config()
+            self.assertEqual(config.database_type, "mysql")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -175,7 +175,7 @@ class SyncService:
             if "id" in activity
         }
 
-    def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0):
+    def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0, update_strava: bool = True):
         """
         Perform sync of Strava activities, yielding progress updates.
 
@@ -237,7 +237,7 @@ class SyncService:
                         </div>
                     </div>
                 </div>"""
-                hx_include = 'hx-include="#syncLimit"' if full_sync else ''
+                hx_include = 'hx-include="#updateStravaDesc, #syncLimit"' if full_sync else 'hx-include="#updateStravaDesc"'
                 button_html = f"""<button id="start-sync-btn" 
                         hx-get="/sync/start/{sync_type_str}" 
                         hx-target="#sync-log-area" 
@@ -275,7 +275,7 @@ class SyncService:
 
             description_context = None
             description_update_ids: set[str] = set()
-            if any_update_strava_template_configured(self.config):
+            if update_strava and any_update_strava_template_configured(self.config):
                 description_context = DescriptionContext(self.config, self.db)
 
             synced_ids = self.db.get_synced_activity_ids()

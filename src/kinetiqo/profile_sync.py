@@ -97,7 +97,7 @@ def sync_update_strava_from_env(config: Config, repo) -> None:
     env_values = {field: (getattr(config, field, "") or "") for field in UPDATE_STRAVA_FIELDS}
 
     existing = repo.get_profile()
-    if not existing:
+    if not existing or not isinstance(existing, dict):
         logger.debug("No athlete profile yet — UPDATE_STRAVA_* will sync once the profile is seeded.")
         return
 
@@ -170,7 +170,7 @@ def resolve_refresh_token_from_db(config: Config, existing_profile: Optional[Dic
     the current ``repo.get_profile()`` result (or ``None`` if no profile row
     exists yet, in which case the env var is used as-is to bootstrap).
     """
-    if not existing_profile:
+    if not existing_profile or not isinstance(existing_profile, dict):
         return
     db_refresh_token = existing_profile.get("refresh_token") or ""
     if db_refresh_token and db_refresh_token != config.strava_refresh_token:

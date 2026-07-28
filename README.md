@@ -269,7 +269,7 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 | `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. Also requires `activity:write` if you use the [Strava Description Auto-Update](#9-strava-description-auto-update-update_strava_) feature. | ✅ |
 
 #### 2. Database Configuration
-Define `DATABASE_TYPE` as either `postgresql` (default), `mysql`, or `firebird`.
+Define `DATABASE_TYPE` (or `DATABASE`) as either `postgresql` (default), `mysql`, or `firebird`.
 
 **PostgreSQL (Default):**
 
@@ -529,6 +529,7 @@ The CLI tool is located in the `src` directory.
     -   `--full-sync` / `-f`: Executes a full synchronization audit.
     -   `--fast-sync` / `-q`: Executes an incremental synchronization.
     -   `--period` / `-p`: Restricts full synchronization to a specific timeframe (e.g., '7d', '2w', '1m', '1y').
+    -   `--update-strava-description` / `--update-strava` / `-U`: Control Strava description auto-updates (`true`/`1`/`yes` or `false`/`0`/`no`, case-insensitive). Default: `true`.
     -   `--enable-strava-cache`: Activates API response caching.
     -   `--cache-ttl`: Defines cache time-to-live in minutes (default: 60).
     -   `--clear-cache`: Purges the cache prior to synchronization.
@@ -548,6 +549,9 @@ python kinetiqo.py sync --full-sync
 
 # Execute full synchronization limited to the last 30 days
 python kinetiqo.py sync --full-sync --period 30d
+
+# Run a sync disabling Strava description updates
+python kinetiqo.py sync --fast-sync --update-strava false
 
 # Run a verbose fast sync
 python kinetiqo.py --log-level DEBUG sync --fast-sync

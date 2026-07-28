@@ -305,6 +305,41 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         updated_ids = {call.args[0] for call in service.strava.update_activity_description.call_args_list}
         self.assertEqual(updated_ids, set(range(6, 36)))
 
+    def test_update_strava_disabled_skips_description_and_omits_suffix(self):
+        service = self._make_service()
+        activity = {
+            "id": 1, "sport_type": "Ride", "name": "Morning Ride",
+            "start_date": "2026-07-22T08:00:00Z",
+        }
+        service.strava.get_activities.return_value = iter([[activity]])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+
+        events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0, update_strava=False))
+        synced_line = next(e for e in events if "Morning Ride (Ride)" in e and "[1/1]" in e)
+
+        self.assertNotIn("Kinetiqo description", synced_line)
+        service.strava.get_activity_detail.assert_not_called()
+        service.strava.update_activity_description.assert_not_called()
+
+
+class TestCliUpdateStravaFlag(unittest.TestCase):
+    """Tests for CLI --update-strava / -U option parsing."""
+
+    def test_parse_bool_option(self):
+        from kinetiqo.cli import _parse_bool_option
+        self.assertTrue(_parse_bool_option(True))
+        self.assertTrue(_parse_bool_option("true"))
+        self.assertTrue(_parse_bool_option("TRUE"))
+        self.assertTrue(_parse_bool_option("1"))
+        self.assertTrue(_parse_bool_option("yes"))
+
+        self.assertFalse(_parse_bool_option(False))
+        self.assertFalse(_parse_bool_option("false"))
+        self.assertFalse(_parse_bool_option("FALSE"))
+        self.assertFalse(_parse_bool_option("0"))
+        self.assertFalse(_parse_bool_option("no"))
+
 
 if __name__ == "__main__":
     unittest.main()
+

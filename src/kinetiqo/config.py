@@ -42,7 +42,7 @@ class Config:
     cache_dir: Path = Path(".cache")
 
     # Database - Common
-    database_type: str = os.getenv("DATABASE_TYPE", "postgresql").lower()  # mysql, postgresql, or firebird
+    database_type: str = (os.getenv("DATABASE_TYPE") or os.getenv("DATABASE") or "postgresql").strip().lower()  # mysql, postgresql, or firebird
 
     # MySQL
     mysql_host: str | None = os.getenv("MYSQL_HOST")
@@ -108,6 +108,9 @@ class Config:
         Converts port and numeric environment variables to the appropriate
         numeric types and exits with an error message if values are malformed.
         """
+        db_env = os.getenv("DATABASE_TYPE") or os.getenv("DATABASE")
+        if db_env:
+            self.database_type = db_env.strip().lower()
         if os.getenv("POSTGRESQL_PORT"):
             try:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))

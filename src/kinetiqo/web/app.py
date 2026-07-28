@@ -1,11 +1,11 @@
-
 import hashlib
 import html
+import json as json_module
 import logging
+import mimetypes
 import os
 import secrets
 import shutil
-import mimetypes
 import threading
 import time as _time
 from datetime import datetime
@@ -14,10 +14,9 @@ from urllib.parse import urlencode
 
 import httpx
 import requests
-
-import json as json_module
 from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session
 from flask_compress import Compress
+
 # CSRF helper. Production must not run with CSRF silently disabled.
 try:
     from flask_wtf import CSRFProtect
@@ -78,7 +77,6 @@ documentation.
 # --- Python version detection ---
 import platform  # noqa: E402
 
-
 logger = logging.getLogger("kinetiqo.web")
 
 STRAVA_REAUTH_SCOPES = "activity:read_all,profile:read_all,activity:write"
@@ -109,6 +107,7 @@ else:
 def favicon():
     # Serve the repository favicon via Flask static file to avoid 404s from browsers requesting /favicon.ico
     return app.send_static_file('favicon/favicon.ico')
+
 
 # --- Response Compression (gzip / brotli) ---
 Compress(app)
@@ -201,6 +200,8 @@ if generate_csrf is not None:
             return generate_csrf()
         except Exception:
             return ''
+
+
     @app.context_processor
     def inject_csrf_token():
         return {'csrf_token': _csrf_token}
@@ -208,7 +209,6 @@ else:
     @app.context_processor
     def inject_csrf_token_noop():
         return {'csrf_token': lambda: ''}
-
 
 
 def get_db():
@@ -466,7 +466,9 @@ def get_dynamic_limit_days():
 
 # Import additional routes from modules
 from kinetiqo.web.progress import bp as progress_bp  # noqa: E402
+
 app.register_blueprint(progress_bp)
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -651,7 +653,7 @@ def _build_tile_providers() -> dict:
     # Free tier key from https://cloud.maptiler.com/account/keys/
     mt_key = config.maptiler_api_key
     mt_attr = ('&copy; <a href="https://www.maptiler.com/">MapTiler</a>, '
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
+               '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
     if mt_key:
         providers['maptiler_bright'] = {
             'name': 'MapTiler (Bright)',
@@ -783,6 +785,7 @@ def _build_tile_providers() -> dict:
     })
 
     return providers
+
 
 # OSM tile subdomain pool — distribute load across a/b/c as recommended.
 _OSM_SUBDOMAINS = ('a', 'b', 'c')
@@ -1069,7 +1072,7 @@ def powerskills():
                 date_str = dt.strftime(config.date_format)
             except Exception:
                 date_str = a['start_date']
-            
+
             activity_map[str(a['id'])] = {
                 'name': a.get('name', f"Activity {a['id']}"),
                 'date': date_str
@@ -1083,13 +1086,13 @@ def powerskills():
         for d in POWER_SKILLS_DURATIONS:
             best_power = 0.0
             best_activity_id = None
-            
+
             for aid, watts_list in watts_data.items():
                 avg = _compute_best_average_power(watts_list, d["seconds"])
                 if avg > best_power:
                     best_power = avg
                     best_activity_id = aid
-            
+
             # Get details for the best activity
             activity_name = None
             activity_date = None
@@ -1218,11 +1221,11 @@ def _get_athlete_weight() -> tuple[float, str]:
     return 0.0, ""
 
 
-
 # --- Detect Playwright Chromium Version at Startup ---
 try:
     from playwright.sync_api import sync_playwright
-    
+
+
     def _find_system_chromium() -> Optional[str]:
         """
         Try to find a system-installed Chromium executable.
@@ -1239,24 +1242,24 @@ try:
         exe_path = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH')
         if exe_path and os.path.isfile(exe_path) and os.access(exe_path, os.X_OK):
             return exe_path
-        
+
         # Priority 2: Try to find in system PATH
         # Common executable names across platforms
         executable_names = [
-            'chromium',              # Linux (common package name)
-            'chromium-browser',      # Debian/Ubuntu variant
+            'chromium',  # Linux (common package name)
+            'chromium-browser',  # Debian/Ubuntu variant
             'chromium-headless-shell',  # Playwright headless variant
-            'google-chrome',         # Google Chrome (if installed as Chrome)
+            'google-chrome',  # Google Chrome (if installed as Chrome)
             'google-chrome-stable',  # Chrome stable variant
-            'chrome',                # Windows/macOS
+            'chrome',  # Windows/macOS
         ]
-        
+
         for name in executable_names:
             exe = shutil.which(name)
             if exe:
                 logger.info(f"Found Chromium via PATH: {exe} (name: {name})")
                 return exe
-        
+
         # Priority 3: Check common installation paths (Windows)
         if os.name == 'nt':  # Windows
             common_paths = [
@@ -1269,7 +1272,7 @@ try:
                 if os.path.isfile(path):
                     logger.info(f"Found Chromium at common Windows path: {path}")
                     return path
-        
+
         # Priority 4: Check common installation paths (Unix/Linux/macOS)
         else:
             common_paths = [
@@ -1284,9 +1287,10 @@ try:
                 if os.path.isfile(path) and os.access(path, os.X_OK):
                     logger.info(f"Found Chromium at common path: {path}")
                     return path
-        
+
         return None
-    
+
+
     def detect_chromium_version() -> Optional[str]:
         """
         Detect Chromium version using available Chromium installation.
@@ -1301,7 +1305,7 @@ try:
         try:
             with sync_playwright() as p:
                 launch_kwargs = {'headless': True}
-                
+
                 # Try to find system Chromium first
                 exe_path = _find_system_chromium()
                 if exe_path:
@@ -1309,7 +1313,7 @@ try:
                     logger.info(f"Using system Chromium: {exe_path}")
                 else:
                     logger.info("Using Playwright's bundled Chromium")
-                
+
                 browser = p.chromium.launch(**launch_kwargs)
                 version = browser.version
                 browser.close()
@@ -1318,7 +1322,8 @@ try:
         except Exception as e:
             logger.warning(f"Could not detect Chromium version: {e}")
             return None
-    
+
+
     CHROMIUM_VERSION = detect_chromium_version()
 except ImportError:
     CHROMIUM_VERSION = None
@@ -1361,21 +1366,21 @@ class _PowerCache:
         _ttl (int): Effective TTL; can be adjusted on the instance.
     """
 
-    _DEFAULT_TTL: int = 300          # 5 minutes
+    _DEFAULT_TTL: int = 300  # 5 minutes
 
     def __init__(self) -> None:
-        self._store: Dict[str, tuple] = {}   # key → (timestamp, result)
+        self._store: Dict[str, tuple] = {}  # key → (timestamp, result)
         self._lock = threading.Lock()
         self._ttl = self._DEFAULT_TTL
 
     # -- public API ----------------------------------------------------------
 
     def get_best_power(
-        self,
-        repo,
-        activity_ids: List[str],
-        duration_seconds: int,
-        min_total_samples: int = 0,
+            self,
+            repo,
+            activity_ids: List[str],
+            duration_seconds: int,
+            min_total_samples: int = 0,
     ) -> Dict[str, float]:
         """Return cached best-power-per-activity result or compute and cache it.
 
@@ -1502,7 +1507,8 @@ def ftp():
             # expectation of 'last N days' relative to recent data rather
             # than the current wall-clock time which may differ in CI.
             try:
-                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX)) for a in cycling_activities)
+                anchor = max(
+                    datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX)) for a in cycling_activities)
                 since_cutoff = anchor - timedelta(days=int(period))
             except Exception:
                 since_cutoff = None
@@ -1592,7 +1598,8 @@ def ftp_history():
 
         if period != 'all':
             try:
-                anchor = max(datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX)) for a in cycling_activities)
+                anchor = max(
+                    datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX)) for a in cycling_activities)
                 since_cutoff = anchor - timedelta(days=int(period))
             except Exception:
                 since_cutoff = None
@@ -1655,7 +1662,7 @@ def fitness():
     period = request.args.get('period', '14')
     if period not in SUPPORTED_PERIODS:
         period = "14"
-        
+
     return render_template('fitness.html', title="Fitness & Freshness", current_period=period)
 
 
@@ -1676,7 +1683,7 @@ def fitness_data():
         period = request.args.get('period', '14')
         if period not in SUPPORTED_PERIODS:
             period = "14"
-        
+
         data = calculate_fitness_freshness(get_db(), period)
         return jsonify(data)
     except Exception as e:
@@ -1805,7 +1812,8 @@ def vo2max_history():
 
         weight, _ = _get_athlete_weight()
         if weight <= 0:
-            return jsonify({'error': 'Athlete weight not configured. Set it in Settings → Athlete or via ATHLETE_WEIGHT env var.'}), 400
+            return jsonify({
+                               'error': 'Athlete weight not configured. Set it in Settings → Athlete or via ATHLETE_WEIGHT env var.'}), 400
 
         repo = get_db()
 
@@ -2126,7 +2134,6 @@ def strava_oauth_callback():
         )
 
 
-
 @app.route('/license', methods=['GET'])
 @login_required
 def license_page():
@@ -2276,8 +2283,8 @@ def update_profile_api():
         # once set, they're left untouched even if the env var later changes.
         preserved_templates = {field: existing.get(field, '') for field in UPDATE_STRAVA_FIELDS}
         repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
-                           refresh_token=existing.get('refresh_token', '') or '',
-                           **preserved_templates)
+                            refresh_token=existing.get('refresh_token', '') or '',
+                            **preserved_templates)
 
         return jsonify({
             'athlete_id': existing['athlete_id'],
@@ -2311,15 +2318,15 @@ def _build_goals_response(goals_rows: list) -> dict:
         row = goals_by_type.get(type_id, {})
         result[str(type_id)] = {
             'activity_type_id': type_id,
-            'name':             meta['name'],
-            'icon':             meta['icon'],
-            'strava_types':     meta['strava_types'],   # needed by client pill/filter logic
-            'weekly_distance_goal':  row.get('weekly_distance_goal'),
+            'name': meta['name'],
+            'icon': meta['icon'],
+            'strava_types': meta['strava_types'],  # needed by client pill/filter logic
+            'weekly_distance_goal': row.get('weekly_distance_goal'),
             'monthly_distance_goal': row.get('monthly_distance_goal'),
-            'yearly_distance_goal':  row.get('yearly_distance_goal'),
-            'weekly_elevation_goal':  row.get('weekly_elevation_goal'),
+            'yearly_distance_goal': row.get('yearly_distance_goal'),
+            'weekly_elevation_goal': row.get('weekly_elevation_goal'),
             'monthly_elevation_goal': row.get('monthly_elevation_goal'),
-            'yearly_elevation_goal':  row.get('yearly_elevation_goal'),
+            'yearly_elevation_goal': row.get('yearly_elevation_goal'),
         }
     return result
 
@@ -2582,6 +2589,19 @@ def delete_activities_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _has_strava_description_templates() -> bool:
+    """Return True if at least one UPDATE_STRAVA_* field in DB profile (or config fallback) is non-empty."""
+    try:
+        repo = get_db()
+        profile = repo.get_profile()
+        if profile:
+            return any(bool((profile.get(field) or "").strip()) for field in UPDATE_STRAVA_FIELDS)
+        return any_update_strava_template_configured(config)
+    except Exception as e:
+        logger.warning(f"Could not check Strava description templates status: {e}")
+        return any_update_strava_template_configured(config)
+
+
 @app.route('/fullsync', methods=['GET'])
 @login_required
 def fullsync():
@@ -2590,7 +2610,8 @@ def fullsync():
     Returns:
         Response: The rendered sync UI page configured for a full sync.
     """
-    return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days())
+    return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days(),
+                           has_strava_templates=_has_strava_description_templates())
 
 
 @app.route('/fastsync', methods=['GET'])
@@ -2601,7 +2622,8 @@ def fastsync():
     Returns:
         Response: The rendered sync UI page configured for a fast/incremental sync.
     """
-    return render_template('sync.html', title="Fast Sync", sync_type="fast")
+    return render_template('sync.html', title="Fast Sync", sync_type="fast",
+                           has_strava_templates=_has_strava_description_templates())
 
 
 # --- HTMX / Reactive API Endpoints ---
@@ -2618,7 +2640,8 @@ def start_sync_ui(type):
         str: HTML fragment used by the HTMX UI to initialise the SSE connection.
     """
     limit_days = request.args.get('limit_days', '0')
-    sse_url = f"/api/sync/stream/{type}?limit_days={limit_days}"
+    update_strava = request.args.get('update_strava', 'off')
+    sse_url = f"/api/sync/stream/{type}?limit_days={limit_days}&update_strava={update_strava}"
 
     return f'''
     <div id="sync-log-area">
@@ -2661,8 +2684,10 @@ def sync_stream(type):
     is_full_sync = (type == 'full')
     user_id = current_user.id
     limit_days = request.args.get('limit_days', default=0, type=int)
+    update_strava_param = request.args.get('update_strava', default='off')
+    update_strava = update_strava_param in ('on', 'true', '1')
 
-    logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}")
+    logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}, update_strava={update_strava}")
 
     def error_event(message: str) -> str:
         error_html = f"""<div class="mb-4">
@@ -2683,7 +2708,7 @@ def sync_stream(type):
         sync_service = SyncService(config)
         try:
             for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id,
-                                              limit_days=limit_days):
+                                              limit_days=limit_days, update_strava=update_strava):
                 yield progress
         except Exception as e:
             logger.exception(f"Sync failed: {e}")
@@ -2919,7 +2944,8 @@ def poster_export(activity_id):
     # { settings: {...}, positions: {...} }
     settings_obj = settings_payload.get('settings', settings_payload)
     positions_payload = settings_payload.get('positions', {}) if isinstance(settings_payload, dict) else {}
-    logger.info(f"Poster export request: activity={activity_id}, settings_keys={list(settings_obj.keys()) if isinstance(settings_obj, dict) else 'N/A'}, positions_provided={len(positions_payload) if isinstance(positions_payload, dict) else 0}")
+    logger.info(
+        f"Poster export request: activity={activity_id}, settings_keys={list(settings_obj.keys()) if isinstance(settings_obj, dict) else 'N/A'}, positions_provided={len(positions_payload) if isinstance(positions_payload, dict) else 0}")
 
     # ── Determine poster dimensions from settings ─────────────────────────
     poster_width = int(settings_obj.get('posterSize', 1280))
@@ -2939,7 +2965,7 @@ def poster_export(activity_id):
     # requested size.  The page has a 256 px sidebar, a 320 px controls
     # panel, and ~48 px of padding/gaps.  We inject CSS later to force the
     # exact size, but the viewport still needs to be at least as large.
-    viewport_width = poster_width + 700   # sidebar + controls + margin
+    viewport_width = poster_width + 700  # sidebar + controls + margin
     viewport_height = poster_height + 300  # nav bar + padding
 
     # ── Determine the URL Playwright should navigate to ──────────────────────
@@ -3114,7 +3140,8 @@ def poster_export(activity_id):
 
             # ── Ensure drag UI is hidden in the headless page so the resize
             # handles (blue boxes) are not visible in the exported PNG.
-            page.evaluate("(function(){ var o = document.getElementById('posterOverlay'); if (o) o.classList.add('hide-drag-ui'); })();")
+            page.evaluate(
+                "(function(){ var o = document.getElementById('posterOverlay'); if (o) o.classList.add('hide-drag-ui'); })();")
             page.wait_for_timeout(80)
 
             # ── Screenshot only the poster container ──────────────────────────
@@ -3128,7 +3155,7 @@ def poster_export(activity_id):
 
         logger.info(
             f"Poster export OK: activity={activity_id}, "
-            f"size={len(png_bytes)//1024} KB"
+            f"size={len(png_bytes) // 1024} KB"
         )
         return Response(
             png_bytes,
@@ -3165,17 +3192,17 @@ def stats_export():
     except ImportError:
         logger.error('playwright package is not installed')
         return jsonify({'error': 'playwright is not installed on the server. '
-                                  'Run: pip install playwright && playwright install chromium'}), 500
+                                 'Run: pip install playwright && playwright install chromium'}), 500
 
     payload = request.get_json(silent=True) or {}
     logger.info(f"Stats export request: {list(payload.keys()) if isinstance(payload, dict) else 'N/A'}")
 
-    year   = str(payload.get('year',   ''))
+    year = str(payload.get('year', ''))
     period = str(payload.get('period', 'year'))
-    group  = str(payload.get('group',  'walking'))
-    bg     = str(payload.get('bg',     '#4a4a4a'))
-    width  = max(800,  min(int(payload.get('width',  1280)), 2048))
-    height = max(600,  min(int(payload.get('height',  960)), 1600))
+    group = str(payload.get('group', 'walking'))
+    bg = str(payload.get('bg', '#4a4a4a'))
+    width = max(800, min(int(payload.get('width', 1280)), 2048))
+    height = max(600, min(int(payload.get('height', 960)), 1600))
     font_size = str(payload.get('fontSize', '24'))
     stats_column_width = str(payload.get('statsColumnWidth', '20'))
     export_format = str(payload.get('format', 'png')).lower()
@@ -3325,7 +3352,7 @@ def stats_export():
                 )
                 context.close()
                 browser.close()
-                logger.info(f"Stats PDF export OK: {width}x{height}, size={len(pdf_bytes)//1024} KB")
+                logger.info(f"Stats PDF export OK: {width}x{height}, size={len(pdf_bytes) // 1024} KB")
                 return Response(
                     pdf_bytes,
                     mimetype='application/pdf',
@@ -3340,7 +3367,7 @@ def stats_export():
                 )
                 context.close()
                 browser.close()
-                logger.info(f"Stats PNG export OK: {width}x{height}, size={len(png_bytes)//1024} KB")
+                logger.info(f"Stats PNG export OK: {width}x{height}, size={len(png_bytes) // 1024} KB")
                 return Response(
                     png_bytes,
                     mimetype=PNG_MIMETYPE,
@@ -3436,6 +3463,7 @@ def inject_version():
                 version = vf.read().strip()
     except Exception:
         pass
+
     def _versioned(url: str) -> str:
         """Append ?v=<version> cache-buster to local /static/ URLs."""
         if url.startswith('/static/'):

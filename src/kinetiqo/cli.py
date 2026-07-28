@@ -116,6 +116,14 @@ def _load_api_keys(config):
         logger.warning("No Geoapify key provided, Geoapify map layers won't be available")
 
 
+database_option = click.option(
+    '--database', '-d',
+    type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
+    default=None,
+    help='Database backend to use (overrides config).'
+)
+
+
 @click.group(help="Kinetiqo - Strava Sync Tool")
 @click.option('--log-level',
               envvar='LOG_LEVEL',
@@ -123,10 +131,7 @@ def _load_api_keys(config):
               default='INFO',
               show_default=True,
               help='Set the log verbosity for CLI commands.')
-@click.option('--database', '-d',
-              type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
-              default=None,
-              help='Database backend to use (overrides config).')
+@database_option
 @click.pass_context
 def cli(ctx, log_level, database):
     """Main CLI entry point."""
@@ -139,35 +144,33 @@ def cli(ctx, log_level, database):
     ctx.obj.log_level = config.log_level
     configure_logging(config.log_level)
 
-    if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
-        validate_config(config)
-        repo = None
-        try:
-            repo = create_repository(config)
 
-            db_version, host_info = _get_db_info(config, repo)
-            db_type = config.database_type.capitalize()
-            logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
-            logger.info(f"Running in Python {platform.python_version()}")
-            logger.info(f"DB Version: {db_version}")
+def _prepare_db(config, database=None):
+    """Initialize schema and resolve refresh token for the chosen database."""
+    if database:
+        config.database_type = database.lower()
+    validate_config(config)
+    repo = None
+    try:
+        repo = create_repository(config)
 
-            repo.initialize_schema()
-            # _load_api_keys(config)
+        db_version, host_info = _get_db_info(config, repo)
+        db_type = config.database_type.capitalize()
+        logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
+        logger.info(f"Running in Python {platform.python_version()}")
+        logger.info(f"DB Version: {db_version}")
 
-            # Install the refresh-token persistence callback and prefer any
-            # refresh token already stored in the database over the (possibly
-            # stale) STRAVA_REFRESH_TOKEN env var — see docstrings in
-            # kinetiqo.profile_sync for why this is required: Strava rotates
-            # and invalidates the previous refresh token on every exchange.
-            wire_refresh_token_persistence(config)
-            resolve_refresh_token_from_db(config, repo.get_profile())
+        repo.initialize_schema()
 
-        except Exception as e:
-            logger.exception(f"Failed to initialize database: {e}", exc_info=True)
-            sys.exit(1)
-        finally:
-            if repo:
-                repo.close()
+        wire_refresh_token_persistence(config)
+        resolve_refresh_token_from_db(config, repo.get_profile())
+
+    except Exception as e:
+        logger.exception(f"Failed to initialize database: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        if repo:
+            repo.close()
 
 
 @cli.command(help="Show the version and exit")
@@ -179,9 +182,11 @@ def version():
 @cli.command(help="Start the web interface")
 @click.option('--port', default=4444, help='Port to run the web server on')
 @click.option('--host', default='0.0.0.0', help='Host to bind to')
+@database_option
 @click.pass_context
-def web(ctx, port, host):
+def web(ctx, port, host, database):
     """Start the web interface."""
+    _prepare_db(ctx.obj.config, database)
     logger.info(f"Starting web server on {host}:{port}")
 
     # Seed athlete profile from Strava before starting the web server
@@ -214,11 +219,14 @@ def _seed_profile(config):
 
 
 @cli.command(help="Check database availability and schema")
+@database_option
 @click.pass_context
-def flightcheck(ctx):
+def flightcheck(ctx, database):
     """Perform a health check on the database."""
     logger.info("Performing flight check...")
     config = ctx.obj.config
+    if database:
+        config.database_type = database.lower()
     repo = None
     try:
         repo = create_repository(config)
@@ -236,6 +244,19 @@ def flightcheck(ctx):
             repo.close()
 
 
+def _parse_bool_option(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return True
+    val_str = str(value).strip().lower()
+    if val_str in ("true", "1", "yes"):
+        return True
+    if val_str in ("false", "0", "no"):
+        return False
+    raise click.BadParameter(f"Invalid boolean value: {value!r}. Expected true/false, 1/0, or yes/no.")
+
+
 @cli.command(help="Synchronize activities with database")
 @click.option('--full-sync', '-f', is_flag=True, help='Perform a full sync.')
 @click.option('--fast-sync', '-q', is_flag=True, help='Perform a fast sync.')
@@ -243,9 +264,13 @@ def flightcheck(ctx):
 @click.option('--enable-strava-cache', is_flag=True, help='Enable caching of Strava API responses.')
 @click.option('--cache-ttl', type=int, default=60, help='Cache TTL in minutes.')
 @click.option('--clear-cache', is_flag=True, help='Clear the cache before syncing.')
+@click.option('--update-strava-description', '--update-strava', '-U', 'update_strava_description', default='true', help='Update Strava activity descriptions (true/false, 1/0, yes/no). Default: true.')
+@database_option
 @click.pass_context
-def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache):
+def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache, update_strava_description, database):
     """Synchronize activities with database."""
+    _prepare_db(ctx.obj.config, database)
+
     if full_sync and fast_sync:
         raise click.UsageError("Cannot specify both --full-sync and --fast-sync.")
 
@@ -264,13 +289,15 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
     if clear_cache:
         CacheManager(config).clear()
 
+    update_strava_flag = _parse_bool_option(update_strava_description)
+
     sync_service = SyncService(config)
     try:
         # Exhaust the generator returned by sync() for its side-effects.
         # Using deque(..., maxlen=0) efficiently consumes the iterator without
         # storing items in memory. This keeps behavior identical to the
         # previous empty for-loop but avoids Sonar S108 (empty loop bodies).
-        deque(sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days), maxlen=0)
+        deque(sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days, update_strava=update_strava_flag), maxlen=0)
     finally:
         sync_service.close()
 

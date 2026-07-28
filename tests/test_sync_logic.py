@@ -21,6 +21,18 @@ class TestSyncMatrix(unittest.TestCase):
 
     def setUp(self):
         self.runner = CliRunner()
+        self.validate_patcher = patch('kinetiqo.cli.validate_config')
+        self.validate_patcher.start()
+        self.env_patcher = patch.dict('os.environ', {
+            'STRAVA_CLIENT_ID': '12345',
+            'STRAVA_CLIENT_SECRET': 'secret',
+            'STRAVA_REFRESH_TOKEN': 'token',
+        })
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+        self.validate_patcher.stop()
 
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')

@@ -294,17 +294,17 @@ SCHEMA_DEFINITION = {
             # respective environment variables on every application start.
             # Read-only in the UI — see docs/UPDATE_STRAVA.md.
             {"name": "update_strava_cycling_indoor", "type_mysql": "TEXT", "type_pg": "TEXT",
-             "type_firebird": "VARCHAR(4000)"},
+             "type_firebird": "VARCHAR(1000)"},
             {"name": "update_strava_cycling_outdoor", "type_mysql": "TEXT", "type_pg": "TEXT",
-             "type_firebird": "VARCHAR(4000)"},
+             "type_firebird": "VARCHAR(1000)"},
             {"name": "update_strava_running_indoor", "type_mysql": "TEXT", "type_pg": "TEXT",
-             "type_firebird": "VARCHAR(4000)"},
+             "type_firebird": "VARCHAR(1000)"},
             {"name": "update_strava_running_outdoor", "type_mysql": "TEXT", "type_pg": "TEXT",
-             "type_firebird": "VARCHAR(4000)"},
+             "type_firebird": "VARCHAR(1000)"},
             {"name": "update_strava_walking", "type_mysql": "TEXT", "type_pg": "TEXT",
-             "type_firebird": "VARCHAR(4000)"},
+             "type_firebird": "VARCHAR(1000)"},
             {"name": "update_strava_swimming", "type_mysql": "TEXT", "type_pg": "TEXT",
-             "type_firebird": "VARCHAR(4000)"},
+             "type_firebird": "VARCHAR(1000)"},
             # The current Strava OAuth2 refresh token. Strava issues a new
             # refresh token on every token exchange and invalidates the
             # previous one, so this column — not the STRAVA_REFRESH_TOKEN env
@@ -654,8 +654,28 @@ class SchemaManager:
 
     def _update_table(self, table_name, definition):
         existing_columns = self._get_existing_columns(table_name)
-
         type_suffix = self._get_type_suffix()
+
+        # On Firebird, resize any pre-existing update_strava_* columns to fit within table record size limits
+        if self.db_type == 'firebird':
+            for col in definition["columns"]:
+                col_name_check = col["name"].lower()
+                if col_name_check in existing_columns and col["name"].startswith("update_strava_"):
+                    quoted_table = self._quote_identifier(table_name)
+                    quoted_col = self._quote_identifier(col['name'])
+                    col_type = col[f"type_{type_suffix}"]
+                    cur = self.conn.cursor()
+                    try:
+                        cur.execute(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_col} TYPE {col_type}")
+                        self.conn.commit()
+                    except Exception:
+                        try:
+                            self.conn.rollback()
+                        except Exception:
+                            pass
+                    finally:
+                        cur.close()
+
         for col in definition["columns"]:
             col_name_check = col["name"].lower() if self.db_type == 'firebird' else col["name"]
             if col_name_check not in existing_columns:
