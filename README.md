@@ -356,6 +356,26 @@ Both variables accept standard **5-field cron expressions** (`minute hour day-of
 |----------|-------------|---------|
 | `LOG_LEVEL` | Log verbosity for the CLI, web app, and Dockerized Gunicorn process (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). | `INFO` |
 
+How to control logging level:
+
+- Environment variable (recommended for services / Docker):
+
+```env
+LOG_LEVEL=DEBUG
+```
+
+- CLI argument (overrides the environment value when using the CLI entrypoint):
+
+```bash
+# Set debug logging for a single CLI invocation
+python kinetiqo.py --log-level DEBUG sync --fast-sync
+
+# Start the web server with INFO logging (default)
+python kinetiqo.py web
+```
+
+Default behaviour: when no value is provided the application uses the default log level `INFO`. The application uses `kinetiqo.logging_utils.configure_logging()` to set the level for both the `kinetiqo` and `kinetiqo.web` loggers so `--log-level` and `LOG_LEVEL` affect both the CLI and the web UI.
+
 #### 5. Web Interface Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|

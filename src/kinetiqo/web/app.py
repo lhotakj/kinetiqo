@@ -981,7 +981,7 @@ def map_data_api():
         logger.debug(
             "Map data retrieved from database in %.3fs (activities=%d, points=%d)",
             elapsed_seconds,
-            len(activities_data),
+            len(activities_payload),
             total_points,
         )
 
