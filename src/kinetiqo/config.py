@@ -17,6 +17,28 @@ UPDATE_STRAVA_MAX_ITEMS = 30
 UPDATE_STRAVA_PREFIX = "✨ Kinetiqo:"
 
 
+VALID_DATABASE_TYPES = ("postgresql", "mysql", "firebird")
+
+
+def resolve_database_type(env_val: str | None) -> str:
+    """Resolves and validates the database type.
+
+    Default is 'postgresql'.
+    If *env_val* is set and valid ('postgresql', 'mysql', or 'firebird'), use it.
+    If *env_val* is set and invalid, log a warning and fall back to 'postgresql'.
+    """
+    if env_val and isinstance(env_val, str):
+        cleaned = env_val.strip().lower()
+        if cleaned in VALID_DATABASE_TYPES:
+            return cleaned
+        logger.warning(
+            "Invalid DATABASE_TYPE environment variable %r. Valid options are: %s. Defaulting to 'postgresql'.",
+            env_val,
+            ", ".join(repr(t) for t in VALID_DATABASE_TYPES),
+        )
+    return "postgresql"
+
+
 @dataclass
 class Config:
     """Application configuration read primarily from environment variables.
@@ -42,7 +64,7 @@ class Config:
     cache_dir: Path = Path(".cache")
 
     # Database - Common
-    database_type: str = (os.getenv("DATABASE_TYPE") or os.getenv("DATABASE") or "postgresql").strip().lower()  # mysql, postgresql, or firebird
+    database_type: str = field(default_factory=lambda: resolve_database_type(os.getenv("DATABASE_TYPE") or os.getenv("DATABASE")))  # mysql, postgresql, or firebird
 
     # MySQL
     mysql_host: str | None = os.getenv("MYSQL_HOST")
@@ -109,8 +131,7 @@ class Config:
         numeric types and exits with an error message if values are malformed.
         """
         db_env = os.getenv("DATABASE_TYPE") or os.getenv("DATABASE")
-        if db_env:
-            self.database_type = db_env.strip().lower()
+        self.database_type = resolve_database_type(db_env)
         if os.getenv("POSTGRESQL_PORT"):
             try:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))

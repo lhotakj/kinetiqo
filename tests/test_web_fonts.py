@@ -27,7 +27,7 @@ class TestGoogleFontsCatalog(unittest.TestCase):
     def test_font_groups_include_expected_fonts(self):
         """The context-facing font groups should stay aligned with the catalog."""
 
-        self.assertEqual(BASE_GOOGLE_FONT_NAMES, ("Inter", "Italiana"))
+        self.assertEqual(BASE_GOOGLE_FONT_NAMES, ("Inter", "Italiana", "Merriweather"))
         self.assertEqual(LOGIN_GOOGLE_FONT_NAMES, ("Inter", "Italiana", "Merriweather"))
         for font_name in ("Oswald", "Ubuntu", "Bebas Neue"):
             with self.subTest(font_name=font_name):

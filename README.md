@@ -269,7 +269,12 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 | `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. Also requires `activity:write` if you use the [Strava Description Auto-Update](#9-strava-description-auto-update-update_strava_) feature. | ✅ |
 
 #### 2. Database Configuration
-Define `DATABASE_TYPE` (or `DATABASE`) as either `postgresql` (default), `mysql`, or `firebird`.
+
+Database selection is unified across the entire application according to the following precedence rules:
+
+1. **Default**: `postgresql` is used if no environment variable or CLI parameter is specified.
+2. **Environment Variable (`DATABASE_TYPE` or legacy `DATABASE`)**: Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird`. If `DATABASE_TYPE` is set to an invalid value, the application logs a warning and falls back to `postgresql`.
+3. **CLI Options (`--database-type` or `--database` / `-d`)**: Overrides environment variables and defaults. If an invalid database backend is passed on the CLI, the application terminates immediately with an error message and non-zero exit code.
 
 **PostgreSQL (Default):**
 
@@ -523,7 +528,7 @@ The CLI tool is located in the `src` directory.
 
 ### CLI Commands
 
--   `--database` / `-d`: Selects the database backend (`mysql`, `postgresql`, or `firebird`), overriding environment variables.
+-   `--database-type` / `--database` / `-d`: Selects the database backend (`postgresql`, `mysql`, or `firebird`), overriding environment variables and defaults. If an invalid backend is specified, the application terminates.
 -   `--log-level`: Sets CLI/web/app log verbosity. Defaults to `INFO` and also reads `LOG_LEVEL`.
 -   `sync`: Initiates data synchronization.
     -   `--full-sync` / `-f`: Executes a full synchronization audit.

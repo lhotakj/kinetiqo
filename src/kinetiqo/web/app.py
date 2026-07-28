@@ -1257,7 +1257,7 @@ try:
         for name in executable_names:
             exe = shutil.which(name)
             if exe:
-                logger.info(f"Found Chromium via PATH: {exe} (name: {name})")
+                logger.debug(f"Found Chromium via PATH: {exe} (name: {name})")
                 return exe
 
         # Priority 3: Check common installation paths (Windows)
@@ -1270,7 +1270,7 @@ try:
             ]
             for path in common_paths:
                 if os.path.isfile(path):
-                    logger.info(f"Found Chromium at common Windows path: {path}")
+                    logger.debug(f"Found Chromium at common Windows path: {path}")
                     return path
 
         # Priority 4: Check common installation paths (Unix/Linux/macOS)
@@ -1285,7 +1285,7 @@ try:
             ]
             for path in common_paths:
                 if os.path.isfile(path) and os.access(path, os.X_OK):
-                    logger.info(f"Found Chromium at common path: {path}")
+                    logger.debug(f"Found Chromium at common path: {path}")
                     return path
 
         return None
@@ -1310,9 +1310,9 @@ try:
                 exe_path = _find_system_chromium()
                 if exe_path:
                     launch_kwargs['executable_path'] = exe_path
-                    logger.info(f"Using system Chromium: {exe_path}")
+                    logger.debug(f"Using system Chromium: {exe_path}")
                 else:
-                    logger.info("Using Playwright's bundled Chromium")
+                    logger.debug("Using Playwright's bundled Chromium")
 
                 browser = p.chromium.launch(**launch_kwargs)
                 version = browser.version

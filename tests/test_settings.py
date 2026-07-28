@@ -70,9 +70,26 @@ class TestSettingsApi(unittest.TestCase):
         self.assertEqual(data["full_sync"]["description"], "Every Sunday at midnight")
         self.assertEqual(data["fast_sync"]["description"], "Every 15 minutes")
 
+    def test_settings_page_renders_template_variables_info_box(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/settings")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        self.assertIn("Supported Template Variables", content)
+        self.assertIn("strava-var-dropdown", content)
+
 
 class TestDatabaseEnvConfig(unittest.TestCase):
     """Unit tests for database environment variable fallback."""
+
+    def test_default_database_type_is_postgresql(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {}, clear=True):
+            config = Config()
+            self.assertEqual(config.database_type, "postgresql")
 
     def test_database_type_fallback_to_database_env(self):
         from kinetiqo.config import Config
@@ -85,6 +102,12 @@ class TestDatabaseEnvConfig(unittest.TestCase):
         with patch.dict(os.environ, {"DATABASE_TYPE": "mysql", "DATABASE": "firebird"}, clear=True):
             config = Config()
             self.assertEqual(config.database_type, "mysql")
+
+    def test_invalid_database_type_falls_back_to_postgresql(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {"DATABASE_TYPE": "invalid_db"}, clear=True):
+            config = Config()
+            self.assertEqual(config.database_type, "postgresql")
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ Kinetiqo is configured entirely via environment variables.
 ### Database (PostgreSQL Default)
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_TYPE` | `postgresql` or `mysql` | `postgresql` |
+| `DATABASE_TYPE` | `postgresql`, `mysql`, or `firebird` | `postgresql` |
 | `POSTGRESQL_HOST` | Hostname of the PostgreSQL server | - |
 | `POSTGRESQL_PORT` | PostgreSQL port | `5432` |
 | `POSTGRESQL_USER` | Database username | `postgres` |

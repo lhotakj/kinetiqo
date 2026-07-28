@@ -46,7 +46,7 @@
                         <label for="profile-update-strava-cycling-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Cycling (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_INDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-cycling-indoor" rows="3" readonly disabled
+                        <textarea id="profile-update-strava-cycling-indoor" rows="5" readonly disabled
                                   class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
                                   placeholder="Not set — description auto-update is disabled."></textarea>
                     </div>
@@ -54,7 +54,7 @@
                         <label for="profile-update-strava-cycling-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Cycling (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_OUTDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-cycling-outdoor" rows="3" readonly disabled
+                        <textarea id="profile-update-strava-cycling-outdoor" rows="5" readonly disabled
                                   class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
                                   placeholder="Not set — description auto-update is disabled."></textarea>
                     </div>
@@ -62,7 +62,7 @@
                         <label for="profile-update-strava-running-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Running (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_INDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-running-indoor" rows="3" readonly disabled
+                        <textarea id="profile-update-strava-running-indoor" rows="5" readonly disabled
                                   class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
                                   placeholder="Not set — description auto-update is disabled."></textarea>
                     </div>
@@ -70,7 +70,7 @@
                         <label for="profile-update-strava-running-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Running (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_OUTDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-running-outdoor" rows="3" readonly disabled
+                        <textarea id="profile-update-strava-running-outdoor" rows="5" readonly disabled
                                   class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
                                   placeholder="Not set — description auto-update is disabled."></textarea>
                     </div>
@@ -78,7 +78,7 @@
                         <label for="profile-update-strava-walking" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Walking / Hiking <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_WALKING</code></span>
                         </label>
-                        <textarea id="profile-update-strava-walking" rows="3" readonly disabled
+                        <textarea id="profile-update-strava-walking" rows="5" readonly disabled
                                   class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
                                   placeholder="Not set — description auto-update is disabled."></textarea>
                     </div>
@@ -86,11 +86,52 @@
                         <label for="profile-update-strava-swimming" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Swimming <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_SWIMMING</code></span>
                         </label>
-                        <textarea id="profile-update-strava-swimming" rows="3" readonly disabled
+                        <textarea id="profile-update-strava-swimming" rows="5" readonly disabled
                                   class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
                                   placeholder="Not set — description auto-update is disabled."></textarea>
                     </div>
                 </div>
+                <!-- Supported Template Variables Info Box -->
+                <div class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">✨</span>
+                            <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">Supported Template Variables</h4>
+                            <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Sorted A–Z</span>
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <input type="text" id="strava-var-search" placeholder="Search variables (e.g. distance, year)..."
+                                   class="w-full sm:w-64 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Dropdown Selector & Quick Copy -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <select id="strava-var-dropdown"
+                                class="flex-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </select>
+                        <button id="strava-var-copy-btn" type="button"
+                                class="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap">
+                            <span>Copy Variable</span>
+                        </button>
+                    </div>
+
+                    <!-- Active Variable Preview Card displaying variable & explanation in distinct colors -->
+                    <div id="strava-var-preview" class="p-3 rounded-lg border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-800/90 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Variable:</span>
+                                <span class="font-mono font-bold px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs" id="strava-var-preview-token"></span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Explanation:</span>
+                                <span class="text-sky-600 dark:text-sky-400 font-semibold text-xs" id="strava-var-preview-desc"></span>
+                            </div>
+                        </div>
+                        <span id="strava-var-copy-toast" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hidden">✓ Copied!</span>
+                    </div>
+                </div>
+
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     When set, the applicable template (chosen per activity by its own sport type) is rendered and
                     merged into that synced activity's Strava description — appended at the end by default, or
@@ -562,6 +603,264 @@
                 document.getElementById('db-port').value = "Error";
                 document.getElementById('db-table-counts').innerHTML = '<tr><td class="px-4 py-2">Error</td><td class="px-4 py-2">-</td></tr>';
             });
+
+        // Initialize Supported Strava Template Variables Explorer
+        {% raw %}
+        const STRAVA_VARIABLES = [
+            { token: "{{current-month}}", desc: "Full month name of the activity (e.g. July)" },
+            { token: "{{current-year}}", desc: "4-digit year of the activity (e.g. 2026)" },
+            { token: "{{cycling-activities-indoor-month}}", desc: "Number of indoor cycling activities this month" },
+            { token: "{{cycling-activities-indoor-week}}", desc: "Number of indoor cycling activities this week" },
+            { token: "{{cycling-activities-indoor-year}}", desc: "Number of indoor cycling activities this year" },
+            { token: "{{cycling-activities-outdoor-month}}", desc: "Number of outdoor cycling activities this month" },
+            { token: "{{cycling-activities-outdoor-week}}", desc: "Number of outdoor cycling activities this week" },
+            { token: "{{cycling-activities-outdoor-year}}", desc: "Number of outdoor cycling activities this year" },
+            { token: "{{cycling-activities-total-month}}", desc: "Total number of cycling activities this month" },
+            { token: "{{cycling-activities-total-week}}", desc: "Total number of cycling activities this week" },
+            { token: "{{cycling-activities-total-year}}", desc: "Total number of cycling activities this year" },
+            { token: "{{cycling-count-indoor-month}}", desc: "Indoor cycling count this month with 🎉 milestone celebration" },
+            { token: "{{cycling-count-indoor-week}}", desc: "Indoor cycling count this week with 🎉 milestone celebration" },
+            { token: "{{cycling-count-indoor-year}}", desc: "Indoor cycling count this year with 🎉 milestone celebration" },
+            { token: "{{cycling-count-outdoor-month}}", desc: "Outdoor cycling count this month with 🎉 milestone celebration" },
+            { token: "{{cycling-count-outdoor-week}}", desc: "Outdoor cycling count this week with 🎉 milestone celebration" },
+            { token: "{{cycling-count-outdoor-year}}", desc: "Outdoor cycling count this year with 🎉 milestone celebration" },
+            { token: "{{cycling-count-total-month}}", desc: "Total cycling count this month with 🎉 milestone celebration" },
+            { token: "{{cycling-count-total-week}}", desc: "Total cycling count this week with 🎉 milestone celebration" },
+            { token: "{{cycling-count-total-year}}", desc: "Total cycling count this year with 🎉 milestone celebration" },
+            { token: "{{cycling-distance-deviation-indoor-month}}", desc: "Indoor cycling distance vs prorated monthly plan" },
+            { token: "{{cycling-distance-deviation-indoor-week}}", desc: "Indoor cycling distance vs prorated weekly plan" },
+            { token: "{{cycling-distance-deviation-indoor-year}}", desc: "Indoor cycling distance vs prorated yearly plan" },
+            { token: "{{cycling-distance-deviation-outdoor-month}}", desc: "Outdoor cycling distance vs prorated monthly plan" },
+            { token: "{{cycling-distance-deviation-outdoor-week}}", desc: "Outdoor cycling distance vs prorated weekly plan" },
+            { token: "{{cycling-distance-deviation-outdoor-year}}", desc: "Outdoor cycling distance vs prorated yearly plan" },
+            { token: "{{cycling-distance-deviation-total-month}}", desc: "Total cycling distance vs prorated monthly plan" },
+            { token: "{{cycling-distance-deviation-total-week}}", desc: "Total cycling distance vs prorated weekly plan" },
+            { token: "{{cycling-distance-deviation-total-year}}", desc: "Total cycling distance vs prorated yearly plan (e.g. ahead of plan by 1,201 km)" },
+            { token: "{{cycling-distance-goal-indoor-month}}", desc: "Configured monthly cycling distance goal" },
+            { token: "{{cycling-distance-goal-indoor-week}}", desc: "Configured weekly cycling distance goal" },
+            { token: "{{cycling-distance-goal-indoor-year}}", desc: "Configured yearly cycling distance goal" },
+            { token: "{{cycling-distance-goal-outdoor-month}}", desc: "Configured monthly cycling distance goal" },
+            { token: "{{cycling-distance-goal-outdoor-week}}", desc: "Configured weekly cycling distance goal" },
+            { token: "{{cycling-distance-goal-outdoor-year}}", desc: "Configured yearly cycling distance goal" },
+            { token: "{{cycling-distance-goal-total-month}}", desc: "Configured monthly cycling distance goal (formatted with km)" },
+            { token: "{{cycling-distance-goal-total-week}}", desc: "Configured weekly cycling distance goal (formatted with km)" },
+            { token: "{{cycling-distance-goal-total-year}}", desc: "Configured yearly cycling distance goal (formatted with km)" },
+            { token: "{{cycling-distance-indoor-month}}", desc: "Indoor cycling distance this month (km)" },
+            { token: "{{cycling-distance-indoor-week}}", desc: "Indoor cycling distance this week (km)" },
+            { token: "{{cycling-distance-indoor-year}}", desc: "Indoor cycling distance this year (km)" },
+            { token: "{{cycling-distance-outdoor-month}}", desc: "Outdoor cycling distance this month (km)" },
+            { token: "{{cycling-distance-outdoor-week}}", desc: "Outdoor cycling distance this week (km)" },
+            { token: "{{cycling-distance-outdoor-year}}", desc: "Outdoor cycling distance this year (km)" },
+            { token: "{{cycling-distance-percent-indoor-month}}", desc: "Percentage of monthly cycling goal achieved (indoor)" },
+            { token: "{{cycling-distance-percent-indoor-week}}", desc: "Percentage of weekly cycling goal achieved (indoor)" },
+            { token: "{{cycling-distance-percent-indoor-year}}", desc: "Percentage of yearly cycling goal achieved (indoor)" },
+            { token: "{{cycling-distance-percent-outdoor-month}}", desc: "Percentage of monthly cycling goal achieved (outdoor)" },
+            { token: "{{cycling-distance-percent-outdoor-week}}", desc: "Percentage of weekly cycling goal achieved (outdoor)" },
+            { token: "{{cycling-distance-percent-outdoor-year}}", desc: "Percentage of yearly cycling goal achieved (outdoor)" },
+            { token: "{{cycling-distance-percent-total-month}}", desc: "Percentage of monthly cycling distance goal achieved (%)" },
+            { token: "{{cycling-distance-percent-total-week}}", desc: "Percentage of weekly cycling distance goal achieved (%)" },
+            { token: "{{cycling-distance-percent-total-year}}", desc: "Percentage of yearly cycling distance goal achieved (e.g. 56.10%)" },
+            { token: "{{cycling-distance-total-month}}", desc: "Total cycling distance this month (km)" },
+            { token: "{{cycling-distance-total-week}}", desc: "Total cycling distance this week (km)" },
+            { token: "{{cycling-distance-total-year}}", desc: "Total cycling distance this year (km)" },
+            { token: "{{cycling-elevation-deviation-total-month}}", desc: "Total cycling elevation vs prorated monthly plan" },
+            { token: "{{cycling-elevation-deviation-total-week}}", desc: "Total cycling elevation vs prorated weekly plan" },
+            { token: "{{cycling-elevation-deviation-total-year}}", desc: "Total cycling elevation vs prorated yearly plan" },
+            { token: "{{cycling-elevation-goal-total-month}}", desc: "Configured monthly cycling elevation goal" },
+            { token: "{{cycling-elevation-goal-total-week}}", desc: "Configured weekly cycling elevation goal" },
+            { token: "{{cycling-elevation-goal-total-year}}", desc: "Configured yearly cycling elevation goal" },
+            { token: "{{cycling-elevation-indoor-month}}", desc: "Indoor cycling elevation gain this month (m)" },
+            { token: "{{cycling-elevation-indoor-week}}", desc: "Indoor cycling elevation gain this week (m)" },
+            { token: "{{cycling-elevation-indoor-year}}", desc: "Indoor cycling elevation gain this year (m)" },
+            { token: "{{cycling-elevation-outdoor-month}}", desc: "Outdoor cycling elevation gain this month (m)" },
+            { token: "{{cycling-elevation-outdoor-week}}", desc: "Outdoor cycling elevation gain this week (m)" },
+            { token: "{{cycling-elevation-outdoor-year}}", desc: "Outdoor cycling elevation gain this year (m)" },
+            { token: "{{cycling-elevation-percent-total-month}}", desc: "Percentage of monthly cycling elevation goal achieved" },
+            { token: "{{cycling-elevation-percent-total-week}}", desc: "Percentage of weekly cycling elevation goal achieved" },
+            { token: "{{cycling-elevation-percent-total-year}}", desc: "Percentage of yearly cycling elevation goal achieved" },
+            { token: "{{cycling-elevation-total-month}}", desc: "Total cycling elevation gain this month (m)" },
+            { token: "{{cycling-elevation-total-week}}", desc: "Total cycling elevation gain this week (m)" },
+            { token: "{{cycling-elevation-total-year}}", desc: "Total cycling elevation gain this year (m)" },
+            { token: "{{cycling-ordinal-indoor-month}}", desc: "Indoor cycling ordinal count this month with 🎉 milestone" },
+            { token: "{{cycling-ordinal-indoor-week}}", desc: "Indoor cycling ordinal count this week with 🎉 milestone" },
+            { token: "{{cycling-ordinal-indoor-year}}", desc: "Indoor cycling ordinal count this year with 🎉 milestone" },
+            { token: "{{cycling-ordinal-outdoor-month}}", desc: "Outdoor cycling ordinal count this month with 🎉 milestone" },
+            { token: "{{cycling-ordinal-outdoor-week}}", desc: "Outdoor cycling ordinal count this week with 🎉 milestone" },
+            { token: "{{cycling-ordinal-outdoor-year}}", desc: "Outdoor cycling ordinal count this year with 🎉 milestone" },
+            { token: "{{cycling-ordinal-total-month}}", desc: "Total cycling ordinal count this month with 🎉 milestone" },
+            { token: "{{cycling-ordinal-total-week}}", desc: "Total cycling ordinal count this week with 🎉 milestone" },
+            { token: "{{cycling-ordinal-total-year}}", desc: "Total cycling ordinal count of the year with 🎉 milestone (e.g. 42nd)" },
+            { token: "{{new-line}}", desc: "Literal line break (\\n) in description template" },
+            { token: "{{running-activities-indoor-month}}", desc: "Number of indoor runs this month" },
+            { token: "{{running-activities-indoor-week}}", desc: "Number of indoor runs this week" },
+            { token: "{{running-activities-indoor-year}}", desc: "Number of indoor runs this year" },
+            { token: "{{running-activities-outdoor-month}}", desc: "Number of outdoor runs this month" },
+            { token: "{{running-activities-outdoor-week}}", desc: "Number of outdoor runs this week" },
+            { token: "{{running-activities-outdoor-year}}", desc: "Number of outdoor runs this year" },
+            { token: "{{running-activities-total-month}}", desc: "Total number of runs this month" },
+            { token: "{{running-activities-total-week}}", desc: "Total number of runs this week" },
+            { token: "{{running-activities-total-year}}", desc: "Total number of runs this year" },
+            { token: "{{running-count-indoor-month}}", desc: "Indoor run count this month with 🎉 milestone celebration" },
+            { token: "{{running-count-indoor-week}}", desc: "Indoor run count this week with 🎉 milestone celebration" },
+            { token: "{{running-count-indoor-year}}", desc: "Indoor run count this year with 🎉 milestone celebration" },
+            { token: "{{running-count-outdoor-month}}", desc: "Outdoor run count this month with 🎉 milestone celebration" },
+            { token: "{{running-count-outdoor-week}}", desc: "Outdoor run count this week with 🎉 milestone celebration" },
+            { token: "{{running-count-outdoor-year}}", desc: "Outdoor run count this year with 🎉 milestone celebration" },
+            { token: "{{running-count-total-month}}", desc: "Total run count this month with 🎉 milestone celebration" },
+            { token: "{{running-count-total-week}}", desc: "Total run count this week with 🎉 milestone celebration" },
+            { token: "{{running-count-total-year}}", desc: "Total run count this year with 🎉 milestone celebration" },
+            { token: "{{running-distance-indoor-month}}", desc: "Indoor running distance this month (km)" },
+            { token: "{{running-distance-indoor-week}}", desc: "Indoor running distance this week (km)" },
+            { token: "{{running-distance-indoor-year}}", desc: "Indoor running distance this year (km)" },
+            { token: "{{running-distance-outdoor-month}}", desc: "Outdoor running distance this month (km)" },
+            { token: "{{running-distance-outdoor-week}}", desc: "Outdoor running distance this week (km)" },
+            { token: "{{running-distance-outdoor-year}}", desc: "Outdoor running distance this year (km)" },
+            { token: "{{running-distance-total-month}}", desc: "Total running distance this month (km)" },
+            { token: "{{running-distance-total-week}}", desc: "Total running distance this week (km)" },
+            { token: "{{running-distance-total-year}}", desc: "Total running distance this year (km)" },
+            { token: "{{running-elevation-indoor-month}}", desc: "Indoor running elevation gain this month (m)" },
+            { token: "{{running-elevation-indoor-week}}", desc: "Indoor running elevation gain this week (m)" },
+            { token: "{{running-elevation-indoor-year}}", desc: "Indoor running elevation gain this year (m)" },
+            { token: "{{running-elevation-outdoor-month}}", desc: "Outdoor running elevation gain this month (m)" },
+            { token: "{{running-elevation-outdoor-week}}", desc: "Outdoor running elevation gain this week (m)" },
+            { token: "{{running-elevation-outdoor-year}}", desc: "Outdoor running elevation gain this year (m)" },
+            { token: "{{running-elevation-total-month}}", desc: "Total running elevation gain this month (m)" },
+            { token: "{{running-elevation-total-week}}", desc: "Total running elevation gain this week (m)" },
+            { token: "{{running-elevation-total-year}}", desc: "Total running elevation gain this year (m)" },
+            { token: "{{running-ordinal-indoor-month}}", desc: "Indoor run ordinal count this month with 🎉 milestone" },
+            { token: "{{running-ordinal-indoor-week}}", desc: "Indoor run ordinal count this week with 🎉 milestone" },
+            { token: "{{running-ordinal-indoor-year}}", desc: "Indoor run ordinal count this year with 🎉 milestone" },
+            { token: "{{running-ordinal-outdoor-month}}", desc: "Outdoor run ordinal count this month with 🎉 milestone" },
+            { token: "{{running-ordinal-outdoor-week}}", desc: "Outdoor run ordinal count this week with 🎉 milestone" },
+            { token: "{{running-ordinal-outdoor-year}}", desc: "Outdoor run ordinal count this year with 🎉 milestone" },
+            { token: "{{running-ordinal-total-month}}", desc: "Total run ordinal count this month with 🎉 milestone" },
+            { token: "{{running-ordinal-total-week}}", desc: "Total run ordinal count this week with 🎉 milestone" },
+            { token: "{{running-ordinal-total-year}}", desc: "Total run ordinal count this year with 🎉 milestone" },
+            { token: "{{swimming-activities-total-month}}", desc: "Total number of swims this month" },
+            { token: "{{swimming-activities-total-week}}", desc: "Total number of swims this week" },
+            { token: "{{swimming-activities-total-year}}", desc: "Total number of swims this year" },
+            { token: "{{swimming-count-total-month}}", desc: "Total swim count this month with 🎉 milestone celebration" },
+            { token: "{{swimming-count-total-week}}", desc: "Total swim count this week with 🎉 milestone celebration" },
+            { token: "{{swimming-count-total-year}}", desc: "Total swim count this year with 🎉 milestone celebration" },
+            { token: "{{swimming-distance-total-month}}", desc: "Total swimming distance this month (km)" },
+            { token: "{{swimming-distance-total-week}}", desc: "Total swimming distance this week (km)" },
+            { token: "{{swimming-distance-total-year}}", desc: "Total swimming distance this year (km)" },
+            { token: "{{swimming-elevation-total-month}}", desc: "Total swimming elevation gain this month (m)" },
+            { token: "{{swimming-elevation-total-week}}", desc: "Total swimming elevation gain this week (m)" },
+            { token: "{{swimming-elevation-total-year}}", desc: "Total swimming elevation gain this year (m)" },
+            { token: "{{swimming-ordinal-total-month}}", desc: "Total swim ordinal count this month with 🎉 milestone" },
+            { token: "{{swimming-ordinal-total-week}}", desc: "Total swim ordinal count this week with 🎉 milestone" },
+            { token: "{{swimming-ordinal-total-year}}", desc: "Total swim ordinal count this year with 🎉 milestone" },
+            { token: "{{walking-activities-total-month}}", desc: "Total number of walks/hikes this month" },
+            { token: "{{walking-activities-total-week}}", desc: "Total number of walks/hikes this week" },
+            { token: "{{walking-activities-total-year}}", desc: "Total number of walks/hikes this year" },
+            { token: "{{walking-count-total-month}}", desc: "Total walk/hike count this month with 🎉 milestone celebration" },
+            { token: "{{walking-count-total-week}}", desc: "Total walk/hike count this week with 🎉 milestone celebration" },
+            { token: "{{walking-count-total-year}}", desc: "Total walk/hike count this year with 🎉 milestone celebration" },
+            { token: "{{walking-distance-deviation-total-month}}", desc: "Total walking/hiking distance vs prorated monthly plan" },
+            { token: "{{walking-distance-deviation-total-week}}", desc: "Total walking/hiking distance vs prorated weekly plan" },
+            { token: "{{walking-distance-deviation-total-year}}", desc: "Total walking/hiking distance vs prorated yearly plan" },
+            { token: "{{walking-distance-goal-total-month}}", desc: "Configured monthly walking distance goal" },
+            { token: "{{walking-distance-goal-total-week}}", desc: "Configured weekly walking distance goal" },
+            { token: "{{walking-distance-goal-total-year}}", desc: "Configured yearly walking distance goal" },
+            { token: "{{walking-distance-percent-total-month}}", desc: "Percentage of monthly walking distance goal achieved" },
+            { token: "{{walking-distance-percent-total-week}}", desc: "Percentage of weekly walking distance goal achieved" },
+            { token: "{{walking-distance-percent-total-year}}", desc: "Percentage of yearly walking distance goal achieved" },
+            { token: "{{walking-distance-total-month}}", desc: "Total walking/hiking distance this month (km)" },
+            { token: "{{walking-distance-total-week}}", desc: "Total walking/hiking distance this week (km)" },
+            { token: "{{walking-distance-total-year}}", desc: "Total walking/hiking distance this year (km)" },
+            { token: "{{walking-elevation-deviation-total-month}}", desc: "Total walking elevation vs prorated monthly plan" },
+            { token: "{{walking-elevation-deviation-total-week}}", desc: "Total walking elevation vs prorated weekly plan" },
+            { token: "{{walking-elevation-deviation-total-year}}", desc: "Total walking elevation vs prorated yearly plan" },
+            { token: "{{walking-elevation-goal-total-month}}", desc: "Configured monthly walking elevation goal" },
+            { token: "{{walking-elevation-goal-total-week}}", desc: "Configured weekly walking elevation goal" },
+            { token: "{{walking-elevation-goal-total-year}}", desc: "Configured yearly walking elevation goal" },
+            { token: "{{walking-elevation-percent-total-month}}", desc: "Percentage of monthly walking elevation goal achieved" },
+            { token: "{{walking-elevation-percent-total-week}}", desc: "Percentage of weekly walking elevation goal achieved" },
+            { token: "{{walking-elevation-percent-total-year}}", desc: "Percentage of yearly walking elevation goal achieved" },
+            { token: "{{walking-elevation-total-month}}", desc: "Total walking/hiking elevation gain this month (m)" },
+            { token: "{{walking-elevation-total-week}}", desc: "Total walking/hiking elevation gain this week (m)" },
+            { token: "{{walking-elevation-total-year}}", desc: "Total walking/hiking elevation gain this year (m)" },
+            { token: "{{walking-ordinal-total-month}}", desc: "Total walk/hike ordinal count this month with 🎉 milestone" },
+            { token: "{{walking-ordinal-total-week}}", desc: "Total walk/hike ordinal count this week with 🎉 milestone" },
+            { token: "{{walking-ordinal-total-year}}", desc: "Total walk/hike ordinal count this year with 🎉 milestone" }
+        ];
+        {% endraw %}
+
+        STRAVA_VARIABLES.sort((a, b) => a.token.localeCompare(b.token));
+
+        const dropdown = document.getElementById('strava-var-dropdown');
+        const searchInput = document.getElementById('strava-var-search');
+        const previewToken = document.getElementById('strava-var-preview-token');
+        const previewDesc = document.getElementById('strava-var-preview-desc');
+        const copyBtn = document.getElementById('strava-var-copy-btn');
+        const copyToast = document.getElementById('strava-var-copy-toast');
+
+        function renderDropdown(filterText = '') {
+            if (!dropdown) return;
+            const query = filterText.toLowerCase().trim();
+            dropdown.innerHTML = '';
+
+            const matches = STRAVA_VARIABLES.filter(item =>
+                item.token.toLowerCase().includes(query) || item.desc.toLowerCase().includes(query)
+            );
+
+            if (matches.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No matching variables found';
+                dropdown.appendChild(opt);
+                if (previewToken) previewToken.textContent = '—';
+                if (previewDesc) previewDesc.textContent = 'No matching variable';
+                return;
+            }
+
+            matches.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.token;
+                opt.dataset.desc = item.desc;
+                opt.textContent = `${item.token} — ${item.desc}`;
+                dropdown.appendChild(opt);
+            });
+
+            updatePreview(matches[0].token, matches[0].desc);
+        }
+
+        function updatePreview(token, desc) {
+            if (previewToken) previewToken.textContent = token;
+            if (previewDesc) previewDesc.textContent = desc;
+        }
+
+        if (dropdown && searchInput) {
+            renderDropdown();
+
+            searchInput.addEventListener('input', (e) => {
+                renderDropdown(e.target.value);
+            });
+
+            dropdown.addEventListener('change', () => {
+                const selectedOpt = dropdown.options[dropdown.selectedIndex];
+                if (selectedOpt && selectedOpt.value) {
+                    updatePreview(selectedOpt.value, selectedOpt.dataset.desc);
+                }
+            });
+
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    const tokenToCopy = previewToken ? previewToken.textContent : '';
+                    if (!tokenToCopy || tokenToCopy === '—') return;
+
+                    navigator.clipboard.writeText(tokenToCopy).then(() => {
+                        if (copyToast) {
+                            copyToast.classList.remove('hidden');
+                            setTimeout(() => copyToast.classList.add('hidden'), 2000);
+                        }
+                    }).catch(err => {
+                        console.error('Failed to copy token:', err);
+                    });
+                });
+            }
+        }
     });
 </script>
 {% endblock %}

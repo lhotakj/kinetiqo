@@ -28,6 +28,11 @@ def print_version():
 
 def validate_config(config):
     """Ensures all required environment variables are set."""
+    from kinetiqo.config import VALID_DATABASE_TYPES
+    if config.database_type not in VALID_DATABASE_TYPES:
+        logger.error(f"Invalid database type {config.database_type!r}. Valid choices are: {', '.join(VALID_DATABASE_TYPES)}.")
+        sys.exit(1)
+
     if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
         logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
         sys.exit(1)
@@ -117,7 +122,7 @@ def _load_api_keys(config):
 
 
 database_option = click.option(
-    '--database', '-d',
+    '--database-type', '--database', '-d', 'database',
     type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
     default=None,
     help='Database backend to use (overrides config).'
