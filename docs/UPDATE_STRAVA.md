@@ -137,11 +137,11 @@ string** and logs a `WARNING` explaining why — it never breaks the render.
 
 | Metric | Unit | Meaning |
 |---|---|---|
-| `distance` | km (constant `DISTANCE_UNIT`, see [Units](#units)) | Total distance covered by matching activities in the period (adds `" 🎉 congratulation"` on positive multiples of 1,000 km). |
-| `elevation` | m (constant `ELEVATION_UNIT`, see [Units](#units)) | Total elevation gain of matching activities in the period (adds `" 🎉 congratulation"` on positive multiples of 1,000 m). |
+| `distance` | km (constant `DISTANCE_UNIT`, see [Units](#units)) | Total distance covered by matching activities in the period (adds `" 🎉"` on the first activity that reaches or passes positive multiples of 1,000 km). |
+| `elevation` | m (constant `ELEVATION_UNIT`, see [Units](#units)) | Total elevation gain of matching activities in the period (adds `" 🎉"` on the first activity that reaches or passes positive multiples of 1,000 m). |
 | `activities` | count | Number of matching activities in the period (no 🎉 celebration). |
-| `count` | count | Same as `activities`, but adds `" 🎉 congratulation"` when the number is a milestone (`1`, or any multiple of `100`). |
-| `ordinal` | ordinal | Same count as above, formatted as an ordinal number (`1st`, `2nd`, `3rd`, `4th`, … `11th`, `12th`, `13th`, `21st`, …), with the same 🎉 milestone rule (adds `" 🎉 congratulation"` on `1st` or multiples of `100`). |
+| `count` | count | Same as `activities`, but adds `" 🎉"` when the number is a milestone (`1`, or any multiple of `100`). |
+| `ordinal` | ordinal | Same count as above, formatted as an ordinal number (`1st`, `2nd`, `3rd`, `4th`, … `11th`, `12th`, `13th`, `21st`, …), with the same 🎉 milestone rule (adds `" 🎉"` on `1st` or multiples of `100`). |
 
 ### Modifiers (`distance` / `elevation` only)
 

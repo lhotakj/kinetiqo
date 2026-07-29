@@ -92,12 +92,24 @@ class TestFormattingHelpers(unittest.TestCase):
 
     def test_distance_and_elevation_milestones(self):
         from kinetiqo.strava_description import _is_distance_milestone, _is_elevation_milestone
+        # Single argument fallback (defaults to prev_val = 0.0)
         self.assertTrue(_is_distance_milestone(1000.0))
         self.assertTrue(_is_distance_milestone(6000.0))
         self.assertFalse(_is_distance_milestone(650.0))
 
+        # First activity reaching or crossing 1,000 km milestone threshold (e.g. 990 -> 1001)
+        self.assertTrue(_is_distance_milestone(1001.0, 990.0))
+        self.assertTrue(_is_distance_milestone(1000.0, 990.0))
+        self.assertTrue(_is_distance_milestone(2005.0, 1990.0))
+
+        # Subsequent activity in same milestone range (e.g. 1001 -> 1050) does not re-trigger
+        self.assertFalse(_is_distance_milestone(1050.0, 1001.0))
+        self.assertFalse(_is_distance_milestone(650.0, 600.0))
+
+        # Elevation milestones
         self.assertTrue(_is_elevation_milestone(1000.0))
-        self.assertTrue(_is_elevation_milestone(5000.0))
+        self.assertTrue(_is_elevation_milestone(1050.0, 950.0))
+        self.assertFalse(_is_elevation_milestone(1100.0, 1050.0))
         self.assertFalse(_is_elevation_milestone(750.0))
 
 
@@ -235,6 +247,34 @@ class TestDescriptionContextResolution(unittest.TestCase):
             "",
         )
         self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 6,540.0 km / 12,345 m\n")
+
+    def test_distance_first_reaching_1000km_triggers_celebration(self):
+        repo = self._make_repo()
+        # Mock get_activities_totals to return 990 km for previous end_date, 1001 km for current end_date
+        def side_effect_totals(types, start_date, end_date):
+            if "07:59:59" in end_date:
+                return {"total_distance": 990000, "total_elevation": 0}
+            return {"total_distance": 1001000, "total_elevation": 0}
+
+        repo.get_activities_totals.side_effect = side_effect_totals
+        ctx = DescriptionContext(config=MagicMock(), repo=repo)
+        result = ctx.render_for_activity("{{cycling-distance-total-year}}", "2026-07-22T08:00:00Z", "")
+        self.assertIn("1,001.0 km", result)
+        self.assertIn("🎉", result)
+
+    def test_distance_subsequent_activity_after_1000km_has_no_celebration(self):
+        repo = self._make_repo()
+        # Mock get_activities_totals to return 1001 km for previous end_date, 1050 km for current end_date
+        def side_effect_totals(types, start_date, end_date):
+            if "07:59:59" in end_date:
+                return {"total_distance": 1001000, "total_elevation": 0}
+            return {"total_distance": 1050000, "total_elevation": 0}
+
+        repo.get_activities_totals.side_effect = side_effect_totals
+        ctx = DescriptionContext(config=MagicMock(), repo=repo)
+        result = ctx.render_for_activity("{{cycling-distance-total-year}}", "2026-07-22T08:00:00Z", "")
+        self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 1,050.0 km\n")
+        self.assertNotIn("🎉", result)
 
     def test_count_with_milestone_celebration(self):
         repo = self._make_repo(count=100)

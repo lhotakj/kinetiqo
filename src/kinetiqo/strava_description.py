@@ -211,7 +211,7 @@ _SCOPE_TOKENS = {"total", "outdoor", "indoor"}
 _PERIOD_TOKENS = {"year", "month", "week"}
 _PERIOD_GOAL_PREFIX = {"year": "yearly", "month": "monthly", "week": "weekly"}
 
-_CELEBRATION_SUFFIX = " 🎉 congratulation"
+_CELEBRATION_SUFFIX = " 🎉"
 
 PLACEHOLDER_RE = re.compile(r"\{\{([a-zA-Z0-9\-]+)\}\}")
 
@@ -243,20 +243,22 @@ def _is_milestone(n: int) -> bool:
     return n == 1 or n % 100 == 0
 
 
-def _is_distance_milestone(value_km: float) -> bool:
-    """Whether distance in km reaches a positive multiple of 1000 (e.g. 1000, 2000, 6000 km)."""
-    if value_km <= 0:
+def _is_distance_milestone(curr_distance_km: float, prev_distance_km: float = 0.0) -> bool:
+    """Whether distance in km reaches or crosses a positive multiple of 1000 (e.g. 1000, 2000, 6000 km) for the first time."""
+    curr_val = round(curr_distance_km, 3)
+    if curr_val < 1000.0:
         return False
-    val_int = int(round(value_km))
-    return val_int > 0 and val_int % 1000 == 0 and abs(value_km - val_int) < 0.05
+    prev_val = round(prev_distance_km, 3)
+    return (int(curr_val) // 1000) > (int(prev_val) // 1000)
 
 
-def _is_elevation_milestone(value_m: float) -> bool:
-    """Whether elevation gain in m reaches a positive multiple of 1000 (e.g. 1000, 2000, 10000 m)."""
-    if value_m <= 0:
+def _is_elevation_milestone(curr_elevation_m: float, prev_elevation_m: float = 0.0) -> bool:
+    """Whether elevation gain in m reaches or crosses a positive multiple of 1000 (e.g. 1000, 2000, 10000 m) for the first time."""
+    curr_val = round(curr_elevation_m, 1)
+    if curr_val < 1000.0:
         return False
-    val_int = int(round(value_m))
-    return val_int > 0 and val_int % 1000 == 0 and abs(value_m - val_int) < 0.5
+    prev_val = round(prev_elevation_m, 1)
+    return (int(curr_val) // 1000) > (int(prev_val) // 1000)
 
 
 def _ordinal(n: int) -> str:
@@ -516,6 +518,8 @@ class DescriptionContext:
         start_dt, end_dt, elapsed_fraction = _period_bounds(activity_dt, parsed.period)
         start_str = start_dt.strftime("%Y-%m-%d")
         end_str = end_dt.strftime("%Y-%m-%d %H:%M:%S.%f")
+        prev_end_dt = end_dt - timedelta(microseconds=1)
+        prev_end_str = prev_end_dt.strftime("%Y-%m-%d %H:%M:%S.%f")
 
         if not scope_types:
             logger.warning(
@@ -523,9 +527,11 @@ class DescriptionContext:
                 f"distinguished by Strava's sport type — '{{{{{token}}}}}' resolved to 0."
             )
             stats = {"distance_km": 0.0, "elevation_m": 0.0, "count": 0}
+            prev_stats = {"distance_km": 0.0, "elevation_m": 0.0, "count": 0}
         else:
             try:
                 stats = self._stats(scope_types, start_str, end_str, cache)
+                prev_stats = self._stats(scope_types, start_str, prev_end_str, cache)
             except Exception as e:
                 logger.warning(f"UPDATE_STRAVA: failed to fetch data for '{{{{{token}}}}}': {e}")
                 return ""
@@ -545,10 +551,12 @@ class DescriptionContext:
 
         if parsed.modifier is None:
             if metric_key == "distance":
-                suffix = _CELEBRATION_SUFFIX if _is_distance_milestone(achieved) else ""
+                prev_achieved = prev_stats["distance_km"]
+                suffix = _CELEBRATION_SUFFIX if _is_distance_milestone(achieved, prev_achieved) else ""
                 return _format_distance(achieved) + suffix
             else:
-                suffix = _CELEBRATION_SUFFIX if _is_elevation_milestone(achieved) else ""
+                prev_achieved = prev_stats["elevation_m"]
+                suffix = _CELEBRATION_SUFFIX if _is_elevation_milestone(achieved, prev_achieved) else ""
                 return _format_elevation(achieved) + suffix
 
         goal_type_id = GOAL_TYPE_BY_ACTIVITY.get(parsed.activity_type)
