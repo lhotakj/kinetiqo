@@ -1,10 +1,8 @@
-# Copilot Instructions for Kinetiqo Project
+# Unified AI Agent Instructions for Kinetiqo (Gemini & Copilot)
 
-> **UNIFIED INSTRUCTION FILE**: This repository maintains a single unified instruction set for all AI coding agents (Gemini, Copilot, Cursor, Antigravity) in [`AGENTS.md`](../AGENTS.md). The contents below mirror the canonical master instructions.
+> **Notice to AI Assistants (Gemini, GitHub Copilot, Cursor, Antigravity)**: This is the single, authoritative, unified instruction file for the Kinetiqo codebase. All AI coding agents must follow these guidelines strictly when analyzing, modifying, or testing code in this repository.
 
 ---
-
-# Unified AI Agent Instructions for Kinetiqo (Gemini & Copilot)
 
 ## 1. Project Overview
 
