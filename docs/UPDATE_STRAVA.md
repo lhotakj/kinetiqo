@@ -120,13 +120,12 @@ Every placeholder has the shape:
 | `<scope>` | `total`, `outdoor`, `indoor` | Restricts to outdoor-only or indoor-only activities of that type (see limitations below). |
 | `<period>` | `week`, `month`, `year` | The period **to date of the activity** (see [Period math](#period-math-to-date-of-the-activity)). |
 
-Plus three special standalone tokens (no dashes):
-
 | Token | Meaning |
 |---|---|
 | `{{current-year}}` | The 4-digit year of the activity being synced (e.g. `2026`). |
 | `{{current-month}}` | The full month name of the activity being synced (e.g. `July`). |
 | `{{new-line}}` | A literal line break (`\n`) — Strava descriptions don't render Markdown, so use this instead of a raw newline in your `UPDATE_STRAVA_*` env var. |
+| `{{workout-summary}}` | Inserts a RestOrTrain-style workout summary (e.g. `Endurance | 120min @ 191W`, `Tempo | 120min @ 224W`, `Endurance | 45min @ 195W + 2min @ 244W`, `Endurance | 4h @ 209W normalized (74% FTP), with 10-15min blocks @ 220-243W (78-86%)`, or HR fallback `Endurance | About 2h30m aerobic riding @ 125bpm average HR`). |
 
 Any placeholder that doesn't match this grammar, or references data that can't
 be resolved (e.g. no goal configured, running with a `goal`/`percent`/`deviation`

@@ -79,6 +79,7 @@ class TestSyncUpdateStravaFromEnv(unittest.TestCase):
         # ignored entirely, so no update call should even be made (no other
         # field changed either).
         repo.upsert_profile.assert_not_called()
+        self.assertEqual(config.update_strava_walking, "Original template, already stored in DB.")
 
     def test_mixed_seed_only_empty_fields_left_alone(self):
         repo = MagicMock()

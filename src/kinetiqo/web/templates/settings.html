@@ -14,7 +14,7 @@
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava. Changes are saved automatically.</p>
         </div>
         <div class="p-6 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                     <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
                     <input type="text" id="profile-first-name"
@@ -35,61 +35,124 @@
                            value="" placeholder="Loading...">
                     <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
                 </div>
+                <div>
+                    <label for="profile-ftp" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">FTP (W)</label>
+                    <input type="text" id="profile-ftp" inputmode="decimal"
+                           pattern="[0-9]*\.?[0-9]*"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                    <div id="profile-ftp-error" class="mt-1 text-xs text-red-500 hidden"></div>
+                </div>
             </div>
             <div class="space-y-3">
                 <div class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     UPDATE_STRAVA_* templates
-                    <span class="font-normal text-gray-400 dark:text-gray-500">(read-only, one per activity type/scope, each set via its own environment variable)</span>
+                    <span class="font-normal text-gray-400 dark:text-gray-500">(editable, prefix is fixed, changes are saved automatically)</span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label for="profile-update-strava-cycling-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Cycling (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_INDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-cycling-indoor" rows="5" readonly disabled
-                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
-                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2">
+                                    <span>✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-cycling-indoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-cycling-indoor" rows="4"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
                     </div>
                     <div>
                         <label for="profile-update-strava-cycling-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Cycling (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_OUTDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-cycling-outdoor" rows="5" readonly disabled
-                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
-                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2">
+                                    <span>✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-cycling-outdoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-cycling-outdoor" rows="4"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
                     </div>
                     <div>
                         <label for="profile-update-strava-running-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Running (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_INDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-running-indoor" rows="5" readonly disabled
-                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
-                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2">
+                                    <span>✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-running-indoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-running-indoor" rows="4"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
                     </div>
                     <div>
                         <label for="profile-update-strava-running-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Running (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_OUTDOOR</code></span>
                         </label>
-                        <textarea id="profile-update-strava-running-outdoor" rows="5" readonly disabled
-                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
-                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2">
+                                    <span>✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-running-outdoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-running-outdoor" rows="4"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
                     </div>
                     <div>
                         <label for="profile-update-strava-walking" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Walking / Hiking <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_WALKING</code></span>
                         </label>
-                        <textarea id="profile-update-strava-walking" rows="5" readonly disabled
-                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
-                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2">
+                                    <span>✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-walking" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-walking" rows="4"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
                     </div>
                     <div>
                         <label for="profile-update-strava-swimming" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Swimming <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_SWIMMING</code></span>
                         </label>
-                        <textarea id="profile-update-strava-swimming" rows="5" readonly disabled
-                                  class="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400 text-sm rounded-lg p-2.5 font-mono resize-none cursor-not-allowed"
-                                  placeholder="Not set — description auto-update is disabled."></textarea>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2">
+                                    <span>✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-swimming" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-swimming" rows="4"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
                     </div>
+                </div>
                 </div>
                 <!-- Supported Template Variables Info Box -->
                 <div class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3">
@@ -288,6 +351,8 @@
         const lastNameInput = document.getElementById('profile-last-name');
         const weightInput = document.getElementById('profile-weight');
         const weightError = document.getElementById('profile-weight-error');
+        const ftpInput = document.getElementById('profile-ftp');
+        const ftpError = document.getElementById('profile-ftp-error');
         const updateStravaInputs = {
             update_strava_cycling_indoor: document.getElementById('profile-update-strava-cycling-indoor'),
             update_strava_cycling_outdoor: document.getElementById('profile-update-strava-cycling-outdoor'),
@@ -305,7 +370,12 @@
         }
 
         // Snapshot of the last-saved values so we only PUT on actual changes
-        let savedProfile = { first_name: '', last_name: '', weight: '' };
+        let savedProfile = {
+            first_name: '', last_name: '', weight: '', ftp: '',
+            update_strava_cycling_indoor: '', update_strava_cycling_outdoor: '',
+            update_strava_running_indoor: '', update_strava_running_outdoor: '',
+            update_strava_walking: '', update_strava_swimming: ''
+        };
 
         // Load profile
         fetch('/api/profile')
@@ -314,47 +384,104 @@
                 firstNameInput.value = data.first_name || '';
                 lastNameInput.value = data.last_name || '';
                 weightInput.value = data.weight || '';
+                ftpInput.value = (data.ftp !== undefined && data.ftp !== null) ? data.ftp : '';
                 for (const field in updateStravaInputs) {
-                    updateStravaInputs[field].value = data[field] || '';
+                    if (updateStravaInputs[field]) {
+                        updateStravaInputs[field].value = data[field] || '';
+                    }
                 }
                 firstNameInput.placeholder = '';
                 lastNameInput.placeholder = '';
                 weightInput.placeholder = '';
+                if (ftpInput) ftpInput.placeholder = 'e.g. 250';
+
                 savedProfile = {
                     first_name: firstNameInput.value,
                     last_name: lastNameInput.value,
-                    weight: weightInput.value
+                    weight: weightInput.value,
+                    ftp: ftpInput ? ftpInput.value : '',
                 };
+                for (const field in updateStravaInputs) {
+                    savedProfile[field] = updateStravaInputs[field] ? updateStravaInputs[field].value : '';
+                }
             })
             .catch(() => showStatus('Failed to load profile.', true));
 
-        function validateWeight(value) {
+        function validateNumber(value) {
             if (value === '' || value === '0') return true;
             return /^\d+(\.\d+)?$/.test(value) && parseFloat(value) >= 0;
         }
 
         function hasProfileChanged() {
-            return firstNameInput.value !== savedProfile.first_name
-                || lastNameInput.value !== savedProfile.last_name
-                || weightInput.value !== savedProfile.weight;
+            if (firstNameInput.value !== savedProfile.first_name ||
+                lastNameInput.value !== savedProfile.last_name ||
+                weightInput.value !== savedProfile.weight ||
+                (ftpInput && ftpInput.value !== savedProfile.ftp)) {
+                return true;
+            }
+            for (const field in updateStravaInputs) {
+                if (updateStravaInputs[field] && updateStravaInputs[field].value !== savedProfile[field]) {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        function saveProfile() {
-            if (!hasProfileChanged()) return;
+        function saveProfile(changedInput) {
+            const payload = {};
 
-            const w = weightInput.value.trim();
-            if (w !== '' && !validateWeight(w)) {
-                weightError.textContent = 'Must be a positive number.';
-                weightError.classList.remove('hidden');
-                return;
+            if (!changedInput || changedInput === firstNameInput) {
+                if (firstNameInput.value !== savedProfile.first_name) {
+                    payload.first_name = firstNameInput.value.trim();
+                }
             }
-            weightError.classList.add('hidden');
+            if (!changedInput || changedInput === lastNameInput) {
+                if (lastNameInput.value !== savedProfile.last_name) {
+                    payload.last_name = lastNameInput.value.trim();
+                }
+            }
+            if (!changedInput || changedInput === weightInput) {
+                if (weightInput.value !== savedProfile.weight) {
+                    const w = weightInput.value.trim();
+                    if (w !== '' && !validateNumber(w)) {
+                        weightError.textContent = 'Must be a positive number.';
+                        weightError.classList.remove('hidden');
+                        return;
+                    }
+                    weightError.classList.add('hidden');
+                    payload.weight = w === '' ? 0 : parseFloat(w);
+                }
+            }
+            if (ftpInput && (!changedInput || changedInput === ftpInput)) {
+                if (ftpInput.value !== savedProfile.ftp) {
+                    const f = ftpInput.value.trim();
+                    if (f !== '' && !validateNumber(f)) {
+                        if (ftpError) {
+                            ftpError.textContent = 'Must be a positive number.';
+                            ftpError.classList.remove('hidden');
+                        }
+                        return;
+                    }
+                    if (ftpError) ftpError.classList.add('hidden');
+                    payload.ftp = f === '' ? null : parseFloat(f);
+                }
+            }
 
-            const payload = {
-                first_name: firstNameInput.value.trim(),
-                last_name: lastNameInput.value.trim(),
-                weight: w === '' ? 0 : parseFloat(w)
-            };
+            for (const field in updateStravaInputs) {
+                const inp = updateStravaInputs[field];
+                if (inp && (!changedInput || changedInput === inp)) {
+                    let val = inp.value.trim();
+                    if (val.startsWith('✨ Kinetiqo:')) {
+                        val = val.replace(/^✨ Kinetiqo:\s*/, '');
+                        inp.value = val;
+                    }
+                    if (val !== savedProfile[field]) {
+                        payload[field] = val;
+                    }
+                }
+            }
+
+            if (Object.keys(payload).length === 0) return;
 
             fetch('/api/profile', {
                 method: 'PUT',
@@ -365,26 +492,50 @@
                 if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
                 return r.json();
             })
-            .then(() => {
-                savedProfile = {
-                    first_name: firstNameInput.value,
-                    last_name: lastNameInput.value,
-                    weight: weightInput.value
-                };
+            .then(updated => {
+                if ('first_name' in payload) savedProfile.first_name = firstNameInput.value;
+                if ('last_name' in payload) savedProfile.last_name = lastNameInput.value;
+                if ('weight' in payload) savedProfile.weight = weightInput.value;
+                if ('ftp' in payload && ftpInput) savedProfile.ftp = ftpInput.value;
+
+                for (const field in updateStravaInputs) {
+                    if (field in payload && updateStravaInputs[field]) {
+                        savedProfile[field] = updateStravaInputs[field].value;
+                        const statusEl = document.getElementById('status-' + updateStravaInputs[field].id);
+                        if (statusEl) {
+                            statusEl.classList.remove('opacity-0');
+                            statusEl.classList.add('opacity-100');
+                            setTimeout(() => {
+                                statusEl.classList.remove('opacity-100');
+                                statusEl.classList.add('opacity-0');
+                            }, 3000);
+                        }
+                    }
+                }
                 showStatus('Saved ✓', false);
             })
             .catch(err => showStatus(err.message, true));
         }
 
-        firstNameInput.addEventListener('blur', saveProfile);
-        lastNameInput.addEventListener('blur', saveProfile);
-        weightInput.addEventListener('blur', saveProfile);
+        firstNameInput.addEventListener('blur', () => saveProfile(firstNameInput));
+        lastNameInput.addEventListener('blur', () => saveProfile(lastNameInput));
+        weightInput.addEventListener('blur', () => saveProfile(weightInput));
+        if (ftpInput) ftpInput.addEventListener('blur', () => saveProfile(ftpInput));
+        for (const field in updateStravaInputs) {
+            if (updateStravaInputs[field]) {
+                const inp = updateStravaInputs[field];
+                inp.addEventListener('blur', () => saveProfile(inp));
+            }
+        }
 
-        // Client-side: block non-numeric keys in weight field
-        weightInput.addEventListener('keypress', function(e) {
-            const char = String.fromCodePoint(e.which || e.keyCode);
-            if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
-            if (!/[\d.]/.test(char)) { e.preventDefault(); }
+        // Client-side: block non-numeric keys in weight and ftp fields
+        [weightInput, ftpInput].forEach(inp => {
+            if (!inp) return;
+            inp.addEventListener('keypress', function(e) {
+                const char = String.fromCodePoint(e.which || e.keyCode);
+                if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
+                if (!/[\d.]/.test(char)) { e.preventDefault(); }
+            });
         });
 
         // ----------------------------------------------------------------
@@ -609,6 +760,7 @@
         const STRAVA_VARIABLES = [
             { token: "{{current-month}}", desc: "Full month name of the activity (e.g. July)" },
             { token: "{{current-year}}", desc: "4-digit year of the activity (e.g. 2026)" },
+            { token: "{{workout-summary}}", desc: "RestOrTrain-style workout summary (e.g. Endurance | 120min @ 191W or HR fallback)" },
             { token: "{{cycling-activities-indoor-month}}", desc: "Number of indoor cycling activities this month" },
             { token: "{{cycling-activities-indoor-week}}", desc: "Number of indoor cycling activities this week" },
             { token: "{{cycling-activities-indoor-year}}", desc: "Number of indoor cycling activities this year" },

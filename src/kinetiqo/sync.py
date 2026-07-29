@@ -136,6 +136,7 @@ class SyncService:
                 template,
                 activity.get("start_date"),
                 existing_description,
+                activity=activity,
             )
             if new_description is None or new_description == existing_description:
                 return DESC_UNCHANGED, None

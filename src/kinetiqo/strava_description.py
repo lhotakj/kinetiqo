@@ -383,13 +383,23 @@ def extract_placeholders(template: str) -> List[str]:
 
 def render_template(template: str, resolver: Callable[[str], str]) -> str:
     """Render *template*, calling ``resolver(token)`` for every ``{{token}}`` found."""
+    # Strip any user-pasted prefix from template before rendering
+    if template and template.startswith(UPDATE_STRAVA_PREFIX):
+        template = template[len(UPDATE_STRAVA_PREFIX):].strip()
+
     parts = []
     for kind, val in _iter_template_parts(template):
         if kind == "literal":
             parts.append(val)
         else:
             try:
-                parts.append(resolver(val) or "")
+                res = resolver(val) or ""
+                # Ensure a space separator if preceding text ends with sentence punctuation (.!?,:;) and token starts with alnum
+                if parts and res and res[0].isalnum() and not res.startswith((" ", "\n")):
+                    prev = parts[-1]
+                    if prev and not prev.endswith((" ", "\n")) and prev.endswith((".", "!", "?", ",", ";", ":")):
+                        parts.append(" ")
+                parts.append(res)
             except Exception as e:
                 logger.warning(f"UPDATE_STRAVA: error resolving placeholder '{{{{{val}}}}}': {e}")
                 parts.append("")
@@ -500,13 +510,34 @@ class DescriptionContext:
         cache[key] = result
         return result
 
-    def _resolve_token(self, token: str, activity_dt: datetime, cache: dict) -> str:
+    def _resolve_token(self, token: str, activity_dt: datetime, cache: dict, activity: Optional[dict] = None) -> str:
         if token == "new-line":
             return "\n"
         if token == "current-year":
             return str(activity_dt.year)
         if token == "current-month":
             return activity_dt.strftime("%B")
+        if token == "workout-summary":
+            from kinetiqo.workout_summary import generate_workout_summary
+            act_obj = activity or {}
+            athlete_ftp = None
+            try:
+                prof = self.repo.get_profile() if hasattr(self, 'repo') and self.repo else None
+                if prof:
+                    athlete_ftp = prof.get('ftp')
+            except Exception as e:
+                logger.warning(f"UPDATE_STRAVA: failed to fetch profile for workout-summary: {e}")
+
+            watts_stream = None
+            act_id = act_obj.get("id") or act_obj.get("activity_id")
+            if act_id and hasattr(self, 'repo') and self.repo:
+                try:
+                    res = self.repo.get_watts_streams_for_activities([str(act_id)])
+                    watts_stream = res.get(str(act_id)) or res.get(int(act_id))
+                except Exception as e:
+                    logger.warning(f"UPDATE_STRAVA: failed to fetch watts stream for workout-summary: {e}")
+
+            return generate_workout_summary(act_obj, watts_stream=watts_stream, ftp=athlete_ftp)
 
         parsed = _parse_placeholder(token)
         if parsed is None:
@@ -589,7 +620,7 @@ class DescriptionContext:
         return f"behind the plan by {formatter(abs(diff))}"
 
     def render_for_activity(self, template: str, activity_start_date: Any,
-                            existing_description: str) -> Optional[str]:
+                            existing_description: str, activity: Optional[dict] = None) -> Optional[str]:
         """Render *template* for the activity dated *activity_start_date* and merge it
         into *existing_description*.
 
@@ -614,7 +645,7 @@ class DescriptionContext:
         placement = getattr(self.config, "update_strava_placement", DEFAULT_UPDATE_STRAVA_PLACEMENT) \
             or DEFAULT_UPDATE_STRAVA_PLACEMENT
         cache: dict = {}
-        rendered_block = render_template(template, lambda tok: self._resolve_token(tok, activity_dt, cache))
+        rendered_block = render_template(template, lambda tok: self._resolve_token(tok, activity_dt, cache, activity=activity))
         return merge_description(existing_description or "", template, rendered_block, placement=placement)
 
 

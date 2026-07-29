@@ -905,7 +905,7 @@ class PostgresqlRepository(DatabaseRepository):
         self._ensure_connected()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT athlete_id, first_name, last_name, weight, "
+                "SELECT athlete_id, first_name, last_name, weight, ftp, "
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token "
@@ -918,19 +918,20 @@ class PostgresqlRepository(DatabaseRepository):
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = ""):
+                       refresh_token: str = "", ftp: Optional[float] = None):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO profile (athlete_id, first_name, last_name, weight,
+                INSERT INTO profile (athlete_id, first_name, last_name, weight, ftp,
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
                         weight     = EXCLUDED.weight,
+                        ftp        = COALESCE(EXCLUDED.ftp, profile.ftp),
                         update_strava_cycling_indoor = EXCLUDED.update_strava_cycling_indoor,
                         update_strava_cycling_outdoor = EXCLUDED.update_strava_cycling_outdoor,
                         update_strava_running_indoor = EXCLUDED.update_strava_running_indoor,
@@ -938,7 +939,7 @@ class PostgresqlRepository(DatabaseRepository):
                         update_strava_walking = EXCLUDED.update_strava_walking,
                         update_strava_swimming = EXCLUDED.update_strava_swimming,
                         refresh_token = EXCLUDED.refresh_token
-            """, (athlete_id, first_name, last_name, weight,
+            """, (athlete_id, first_name, last_name, weight, ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or ""))

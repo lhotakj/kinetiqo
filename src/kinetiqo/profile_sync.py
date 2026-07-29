@@ -110,12 +110,14 @@ def sync_update_strava_from_env(config: Config, repo) -> None:
             # Database already has a value for this field — it's authoritative
             # from now on, regardless of what the env var currently says.
             new_values[field] = existing_value
+            setattr(config, field, existing_value)
             if env_values[field] and env_values[field] != existing_value:
                 ignored_env_diff.append(field)
         else:
             # Database field is empty — seed it from the env var (a no-op if
             # the env var is also empty).
             new_values[field] = env_values[field]
+            setattr(config, field, env_values[field])
             if env_values[field]:
                 newly_seeded.append(field)
 

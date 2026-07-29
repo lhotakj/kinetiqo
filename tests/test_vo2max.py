@@ -426,6 +426,7 @@ class TestProfileAPI(unittest.TestCase):
         mock_repo.upsert_profile.assert_called_once_with(
             123, 'Jane', 'User', 65.5,
             refresh_token='',
+            ftp=None,
             update_strava_cycling_indoor='', update_strava_cycling_outdoor='',
             update_strava_running_indoor='', update_strava_running_outdoor='',
             update_strava_walking='', update_strava_swimming='')

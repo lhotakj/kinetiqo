@@ -1169,7 +1169,7 @@ class FirebirdRepository(DatabaseRepository):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(
-                'SELECT "athlete_id", "first_name", "last_name", "weight", '
+                'SELECT "athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token" '
@@ -1183,31 +1183,34 @@ class FirebirdRepository(DatabaseRepository):
                 'first_name': row[1],
                 'last_name': row[2],
                 'weight': row[3],
-                'update_strava_cycling_indoor': row[4],
-                'update_strava_cycling_outdoor': row[5],
-                'update_strava_running_indoor': row[6],
-                'update_strava_running_outdoor': row[7],
-                'update_strava_walking': row[8],
-                'update_strava_swimming': row[9],
-                'refresh_token': row[10],
+                'ftp': row[4],
+                'update_strava_cycling_indoor': row[5],
+                'update_strava_cycling_outdoor': row[6],
+                'update_strava_running_indoor': row[7],
+                'update_strava_running_outdoor': row[8],
+                'update_strava_walking': row[9],
+                'update_strava_swimming': row[10],
+                'refresh_token': row[11],
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = ""):
+                       refresh_token: str = "", ftp: Optional[float] = None):
         self._ensure_connected()
+        existing = self.get_profile()
+        effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
-                '("athlete_id", "first_name", "last_name", "weight", '
+                '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
-                (athlete_id, first_name, last_name, weight,
+                (athlete_id, first_name, last_name, weight, effective_ftp,
                  update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                  update_strava_running_indoor or "", update_strava_running_outdoor or "",
                  update_strava_walking or "", update_strava_swimming or "", refresh_token or "")

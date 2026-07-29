@@ -1484,6 +1484,7 @@ def ftp():
     activity_id = None
     activity_count = 0
     error_message = None
+    ftp_updated_msg = None
 
     try:
         repo = get_db()
@@ -1546,6 +1547,25 @@ def ftp():
 
             ftp_watts = int(round(best_20min_watts * FTP_FACTOR))
 
+            # Auto-sync computed FTP with DB profile if different
+            ftp_updated_msg = None
+            if ftp_watts > 0:
+                prof = repo.get_profile()
+                if prof:
+                    current_db_ftp = prof.get('ftp')
+                    if current_db_ftp is None or round(float(current_db_ftp)) != ftp_watts:
+                        preserved_templates = {field: prof.get(field, '') for field in UPDATE_STRAVA_FIELDS}
+                        repo.upsert_profile(
+                            prof['athlete_id'],
+                            prof['first_name'],
+                            prof['last_name'],
+                            prof['weight'],
+                            refresh_token=prof.get('refresh_token', '') or '',
+                            ftp=float(ftp_watts),
+                            **preserved_templates
+                        )
+                        ftp_updated_msg = "FTP value in your profile has been updated."
+
     except Exception as e:
         logger.exception(f"Error computing FTP: {e}")
         error_message = str(e)
@@ -1559,6 +1579,7 @@ def ftp():
         activity_id=activity_id,
         activity_count=activity_count,
         error_message=error_message,
+        ftp_updated_msg=ftp_updated_msg,
         current_period=period,
     )
 
@@ -2241,13 +2262,13 @@ def get_profile_api():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/profile', methods=['PUT'])
+@app.route('/api/profile', methods=['PUT', 'POST'])
 @login_required
 def update_profile_api():
-    """Update individual profile fields and validate inputs.
+    """Update individual profile fields and Strava templates with validation.
 
-    Expects a JSON body with optional ``first_name``, ``last_name`` and
-    ``weight``. ``weight`` must be a numeric value >= 0.
+    Expects a JSON body with optional ``first_name``, ``last_name``,
+    ``weight``, ``ftp``, and ``update_strava_*`` templates.
 
     Returns:
         flask.Response: The updated profile on success, or an error payload
@@ -2277,21 +2298,46 @@ def update_profile_api():
         else:
             weight = existing['weight']
 
-        # UPDATE_STRAVA_* templates are read-only in the UI — always preserve
-        # whatever is currently stored. They are only auto-populated by
-        # sync_update_strava_from_env() while still empty in the database;
-        # once set, they're left untouched even if the env var later changes.
-        preserved_templates = {field: existing.get(field, '') for field in UPDATE_STRAVA_FIELDS}
+        # Validate ftp: must be a positive number or None/null to clear
+        if 'ftp' in data:
+            if data['ftp'] is None or data['ftp'] == '':
+                ftp = None
+            else:
+                try:
+                    ftp = float(data['ftp'])
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'FTP must be a number.'}), 422
+                if ftp < 0:
+                    return jsonify({'error': 'FTP must be zero or positive.'}), 422
+        else:
+            ftp = existing.get('ftp')
+
+        # UPDATE_STRAVA_* templates can be updated via GUI / API payload
+        template_updates = {}
+        for field in UPDATE_STRAVA_FIELDS:
+            if field in data:
+                val = str(data[field] or '')
+                template_updates[field] = val
+                setattr(config, field, val)
+            else:
+                val = existing.get(field, '')
+                template_updates[field] = val
+                setattr(config, field, val)
+
         repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
                             refresh_token=existing.get('refresh_token', '') or '',
-                            **preserved_templates)
+                            ftp=ftp,
+                            **template_updates)
 
-        return jsonify({
+        response_payload = {
             'athlete_id': existing['athlete_id'],
             'first_name': first_name,
             'last_name': last_name,
             'weight': weight,
-        })
+            'ftp': ftp,
+        }
+        response_payload.update(template_updates)
+        return jsonify(response_payload)
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
         return jsonify({'error': str(e)}), 500

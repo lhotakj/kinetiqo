@@ -290,6 +290,8 @@ SCHEMA_DEFINITION = {
              "type_firebird": "VARCHAR(255)"},
             {"name": "weight", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
              "type_firebird": _DOUBLE_PRECISION},
+            {"name": "ftp", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             # Per activity-type/scope UPDATE_STRAVA_* templates, synced from their
             # respective environment variables on every application start.
             # Read-only in the UI — see docs/UPDATE_STRAVA.md.

@@ -908,7 +908,7 @@ class MySQLRepository(DatabaseRepository):
         self._ensure_connected()
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute(
-                "SELECT athlete_id, first_name, last_name, weight, "
+                "SELECT athlete_id, first_name, last_name, weight, ftp, "
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token "
@@ -920,19 +920,20 @@ class MySQLRepository(DatabaseRepository):
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = ""):
+                       refresh_token: str = "", ftp: Optional[float] = None):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO profile (athlete_id, first_name, last_name, weight,
+                INSERT INTO profile (athlete_id, first_name, last_name, weight, ftp,
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
                     weight     = VALUES(weight),
+                    ftp        = COALESCE(VALUES(ftp), ftp),
                     update_strava_cycling_indoor = VALUES(update_strava_cycling_indoor),
                     update_strava_cycling_outdoor = VALUES(update_strava_cycling_outdoor),
                     update_strava_running_indoor = VALUES(update_strava_running_indoor),
@@ -940,7 +941,7 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_walking = VALUES(update_strava_walking),
                     update_strava_swimming = VALUES(update_strava_swimming),
                     refresh_token = VALUES(refresh_token)
-            """, (athlete_id, first_name, last_name, weight,
+            """, (athlete_id, first_name, last_name, weight, ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or ""))
