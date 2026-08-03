@@ -16,7 +16,7 @@
         <div class="p-6 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2 mb-1">
                         <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
                         <span id="status-profile-first-name" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
                     </div>
@@ -25,7 +25,7 @@
                            value="" placeholder="Loading...">
                 </div>
                 <div>
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2 mb-1">
                         <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
                         <span id="status-profile-last-name" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
                     </div>
@@ -34,7 +34,7 @@
                            value="" placeholder="Loading...">
                 </div>
                 <div>
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2 mb-1">
                         <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Weight (kg)</label>
                         <span id="status-profile-weight" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
                     </div>
@@ -44,7 +44,7 @@
                            value="" placeholder="Loading...">
                 </div>
                 <div>
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2 mb-1">
                         <label for="profile-ftp" class="block text-sm font-medium text-gray-700 dark:text-gray-300">FTP (W)</label>
                         <span id="status-profile-ftp" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
                     </div>
@@ -118,27 +118,97 @@
         return (!Number.isNaN(v) && v > 0) ? v : null;
     }
 
+    function validateWeight(value) {
+        if (value === '' || value === '0') return true;
+        return /^\d+(\.\d+)?$/.test(value) && Number.parseFloat(value) >= 0;
+    }
+
+    function validateFtp(value) {
+        if (value === '') return true;
+        if (!/^\d+(\.\d+)?$/.test(value)) return false;
+        const num = Number.parseFloat(value);
+        return num > 0 && num <= 1000;
+    }
+
+    function buildGoalInput(typeId, fieldKey, currentVal) {
+        const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
+        const borderClass = fieldKey.includes('dist')
+            ? 'focus:ring-orange-400 focus:border-orange-400'
+            : 'focus:ring-indigo-400 focus:border-indigo-400';
+        return `<input type="text" inputmode="decimal"
+                    data-type-id="${typeId}" data-field="${fieldKey}"
+                    class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
+                           text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
+                           block p-1.5 text-center"
+                    value="${display}" placeholder=" ">`;
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const firstNameInput = document.getElementById('profile-first-name');
         const lastNameInput = document.getElementById('profile-last-name');
         const weightInput = document.getElementById('profile-weight');
         const ftpInput = document.getElementById('profile-ftp');
-        const profileStatus = document.getElementById('profile-status');
 
-        function showFieldStatus(fieldKey, msg, isError) {
-            const statusId = 'status-profile-' + fieldKey.replaceAll('_', '-');
-            const statusEl = document.getElementById(statusId);
-            if (!statusEl) return;
-            statusEl.textContent = msg;
-            statusEl.className = 'text-xs font-medium opacity-100 transition-opacity duration-300 ' +
-                                 (isError ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400');
-            if (!isError) {
-                setTimeout(() => {
-                    statusEl.classList.remove('opacity-100');
-                    statusEl.classList.add('opacity-0');
-                }, 3000);
+        function setInputErrorState(inputEl, isError) {
+            if (!inputEl) return;
+            const isDark = document.documentElement.classList.contains('dark');
+            if (isError) {
+                inputEl.classList.remove('bg-white', 'dark:bg-zinc-700', 'border-gray-300', 'dark:border-zinc-600');
+                inputEl.classList.add('bg-red-50', 'dark:bg-red-950/40', 'border-red-400', 'dark:border-red-600');
+                inputEl.style.backgroundColor = isDark ? 'rgba(127, 29, 29, 0.4)' : '#fef2f2';
+                inputEl.style.borderColor = isDark ? '#ef4444' : '#f87171';
+            } else {
+                inputEl.classList.remove('bg-red-50', 'dark:bg-red-950/40', 'border-red-400', 'dark:border-red-600');
+                inputEl.classList.add('bg-white', 'dark:bg-zinc-700', 'border-gray-300', 'dark:border-zinc-600');
+                inputEl.style.backgroundColor = '';
+                inputEl.style.borderColor = '';
             }
         }
+
+        const inputMap = {
+            'first_name': firstNameInput,
+            'last_name': lastNameInput,
+            'weight': weightInput,
+            'ftp': ftpInput,
+        };
+
+        function showFieldStatus(fieldKey, msg, isError) {
+            const normalizedKey = fieldKey.replaceAll('_', '-');
+            const statusId = 'status-profile-' + normalizedKey;
+            const statusEl = document.getElementById(statusId);
+            const inputEl = inputMap[fieldKey] || document.getElementById('profile-' + normalizedKey);
+
+            if (inputEl) {
+                setInputErrorState(inputEl, isError);
+            }
+
+            if (statusEl) {
+                statusEl.textContent = msg;
+                statusEl.className = 'text-xs font-medium opacity-100 transition-opacity duration-300 ' +
+                                     (isError ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400');
+                if (!isError) {
+                    setTimeout(() => {
+                        statusEl.classList.remove('opacity-100');
+                        statusEl.classList.add('opacity-0');
+                    }, 3000);
+                }
+            }
+        }
+
+        function clearStatusText(fieldKey) {
+            const statusEl = document.getElementById('status-profile-' + fieldKey.replaceAll('_', '-'));
+            if (statusEl && statusEl.classList.contains('text-red-500')) {
+                statusEl.textContent = '';
+                statusEl.classList.add('opacity-0');
+            }
+        }
+
+        [firstNameInput, lastNameInput, weightInput, ftpInput].forEach(inp => {
+            if (!inp) return;
+            inp.addEventListener('input', function() {
+                setInputErrorState(this, false);
+            });
+        });
 
         let savedProfile = {
             first_name: '', last_name: '', weight: '', ftp: ''
@@ -168,84 +238,104 @@
                 showFieldStatus('first_name', 'Failed to load profile.', true);
             });
 
-        function validateWeight(value) {
-            if (value === '' || value === '0') return true;
-            return /^\d+(\.\d+)?$/.test(value) && parseFloat(value) >= 0;
+        function prepareFieldUpdate(changedInput, targetInput, savedVal) {
+            if (changedInput && changedInput !== targetInput) return { changed: false };
+            const val = targetInput.value.trim();
+            if (val === savedVal) {
+                setInputErrorState(targetInput, false);
+                return { changed: false, clearError: true };
+            }
+            return { changed: true, value: val };
         }
 
-        function validateFtp(value) {
-            if (value === '') return true;
-            if (!/^\d+(\.\d+)?$/.test(value)) return false;
-            const num = parseFloat(value);
-            return num > 0 && num <= 1000;
+        function checkWeightField(changedInput, wInput, savedWeight) {
+            const res = prepareFieldUpdate(changedInput, wInput, savedWeight);
+            if (!res.changed) {
+                if (res.clearError) clearStatusText('weight');
+                return null;
+            }
+            if (res.value !== '' && !validateWeight(res.value)) {
+                showFieldStatus('weight', 'Must be positive.', true);
+                return 'INVALID';
+            }
+            return res.value === '' ? 0 : Number.parseFloat(res.value);
+        }
+
+        function checkFtpField(changedInput, fInput, savedFtp) {
+            if (!fInput) return null;
+            const res = prepareFieldUpdate(changedInput, fInput, savedFtp);
+            if (!res.changed) {
+                if (res.clearError) clearStatusText('ftp');
+                return null;
+            }
+            if (res.value !== '' && !validateFtp(res.value)) {
+                showFieldStatus('ftp', 'Must be 1–1000 W.', true);
+                return 'INVALID';
+            }
+            return res.value === '' ? null : Number.parseFloat(res.value);
+        }
+
+        function buildProfilePayload(changedInput) {
+            const payload = {};
+
+            const fnRes = prepareFieldUpdate(changedInput, firstNameInput, savedProfile.first_name);
+            if (fnRes.changed) payload.first_name = fnRes.value;
+
+            const lnRes = prepareFieldUpdate(changedInput, lastNameInput, savedProfile.last_name);
+            if (lnRes.changed) payload.last_name = lnRes.value;
+
+            const wVal = checkWeightField(changedInput, weightInput, savedProfile.weight);
+            if (wVal === 'INVALID') return null;
+            if (wVal !== null) payload.weight = wVal;
+
+            const fVal = checkFtpField(changedInput, ftpInput, savedProfile.ftp);
+            if (fVal === 'INVALID') return null;
+            if (fVal !== null) payload.ftp = fVal;
+
+            return payload;
+        }
+
+        function updateSavedProfileState(payload) {
+            const fields = ['first_name', 'last_name', 'weight', 'ftp'];
+            const inputs = { first_name: firstNameInput, last_name: lastNameInput, weight: weightInput, ftp: ftpInput };
+            fields.forEach(f => {
+                if (f in payload && inputs[f]) {
+                    savedProfile[f] = inputs[f].value.trim();
+                    showFieldStatus(f, 'Saved ✓', false);
+                }
+            });
         }
 
         function saveProfile(changedInput) {
-            const payload = {};
-
-            if (!changedInput || changedInput === firstNameInput) {
-                if (firstNameInput.value !== savedProfile.first_name) {
-                    payload.first_name = firstNameInput.value.trim();
-                }
-            }
-            if (!changedInput || changedInput === lastNameInput) {
-                if (lastNameInput.value !== savedProfile.last_name) {
-                    payload.last_name = lastNameInput.value.trim();
-                }
-            }
-            if (!changedInput || changedInput === weightInput) {
-                if (weightInput.value !== savedProfile.weight) {
-                    const w = weightInput.value.trim();
-                    if (w !== '' && !validateWeight(w)) {
-                        showFieldStatus('weight', 'Must be positive.', true);
-                        return;
-                    }
-                    payload.weight = w === '' ? 0 : parseFloat(w);
-                }
-            }
-            if (ftpInput && (!changedInput || changedInput === ftpInput)) {
-                if (ftpInput.value !== savedProfile.ftp) {
-                    const f = ftpInput.value.trim();
-                    if (f !== '' && !validateFtp(f)) {
-                        showFieldStatus('ftp', 'Must be 1–1000 W.', true);
-                        return;
-                    }
-                    payload.ftp = f === '' ? null : parseFloat(f);
-                }
-            }
-
-            if (Object.keys(payload).length === 0) return;
+            const payload = buildProfilePayload(changedInput);
+            if (!payload || Object.keys(payload).length === 0) return;
 
             fetch('/api/profile', {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             })
             .then(r => {
-                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
+                if (!r.ok) {
+                    return r.json().then(d => {
+                        const err = new Error(d.error || 'Save failed');
+                        err.field = d.field;
+                        throw err;
+                    });
+                }
                 return r.json();
             })
-            .then(updated => {
-                if ('first_name' in payload) {
-                    savedProfile.first_name = firstNameInput.value;
-                    showFieldStatus('first_name', 'Saved ✓', false);
-                }
-                if ('last_name' in payload) {
-                    savedProfile.last_name = lastNameInput.value;
-                    showFieldStatus('last_name', 'Saved ✓', false);
-                }
-                if ('weight' in payload) {
-                    savedProfile.weight = weightInput.value;
-                    showFieldStatus('weight', 'Saved ✓', false);
-                }
-                if ('ftp' in payload && ftpInput) {
-                    savedProfile.ftp = ftpInput.value;
-                    showFieldStatus('ftp', 'Saved ✓', false);
-                }
+            .then(() => {
+                updateSavedProfileState(payload);
             })
             .catch(err => {
-                const targetKey = changedInput ? changedInput.id.replace('profile-', '').replace('-', '_') : 'first_name';
-                showFieldStatus(targetKey, err.message || 'Save failed', true);
+                const errMsg = err.message || String(err);
+                let targetKey = err.field;
+                if (!targetKey && changedInput) {
+                    targetKey = changedInput.id.replace('profile-', '').replace('-', '_');
+                }
+                if (!targetKey) targetKey = 'first_name';
+                showFieldStatus(targetKey, errMsg, true);
             });
         }
 
@@ -282,19 +372,6 @@
             goalsStatus.textContent = msg;
             goalsStatus.className = 'mt-3 text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
             if (!isError) setTimeout(() => { goalsStatus.textContent = ''; }, 3000);
-        }
-
-        function buildGoalInput(typeId, fieldKey, currentVal) {
-            const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
-            const borderClass = fieldKey.includes('dist')
-                ? 'focus:ring-orange-400 focus:border-orange-400'
-                : 'focus:ring-indigo-400 focus:border-indigo-400';
-            return `<input type="text" inputmode="decimal"
-                        data-type-id="${typeId}" data-field="${fieldKey}"
-                        class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
-                               text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
-                               block p-1.5 text-center"
-                        value="${display}" placeholder=" ">`;
         }
 
         function renderGoalsTable(goalsData) {
