@@ -28,7 +28,8 @@ except Exception as exc:
     generate_csrf = None
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from kinetiqo.config import Config, any_update_strava_template_configured
+from kinetiqo.config import Config
+from kinetiqo.strava_description import any_update_strava_template_configured
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 from kinetiqo.logging_utils import configure_logging
