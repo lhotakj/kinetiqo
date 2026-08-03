@@ -94,8 +94,14 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - Provide `aria-label` or `aria-labelledby` for custom controls.
 
 ### 4.5 Supply Chain Security, CDN Guidelines & Self-Hosting
-- **Base UI Assets**: Critical assets (Inter and Italiana fonts, Tailwind CSS stylesheet) must be **self-hosted** (`static/fonts/`, `static/css/tailwind.css`) to guarantee offline availability and eliminate external supply chain dependencies.
-- **External CDN Rules**: When referencing external libraries (e.g., DataTables, Chart.js):
+- **Base UI & Vendor Assets**: Critical assets (Inter and Italiana fonts, Tailwind CSS stylesheet, HTMX, jQuery, Leaflet, Chart.js) must be **self-hosted** (`static/fonts/`, `static/css/tailwind.css`, `static/vendor/`) to guarantee offline availability and eliminate external supply chain dependencies.
+- **Vendor Helper Scripts**:
+  - `development/download-tailwind.sh`
+  - `development/download-htmx.sh`
+  - `development/download-jquery.sh`
+  - `development/download-leaflet.sh`
+  - `development/download-chart.sh` (Downloads `chart-*.umd.min.js`, `chartjs-adapter-date-fns-*.bundle.min.js`, `chartjs-adapter-moment-*.min.js`)
+- **External CDN Rules**: When referencing remaining external libraries:
   1. Pin exact versions in URLs (no `latest` or floating tags).
   2. Include **Subresource Integrity (SRI)** (`integrity="sha384-..."`) and `crossorigin="anonymous"`.
   3. Include `<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>` in `<head>`.
@@ -117,6 +123,14 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Internal links**: Must stay in the same browser tab (`target="_self"` or no target attribute).
 - **External links**: Open in a new tab using `target="_blank"` and include `rel="noopener noreferrer"`.
 - **State Persistence**: Grid controls, column visibility, and page settings saved to `localStorage` must include schema version keys to support smooth UI migrations.
+
+### 4.9 Web Input Validation & Error Highlighting Standards
+- **Server-Side Validation Mandatory**: All user input forms and textareas (e.g. `UPDATE_STRAVA_*` description templates, Athlete FTP, Weight) must perform strict server-side validation and return HTTP 422 Unprocessable Entity with `{ "error": "...", "field": "..." }` on violation.
+- **FTP Validation Bounds**: FTP must be numeric, strictly greater than 0, and not exceeding 1000 W (`0 < FTP <= 1000`).
+- **Template Validation**: Enforce brace count matching (`{{` vs `}}`) and validate placeholders against recognized tokens/rules.
+- **Message Location & Alignment**: Validation messages (**`Saved ✓`** or error strings) must be left-aligned directly adjacent to the input field's label using flex layout (`flex items-center gap-2 mb-1`).
+- **Theme-Aware Error Highlighting**: When validation fails, the input text box background must highlight in a light red tone (`bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-600` or direct inline style override) in both light and dark modes.
+- **Auto-Restoration**: When corrected to a valid value, the text box background restores to default (`bg-white dark:bg-zinc-700`), the green **`Saved ✓`** confirmation displays next to the label, and auto-fades after 3 seconds.
 
 ---
 
@@ -143,6 +157,10 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 ### Update Tailwind CSS
 1. Edit template Tailwind classes or `src/kinetiqo/web/static/css/tailwind.input.css`.
 2. Run `development/download-tailwind.sh` to compile `src/kinetiqo/web/static/css/tailwind.css`.
+
+### Download / Update Chart.js Vendor Assets
+1. Run `development/download-chart.sh` (or `bash development/download-chart.sh`).
+2. Verification: Confirm `src/kinetiqo/web/static/vendor/chartjs/` contains `chart-*.umd.min.js`, `chartjs-adapter-date-fns-*.bundle.min.js`, and `chartjs-adapter-moment-*.min.js`.
 
 ---
 

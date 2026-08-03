@@ -100,7 +100,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/vo2max` | VO₂max | VO₂max estimation from 5-min MAP power with trend and classification |
 | `/stats` | MEGA Stats | Veloviewer-style infographic of year/period stats with activity calendar heatmap, configurable stats column width, and date formatting via `DATE_FORMAT` |
 | `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), and aspect ratios (4:3, 16:9, 1:1). WYSIWYG preview, elevation chart, background photo support |
-| `/settings` | Settings | Athlete profile, activity goals, application configuration |
+| `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
+| `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |
 | `/license` | License | Open-source licenses, map tile attributions, and third-party credits |
 | `/login` | Login | Session-based authentication |
@@ -175,18 +176,20 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
 5.  **Refresh local frontend vendors (Optional):**
-    The `development` directory also contains helper scripts for local copies of frontend assets.
+    The `development` directory contains helper scripts for local copies of frontend assets.
     ```bash
     cd development
     ./download-htmx.sh
     ./download-leaflet.sh
     ./download-jquery.sh
+    ./download-chart.sh
     ./download-tailwind-cli.sh
     ./download-tailwind.sh
     ```
     `download-htmx.sh` writes HTMX 2.0.10 to `src/kinetiqo/web/static/vendor/htmx/`.
     `download-leaflet.sh` writes Leaflet 1.9.4 CSS and JS to `src/kinetiqo/web/static/vendor/leaflet/`.
     `download-jquery.sh` writes jQuery 3.7.1 to `src/kinetiqo/web/static/vendor/jquery/`.
+    `download-chart.sh` writes Chart.js 4.4.1, date-fns adapter 3.0.0, and moment adapter 1.0.1 to `src/kinetiqo/web/static/vendor/chartjs/`.
 
 6.  **Configure Environment Variables:**
     Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
