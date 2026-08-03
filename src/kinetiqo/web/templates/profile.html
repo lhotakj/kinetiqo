@@ -16,35 +16,45 @@
         <div class="p-6 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
-                    <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
+                        <span id="status-profile-first-name" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                    </div>
                     <input type="text" id="profile-first-name"
                            class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
                            value="" placeholder="Loading...">
                 </div>
                 <div>
-                    <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
+                        <span id="status-profile-last-name" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                    </div>
                     <input type="text" id="profile-last-name"
                            class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
                            value="" placeholder="Loading...">
                 </div>
                 <div>
-                    <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Weight (kg)</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Weight (kg)</label>
+                        <span id="status-profile-weight" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                    </div>
                     <input type="text" id="profile-weight" inputmode="decimal"
                            pattern="[0-9]*\.?[0-9]*"
                            class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
                            value="" placeholder="Loading...">
-                    <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
                 </div>
                 <div>
-                    <label for="profile-ftp" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">FTP (W)</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="profile-ftp" class="block text-sm font-medium text-gray-700 dark:text-gray-300">FTP (W)</label>
+                        <span id="status-profile-ftp" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+                    </div>
                     <input type="text" id="profile-ftp" inputmode="decimal"
                            pattern="[0-9]*\.?[0-9]*"
                            class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
                            value="" placeholder="Loading...">
-                    <div id="profile-ftp-error" class="mt-1 text-xs text-red-500 hidden"></div>
                 </div>
             </div>
-            <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
+            <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4 hidden"></div>
         </div>
     </div>
 
@@ -112,16 +122,22 @@
         const firstNameInput = document.getElementById('profile-first-name');
         const lastNameInput = document.getElementById('profile-last-name');
         const weightInput = document.getElementById('profile-weight');
-        const weightError = document.getElementById('profile-weight-error');
         const ftpInput = document.getElementById('profile-ftp');
-        const ftpError = document.getElementById('profile-ftp-error');
         const profileStatus = document.getElementById('profile-status');
 
-        function showStatus(msg, isError) {
-            if (!profileStatus) return;
-            profileStatus.textContent = msg;
-            profileStatus.className = 'text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
-            if (!isError) setTimeout(() => { profileStatus.textContent = ''; }, 3000);
+        function showFieldStatus(fieldKey, msg, isError) {
+            const statusId = 'status-profile-' + fieldKey.replaceAll('_', '-');
+            const statusEl = document.getElementById(statusId);
+            if (!statusEl) return;
+            statusEl.textContent = msg;
+            statusEl.className = 'text-xs font-medium opacity-100 transition-opacity duration-300 ' +
+                                 (isError ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400');
+            if (!isError) {
+                setTimeout(() => {
+                    statusEl.classList.remove('opacity-100');
+                    statusEl.classList.add('opacity-0');
+                }, 3000);
+            }
         }
 
         let savedProfile = {
@@ -148,7 +164,9 @@
                     ftp: ftpInput ? ftpInput.value : '',
                 };
             })
-            .catch(() => showStatus('Failed to load profile.', true));
+            .catch(() => {
+                showFieldStatus('first_name', 'Failed to load profile.', true);
+            });
 
         function validateWeight(value) {
             if (value === '' || value === '0') return true;
@@ -179,11 +197,9 @@
                 if (weightInput.value !== savedProfile.weight) {
                     const w = weightInput.value.trim();
                     if (w !== '' && !validateWeight(w)) {
-                        weightError.textContent = 'Must be a positive number.';
-                        weightError.classList.remove('hidden');
+                        showFieldStatus('weight', 'Must be positive.', true);
                         return;
                     }
-                    weightError.classList.add('hidden');
                     payload.weight = w === '' ? 0 : parseFloat(w);
                 }
             }
@@ -191,13 +207,9 @@
                 if (ftpInput.value !== savedProfile.ftp) {
                     const f = ftpInput.value.trim();
                     if (f !== '' && !validateFtp(f)) {
-                        if (ftpError) {
-                            ftpError.textContent = 'Must be between 1 and 1000 W.';
-                            ftpError.classList.remove('hidden');
-                        }
+                        showFieldStatus('ftp', 'Must be 1–1000 W.', true);
                         return;
                     }
-                    if (ftpError) ftpError.classList.add('hidden');
                     payload.ftp = f === '' ? null : parseFloat(f);
                 }
             }
@@ -214,13 +226,27 @@
                 return r.json();
             })
             .then(updated => {
-                if ('first_name' in payload) savedProfile.first_name = firstNameInput.value;
-                if ('last_name' in payload) savedProfile.last_name = lastNameInput.value;
-                if ('weight' in payload) savedProfile.weight = weightInput.value;
-                if ('ftp' in payload && ftpInput) savedProfile.ftp = ftpInput.value;
-                showStatus('Saved ✓', false);
+                if ('first_name' in payload) {
+                    savedProfile.first_name = firstNameInput.value;
+                    showFieldStatus('first_name', 'Saved ✓', false);
+                }
+                if ('last_name' in payload) {
+                    savedProfile.last_name = lastNameInput.value;
+                    showFieldStatus('last_name', 'Saved ✓', false);
+                }
+                if ('weight' in payload) {
+                    savedProfile.weight = weightInput.value;
+                    showFieldStatus('weight', 'Saved ✓', false);
+                }
+                if ('ftp' in payload && ftpInput) {
+                    savedProfile.ftp = ftpInput.value;
+                    showFieldStatus('ftp', 'Saved ✓', false);
+                }
             })
-            .catch(err => showStatus(err.message, true));
+            .catch(err => {
+                const targetKey = changedInput ? changedInput.id.replace('profile-', '').replace('-', '_') : 'first_name';
+                showFieldStatus(targetKey, err.message || 'Save failed', true);
+            });
         }
 
         firstNameInput.addEventListener('blur', () => saveProfile(firstNameInput));
