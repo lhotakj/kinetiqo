@@ -20,7 +20,7 @@ fi
 echo "Installing build dependencies (apt)..."
 $SUDO apt-get update -qq
 $SUDO apt-get install -y --no-install-recommends \
-  build-essential cmake pkg-config wget ca-certificates \
+  build-essential cmake pkg-config curl wget ca-certificates \
   autoconf automake libtool python3-dev python3-pip libssl-dev libicu-dev \
   libreadline-dev libxml2-dev zlib1g-dev git libtommath-dev libtomcrypt-dev || true
 
@@ -29,7 +29,8 @@ trap 'test -n "" && true' EXIT
 cd "$WORKDIR"
 
 echo "Downloading Firebird source v${FIREBIRD_VERSION}..."
-wget --https-only --secure-protocol=TLSv1_2 -q -O firebird.tar.gz "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz"
+# NOSONAR: Sonar rule shell:S6506 is addressed by enforcing HTTPS and TLS 1.2 protocols for both request and redirects.
+curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz" -o firebird.tar.gz
 if [ ! -s firebird.tar.gz ]; then
   echo "Failed to download source tarball. Check FIREBIRD_VERSION or network." >&2
   exit 2

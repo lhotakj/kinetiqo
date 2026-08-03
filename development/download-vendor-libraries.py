@@ -31,8 +31,17 @@ DEFAULT_CONFIG_PATH = _REPO_ROOT / "development" / "vendor-libraries.yaml"
 
 def load_yaml_config(config_path: Path) -> dict[str, Any]:
     """Load and parse the vendor libraries YAML configuration file."""
-    if not config_path.is_file():
-        print(f"ERROR: Configuration file not found: {config_path}", file=sys.stderr)
+    repo_root = _REPO_ROOT.resolve()
+    target_path = config_path.resolve()
+
+    try:
+        target_path.relative_to(repo_root)
+    except ValueError:
+        print(f"ERROR: Configuration file path outside repository: {config_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if not target_path.is_file():
+        print(f"ERROR: Configuration file not found: {target_path}", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -41,7 +50,7 @@ def load_yaml_config(config_path: Path) -> dict[str, Any]:
         print("ERROR: PyYAML is not installed. Run: pip install pyyaml", file=sys.stderr)
         sys.exit(1)
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(target_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -107,7 +116,16 @@ def download_file(
         with urllib.request.urlopen(req, timeout=30.0) as response:
             content = response.read()
 
-    with open(dest_path, "wb") as f:
+    repo_root = _REPO_ROOT.resolve()
+    target_path = dest_path.resolve()
+
+    try:
+        target_path.relative_to(repo_root)
+    except ValueError:
+        print_row(label, "FAILED", f"Destination path outside repository: {dest_path}")
+        return False, "FAILED"
+
+    with open(target_path, "wb") as f:
         f.write(content)
 
     size_kb = len(content) / 1024.0
@@ -167,10 +185,10 @@ def download_tailwind_cli(
 
     download_file(url, binary_path, label=label, force=force, verbose=verbose)
 
-    # Ensure executable permissions on POSIX systems
+    # Ensure owner and group executable permissions on POSIX systems (Sonar rule python:S2612)
     if not sys.platform.startswith("win32") and binary_path.is_file():
         st = os.stat(binary_path)
-        os.chmod(binary_path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        os.chmod(binary_path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP)
 
     return binary_path
 

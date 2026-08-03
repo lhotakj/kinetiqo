@@ -95,15 +95,15 @@ class TestDownloadVendorLibraries(unittest.TestCase):
         mock_httpx.get.return_value = mock_response
 
         with patch.dict("sys.modules", {"httpx": mock_httpx}):
-            dest_path = Path("/tmp/mock_vendor/test.js")
+            dest_path = _REPO_ROOT / "src" / "kinetiqo" / "web" / "static" / "vendor" / "mock_test.js"
             downloaded, _ = dvl.download_file("https://example.com/test.js", dest_path, force=False)
             self.assertTrue(downloaded)
-            mock_open_file.assert_called_once_with(dest_path, "wb")
+            mock_open_file.assert_called_once_with(dest_path.resolve(), "wb")
 
     @patch("pathlib.Path.is_file", return_value=True)
     def test_download_file_skip_existing(self, mock_is_file):
         """Test skipping download when file exists and force=False."""
-        dest_path = Path("/tmp/mock_vendor/test.js")
+        dest_path = _REPO_ROOT / "src" / "kinetiqo" / "web" / "static" / "vendor" / "mock_test.js"
         downloaded, status = dvl.download_file("https://example.com/test.js", dest_path, force=False)
         self.assertFalse(downloaded)
 

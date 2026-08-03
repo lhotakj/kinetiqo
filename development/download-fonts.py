@@ -102,12 +102,20 @@ def _download_set(
             skipped += 1
             continue
 
+        repo_root = _REPO_ROOT.resolve()
+        target_local_file = local_file.resolve()
+        try:
+            target_local_file.relative_to(repo_root)
+        except ValueError:
+            print_row(font_name, "FAILED", f"Path outside repository: {local_file}")
+            continue
+
         try:
             font_resp = httpx.get(b["src_url"], timeout=30, follow_redirects=True)
             font_resp.raise_for_status()
-            tmp = local_file.with_suffix(".tmp")
+            tmp = target_local_file.with_suffix(".tmp")
             tmp.write_bytes(font_resp.content)
-            tmp.replace(local_file)
+            tmp.replace(target_local_file)
             size_kb = len(font_resp.content) / 1024.0
             print_row(font_name, "DOWNLOADED", f"{rel_file} ({size_kb:.1f} KB)")
             downloaded += 1
@@ -115,7 +123,9 @@ def _download_set(
             print_row(font_name, "FAILED", f"{rel_file} ({err})")
 
     css_content = generate_local_css(blocks)
-    css_path.write_text(css_content, encoding="utf-8")
+    target_css_path = css_path.resolve()
+    target_css_path.relative_to(_REPO_ROOT.resolve())
+    target_css_path.write_text(css_content, encoding="utf-8")
     rel_css = css_path.relative_to(_REPO_ROOT)
     print_row(f"{label} CSS", "GENERATED", str(rel_css))
 
