@@ -2340,7 +2340,7 @@ def update_profile_api():
         response_payload.update(template_updates)
         return jsonify(response_payload)
     except Exception as e:
-        logger.error(f"Error updating profile: {e}")
+        logger.exception(f"Error updating profile: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2785,7 +2785,7 @@ def stop_sync():
         logger.info("Stop signal created.")
         return '', 204
     except Exception as e:
-        logger.error(f"Failed to create stop signal: {e}")
+        logger.exception(f"Failed to create stop signal: {e}")
         return jsonify({'error': str(e)}), 500
 
 
