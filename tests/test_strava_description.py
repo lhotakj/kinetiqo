@@ -513,5 +513,71 @@ class TestActivityBucketClassification(unittest.TestCase):
         self.assertTrue(any_update_strava_template_configured(config))
 
 
+class TestValidateTemplate(unittest.TestCase):
+    """Unit tests for validate_template()."""
+
+    def test_valid_empty_and_whitespace_templates(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("")
+        self.assertTrue(is_valid)
+        self.assertIsNone(err)
+
+        is_valid, err = validate_template("   \n  ")
+        self.assertTrue(is_valid)
+        self.assertIsNone(err)
+
+    def test_valid_templates(self):
+        from kinetiqo.strava_description import validate_template
+        valid_examples = [
+            "Just text with no placeholders",
+            "Year: {{current-year}} Month: {{current-month}}",
+            "Summary: {{workout-summary}}",
+            "Line break: {{new-line}}",
+            "Distance: {{cycling-distance-total-year}}",
+            "Goal: {{cycling-distance-goal-outdoor-month}}",
+            "Multiple: {{running-count-indoor-week}} and {{walking-distance-total-month}}",
+        ]
+        for t in valid_examples:
+            with self.subTest(template=t):
+                is_valid, err = validate_template(t)
+                self.assertTrue(is_valid, f"Expected '{t}' to be valid, got err: {err}")
+                self.assertIsNone(err)
+
+    def test_brace_mismatch_unclosed_open_brace(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("Total: {{cycling-distance-total-year")
+        self.assertFalse(is_valid)
+        self.assertIn("Mismatched braces", err)
+        self.assertIn("missing closing '}}'", err)
+
+    def test_brace_mismatch_unexpected_close_brace(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("Total: cycling-distance-total-year}}")
+        self.assertFalse(is_valid)
+        self.assertIn("Mismatched braces", err)
+        self.assertIn("unexpected closing '}}'", err)
+
+    def test_unknown_variable_single(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("Distance: {{unknown-var-name}}")
+        self.assertFalse(is_valid)
+        self.assertIn("Unknown variable: {{unknown-var-name}}", err)
+
+    def test_unknown_variables_multiple(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("Values: {{bad1}} and {{bad2}}")
+        self.assertFalse(is_valid)
+        self.assertIn("Unknown variables:", err)
+        self.assertIn("{{bad1}}", err)
+        self.assertIn("{{bad2}}", err)
+
+    def test_empty_braces_raises_unknown_variable(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("Empty: {{}}")
+        self.assertFalse(is_valid)
+        self.assertIn("Unknown variable", err)
+
+
 if __name__ == "__main__":
     unittest.main()
+

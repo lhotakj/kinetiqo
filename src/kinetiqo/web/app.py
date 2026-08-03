@@ -29,7 +29,7 @@ except Exception as exc:
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
-from kinetiqo.strava_description import any_update_strava_template_configured
+from kinetiqo.strava_description import any_update_strava_template_configured, validate_template
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 from kinetiqo.logging_utils import configure_logging
@@ -2318,6 +2318,11 @@ def update_profile_api():
         for field in UPDATE_STRAVA_FIELDS:
             if field in data:
                 val = str(data[field] or '')
+                if val.startswith("✨ Kinetiqo:"):
+                    val = val[11:].strip()
+                is_valid, err_msg = validate_template(val)
+                if not is_valid:
+                    return jsonify({'error': err_msg, 'field': field}), 422
                 template_updates[field] = val
                 setattr(config, field, val)
             else:

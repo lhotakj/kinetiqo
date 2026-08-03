@@ -213,7 +213,63 @@ _PERIOD_GOAL_PREFIX = {"year": "yearly", "month": "monthly", "week": "weekly"}
 
 _CELEBRATION_SUFFIX = " 🎉"
 
+SPECIAL_TOKENS = {"new-line", "current-year", "current-month", "workout-summary"}
+
 PLACEHOLDER_RE = re.compile(r"\{\{([a-zA-Z0-9\-]+)\}\}")
+
+
+def validate_template(template: str) -> Tuple[bool, Optional[str]]:
+    """Validate an UPDATE_STRAVA_* template string.
+
+    Validation rules:
+    1. The number of opening "{{" and closing "}}" braces must be identical.
+       If mismatched, returns an error stating which element/brace is mismatched.
+    2. All variables inside "{{ ... }}" must be known placeholders.
+       If unrecognized variables are present, returns an error specifying the unknown variable(s).
+
+    :param template: The raw template text to validate.
+    :return: A tuple ``(is_valid, error_message)``.
+    """
+    if not template or not template.strip():
+        return True, None
+
+    # Rule 1: Brace count matching
+    count_open = template.count("{{")
+    count_close = template.count("}}")
+    if count_open != count_close:
+        if count_open > count_close:
+            return False, f"Mismatched braces: found {count_open} '{{{{' but {count_close} '}}}}' (missing closing '}}}}')"
+        else:
+            return False, f"Mismatched braces: found {count_open} '{{{{' but {count_close} '}}}}' (unexpected closing '}}}}')"
+
+    # Rule 2: Check for known variables
+    raw_matches = re.findall(r"\{\{(.*?)\}\}", template)
+    unknown_vars = []
+
+    for token_raw in raw_matches:
+        token = token_raw.strip()
+        if not token:
+            if "{{}}" not in unknown_vars:
+                unknown_vars.append("{{}}")
+            continue
+
+        if token in SPECIAL_TOKENS:
+            continue
+
+        if _parse_placeholder(token) is not None:
+            continue
+
+        var_repr = f"{{{{{token}}}}}"
+        if var_repr not in unknown_vars:
+            unknown_vars.append(var_repr)
+
+    if unknown_vars:
+        if len(unknown_vars) == 1:
+            return False, f"Unknown variable: {unknown_vars[0]}"
+        return False, f"Unknown variables: {', '.join(unknown_vars)}"
+
+    return True, None
+
 
 
 # ---------------------------------------------------------------------------
