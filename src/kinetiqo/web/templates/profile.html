@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="">
+    <div class="mb-8">
+        <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Profile</h1>
+        <p class="text-gray-500 dark:text-gray-400">Manage athlete profile data and training targets.</p>
+    </div>
+
+    <!-- Athlete Profile -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Athlete</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava or updated manually. Changes are saved automatically on blur.</p>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                    <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                    <input type="text" id="profile-first-name"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                </div>
+                <div>
+                    <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                    <input type="text" id="profile-last-name"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                </div>
+                <div>
+                    <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Weight (kg)</label>
+                    <input type="text" id="profile-weight" inputmode="decimal"
+                           pattern="[0-9]*\.?[0-9]*"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                    <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
+                </div>
+                <div>
+                    <label for="profile-ftp" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">FTP (W)</label>
+                    <input type="text" id="profile-ftp" inputmode="decimal"
+                           pattern="[0-9]*\.?[0-9]*"
+                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                           value="" placeholder="Loading...">
+                    <div id="profile-ftp-error" class="mt-1 text-xs text-red-500 hidden"></div>
+                </div>
+            </div>
+            <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
+        </div>
+    </div>
+
+    <!-- Training Goals -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Training Goals</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Set distance (km) and elevation (m) targets per activity type. Changes are saved automatically on blur.
+            </p>
+        </div>
+        <div class="p-6">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 dark:border-zinc-700">
+                            <th scope="col" class="py-2 pr-4 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Activity</th>
+                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-orange-600 dark:text-orange-400 border-l border-gray-200 dark:border-zinc-600">
+                                📏 Distance Goal (km)
+                            </th>
+                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-indigo-600 dark:text-indigo-400 border-l border-gray-200 dark:border-zinc-600">
+                                ⛰️ Elevation Goal (m)
+                            </th>
+                        </tr>
+                        <tr class="border-b border-gray-200 dark:border-zinc-700 text-xs text-gray-500 dark:text-gray-400">
+                            <th scope="col" class="py-1 pr-4"></th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
+                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
+                        </tr>
+                    </thead>
+                    <tbody id="goals-tbody" class="divide-y divide-gray-100 dark:divide-zinc-700">
+                        <tr>
+                            <td colspan="7" class="py-3 text-center text-gray-400 dark:text-gray-500 text-xs">Loading…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="goals-status" class="mt-3 text-xs text-gray-400 dark:text-gray-500 h-4"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /** Format a positive number with thousands separators, ≤1 decimal place. */
+    function formatGoalNum(val) {
+        if (val == null || val <= 0) return '';
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+        }).format(val);
+    }
+
+    /** Parse a (potentially formatted) string → positive float or null. */
+    function parseGoalNum(str) {
+        if (!str || str.trim() === '') return null;
+        const v = Number.parseFloat(str.replaceAll(',', ''));
+        return (!Number.isNaN(v) && v > 0) ? v : null;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const firstNameInput = document.getElementById('profile-first-name');
+        const lastNameInput = document.getElementById('profile-last-name');
+        const weightInput = document.getElementById('profile-weight');
+        const weightError = document.getElementById('profile-weight-error');
+        const ftpInput = document.getElementById('profile-ftp');
+        const ftpError = document.getElementById('profile-ftp-error');
+        const profileStatus = document.getElementById('profile-status');
+
+        function showStatus(msg, isError) {
+            if (!profileStatus) return;
+            profileStatus.textContent = msg;
+            profileStatus.className = 'text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
+            if (!isError) setTimeout(() => { profileStatus.textContent = ''; }, 3000);
+        }
+
+        let savedProfile = {
+            first_name: '', last_name: '', weight: '', ftp: ''
+        };
+
+        // Load profile
+        fetch('/api/profile')
+            .then(r => r.json())
+            .then(data => {
+                firstNameInput.value = data.first_name || '';
+                lastNameInput.value = data.last_name || '';
+                weightInput.value = data.weight || '';
+                ftpInput.value = (data.ftp !== undefined && data.ftp !== null) ? data.ftp : '';
+                firstNameInput.placeholder = '';
+                lastNameInput.placeholder = '';
+                weightInput.placeholder = '';
+                if (ftpInput) ftpInput.placeholder = 'e.g. 250';
+
+                savedProfile = {
+                    first_name: firstNameInput.value,
+                    last_name: lastNameInput.value,
+                    weight: weightInput.value,
+                    ftp: ftpInput ? ftpInput.value : '',
+                };
+            })
+            .catch(() => showStatus('Failed to load profile.', true));
+
+        function validateWeight(value) {
+            if (value === '' || value === '0') return true;
+            return /^\d+(\.\d+)?$/.test(value) && parseFloat(value) >= 0;
+        }
+
+        function validateFtp(value) {
+            if (value === '') return true;
+            if (!/^\d+(\.\d+)?$/.test(value)) return false;
+            const num = parseFloat(value);
+            return num > 0 && num <= 1000;
+        }
+
+        function saveProfile(changedInput) {
+            const payload = {};
+
+            if (!changedInput || changedInput === firstNameInput) {
+                if (firstNameInput.value !== savedProfile.first_name) {
+                    payload.first_name = firstNameInput.value.trim();
+                }
+            }
+            if (!changedInput || changedInput === lastNameInput) {
+                if (lastNameInput.value !== savedProfile.last_name) {
+                    payload.last_name = lastNameInput.value.trim();
+                }
+            }
+            if (!changedInput || changedInput === weightInput) {
+                if (weightInput.value !== savedProfile.weight) {
+                    const w = weightInput.value.trim();
+                    if (w !== '' && !validateWeight(w)) {
+                        weightError.textContent = 'Must be a positive number.';
+                        weightError.classList.remove('hidden');
+                        return;
+                    }
+                    weightError.classList.add('hidden');
+                    payload.weight = w === '' ? 0 : parseFloat(w);
+                }
+            }
+            if (ftpInput && (!changedInput || changedInput === ftpInput)) {
+                if (ftpInput.value !== savedProfile.ftp) {
+                    const f = ftpInput.value.trim();
+                    if (f !== '' && !validateFtp(f)) {
+                        if (ftpError) {
+                            ftpError.textContent = 'Must be between 1 and 1000 W.';
+                            ftpError.classList.remove('hidden');
+                        }
+                        return;
+                    }
+                    if (ftpError) ftpError.classList.add('hidden');
+                    payload.ftp = f === '' ? null : parseFloat(f);
+                }
+            }
+
+            if (Object.keys(payload).length === 0) return;
+
+            fetch('/api/profile', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            })
+            .then(r => {
+                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
+                return r.json();
+            })
+            .then(updated => {
+                if ('first_name' in payload) savedProfile.first_name = firstNameInput.value;
+                if ('last_name' in payload) savedProfile.last_name = lastNameInput.value;
+                if ('weight' in payload) savedProfile.weight = weightInput.value;
+                if ('ftp' in payload && ftpInput) savedProfile.ftp = ftpInput.value;
+                showStatus('Saved ✓', false);
+            })
+            .catch(err => showStatus(err.message, true));
+        }
+
+        firstNameInput.addEventListener('blur', () => saveProfile(firstNameInput));
+        lastNameInput.addEventListener('blur', () => saveProfile(lastNameInput));
+        weightInput.addEventListener('blur', () => saveProfile(weightInput));
+        if (ftpInput) ftpInput.addEventListener('blur', () => saveProfile(ftpInput));
+
+        [weightInput, ftpInput].forEach(inp => {
+            if (!inp) return;
+            inp.addEventListener('keypress', function(e) {
+                const char = String.fromCodePoint(e.which || e.keyCode);
+                if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
+                if (!/[\d.]/.test(char)) { e.preventDefault(); }
+            });
+        });
+
+        // --- Training Goals ---
+        const goalsTbody = document.getElementById('goals-tbody');
+        const goalsStatus = document.getElementById('goals-status');
+        let savedGoals = {};
+
+        const GOAL_FIELDS = [
+            { key: 'weekly_distance_goal', group: 'dist' },
+            { key: 'monthly_distance_goal', group: 'dist' },
+            { key: 'yearly_distance_goal', group: 'dist' },
+            { key: 'weekly_elevation_goal', group: 'elev' },
+            { key: 'monthly_elevation_goal', group: 'elev' },
+            { key: 'yearly_elevation_goal', group: 'elev' },
+        ];
+
+        function showGoalStatus(msg, isError) {
+            if (!goalsStatus) return;
+            goalsStatus.textContent = msg;
+            goalsStatus.className = 'mt-3 text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
+            if (!isError) setTimeout(() => { goalsStatus.textContent = ''; }, 3000);
+        }
+
+        function buildGoalInput(typeId, fieldKey, currentVal) {
+            const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
+            const borderClass = fieldKey.includes('dist')
+                ? 'focus:ring-orange-400 focus:border-orange-400'
+                : 'focus:ring-indigo-400 focus:border-indigo-400';
+            return `<input type="text" inputmode="decimal"
+                        data-type-id="${typeId}" data-field="${fieldKey}"
+                        class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
+                               text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
+                               block p-1.5 text-center"
+                        value="${display}" placeholder=" ">`;
+        }
+
+        function renderGoalsTable(goalsData) {
+            savedGoals = goalsData;
+            let html = '';
+            const typeIds = Object.keys(goalsData).map(Number).sort((a, b) => a - b);
+            for (const typeId of typeIds) {
+                const g = goalsData[String(typeId)];
+                html += `<tr class="hover:bg-gray-50 dark:hover:bg-zinc-700/40">
+                    <td class="py-2 pr-4 font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                        <span class="mr-1">${g.icon}</span>${g.name}
+                    </td>`;
+                GOAL_FIELDS.forEach((f, i) => {
+                    const borderLeft = (i === 0 || i === 3) ? 'border-l border-gray-200 dark:border-zinc-600' : '';
+                    html += `<td class="py-2 px-2 ${borderLeft}">${buildGoalInput(typeId, f.key, g[f.key])}</td>`;
+                });
+                html += '</tr>';
+            }
+            goalsTbody.innerHTML = html || '<tr><td colspan="7" class="py-3 text-center text-gray-400 text-xs">No goal types defined.</td></tr>';
+
+            goalsTbody.querySelectorAll('.goal-input').forEach(inp => {
+                inp.addEventListener('focus', function () {
+                    const raw = parseGoalNum(this.value);
+                    this.value = (raw === null) ? '' : String(raw);
+                });
+                inp.addEventListener('blur', onGoalInputBlur);
+                inp.addEventListener('keypress', function (e) {
+                    const char = String.fromCodePoint(e.which || e.keyCode);
+                    if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
+                    if (!/[\d.]/.test(char)) e.preventDefault();
+                });
+            });
+        }
+
+        function onGoalInputBlur() {
+            const typeId = Number.parseInt(this.dataset.typeId);
+            const fieldKey = this.dataset.field;
+            const newVal = parseGoalNum(this.value);
+            const typeIdStr = String(typeId);
+
+            const prevVal = savedGoals[typeIdStr] ? savedGoals[typeIdStr][fieldKey] : null;
+            const prevNorm = (prevVal == null || prevVal <= 0) ? null : prevVal;
+            const newNorm = newVal;
+            if (prevNorm === newNorm) {
+                this.value = (newNorm === null) ? '' : formatGoalNum(newNorm);
+                return;
+            }
+
+            const row = savedGoals[typeIdStr] || {};
+            const payload = { activity_type_id: typeId };
+            GOAL_FIELDS.forEach(f => {
+                const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
+                const v = inp ? parseGoalNum(inp.value) : row[f.key];
+                payload[f.key] = v;
+            });
+
+            fetch('/api/goals', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify([payload])
+            })
+            .then(r => {
+                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
+                return r.json();
+            })
+            .then(() => {
+                if (!savedGoals[typeIdStr]) savedGoals[typeIdStr] = {};
+                GOAL_FIELDS.forEach(f => {
+                    savedGoals[typeIdStr][f.key] = payload[f.key] === null ? null : payload[f.key];
+                    const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
+                    if (inp && inp !== document.activeElement) {
+                        inp.value = payload[f.key] === null ? '' : formatGoalNum(payload[f.key]);
+                    }
+                });
+                showGoalStatus('Saved ✓', false);
+            })
+            .catch(err => showGoalStatus(err.message, true));
+        }
+
+        fetch('/api/goals')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                renderGoalsTable(data);
+            })
+            .catch(err => {
+                goalsTbody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-red-500 text-xs">${err.message}</td></tr>`;
+            });
+    });
+</script>
+{% endblock %}
