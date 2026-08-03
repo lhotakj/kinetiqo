@@ -28,7 +28,7 @@ except Exception as exc:
     generate_csrf = None
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from kinetiqo.config import Config
+from kinetiqo.config import Config, any_update_strava_template_configured
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 from kinetiqo.logging_utils import configure_logging
@@ -2641,11 +2641,12 @@ def _has_strava_description_templates() -> bool:
         repo = get_db()
         profile = repo.get_profile()
         if profile:
-            return any(bool((profile.get(field) or "").strip()) for field in UPDATE_STRAVA_FIELDS)
-        return any_update_strava_template_configured(config)
+            if any(bool((profile.get(field) or "").strip()) for field in UPDATE_STRAVA_FIELDS):
+                return True
     except Exception as e:
-        logger.warning(f"Could not check Strava description templates status: {e}")
-        return any_update_strava_template_configured(config)
+        logger.warning(f"Could not check Strava description templates in DB: {e}")
+
+    return any_update_strava_template_configured(config)
 
 
 @app.route('/fullsync', methods=['GET'])
