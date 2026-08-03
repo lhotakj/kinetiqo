@@ -2013,7 +2013,7 @@ def stats_data_api():
         return jsonify(stats)
 
     except Exception as e:
-        logger.error(f"Error computing mega stats: {e}")
+        logger.exception(f"Error computing mega stats: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2393,7 +2393,7 @@ def get_goals_api():
             return jsonify(_build_goals_response([]))
         return jsonify(_build_goals_response(get_db().get_goals(profile['athlete_id'])))
     except Exception as e:
-        logger.error(f"Error fetching goals: {e}")
+        logger.exception(f"Error fetching goals: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2839,7 +2839,7 @@ def poster_photo_get(activity_id):
                 cached.write_bytes(img_data)
                 return Response(img_data, mimetype=PNG_MIMETYPE)
     except Exception as e:
-        logger.error(f"Failed to fetch poster photo for {activity_id}: {e}")
+        logger.exception(f"Failed to fetch poster photo for {activity_id}: {e}")
     return '', 404
 
 
@@ -2867,7 +2867,7 @@ def poster_photo_reload(activity_id):
                 return Response(img_data, mimetype=PNG_MIMETYPE)
         return jsonify({'error': 'No photo found on Strava'}), 404
     except Exception as e:
-        logger.error(f"Failed to reload poster photo for {activity_id}: {e}")
+        logger.exception(f"Failed to reload poster photo for {activity_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2920,7 +2920,7 @@ def poster_photo_upload(activity_id):
         cached.write_bytes(png_data)
         return Response(png_data, mimetype=PNG_MIMETYPE)
     except Exception as e:
-        logger.error(f"Failed to process uploaded image for {activity_id}: {e}")
+        logger.exception(f"Failed to process uploaded image for {activity_id}: {e}")
         return jsonify({'error': f'Failed to process image: {e}'}), 500
 
 
@@ -2954,7 +2954,7 @@ def poster_elevation_data(activity_id):
         altitude_data = streams.get('altitude', {}).get('data', [])
         return jsonify({'distance': distance_data, 'altitude': altitude_data})
     except Exception as e:
-        logger.error(f"Failed to get elevation data for {activity_id}: {e}")
+        logger.exception(f"Failed to get elevation data for {activity_id}: {e}")
         return jsonify({'distance': [], 'altitude': []})
 
 
@@ -3216,10 +3216,7 @@ def poster_export(activity_id):
         )
 
     except Exception as e:
-        logger.error(
-            f"Playwright poster export failed for {activity_id}: {e}",
-            exc_info=True
-        )
+        logger.exception(f"Playwright poster export failed for {activity_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
