@@ -4,46 +4,16 @@
 <div class="">
     <div class="mb-8">
         <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Settings</h1>
-        <p class="text-gray-500 dark:text-gray-400">View system configuration and schedules.</p>
+        <p class="text-gray-500 dark:text-gray-400">Manage Strava activity description templates, view sync schedules, and database backend details.</p>
     </div>
 
-    <!-- Athlete Profile -->
+    <!-- Strava Description Templates -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Athlete</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava. Changes are saved automatically.</p>
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Strava Description Templates</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure auto-update templates per activity type. Changes are saved automatically on blur with server validation.</p>
         </div>
         <div class="p-6 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div>
-                    <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
-                    <input type="text" id="profile-first-name"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
-                </div>
-                <div>
-                    <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
-                    <input type="text" id="profile-last-name"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
-                </div>
-                <div>
-                    <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Weight (kg)</label>
-                    <input type="text" id="profile-weight" inputmode="decimal"
-                           pattern="[0-9]*\.?[0-9]*"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
-                    <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
-                </div>
-                <div>
-                    <label for="profile-ftp" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">FTP (W)</label>
-                    <input type="text" id="profile-ftp" inputmode="decimal"
-                           pattern="[0-9]*\.?[0-9]*"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
-                    <div id="profile-ftp-error" class="mt-1 text-xs text-red-500 hidden"></div>
-                </div>
-            </div>
             <div class="space-y-3">
                 <div class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     UPDATE_STRAVA_* templates
@@ -153,120 +123,86 @@
                         </div>
                     </div>
                 </div>
-                </div>
-                <!-- Supported Template Variables Info Box -->
-                <div class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-base">✨</span>
-                            <label for="strava-var-search" class="text-sm font-semibold text-gray-800 dark:text-gray-200">Supported Template Variables</label>
-                            <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Sorted A–Z</span>
-                        </div>
-                        <div class="flex items-center gap-2 w-full sm:w-auto">
-                            <input type="text" id="strava-var-search" placeholder="Search variables (e.g. distance, year)..."
-                                   class="w-full sm:w-64 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        </div>
-                    </div>
-
-                    <!-- Dropdown Selector & Quick Copy -->
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                        <label for="strava-var-dropdown" class="sr-only">Select a template variable</label>
-                        <select id="strava-var-dropdown"
-                                class="flex-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        </select>
-                        <button id="strava-var-copy-btn" type="button"
-                                class="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap">
-                            <span>Copy Variable</span>
-                        </button>
-                    </div>
-
-                    <!-- Active Variable Preview Card displaying variable & explanation in distinct colors -->
-                    <div id="strava-var-preview" class="p-3 rounded-lg border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-800/90 flex flex-wrap items-center justify-between gap-3 text-xs">
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Variable:</span>
-                                <span class="font-mono font-bold px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs" id="strava-var-preview-token"></span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Explanation:</span>
-                                <span class="text-sky-600 dark:text-sky-400 font-semibold text-xs" id="strava-var-preview-desc"></span>
-                            </div>
-                        </div>
-                        <span id="strava-var-copy-toast" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hidden">✓ Copied!</span>
-                    </div>
-                </div>
-
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    When set, the applicable template (chosen per activity by its own sport type) is rendered and
-                    merged into that synced activity's Strava description — appended at the end by default, or
-                    prepended if <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_PLACEMENT=begin</code>
-                    is set. See
-                    <a href="https://github.com/lhotakj/kinetiqo/blob/main/docs/UPDATE_STRAVA.md" target="_blank" class="underline hover:text-blue-500">docs/UPDATE_STRAVA.md</a>
-                    for the full placeholder reference.
-                </p>
             </div>
+
+            <!-- Supported Template Variables Info Box -->
+            <div class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">✨</span>
+                        <label for="strava-var-search" class="text-sm font-semibold text-gray-800 dark:text-gray-200">Supported Template Variables</label>
+                        <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Sorted A–Z</span>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <input type="text" id="strava-var-search" placeholder="Search variables (e.g. distance, year)..."
+                               class="w-full sm:w-64 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <label for="strava-var-dropdown" class="sr-only">Select a template variable</label>
+                    <select id="strava-var-dropdown"
+                            class="flex-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </select>
+                    <button id="strava-var-copy-btn" type="button"
+                            class="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap">
+                        <span>Copy Variable</span>
+                    </button>
+                </div>
+
+                <div id="strava-var-preview" class="p-3 rounded-lg border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-800/90 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Variable:</span>
+                            <span class="font-mono font-bold px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs" id="strava-var-preview-token"></span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Explanation:</span>
+                            <span class="text-sky-600 dark:text-sky-400 font-semibold text-xs" id="strava-var-preview-desc"></span>
+                        </div>
+                    </div>
+                    <span id="strava-var-copy-toast" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hidden">✓ Copied!</span>
+                </div>
+            </div>
+
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                When set, the applicable template (chosen per activity by its own sport type) is rendered and
+                merged into that synced activity's Strava description — appended at the end by default, or
+                prepended if <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_PLACEMENT=begin</code>
+                is set. See
+                <a href="https://github.com/lhotakj/kinetiqo/blob/main/docs/UPDATE_STRAVA.md" target="_blank" class="underline hover:text-blue-500">docs/UPDATE_STRAVA.md</a>
+                for the full placeholder reference.
+            </p>
+
             <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
-            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-warm-100 dark:border-zinc-700">
+        </div>
+    </div>
+
+    <!-- Authorization -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Authorization</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage Strava API OAuth connection and requested permission scopes.</p>
+        </div>
+        <div class="p-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
                 <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
                     Need to refresh your Strava authorization? Reconnecting requests <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>
-                    so the app can read your current weight, and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>
-                    so the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature above can update activity descriptions.
+                    so the app can read your profile details, and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>
+                    so the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature can update activity descriptions.
                 </p>
                 <a href="{{ url_for('strava_reconnect') }}"
-                   class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition">
+                   class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition whitespace-nowrap">
                     Reconnect with Strava
                 </a>
             </div>
         </div>
     </div>
 
-    <!-- Training Goals -->
-    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Training Goals</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Set distance (km) and elevation (m) targets per activity type. Changes are saved automatically on blur.
-            </p>
-        </div>
-        <div class="p-6">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse">
-                    <thead>
-                        <tr class="border-b border-gray-200 dark:border-zinc-700">
-                            <th scope="col" class="py-2 pr-4 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Activity</th>
-                            <!-- Distance group -->
-                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-orange-600 dark:text-orange-400 border-l border-gray-200 dark:border-zinc-600">
-                                📏 Distance Goal (km)
-                            </th>
-                            <!-- Elevation group -->
-                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-indigo-600 dark:text-indigo-400 border-l border-gray-200 dark:border-zinc-600">
-                                ⛰️ Elevation Goal (m)
-                            </th>
-                        </tr>
-                        <tr class="border-b border-gray-200 dark:border-zinc-700 text-xs text-gray-500 dark:text-gray-400">
-                            <th scope="col" class="py-1 pr-4"></th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
-                        </tr>
-                    </thead>
-                    <tbody id="goals-tbody" class="divide-y divide-gray-100 dark:divide-zinc-700">
-                        <tr>
-                            <td colspan="7" class="py-3 text-center text-gray-400 dark:text-gray-500 text-xs">Loading…</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div id="goals-status" class="mt-3 text-xs text-gray-400 dark:text-gray-500 h-4"></div>
-        </div>
-    </div>
-
+    <!-- Sync Schedules & Database Backend -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules</h2>
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules & Database</h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">These schedules are defined by environment variables.</p>
         </div>
 
@@ -295,7 +231,7 @@
 
             <!-- Database Info -->
             <div class="mt-8">
-                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h2>
+                <h3 class="text-md font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h3>
                 <div class="grid grid-cols-3 gap-4 mb-4">
                     <div>
                         <label for="db-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
@@ -328,32 +264,7 @@
 </div>
 
 <script>
-    // ── Number formatting helpers (outer scope for SonarCloud) ───────────────
-    /** Format a positive number with thousands separators, ≤1 decimal place. */
-    function formatGoalNum(val) {
-        if (val == null || val <= 0) return '';
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 1,
-        }).format(val);
-    }
-
-    /** Parse a (potentially formatted) string → positive float or null. */
-    function parseGoalNum(str) {
-        if (!str || str.trim() === '') return null;
-        const v = Number.parseFloat(str.replaceAll(',', ''));   // strip thousands separators
-        return (!Number.isNaN(v) && v > 0) ? v : null;
-    }
-
     document.addEventListener('DOMContentLoaded', function () {
-
-        // --- Athlete Profile ---
-        const firstNameInput = document.getElementById('profile-first-name');
-        const lastNameInput = document.getElementById('profile-last-name');
-        const weightInput = document.getElementById('profile-weight');
-        const weightError = document.getElementById('profile-weight-error');
-        const ftpInput = document.getElementById('profile-ftp');
-        const ftpError = document.getElementById('profile-ftp-error');
         const updateStravaInputs = {
             update_strava_cycling_indoor: document.getElementById('profile-update-strava-cycling-indoor'),
             update_strava_cycling_outdoor: document.getElementById('profile-update-strava-cycling-outdoor'),
@@ -365,68 +276,26 @@
         const profileStatus = document.getElementById('profile-status');
 
         function showStatus(msg, isError) {
+            if (!profileStatus) return;
             profileStatus.textContent = msg;
             profileStatus.className = 'text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
             if (!isError) setTimeout(() => { profileStatus.textContent = ''; }, 3000);
         }
 
-        // Snapshot of the last-saved values so we only PUT on actual changes
-        let savedProfile = {
-            first_name: '', last_name: '', weight: '', ftp: '',
-            update_strava_cycling_indoor: '', update_strava_cycling_outdoor: '',
-            update_strava_running_indoor: '', update_strava_running_outdoor: '',
-            update_strava_walking: '', update_strava_swimming: ''
-        };
+        let savedProfile = {};
 
-        // Load profile
+        // Load profile templates
         fetch('/api/profile')
             .then(r => r.json())
             .then(data => {
-                firstNameInput.value = data.first_name || '';
-                lastNameInput.value = data.last_name || '';
-                weightInput.value = data.weight || '';
-                ftpInput.value = (data.ftp !== undefined && data.ftp !== null) ? data.ftp : '';
                 for (const field in updateStravaInputs) {
                     if (updateStravaInputs[field]) {
                         updateStravaInputs[field].value = data[field] || '';
+                        savedProfile[field] = data[field] || '';
                     }
                 }
-                firstNameInput.placeholder = '';
-                lastNameInput.placeholder = '';
-                weightInput.placeholder = '';
-                if (ftpInput) ftpInput.placeholder = 'e.g. 250';
-
-                savedProfile = {
-                    first_name: firstNameInput.value,
-                    last_name: lastNameInput.value,
-                    weight: weightInput.value,
-                    ftp: ftpInput ? ftpInput.value : '',
-                };
-                for (const field in updateStravaInputs) {
-                    savedProfile[field] = updateStravaInputs[field] ? updateStravaInputs[field].value : '';
-                }
             })
-            .catch(() => showStatus('Failed to load profile.', true));
-
-        function validateNumber(value) {
-            if (value === '' || value === '0') return true;
-            return /^\d+(\.\d+)?$/.test(value) && parseFloat(value) >= 0;
-        }
-
-        function hasProfileChanged() {
-            if (firstNameInput.value !== savedProfile.first_name ||
-                lastNameInput.value !== savedProfile.last_name ||
-                weightInput.value !== savedProfile.weight ||
-                (ftpInput && ftpInput.value !== savedProfile.ftp)) {
-                return true;
-            }
-            for (const field in updateStravaInputs) {
-                if (updateStravaInputs[field] && updateStravaInputs[field].value !== savedProfile[field]) {
-                    return true;
-                }
-            }
-            return false;
-        }
+            .catch(() => showStatus('Failed to load templates.', true));
 
         function setInputErrorState(inputEl, isError) {
             if (!inputEl) return;
@@ -441,46 +310,8 @@
             }
         }
 
-        function saveProfile(changedInput) {
+        function saveTemplates(changedInput) {
             const payload = {};
-
-            if (!changedInput || changedInput === firstNameInput) {
-                if (firstNameInput.value !== savedProfile.first_name) {
-                    payload.first_name = firstNameInput.value.trim();
-                }
-            }
-            if (!changedInput || changedInput === lastNameInput) {
-                if (lastNameInput.value !== savedProfile.last_name) {
-                    payload.last_name = lastNameInput.value.trim();
-                }
-            }
-            if (!changedInput || changedInput === weightInput) {
-                if (weightInput.value !== savedProfile.weight) {
-                    const w = weightInput.value.trim();
-                    if (w !== '' && !validateNumber(w)) {
-                        weightError.textContent = 'Must be a positive number.';
-                        weightError.classList.remove('hidden');
-                        return;
-                    }
-                    weightError.classList.add('hidden');
-                    payload.weight = w === '' ? 0 : parseFloat(w);
-                }
-            }
-            if (ftpInput && (!changedInput || changedInput === ftpInput)) {
-                if (ftpInput.value !== savedProfile.ftp) {
-                    const f = ftpInput.value.trim();
-                    if (f !== '' && !validateNumber(f)) {
-                        if (ftpError) {
-                            ftpError.textContent = 'Must be a positive number.';
-                            ftpError.classList.remove('hidden');
-                        }
-                        return;
-                    }
-                    if (ftpError) ftpError.classList.add('hidden');
-                    payload.ftp = f === '' ? null : parseFloat(f);
-                }
-            }
-
             for (const field in updateStravaInputs) {
                 const inp = updateStravaInputs[field];
                 if (inp && (!changedInput || changedInput === inp)) {
@@ -492,7 +323,6 @@
                     if (val !== savedProfile[field]) {
                         payload[field] = val;
                     } else {
-                        // Reverted to saved value: clear error highlight & message
                         setInputErrorState(inp, false);
                         const statusEl = document.getElementById('status-' + inp.id);
                         if (statusEl && statusEl.classList.contains('text-red-600')) {
@@ -515,11 +345,6 @@
                 return r.json();
             })
             .then(updated => {
-                if ('first_name' in payload) savedProfile.first_name = firstNameInput.value;
-                if ('last_name' in payload) savedProfile.last_name = lastNameInput.value;
-                if ('weight' in payload) savedProfile.weight = weightInput.value;
-                if ('ftp' in payload && ftpInput) savedProfile.ftp = ftpInput.value;
-
                 for (const field in updateStravaInputs) {
                     if (field in payload && updateStravaInputs[field]) {
                         savedProfile[field] = updateStravaInputs[field].value;
@@ -562,180 +387,20 @@
             });
         }
 
-        firstNameInput.addEventListener('blur', () => saveProfile(firstNameInput));
-        lastNameInput.addEventListener('blur', () => saveProfile(lastNameInput));
-        weightInput.addEventListener('blur', () => saveProfile(weightInput));
-        if (ftpInput) ftpInput.addEventListener('blur', () => saveProfile(ftpInput));
         for (const field in updateStravaInputs) {
             if (updateStravaInputs[field]) {
                 const inp = updateStravaInputs[field];
-                inp.addEventListener('blur', () => saveProfile(inp));
+                inp.addEventListener('blur', () => saveTemplates(inp));
                 inp.addEventListener('input', () => setInputErrorState(inp, false));
             }
         }
 
-        // Client-side: block non-numeric keys in weight and ftp fields
-        [weightInput, ftpInput].forEach(inp => {
-            if (!inp) return;
-            inp.addEventListener('keypress', function(e) {
-                const char = String.fromCodePoint(e.which || e.keyCode);
-                if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
-                if (!/[\d.]/.test(char)) { e.preventDefault(); }
-            });
-        });
-
-        // ----------------------------------------------------------------
-        // Training Goals
-        // ----------------------------------------------------------------
-        const goalsTbody    = document.getElementById('goals-tbody');
-        const goalsStatus   = document.getElementById('goals-status');
-        let savedGoals      = {};   // { "1": { weekly_distance_goal: …, … }, … }
-
-        const GOAL_FIELDS = [
-            { key: 'weekly_distance_goal',   group: 'dist' },
-            { key: 'monthly_distance_goal',  group: 'dist' },
-            { key: 'yearly_distance_goal',   group: 'dist' },
-            { key: 'weekly_elevation_goal',  group: 'elev' },
-            { key: 'monthly_elevation_goal', group: 'elev' },
-            { key: 'yearly_elevation_goal',  group: 'elev' },
-        ];
-
-        function showGoalStatus(msg, isError) {
-            goalsStatus.textContent = msg;
-            goalsStatus.className = 'mt-3 text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
-            if (!isError) setTimeout(() => { goalsStatus.textContent = ''; }, 3000);
-        }
-
-        // ── Number formatting helpers — see outer scope ──────────────────
-
-    // ── buildGoalInput moved to outer scope for SonarQube compliance ──
-    function buildGoalInput(typeId, fieldKey, currentVal) {
-        // Display as formatted text; raw value restored on focus for editing.
-        const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
-        const borderClass = fieldKey.includes('dist')
-            ? 'focus:ring-orange-400 focus:border-orange-400'
-            : 'focus:ring-indigo-400 focus:border-indigo-400';
-        return `<input type="text" inputmode="decimal"
-                    data-type-id="${typeId}" data-field="${fieldKey}"
-                    class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
-                           text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
-                           block p-1.5 text-center"
-                    value="${display}" placeholder="">`;
-    }
-
-        function renderGoalsTable(goalsData) {
-            savedGoals = goalsData;
-            let html = '';
-            const typeIds = Object.keys(goalsData).map(Number).sort((a, b) => a - b);
-            for (const typeId of typeIds) {
-                const g = goalsData[String(typeId)];
-                html += `<tr class="hover:bg-gray-50 dark:hover:bg-zinc-700/40">
-                    <td class="py-2 pr-4 font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">
-                        <span class="mr-1">${g.icon}</span>${g.name}
-                    </td>`;
-                GOAL_FIELDS.forEach((f, i) => {
-                    const borderLeft = (i === 0 || i === 3) ? 'border-l border-gray-200 dark:border-zinc-600' : '';
-                    html += `<td class="py-2 px-2 ${borderLeft}">${buildGoalInput(typeId, f.key, g[f.key])}</td>`;
-                });
-                html += '</tr>';
-            }
-            goalsTbody.innerHTML = html || '<tr><td colspan="7" class="py-3 text-center text-gray-400 text-xs">No goal types defined.</td></tr>';
-
-            // Attach event handlers for each goal input
-            goalsTbody.querySelectorAll('.goal-input').forEach(inp => {
-                // Strip formatting on focus so the user edits a plain number
-                inp.addEventListener('focus', function () {
-                    const raw = parseGoalNum(this.value);
-                    // SonarQube: explicit null check for clarity
-                    if (raw === null) {
-                        this.value = '';
-                    } else {
-                        this.value = String(raw);
-                    }
-                });
-                inp.addEventListener('blur', onGoalInputBlur);
-                // Allow digits and one decimal dot; commas are stripped on parse
-                inp.addEventListener('keypress', function (e) {
-                    const char = String.fromCodePoint(e.which || e.keyCode);
-                    if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
-                    if (!/[\d.]/.test(char)) e.preventDefault();
-                });
-            });
-        }
-
-        function onGoalInputBlur() {
-            const typeId    = Number.parseInt(this.dataset.typeId);
-            const fieldKey  = this.dataset.field;
-            const newVal    = parseGoalNum(this.value);   // handles formatted or raw strings
-            const typeIdStr = String(typeId);
-
-            // Compare against saved value
-            const prevVal  = savedGoals[typeIdStr] ? savedGoals[typeIdStr][fieldKey] : null;
-            const prevNorm = (prevVal == null || prevVal <= 0) ? null : prevVal;
-            const newNorm  = newVal;   // parseGoalNum already returns null for ≤0
-            if (prevNorm === newNorm) {
-                // No change — just reformat the display in case user typed equivalent value
-                // SonarQube: explicit null check for clarity
-                if (newNorm === null) {
-                    this.value = '';
-                } else {
-                    this.value = formatGoalNum(newNorm);
-                }
-                return;
-            }
-
-            // Collect current row values for a full upsert
-            const row = savedGoals[typeIdStr] || {};
-            const payload = { activity_type_id: typeId };
-            GOAL_FIELDS.forEach(f => {
-                const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
-                const v = inp ? parseGoalNum(inp.value) : row[f.key];
-                payload[f.key] = v;   // parseGoalNum already returns null for empty/invalid
-            });
-
-            fetch('/api/goals', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify([payload])
-            })
-            .then(r => {
-                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
-                return r.json();
-            })
-            .then(() => {
-                // Update the full row snapshot and reformat all non-focused inputs in the row
-                if (!savedGoals[typeIdStr]) savedGoals[typeIdStr] = {};
-                GOAL_FIELDS.forEach(f => {
-                    savedGoals[typeIdStr][f.key] = payload[f.key] === null ? null : payload[f.key];
-                    const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
-                    if (inp && inp !== document.activeElement) {
-                        inp.value = payload[f.key] === null ? '' : formatGoalNum(payload[f.key]);
-                    }
-                });
-                showGoalStatus('Saved ✓', false);
-            })
-            .catch(err => showGoalStatus(err.message, true));
-        }
-
-        // Load goals
-        fetch('/api/goals')
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                renderGoalsTable(data);
-            })
-            .catch(err => {
-                goalsTbody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-red-500 text-xs">${err.message}</td></tr>`;
-            });
-
-        // --- Settings (existing) ---
+        // Settings API
         fetch('/api/settings')
             .then(response => response.json())
             .then(data => {
-                // Full Sync
                 const fullSyncInput = document.getElementById('full-sync-input');
                 const fullSyncDesc = document.getElementById('full-sync-desc');
-
                 if (data.full_sync.expression) {
                     fullSyncInput.value = data.full_sync.expression;
                     fullSyncDesc.textContent = data.full_sync.description;
@@ -744,10 +409,8 @@
                     fullSyncDesc.textContent = "No schedule configured";
                 }
 
-                // Fast Sync
                 const fastSyncInput = document.getElementById('fast-sync-input');
                 const fastSyncDesc = document.getElementById('fast-sync-desc');
-
                 if (data.fast_sync.expression) {
                     fastSyncInput.value = data.fast_sync.expression;
                     fastSyncDesc.textContent = data.fast_sync.description;
@@ -756,7 +419,6 @@
                     fastSyncDesc.textContent = "No schedule configured";
                 }
 
-                // Database Info
                 const dbType = document.getElementById('db-type');
                 const dbHost = document.getElementById('db-host');
                 const dbPort = document.getElementById('db-port');
@@ -767,7 +429,6 @@
                     dbHost.value = data.database.host || "Unknown";
                     dbPort.value = data.database.port || "Unknown";
 
-                    // Table counts
                     dbTableCounts.innerHTML = "";
                     const counts = data.database.table_counts || {};
                     const keys = Object.keys(counts);

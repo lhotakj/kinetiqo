@@ -138,6 +138,15 @@
             Logs
         </a>
 
+        <a href="{{ url_for('profile_page') }}"
+           class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/profile' %}active{% endif %}">
+            <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+            Profile
+        </a>
+
         <a href="{{ url_for('settings') }}"
            class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/settings' %}active{% endif %}">
             <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,13 +183,15 @@
     </nav>
 
     <div class="p-4 border-t border-warm-200">
-        <div class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-warm-200 cursor-pointer transition">
-            <div class="w-8 h-8 rounded-full bg-orange-200 text-orange-800 flex items-center justify-center font-bold text-xs border border-orange-300">
-                {{ current_user.id[0]|upper }}
-            </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-900 truncate">{{ current_user.id }}</p>
-            </div>
+        <div class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-warm-200 transition">
+            <a href="{{ url_for('profile_page') }}" class="flex items-center gap-3 flex-1 min-w-0" title="View Profile">
+                <div class="w-8 h-8 rounded-full bg-orange-200 text-orange-800 flex items-center justify-center font-bold text-xs border border-orange-300">
+                    {{ current_user.id[0]|upper }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ current_user.id }}</p>
+                </div>
+            </a>
             <form method="POST" action="{{ url_for('logout') }}" class="m-0">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="text-gray-400 hover:text-gray-600" title="Logout" aria-label="Logout">

@@ -2069,6 +2069,17 @@ def logs():
     return render_template('logs.html', title="Sync Logs", log_text=log_text)
 
 
+@app.route('/profile', methods=['GET'])
+@login_required
+def profile_page():
+    """Render the Profile page shell.
+
+    Returns:
+        Response: The rendered profile template.
+    """
+    return render_template('profile.html', title="Profile")
+
+
 @app.route('/settings', methods=['GET'])
 @login_required
 def settings():
@@ -2299,7 +2310,7 @@ def update_profile_api():
         else:
             weight = existing['weight']
 
-        # Validate ftp: must be a positive number or None/null to clear
+        # Validate ftp: must be a positive number up to 1000 W (or None/null to clear)
         if 'ftp' in data:
             if data['ftp'] is None or data['ftp'] == '':
                 ftp = None
@@ -2308,8 +2319,8 @@ def update_profile_api():
                     ftp = float(data['ftp'])
                 except (TypeError, ValueError):
                     return jsonify({'error': 'FTP must be a number.'}), 422
-                if ftp < 0:
-                    return jsonify({'error': 'FTP must be zero or positive.'}), 422
+                if ftp <= 0 or ftp > 1000:
+                    return jsonify({'error': 'FTP must be between 1 and 1000 W.'}), 422
         else:
             ftp = existing.get('ftp')
 
