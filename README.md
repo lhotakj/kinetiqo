@@ -183,6 +183,13 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     ./download-leaflet.sh
     ./download-jquery.sh
     ./download-chart.sh
+    ./download-moment.sh
+    ./download-datatables.sh
+    ./download-select2.sh
+    ./download-daterangepicker.sh
+    ./download-jszip.sh
+    ./download-sortable.sh
+    ./download-html2canvas.sh
     ./download-tailwind-cli.sh
     ./download-tailwind.sh
     ```
@@ -190,6 +197,13 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     `download-leaflet.sh` writes Leaflet 1.9.4 CSS and JS to `src/kinetiqo/web/static/vendor/leaflet/`.
     `download-jquery.sh` writes jQuery 3.7.1 to `src/kinetiqo/web/static/vendor/jquery/`.
     `download-chart.sh` writes Chart.js 4.4.1, date-fns adapter 3.0.0, and moment adapter 1.0.1 to `src/kinetiqo/web/static/vendor/chartjs/`.
+    `download-moment.sh` writes Moment.js 2.30.1 to `src/kinetiqo/web/static/vendor/moment/`.
+    `download-datatables.sh` writes DataTables 2.3.7, Buttons 3.2.6, and ColReorder 2.1.2 CSS & JS to `src/kinetiqo/web/static/vendor/datatables/`.
+    `download-select2.sh` writes Select2 4.1.0 CSS & JS to `src/kinetiqo/web/static/vendor/select2/`.
+    `download-daterangepicker.sh` writes Date Range Picker 3.1.0 CSS & JS to `src/kinetiqo/web/static/vendor/daterangepicker/`.
+    `download-jszip.sh` writes JSZip 3.10.1 to `src/kinetiqo/web/static/vendor/jszip/`.
+    `download-sortable.sh` writes SortableJS 1.15.0 to `src/kinetiqo/web/static/vendor/sortable/`.
+    `download-html2canvas.sh` writes html2canvas 1.4.1 to `src/kinetiqo/web/static/vendor/html2canvas/`.
 
 6.  **Configure Environment Variables:**
     Create a `.env` file in the project root to define your configuration. This file is excluded from version control.

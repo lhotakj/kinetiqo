@@ -4,18 +4,18 @@
 {% include "_npm_select2_css.html" %}
 {% include "_npm_daterangepicker_css.html" %}
 <!-- DataTables Buttons (3.x for DT 2.x) -->
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.6/css/buttons.dataTables.min.css" integrity="sha384-FVy8GBV36NhoIGEFkjxjod8jwtNK6kvWYlVLrG1cPJq+qCgg0GhCx1ejKH2FOY16" crossorigin="anonymous">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables/buttons-3.2.6.dataTables.min.css', v=app_version) }}">
 <!-- ColReorder extension for DataTables -->
-<link rel="stylesheet" href="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css" integrity="sha384-BoHAO1+Cm4MbQ5dK2SooWY0ynsjjABcetMCsLKARvR8c7bESMreZ/j551/hnnK9n" crossorigin="anonymous">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables/colReorder.dataTables-2.1.2.min.css', v=app_version) }}">
 
 {% include "_npm_select2.html" %}
 {% include "_npm_moment.html" %}
 {% include "_npm_daterangepicker.html" %}
-<script src="https://cdn.datatables.net/buttons/3.2.6/js/dataTables.buttons.min.js" integrity="sha384-ygalescEL33A7N+7n2CN65lzwzfLzQNVWNhHDnAUGLiE1RyuaOQ+kI2PhRsTzEGV" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
-<script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.html5.min.js" integrity="sha384-OFL+acRxgxRUKgJTHEQrtuwzydyoSE/AN10JClRMQjjfnXKoF89juO7p8HyCYxxO" crossorigin="anonymous"></script>
-<script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js" integrity="sha384-P0Gr2+sRNEqaGVmrmdXZZNDHYIsOJdvWwCvHLu3MkQHy7AtRBWn5nBGUpSZRyLMi" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" integrity="sha384-eeLEhtwdMwD3X9y+8P3Cn7Idl/M+w8H4uZqkgD/2eJVkWIN1yKzEj6XegJ9dL3q0" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/dataTables.buttons-3.2.6.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/jszip/jszip-3.10.1.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/buttons.html5-3.2.6.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/dataTables.colReorder-2.1.2.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/sortable/sortable-1.15.0.min.js', v=app_version) }}"></script>
 <!-- SheetJS for true XLSX export -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
 {% endblock %}

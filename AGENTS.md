@@ -94,13 +94,20 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - Provide `aria-label` or `aria-labelledby` for custom controls.
 
 ### 4.5 Supply Chain Security, CDN Guidelines & Self-Hosting
-- **Base UI & Vendor Assets**: Critical assets (Inter and Italiana fonts, Tailwind CSS stylesheet, HTMX, jQuery, Leaflet, Chart.js) must be **self-hosted** (`static/fonts/`, `static/css/tailwind.css`, `static/vendor/`) to guarantee offline availability and eliminate external supply chain dependencies.
+- **Base UI & Vendor Assets**: All frontend vendor assets (Tailwind CSS, HTMX, jQuery, Leaflet, Chart.js, Moment.js, DataTables, Select2, DateRangePicker, JSZip, SortableJS, html2canvas) must be **100% self-hosted** (`static/fonts/`, `static/css/tailwind.css`, `static/vendor/`) to guarantee offline availability and eliminate external supply chain dependencies.
 - **Vendor Helper Scripts**:
   - `development/download-tailwind.sh`
   - `development/download-htmx.sh`
   - `development/download-jquery.sh`
   - `development/download-leaflet.sh`
   - `development/download-chart.sh` (Downloads `chart-*.umd.min.js`, `chartjs-adapter-date-fns-*.bundle.min.js`, `chartjs-adapter-moment-*.min.js`)
+  - `development/download-moment.sh` (Downloads `moment-*.min.js`)
+  - `development/download-datatables.sh` (Downloads DataTables, Buttons, ColReorder CSS & JS)
+  - `development/download-select2.sh` (Downloads Select2 CSS & JS)
+  - `development/download-daterangepicker.sh` (Downloads Date Range Picker CSS & JS)
+  - `development/download-jszip.sh` (Downloads JSZip JS)
+  - `development/download-sortable.sh` (Downloads SortableJS JS)
+  - `development/download-html2canvas.sh` (Downloads html2canvas JS)
 - **External CDN Rules**: When referencing remaining external libraries:
   1. Pin exact versions in URLs (no `latest` or floating tags).
   2. Include **Subresource Integrity (SRI)** (`integrity="sha384-..."`) and `crossorigin="anonymous"`.

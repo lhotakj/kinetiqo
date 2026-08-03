@@ -31,13 +31,9 @@
             integrity="sha384-fw+eTlCc7suMV/1w/7fr2/PmwElUIt5i82bi+qTiLXvjRXZ2/FkiTNA/w0MhXnGI"
             crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.min.css"
-          integrity="sha384-iRTWPXZquQySBE9K96fgJXUIrnm8TpdtPAbiCNR+qjpP24qFZw9PHFA91JtWy7Ul"
-          crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables/dataTables-2.3.7.min.css', v=app_version) }}">
     <script src="{{ url_for('static', filename='vendor/jquery/jquery-3.7.1.min.js', v=app_version) }}"></script>
-    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.min.js"
-            integrity="sha384-Lo2E+ASlyar6zUXt6sPEy5uaDGtDGHXo300rohaW4/AV26JdoLBT9zhcOhV8BtL8"
-            crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='vendor/datatables/dataTables-2.3.7.min.js', v=app_version) }}"></script>
 
     {% include "_shared_head_assets.html" %}
 
