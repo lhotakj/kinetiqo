@@ -1,119 +1,74 @@
-# Tailwind CSS CLI for Ubuntu Bash
+# Tailwind CSS CLI Workflow & Setup
 
-This document shows how to download the Tailwind CSS CLI binary on Ubuntu
-with Bash, and how to use it to build the production stylesheet.
+This document describes how Tailwind CSS CLI binary acquisition and stylesheet compilation are managed in Kinetiqo using the unified vendor library downloader.
 
-## 1. Download script
+## 1. Unified Vendor Manager
 
-Save this as `development/download-tailwind-cli.sh`:
+Tailwind CLI binary downloading and CSS compilation are configured in `development/vendor-libraries.yaml` and executed by `development/download-vendor-libraries.py`.
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
+# Download Tailwind CLI binary and compile minified production CSS
+python development/download-vendor-libraries.py --library tailwind
 
-VERSION="${TAILWIND_VERSION:-latest}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUT_DIR="${TAILWIND_OUT_DIR:-$SCRIPT_DIR/bin}"
-
-case "$(uname -m)" in
-  x86_64|amd64) ASSET="tailwindcss-linux-x64" ;;
-  aarch64|arm64) ASSET="tailwindcss-linux-arm64" ;;
-  *)
-    echo "Unsupported architecture: $(uname -m)" >&2
-    exit 1
-    ;;
-esac
-
-if [[ "$VERSION" == "latest" ]]; then
-  URL="https://github.com/tailwindlabs/tailwindcss/releases/latest/download/${ASSET}"
-else
-  URL="https://github.com/tailwindlabs/tailwindcss/releases/download/${VERSION}/${ASSET}"
-fi
-
-mkdir -p "$OUT_DIR"
-
-echo "Downloading Tailwind CLI from:"
-echo "  $URL"
-
-curl -fsSL "$URL" -o "$OUT_DIR/tailwindcss"
-chmod +x "$OUT_DIR/tailwindcss"
-
-"$OUT_DIR/tailwindcss" --help >/dev/null
-echo "Tailwind CLI downloaded to $OUT_DIR/tailwindcss"
+# Download Tailwind CLI binary only (without compilation)
+python development/download-vendor-libraries.py --library tailwind-cli
 ```
 
-## 2. Install prerequisites
+## 2. Configuration Parameters (`development/vendor-libraries.yaml`)
 
-On Ubuntu, make sure you have:
+The `tailwind_cli` prerequisite block defines binary acquisition and compilation targets:
 
-- `curl`
-- `bash`
-- `chmod` and standard GNU coreutils
-
-## 3. Use the download script
-
-```bash
-chmod +x development/download-tailwind-cli.sh
-./development/download-tailwind-cli.sh
+```yaml
+prerequisites:
+  tailwind_cli:
+    id: "tailwind-cli"
+    name: "Tailwind CSS CLI"
+    version: "v4.3.3"
+    target_dir: "development/bin"
+    asset_template: "https://github.com/tailwindlabs/tailwindcss/releases/download/{version}/tailwindcss-{os}-{arch}{ext}"
+    latest_template: "https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-{os}-{arch}{ext}"
+    os_map:
+      linux: "linux"
+      darwin: "macos"
+      windows: "windows"
+    arch_map:
+      x86_64: "x64"
+      amd64: "x64"
+      aarch64: "arm64"
+      arm64: "arm64"
+    filename: "tailwindcss"
+    build_step:
+      input_css: "src/kinetiqo/web/static/css/tailwind.input.css"
+      output_css: "src/kinetiqo/web/static/css/tailwind.css"
+      vendor_css: "src/kinetiqo/web/static/vendor/tailwind/tailwind.css"
+      minify: true
 ```
 
-Optional pinned version:
+## 3. Direct Binary Commands & Watch Mode
+
+Once acquired by `download-vendor-libraries.py`, the CLI binary is located at `development/bin/tailwindcss` (or `development/bin/tailwindcss.exe` on Windows).
 
 ```bash
-TAILWIND_VERSION=v4.3.3 ./development/download-tailwind-cli.sh
-```
-
-Optional custom output directory:
-
-```bash
-TAILWIND_OUT_DIR="$HOME/tools/tailwind" ./development/download-tailwind-cli.sh
-```
-
-## 4. Check the binary
-
-```bash
-./development/bin/tailwindcss --help
+# Check version
 ./development/bin/tailwindcss --version
-```
 
-## 5. Build CSS
-
-Example production build:
-
-```bash
-./development/download-tailwind.sh
-```
-
-Example watch mode for development:
-
-```bash
+# Run watcher for development auto-recompilation
 ./development/bin/tailwindcss \
   -i ./src/kinetiqo/web/static/css/tailwind.input.css \
   -o ./src/kinetiqo/web/static/css/tailwind.css \
   --watch
 ```
 
-## 6. Input CSS
+## 4. Input & Output Structure
 
-Use the input file that matches the Tailwind major version you download.
+- **Input CSS**: `src/kinetiqo/web/static/css/tailwind.input.css` (Tailwind v4 entry `@import "tailwindcss";`)
+- **Output CSS**: `src/kinetiqo/web/static/css/tailwind.css` (minified production asset)
+- **Vendor Copy**: `src/kinetiqo/web/static/vendor/tailwind/tailwind.css`
+- **Play CDN JS**: `src/kinetiqo/web/static/vendor/tailwind/tailwind.js`
 
-- Tailwind v4 CLI: usually starts with `@import "tailwindcss";`
-- Tailwind v3 CLI: usually uses the classic `@tailwind base;`, `@tailwind components;`, and `@tailwind utilities;`
+## 5. Repository Files
 
-If you pin a Tailwind version, keep the input CSS in sync with that major
-version.
-
-## 7. Recommended workflow
-
-1. Download the CLI.
-2. Create or update your input CSS file.
-3. Run the CLI once with `--minify` for production.
-4. Run again with `--watch` while developing.
-5. Replace any runtime Tailwind CDN script with the generated CSS file.
-
-## 8. Current repo files
-
-- `development/download-tailwind-cli.sh` downloads the CLI.
-- `development/download-tailwind.sh` builds `src/kinetiqo/web/static/css/tailwind.css`.
-- `src/kinetiqo/web/static/css/tailwind.input.css` is the Tailwind v4 input file.
-- `src/kinetiqo/web/static/css/tailwind.css` is the generated production asset.
+- `development/download-vendor-libraries.py`: Downloads all vendor assets & compiles Tailwind CSS.
+- `development/vendor-libraries.yaml`: Defines Tailwind version, binary templates, and target paths.
+- `src/kinetiqo/web/static/css/tailwind.input.css`: Source Tailwind v4 input stylesheet.
+- `src/kinetiqo/web/static/css/tailwind.css`: Generated production stylesheet.

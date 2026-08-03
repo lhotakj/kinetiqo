@@ -176,34 +176,11 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
 5.  **Refresh local frontend vendors (Optional):**
-    The `development` directory contains helper scripts for local copies of frontend assets.
+    The `development` directory contains a unified Python script and YAML config to download all offline frontend vendor assets (HTMX, Leaflet, jQuery, Chart.js, Moment, DataTables, Select2, Date Range Picker, JSZip, SortableJS, html2canvas, Tailwind CSS CLI) into `src/kinetiqo/web/static/vendor/`.
     ```bash
-    cd development
-    ./download-htmx.sh
-    ./download-leaflet.sh
-    ./download-jquery.sh
-    ./download-chart.sh
-    ./download-moment.sh
-    ./download-datatables.sh
-    ./download-select2.sh
-    ./download-daterangepicker.sh
-    ./download-jszip.sh
-    ./download-sortable.sh
-    ./download-html2canvas.sh
-    ./download-tailwind-cli.sh
-    ./download-tailwind.sh
+    python development/download-vendor-libraries.py
     ```
-    `download-htmx.sh` writes HTMX 2.0.10 to `src/kinetiqo/web/static/vendor/htmx/`.
-    `download-leaflet.sh` writes Leaflet 1.9.4 CSS and JS to `src/kinetiqo/web/static/vendor/leaflet/`.
-    `download-jquery.sh` writes jQuery 3.7.1 to `src/kinetiqo/web/static/vendor/jquery/`.
-    `download-chart.sh` writes Chart.js 4.4.1, date-fns adapter 3.0.0, and moment adapter 1.0.1 to `src/kinetiqo/web/static/vendor/chartjs/`.
-    `download-moment.sh` writes Moment.js 2.30.1 to `src/kinetiqo/web/static/vendor/moment/`.
-    `download-datatables.sh` writes DataTables 2.3.7, Buttons 3.2.6, and ColReorder 2.1.2 CSS & JS to `src/kinetiqo/web/static/vendor/datatables/`.
-    `download-select2.sh` writes Select2 4.1.0 CSS & JS to `src/kinetiqo/web/static/vendor/select2/`.
-    `download-daterangepicker.sh` writes Date Range Picker 3.1.0 CSS & JS to `src/kinetiqo/web/static/vendor/daterangepicker/`.
-    `download-jszip.sh` writes JSZip 3.10.1 to `src/kinetiqo/web/static/vendor/jszip/`.
-    `download-sortable.sh` writes SortableJS 1.15.0 to `src/kinetiqo/web/static/vendor/sortable/`.
-    `download-html2canvas.sh` writes html2canvas 1.4.1 to `src/kinetiqo/web/static/vendor/html2canvas/`.
+    Pass `--force` to re-download existing files, or `--library <id>` (e.g. `--library htmx`, `--library chart`, `--library tailwind`) to update a specific asset suite. Parameters are defined in `development/vendor-libraries.yaml`.
 
 6.  **Configure Environment Variables:**
     Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
@@ -658,11 +635,9 @@ tests/
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
 development/
 ├── download-fonts.py            # Refresh self-hosted Google Fonts from CDN
-├── download-htmx.sh             # Download local HTMX vendor asset
-├── download-leaflet.sh          # Download local Leaflet vendor assets
-├── download-jquery.sh           # Download local jQuery vendor asset
-├── download-tailwind-cli.sh     # Download Tailwind CLI for Ubuntu Bash
-├── download-tailwind.sh         # Build local Tailwind CSS asset
+├── download-vendor-libraries.py # Unified manager for offline vendor assets & Tailwind CLI
+├── vendor-libraries.yaml        # Parameter definitions for vendor assets & Tailwind CLI
+├── install-firebird.sh          # Compile Firebird 5.x client library & Python driver
 └── setup-direnv.sh              # Configure direnv for automated env management
 build/
 ├── Dockerfile                   # Application image (Phase 2)
@@ -697,11 +672,11 @@ build/
 | Charting | Chart.js + chartjs-adapter-moment | 4.x / 1.0 |
 | Maps | Leaflet.js | 1.9.4 (local vendor files) |
 | Dropdowns | Select2 | 4.1 |
-| Date pickers | DateRangePicker + Moment.js | latest / 2.30 |
+| Date pickers | DateRangePicker + Moment.js | 3.1 / 2.30 |
 | Drag & drop | SortableJS | 1.15 |
-| Fonts | Self-hosted Inter + Italiana (woff2, baked into Docker image); all other fonts via Google Fonts CDN. Single catalog in `fonts.py`. Refresh with `python development/download-fonts.py`. | — |
-| Leaflet.js | 1.9.4 (local vendor files in `src/kinetiqo/web/static/vendor/leaflet/`). Refresh with `bash development/download-leaflet.sh`. | BSD 2-Clause |
-| jQuery | 3.7.1 (local vendor file in `src/kinetiqo/web/static/vendor/jquery/`). Refresh with `bash development/download-jquery.sh`. | — |
+| Fonts | Self-hosted Inter + Italiana (woff2, baked into Docker image). Catalog in `fonts.py`. Refresh with `python development/download-fonts.py`. | — |
+| Leaflet.js | 1.9.4 (local vendor files in `src/kinetiqo/web/static/vendor/leaflet/`). Refresh with `python development/download-vendor-libraries.py --library leaflet`. | BSD 2-Clause |
+| jQuery | 3.7.1 (local vendor file in `src/kinetiqo/web/static/vendor/jquery/`). Refresh with `python development/download-vendor-libraries.py --library jquery`. | — |
 | Container base | python:3.14-slim | — |
 | Scheduler | dcron | Linux package |
 | Testing | unittest + unittest.mock | stdlib |

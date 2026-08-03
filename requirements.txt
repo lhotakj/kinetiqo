@@ -14,3 +14,4 @@ playwright>=1.60.0
 psycopg2-binary==2.9.12
 python-dateutil>=2.8.2
 requests==2.34.2
+pyyaml==6.0.3

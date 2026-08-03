@@ -95,19 +95,10 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 
 ### 4.5 Supply Chain Security, CDN Guidelines & Self-Hosting
 - **Base UI & Vendor Assets**: All frontend vendor assets (Tailwind CSS, HTMX, jQuery, Leaflet, Chart.js, Moment.js, DataTables, Select2, DateRangePicker, JSZip, SortableJS, html2canvas) must be **100% self-hosted** (`static/fonts/`, `static/css/tailwind.css`, `static/vendor/`) to guarantee offline availability and eliminate external supply chain dependencies.
-- **Vendor Helper Scripts**:
-  - `development/download-tailwind.sh`
-  - `development/download-htmx.sh`
-  - `development/download-jquery.sh`
-  - `development/download-leaflet.sh`
-  - `development/download-chart.sh` (Downloads `chart-*.umd.min.js`, `chartjs-adapter-date-fns-*.bundle.min.js`, `chartjs-adapter-moment-*.min.js`)
-  - `development/download-moment.sh` (Downloads `moment-*.min.js`)
-  - `development/download-datatables.sh` (Downloads DataTables, Buttons, ColReorder CSS & JS)
-  - `development/download-select2.sh` (Downloads Select2 CSS & JS)
-  - `development/download-daterangepicker.sh` (Downloads Date Range Picker CSS & JS)
-  - `development/download-jszip.sh` (Downloads JSZip JS)
-  - `development/download-sortable.sh` (Downloads SortableJS JS)
-  - `development/download-html2canvas.sh` (Downloads html2canvas JS)
+- **Vendor Downloader & Config**:
+  - `development/download-vendor-libraries.py` (Unified python manager for all vendor assets)
+  - `development/vendor-libraries.yaml` (Central parameter definition for libraries & prerequisites)
+  - Usage: `python development/download-vendor-libraries.py` (or `--library <id>`, `--force`)
 - **External CDN Rules**: When referencing remaining external libraries:
   1. Pin exact versions in URLs (no `latest` or floating tags).
   2. Include **Subresource Integrity (SRI)** (`integrity="sha384-..."`) and `crossorigin="anonymous"`.
@@ -163,10 +154,10 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 
 ### Update Tailwind CSS
 1. Edit template Tailwind classes or `src/kinetiqo/web/static/css/tailwind.input.css`.
-2. Run `development/download-tailwind.sh` to compile `src/kinetiqo/web/static/css/tailwind.css`.
+2. Run `python development/download-vendor-libraries.py --library tailwind` to compile `src/kinetiqo/web/static/css/tailwind.css`.
 
 ### Download / Update Chart.js Vendor Assets
-1. Run `development/download-chart.sh` (or `bash development/download-chart.sh`).
+1. Run `python development/download-vendor-libraries.py --library chart`.
 2. Verification: Confirm `src/kinetiqo/web/static/vendor/chartjs/` contains `chart-*.umd.min.js`, `chartjs-adapter-date-fns-*.bundle.min.js`, and `chartjs-adapter-moment-*.min.js`.
 
 ---
