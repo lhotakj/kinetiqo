@@ -45,19 +45,22 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 |---|---|---|---|
 | Language | **Python** | 3.14 | Dockerized on `python:3.14-slim` |
 | Testing | **pytest** / **unittest** | stdlib + pytest | Mocked unit tests in `tests/` |
-| Web Framework | **Flask[async]** + **flask-login** | 3.1.3 / 0.6.3 | Jinja2 templates, Gunicorn 25.3 in production |
-| Session & CSRF | **Flask-WTF** / **flask-login** | 1.2.2 / 0.6.3 | CSRF tokens on all POST/PUT/DELETE routes |
+| Web Framework | **Flask[async]** + **flask-login** | 3.1.3 / 0.6.3 | Jinja2 templates, Gunicorn 26.0.0 in production |
+| Session & CSRF | **Flask-WTF** / **flask-login** | 1.3.0 / 0.6.3 | CSRF tokens on all POST/PUT/DELETE routes |
 | Response Compression | **flask-compress** | 1.24 | Automatic gzip/brotli compression |
-| Frontend CSS | **Tailwind CSS** | 3.4.17 (Local) | Compiled to `static/css/tailwind.css` via `download-tailwind.sh` |
-| Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.4 / 2.2.2 | SSE for sync progress bar |
+| Frontend CSS | **Tailwind CSS** | v4 CLI (4.3.3) | Compiled to `static/css/tailwind.css` via `download-tailwind.sh` |
+| Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.2 | SSE for sync progress bar |
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.4.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
-| CLI | **Click** | 8.3.2 | Entry point: `python src/kinetiqo.py <command>` |
-| Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.11 / 9.6.0 / 2.0.2 | Parameterized raw SQL — **no ORM** |
-| HTTP Client | **httpx** | 0.28.1 | Async client for Strava & GitHub APIs |
-| Data Processing | **pandas** | 3.0.2 | CTL/ATL/TSB calculation |
-| Versioning | **packaging** | 26.0 | SemVer comparisons |
+| CLI | **Click** | 8.4.1 | Entry point: `python src/kinetiqo.py <command>` |
+| Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.12 / 9.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
+| HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
+| Data Processing | **pandas** | 3.0.3 | CTL/ATL/TSB calculation |
+| Browser Automation | **Playwright** | ≥1.60.0 | PNG poster and infographic rendering |
+| Image Processing | **Pillow** | ≥12.2.0 | Poster and image processing |
+| Date Parsing | **python-dateutil** | ≥2.8.2 | Date parsing utilities |
+| Versioning | **packaging** | ≥26.2 | SemVer comparisons |
 
 ---
 

@@ -74,11 +74,26 @@ Kinetiqo is configured entirely via environment variables.
 | `FULL_SYNC` | Cron schedule for a full sync | `0 3 * * *` (Daily at 3 AM) |
 | `FAST_SYNC` | Cron schedule for a fast sync | `*/15 * * * *` (Every 15 mins) |
 
-### Web UI
+### Web UI & Security
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `WEB_LOGIN` | Username for the web interface | `admin` |
 | `WEB_PASSWORD` | Password for the web interface | `admin123` |
+| `SECRET_KEY` | Secret key used by Flask for signing session cookies and CSRF tokens | Auto-generated in dev; required in prod |
+| `KINETIQO_PRODUCTION` | Set to `1` in production to enforce persistent `SECRET_KEY` | _(empty)_ |
+
+### Logging
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOG_LEVEL` | Log level for CLI, web server, and Gunicorn (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `INFO` |
+
+### Map API Keys (Optional)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MAPY_API_KEY` | API key for Mapy.cz tile layers | _(empty)_ |
+| `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers | _(empty)_ |
+| `MAPTILER_API_KEY` | API key for MapTiler tile layers | _(empty)_ |
+| `GEOAPIFY_API_KEY` | API key for Geoapify tile layers | _(empty)_ |
 
 ## Links
 

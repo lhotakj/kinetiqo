@@ -663,17 +663,17 @@ build/
 | Language | Python | 3.14 |
 | Web framework | Flask[async] + flask-login | 3.1.3 / 0.6.3 |
 | Response compression | flask-compress | 1.24 |
-| CSRF protection | Flask-WTF | 1.1.1 |
+| CSRF protection | Flask-WTF | 1.3.0 |
 | WSGI server | Gunicorn | 26.0.0 |
-| CLI | Click | 8.3.3 |
+| CLI | Click | 8.4.1 |
 | HTTP client | httpx | 0.28.1 |
-| Data processing | pandas | 3.0.2 |
-| Versioning | packaging | ≥26.0 |
+| Data processing | pandas | 3.0.3 |
+| Versioning | packaging | ≥26.2 |
 | PostgreSQL driver | psycopg2-binary | 2.9.12 |
 | MySQL driver | mysql-connector-python | 9.7.0 |
 | Firebird driver | firebird-driver | 2.0.3 |
 | Image processing | Pillow | ≥12.2.0 |
-| Browser automation | Playwright | ≥1.59.0 |
+| Browser automation | Playwright | ≥1.60.0 |
 | Frontend CSS | Tailwind CSS | Local build (Tailwind CLI 4.3.3) |
 | Reactivity | HTMX + htmx-ext-sse | 2.0.10 (local vendor file) / 2.2.2 |
 | Data tables | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 |
