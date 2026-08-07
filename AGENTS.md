@@ -156,15 +156,27 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 1. Edit template Tailwind classes or `src/kinetiqo/web/static/css/tailwind.input.css`.
 2. Run `python development/download-vendor-libraries.py --library tailwind` to compile `src/kinetiqo/web/static/css/tailwind.css`.
 
-### Download / Update Chart.js Vendor Assets
-1. Run `python development/download-vendor-libraries.py --library chart`.
-2. Verification: Confirm `src/kinetiqo/web/static/vendor/chartjs/` contains `chart-*.umd.min.js`, `chartjs-adapter-date-fns-*.bundle.min.js`, and `chartjs-adapter-moment-*.min.js`.
+### Promo Website Synchronization (`promo-web/` at `kinetiqo.org`)
+> **MANDATORY INSTRUCTION FOR ALL AI ASSISTANTS**: The static promo website lives in `promo-web/` and powers the official public site `kinetiqo.org`. Whenever you add, modify, or deprecate any feature, environment variable, CLI command/flag, or web page in Kinetiqo, **you MUST update the static site in `promo-web/` in the same pull request / change turn**:
+> 1. **New / Modified Environment Variable**: Update [promo-web/installation.html](file:///h:/WORKING/kinetiqo/promo-web/installation.html) (the single, authoritative source of documentation for all environment variables). Add the variable name, required/optional status, default value, description, and annotated example to the `.env` template block.
+> 2. **New / Modified CLI Command or Flag**: Update [promo-web/cli.html](file:///h:/WORKING/kinetiqo/promo-web/cli.html) with full syntax, options, and usage examples.
+> 3. **New Feature or Page**: Update [promo-web/index.html](file:///h:/WORKING/kinetiqo/promo-web/index.html) and add/update feature subpages in `promo-web/features/`.
+> 4. **Navigation Consistency**: Ensure navigation links in header and footer remain synchronized across all files in `promo-web/`.
+> 5. **Mandatory SEO Standards & Sitemap Regeneration**: Any change or addition to HTML files in `promo-web/` MUST strictly comply with the following SEO principles and trigger immediate revalidation of [promo-web/sitemap.xml](file:///h:/WORKING/kinetiqo/promo-web/sitemap.xml):
+>    - **Title Tags**: Must be 45–60 characters long. Primary target keywords (`Kinetiqo`, `Strava Data Warehouse`, `PostgreSQL`, `Click CLI`, etc.) must appear early without truncation.
+>    - **Meta Descriptions**: Must be 140–160 characters long, summarizing the page content with a clear value proposition.
+>    - **Heading Structure**: Exactly ONE `<h1>` tag per page containing primary topic keywords. Heading hierarchy (`<h1>` → `<h2>` → `<h3>`) must be strictly sequential without missing levels.
+>    - **Zero Cumulative Layout Shift (CLS)**: Every `<img>` tag MUST specify explicit `width="..."` and `height="..."` attributes.
+>    - **Image Alt Tags**: Every `<img>` tag MUST have a descriptive, non-empty `alt="..."` attribute.
+>    - **Canonical & Social Open Graph Tags**: Every HTML page MUST contain `<link rel="canonical" href="https://kinetiqo.org/...">`, `<meta name="theme-color" content="#090A0E">`, Open Graph metadata (`og:type`, `og:site_name`, `og:locale`, `og:url`, `og:title`, `og:description`, `og:image`), and Twitter Card metadata (`twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`).
+>    - **Sitemap & Robots**: Every new or updated HTML file MUST be added to `promo-web/sitemap.xml` with `<lastmod>` date and priority, and verified against `promo-web/robots.txt`.
 
 ---
 
 ## 6. AI Agent Guidelines (Gemini & Copilot)
 
-- **Multi-File Edits**: Update multiple files in a single response turn when a change spans repositories, web endpoints, templates, or test files.
+- **Multi-File Edits**: Update multiple files in a single response turn when a change spans repositories, web endpoints, templates, test files, or promo docs (`promo-web/`).
+- **Promo Site Synchronization & SEO Compliance**: Always update `promo-web/` (`installation.html`, `cli.html`, `index.html`) whenever changing CLI commands, environment variables, or platform features, and **always enforce strict SEO standards & regenerate `sitemap.xml`** whenever modifying HTML files.
 - **Mocked Unit Tests**: Always default to creating fast, mocked unit tests in `tests/`. Do not require live external services or live databases.
 - **Complete, Production-Ready Code**: Provide complete code snippets without placeholders or missing imports.
 - **No ORMs**: Use parameterized raw SQL queries exclusively across PostgreSQL, MySQL, and Firebird.

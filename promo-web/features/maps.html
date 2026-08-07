@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Leaflet Canvas Maps & Tracks - Kinetiqo</title>
+  <meta name="description" content="Plot thousands of GPS coordinates with Leaflet Canvas rendering, 7 map tile providers (Mapy.cz, Thunderforest, MapTiler, CARTO), route styling, and OSM proxy.">
+  <meta name="keywords" content="Leaflet canvas map, Mapy.cz tiles, Thunderforest, MapTiler, OpenStreetMap proxy, route polyline color, map tone overlay">
+  <meta name="author" content="lhotakj">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#090A0E">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+
+  <link rel="canonical" href="https://kinetiqo.org/features/maps.html">
+  <link rel="icon" type="image/png" href="../static/img/kinetiqo_logo.png">
+  <link rel="apple-touch-icon" href="../static/img/kinetiqo_logo.png">
+
+  <!-- Resource Hints -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Kinetiqo">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://kinetiqo.org/features/maps.html">
+  <meta property="og:title" content="Interactive Leaflet Canvas Maps & Tracks - Kinetiqo">
+  <meta property="og:description" content="Plot thousands of GPS coordinates with Leaflet Canvas rendering, 7 map tile providers (Mapy.cz, Thunderforest, MapTiler, CARTO), route styling, and OSM proxy.">
+  <meta property="og:image" content="https://kinetiqo.org/static/img/map-dark.png">
+  <link rel="icon" type="image/png" href="../static/img/kinetiqo_logo.png">
+  <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+
+  <!-- Canvas Background -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Navigation Header -->
+  <header>
+    <div class="nav-container">
+      <a href="../index.html" class="brand">
+        <img src="../static/img/kinetiqo_logo.png" alt="Kinetiqo Logo">
+        <span class="brand-text">Kinetiqo</span>
+      </a>
+
+      <!-- Mobile Hamburger Button -->
+      <button class="mobile-toggle" aria-label="Toggle Menu">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <ul class="nav-links">
+        <li class="dropdown">
+          <a href="index.html" class="active">Features ▾</a>
+          <ul class="dropdown-menu">
+            <li><a href="activities.html">⚡ Activity Sync & Data Grid</a></li>
+            <li><a href="analytics.html">📊 Power, FTP & Fitness Analytics</a></li>
+            <li><a href="poster-stats.html">🎨 Activity Poster & MEGA Stats</a></li>
+            <li><a href="strava-sync.html">✍️ Strava Description Auto-Update</a></li>
+            <li><a href="maps.html">🗺️ Interactive Canvas Maps</a></li>
+            <li><a href="databases.html">💾 Multi-DB Zero-ORM Warehouse</a></li>
+          </ul>
+        </li>
+        <li><a href="../demos.html">Demos</a></li>
+        <li><a href="../installation.html">Installation</a></li>
+        <li><a href="../cli.html">CLI</a></li>
+        <li><a href="../source.html">Source Code</a></li>
+        <li><a href="../contact.html">Contact</a></li>
+      </ul>
+
+      <div class="nav-cta">
+        <a href="https://github.com/lhotakj/kinetiqo" target="_blank" rel="noopener" class="btn-github">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <section class="section" style="padding-top: 9rem;">
+    <div class="section-header">
+      <div class="section-tag">Feature Deep Dive</div>
+      <h1 class="section-title">Interactive Leaflet Canvas Maps & GPS Route Visualizer</h1>
+      <p class="section-desc">Plot thousands of GPS points simultaneously with HTML5 Canvas Leaflet rendering, 7 map tile providers, and custom route styling.</p>
+    </div>
+
+    <!-- Main Map Showcase -->
+    <div class="showcase-grid">
+      <div class="showcase-text">
+        <div class="showcase-tag">High-Performance Telemetry</div>
+        <h2 class="showcase-title">Canvas Vector Track Renderer</h2>
+        <p class="showcase-desc">Standard DOM map markers struggle with thousands of GPS coordinates. Kinetiqo uses Leaflet's HTML5 Canvas renderer to plot complex multi-stage GPS routes smoothly without browser lag.</p>
+        
+        <ul class="feature-list">
+          <li><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> <strong>Multi-Activity Route Overlays</strong>: Compare GPS tracks from multiple rides or runs on a single view.</li>
+          <li><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> <strong>Server-Side OSM Tile Proxy (`/tiles/osm/...`)</strong>: Built-in Python caching proxy that strictly complies with OpenStreetMap tile usage policies.</li>
+          <li><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> <strong>Auto Bounding Box Fit</strong>: Automatically calculates route bounds and centers the map view on load.</li>
+        </ul>
+      </div>
+      <div class="showcase-img-wrap">
+        <img src="../static/img/map-dark.png" alt="Interactive Leaflet Map Dark Mode">
+      </div>
+    </div>
+
+    <!-- Map Options & Controls Breakdown -->
+    <div style="background:var(--bg-card); border:1px solid var(--border-glass); border-radius:18px; padding:2rem; margin-top:4rem;">
+      <h2 style="font-family:var(--font-display); font-size:1.6rem; color:#FFF; margin-bottom:1rem;">Complete Map Customization Options</h2>
+      <p style="color:var(--text-muted); margin-bottom:1.5rem;">Kinetiqo gives you full aesthetic control over how your maps and route polylines are rendered:</p>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1.75rem;">
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:1.5rem;">
+          <h3 style="color:var(--orange-light); font-size:1.2rem; margin-bottom:0.5rem;">🌍 7 Tile Layer Providers</h3>
+          <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5;">
+            Switch seamlessly between <strong>OpenStreetMap</strong>, <strong>Mapy.cz</strong> (tourist/outdoor), <strong>Thunderforest</strong> (Outdoors, OpenCycleMap), <strong>MapTiler</strong> (Satellite, Vector), <strong>Geoapify</strong>, <strong>CARTO</strong> (Positron, Dark Matter), and <strong>Esri</strong> (World Imagery & Topo).
+          </p>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:1.5rem;">
+          <h3 style="color:#FFF; font-size:1.2rem; margin-bottom:0.5rem;">🎨 Route Color & Stroke Pickers</h3>
+          <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5;">
+            Customize polyline stroke colors (Strava Ember, Neon Cyan, Emerald, Electric Purple) and line weight thickness for maximum contrast over satellite or topographic terrain.
+          </p>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:1.5rem;">
+          <h3 style="color:#FFF; font-size:1.2rem; margin-bottom:0.5rem;">🎚️ Route Opacity Sliders</h3>
+          <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5;">
+            Adjust polyline transparency from 10% to 100%. Lowering opacity lets underlying road names and topo contour lines show through overlapping routes.
+          </p>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:12px; padding:1.5rem;">
+          <h3 style="color:#FFF; font-size:1.2rem; margin-bottom:0.5rem;">🌓 Tone Overlay & Filter Controls</h3>
+          <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5;">
+            Apply real-time map tone filters (Sepia, Dark Space, High Contrast, Hue Shift) to match your dashboard theme or create dramatic map screenshots.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div class="footer-brand">
+        <a href="../index.html" class="brand">
+          <img src="../static/img/kinetiqo_logo.png" alt="Kinetiqo Logo">
+          <span class="brand-text">Kinetiqo</span>
+        </a>
+        <p>A self-hosted Python & SQL fitness data platform for Strava.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Navigation</h4>
+        <ul>
+          <li><a href="../index.html">Home</a></li>
+          <li><a href="index.html">Features</a></li>
+          <li><a href="../demos.html">Video Demos</a></li>
+          <li><a href="../installation.html">Installation Guide</a></li>
+          <li><a href="../cli.html">CLI Reference</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Deep Dives</h4>
+        <ul>
+          <li><a href="activities.html">Activity Sync & Grid</a></li>
+          <li><a href="analytics.html">Power & FTP Analytics</a></li>
+          <li><a href="poster-stats.html">Poster & MEGA Stats</a></li>
+          <li><a href="strava-sync.html">Strava Auto-Update</a></li>
+          <li><a href="maps.html">Interactive Maps</a></li>
+          <li><a href="databases.html">Multi-DB Warehouse</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Project</h4>
+        <ul>
+          <li><a href="../source.html">Source Code</a></li>
+          <li><a href="../contact.html">Developer Contact</a></li>
+          <li><a href="https://github.com/lhotakj/kinetiqo" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>&copy; 2026 Kinetiqo. Open-source software released under the MIT License.</div>
+      <div>Designed for kinetiqo.org</div>
+    </div>
+  </footer>
+
+  <script src="../static/js/canvas-particles.js"></script>
+  <script src="../static/js/main.js"></script>
+</body>
+</html>
