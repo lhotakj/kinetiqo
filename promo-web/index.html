@@ -60,6 +60,10 @@
   </script>
 
   <link rel="stylesheet" href="static/css/style.css">
+  <!-- Resource Hints & Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Italiana&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 </head>
 <body>
 
@@ -70,12 +74,12 @@
   <header>
     <div class="nav-container">
       <a href="index.html" class="brand">
-        <img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36">
+        <picture><source srcset="static/img/kinetiqo_logo.webp" type="image/webp"><img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36" decoding="async"></picture>
         <span class="brand-text">Kinetiqo</span>
       </a>
 
       <!-- Mobile Hamburger Button -->
-      <button class="mobile-toggle" aria-label="Toggle Navigation Menu">
+      <button class="mobile-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
 
@@ -265,7 +269,7 @@ python src/kinetiqo.py web --database-type postgresql</code></pre>
         <a href="features/analytics.html" class="btn-secondary">Learn More About Analytics</a>
       </div>
       <div class="showcase-img-wrap">
-        <img src="static/img/fitness.png" alt="Kinetiqo Fitness and Freshness Banister Chart" width="750" height="420" loading="lazy">
+        <picture><source srcset="static/img/fitness.webp" type="image/webp"><img src="static/img/fitness.png" alt="Kinetiqo Fitness and Freshness Banister Chart" width="1920" height="946" loading="lazy" decoding="async"></picture>
       </div>
     </div>
 
@@ -282,7 +286,7 @@ python src/kinetiqo.py web --database-type postgresql</code></pre>
         <a href="features/poster-stats.html" class="btn-secondary">Explore Poster Generator</a>
       </div>
       <div class="showcase-img-wrap">
-        <img src="static/img/activities.png" alt="Kinetiqo Activity Poster and Data Grid Preview" width="750" height="420" loading="lazy">
+        <picture><source srcset="static/img/activities.webp" type="image/webp"><img src="static/img/activities.png" alt="Kinetiqo Activity Poster and Data Grid Preview" width="1920" height="959" loading="lazy" decoding="async"></picture>
       </div>
     </div>
   </section>
@@ -292,7 +296,7 @@ python src/kinetiqo.py web --database-type postgresql</code></pre>
     <div class="footer-container">
       <div class="footer-brand">
         <a href="index.html" class="brand">
-          <img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36">
+          <picture><source srcset="static/img/kinetiqo_logo.webp" type="image/webp"><img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36" decoding="async"></picture>
           <span class="brand-text">Kinetiqo</span>
         </a>
         <p>A self-hosted Python & SQL fitness data platform for Strava. Total privacy, high-performance telemetry, and stunning visualization.</p>
@@ -338,7 +342,7 @@ python src/kinetiqo.py web --database-type postgresql</code></pre>
     </div>
   </footer>
 
-  <script src="static/js/canvas-particles.js"></script>
-  <script src="static/js/main.js"></script>
+  <script src="static/js/canvas-particles.js" defer></script>
+  <script src="static/js/main.js" defer></script>
 </body>
 </html>

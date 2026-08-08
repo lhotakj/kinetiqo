@@ -29,6 +29,10 @@
   <meta property="og:description" content="Inject live stats into Strava descriptions using 150+ placeholders across 6 activity buckets with milestone triggers (🎉), placement control, and SSE sync.">
   <meta property="og:image" content="https://kinetiqo.org/static/img/activities.png">
   <link rel="stylesheet" href="../static/css/style.css">
+  <!-- Resource Hints & Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Italiana&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 </head>
 <body>
 
@@ -37,7 +41,7 @@
   <header>
     <div class="nav-container">
       <a href="../index.html" class="brand">
-        <img src="../static/img/kinetiqo_logo.png" alt="Kinetiqo Logo">
+        <picture><source srcset="../static/img/kinetiqo_logo.webp" type="image/webp"><img src="../static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36" decoding="async"></picture>
         <span class="brand-text">Kinetiqo</span>
       </a>
 
@@ -93,7 +97,7 @@
         </ul>
       </div>
       <div class="showcase-img-wrap">
-        <img src="../static/img/settings.png" alt="Strava Description Settings & Template Explorer">
+        <picture><source srcset="../static/img/settings.webp" type="image/webp"><img src="../static/img/settings.png" alt="Strava Description Settings & Template Explorer" width="1920" height="955" loading="lazy" decoding="async"></picture>
       </div>
     </div>
 
@@ -110,7 +114,7 @@
         </ul>
       </div>
       <div class="showcase-img-wrap">
-        <img src="../static/img/activities-types.png" alt="Activity Grid with Sync Controls">
+        <picture><source srcset="../static/img/activities-types.webp" type="image/webp"><img src="../static/img/activities-types.png" alt="Activity Grid with Sync Controls" width="1920" height="957" loading="lazy" decoding="async"></picture>
       </div>
     </div>
   </section>
@@ -119,7 +123,7 @@
     <div class="footer-container">
       <div class="footer-brand">
         <a href="../index.html" class="brand">
-          <img src="../static/img/kinetiqo_logo.png" alt="Kinetiqo Logo">
+          <picture><source srcset="../static/img/kinetiqo_logo.webp" type="image/webp"><img src="../static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36" decoding="async"></picture>
           <span class="brand-text">Kinetiqo</span>
         </a>
         <p>A self-hosted Python & SQL fitness data platform for Strava.</p>
@@ -158,7 +162,7 @@
     </div>
   </footer>
 
-  <script src="../static/js/canvas-particles.js"></script>
-  <script src="../static/js/main.js"></script>
+  <script src="../static/js/canvas-particles.js" defer></script>
+  <script src="../static/js/main.js" defer></script>
 </body>
 </html>

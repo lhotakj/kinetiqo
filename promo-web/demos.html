@@ -30,6 +30,10 @@
   <meta property="og:image" content="https://kinetiqo.org/static/img/activities.png">
   <link rel="icon" type="image/png" href="static/img/kinetiqo_logo.png">
   <link rel="stylesheet" href="static/css/style.css">
+  <!-- Resource Hints & Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Italiana&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 </head>
 <body>
 
@@ -38,7 +42,7 @@
   <header>
     <div class="nav-container">
       <a href="index.html" class="brand">
-        <img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo">
+        <picture><source srcset="static/img/kinetiqo_logo.webp" type="image/webp"><img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36" decoding="async"></picture>
         <span class="brand-text">Kinetiqo</span>
       </a>
 
@@ -84,7 +88,7 @@
     <div class="video-grid">
       <div class="video-card">
         <div class="video-thumb">
-          <img src="static/img/activities.png" alt="Activity Poster Builder Demo">
+          <picture><source srcset="static/img/activities.webp" type="image/webp"><img src="static/img/activities.png" alt="Activity Poster Builder Demo" width="1920" height="959" loading="lazy" decoding="async"></picture>
           <div class="play-btn">▶</div>
         </div>
         <div class="video-info">
@@ -95,7 +99,7 @@
 
       <div class="video-card">
         <div class="video-thumb">
-          <img src="static/img/settings.png" alt="Strava Auto-Description Demo">
+          <picture><source srcset="static/img/settings.webp" type="image/webp"><img src="static/img/settings.png" alt="Strava Auto-Description Demo" width="1920" height="955" loading="lazy" decoding="async"></picture>
           <div class="play-btn">▶</div>
         </div>
         <div class="video-info">
@@ -106,7 +110,7 @@
 
       <div class="video-card">
         <div class="video-thumb">
-          <img src="static/img/fitness.png" alt="Telemetry Analytics Demo">
+          <picture><source srcset="static/img/fitness.webp" type="image/webp"><img src="static/img/fitness.png" alt="Telemetry Analytics Demo" width="1920" height="946" loading="lazy" decoding="async"></picture>
           <div class="play-btn">▶</div>
         </div>
         <div class="video-info">
@@ -117,7 +121,7 @@
 
       <div class="video-card">
         <div class="video-thumb">
-          <img src="static/img/map-dark.png" alt="Interactive Leaflet Canvas Map Demo">
+          <picture><source srcset="static/img/map-dark.webp" type="image/webp"><img src="static/img/map-dark.png" alt="Interactive Leaflet Canvas Map Demo" width="1920" height="952" loading="lazy" decoding="async"></picture>
           <div class="play-btn">▶</div>
         </div>
         <div class="video-info">
@@ -132,7 +136,7 @@
     <div class="footer-container">
       <div class="footer-brand">
         <a href="index.html" class="brand">
-          <img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo">
+          <picture><source srcset="static/img/kinetiqo_logo.webp" type="image/webp"><img src="static/img/kinetiqo_logo.png" alt="Kinetiqo Logo" width="36" height="36" decoding="async"></picture>
           <span class="brand-text">Kinetiqo</span>
         </a>
         <p>A self-hosted Python & SQL fitness data platform for Strava.</p>
@@ -172,7 +176,7 @@
     </div>
   </footer>
 
-  <script src="static/js/canvas-particles.js"></script>
-  <script src="static/js/main.js"></script>
+  <script src="static/js/canvas-particles.js" defer></script>
+  <script src="static/js/main.js" defer></script>
 </body>
 </html>
