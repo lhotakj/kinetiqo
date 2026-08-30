@@ -60,7 +60,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 ## Features
 
 - 📊 **Advanced Visualization**: A streamlined web interface for daily monitoring and comprehensive Grafana dashboards for in-depth analysis.
-- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year/period statistics with activity calendar heatmaps, selectable by year, half-year, quarter, and activity type. The left stats column width, title font size, and activity group are persisted in the browser, and the displayed dates follow `DATE_FORMAT`. Export as PNG or PDF.
+- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year/period statistics with activity calendar heatmaps, selectable by year, half-year, quarter, and activity type. Includes metrics for Most Active Month by Distance and Most Active Month by Elevation. The left stats column width, title font size, visible stat toggles, and activity group are persisted in the browser, and the displayed dates follow `DATE_FORMAT`. Export as PNG or PDF.
 - 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation chart, and Playwright-powered PNG export at exact pixel dimensions.
 - ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s to 1h) with a spider chart, selectable per-activity or aggregated.
 - 🏋️ **FTP Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data, with a per-ride history chart.

@@ -246,11 +246,46 @@ class TestComputeMegaStats(unittest.TestCase):
 
     def test_most_active_month(self):
         stats = compute_mega_stats(ACTIVITIES_2025, 2025, 'year')
-        # Jan has 3 activities, Jun has 3 activities — both equal.
-        # max() picks last equal element, so the result depends on dict ordering.
-        # Both are valid — check that it's one of them.
-        self.assertIn(stats['most_active_month']['number'], [1, 6])
+        # Jun total distance = 27.0 km (3 activities), Mar = 25.0 km (1 activity), Jan = 20.0 km (3 activities).
+        # Jun has the highest total distance, so it must be selected.
+        self.assertEqual(stats['most_active_month']['number'], 6)
+        self.assertEqual(stats['most_active_month']['name'], 'Jun')
         self.assertEqual(stats['most_active_month']['count'], 3)
+        self.assertEqual(stats['most_active_month']['distance_km'], 27.0)
+
+    def test_most_active_month_prefers_distance_over_count(self):
+        """Month with greater total distance must win over a month with more activity entries."""
+        activities = [
+            # May: 3 short activities totaling 30 km
+            _make_activity(1, 'Short Ride 1', 'Ride', '2025-05-01T08:00:00Z', distance_m=10000),
+            _make_activity(2, 'Short Ride 2', 'Ride', '2025-05-02T08:00:00Z', distance_m=10000),
+            _make_activity(3, 'Short Ride 3', 'Ride', '2025-05-03T08:00:00Z', distance_m=10000),
+            # August: 1 long ride totaling 50 km
+            _make_activity(4, 'Epic Fondo',   'Ride', '2025-08-15T08:00:00Z', distance_m=50000),
+        ]
+        stats = compute_mega_stats(activities, 2025, 'year')
+        self.assertEqual(stats['most_active_month_distance']['number'], 8)
+        self.assertEqual(stats['most_active_month_distance']['name'], 'Aug')
+        self.assertEqual(stats['most_active_month_distance']['count'], 1)
+        self.assertEqual(stats['most_active_month_distance']['distance_km'], 50.0)
+
+    def test_most_active_month_by_elevation(self):
+        """Month with highest cumulative elevation gain must be selected for most_active_month_elevation."""
+        activities = [
+            # May: 5 flat rides (100m elev each = 500m elev total)
+            _make_activity(1, 'Flat 1', 'Ride', '2025-05-01T08:00:00Z', elevation=100),
+            _make_activity(2, 'Flat 2', 'Ride', '2025-05-02T08:00:00Z', elevation=100),
+            _make_activity(3, 'Flat 3', 'Ride', '2025-05-03T08:00:00Z', elevation=100),
+            _make_activity(4, 'Flat 4', 'Ride', '2025-05-04T08:00:00Z', elevation=100),
+            _make_activity(5, 'Flat 5', 'Ride', '2025-05-05T08:00:00Z', elevation=100),
+            # July: 1 big mountain pass ride (2500m elev)
+            _make_activity(6, 'Alpine Climb', 'Ride', '2025-07-20T08:00:00Z', elevation=2500),
+        ]
+        stats = compute_mega_stats(activities, 2025, 'year')
+        self.assertEqual(stats['most_active_month_elevation']['number'], 7)
+        self.assertEqual(stats['most_active_month_elevation']['name'], 'Jul')
+        self.assertEqual(stats['most_active_month_elevation']['count'], 1)
+        self.assertEqual(stats['most_active_month_elevation']['elevation_m'], 2500)
 
     def test_quarter_filter(self):
         """Q1 should only include Jan and Mar activities."""

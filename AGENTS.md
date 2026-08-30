@@ -15,7 +15,7 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Power Skills Analysis**: Spider chart of best average power over durations from 5s to 1h.
 - **FTP & VO₂max Estimation**: 95% 20-min power history and Townsend 5-min MAP power trend analysis.
 - **Activity Goals**: Weekly, monthly, and yearly distance/elevation goals per activity type.
-- **MEGA Stats Infographic**: Infographic with selectable period/activity groups, persisted font size, left-column width, and custom date formatting.
+- **MEGA Stats Infographic**: Infographic with selectable period/activity groups, persisted font size, left-column width, most active month by distance & elevation metrics, and custom date formatting.
 - **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), and configurable placement (`begin`/`end`).
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
@@ -129,6 +129,12 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Message Location & Alignment**: Validation messages (**`Saved ✓`** or error strings) must be left-aligned directly adjacent to the input field's label using flex layout (`flex items-center gap-2 mb-1`).
 - **Theme-Aware Error Highlighting**: When validation fails, the input text box background must highlight in a light red tone (`bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-600` or direct inline style override) in both light and dark modes.
 - **Auto-Restoration**: When corrected to a valid value, the text box background restores to default (`bg-white dark:bg-zinc-700`), the green **`Saved ✓`** confirmation displays next to the label, and auto-fades after 3 seconds.
+
+### 4.10 Mega Stats Infographic Design, Metric Separator & Control Panel Standards
+- **Metric Divider Standard**: Every metric block in `#ig-stats` MUST have a corresponding `<div class="ig-stat-divider" id="ig-<key>-divider"></div>` immediately following its container element in HTML templates. In JavaScript `STAT_DEFS`, every metric entry MUST declare its divider ID (`div: 'ig-<key>-divider'`). The `applyStatVisibility()` function dynamically hides the divider after whichever metric happens to be the last visible stat, guaranteeing tiny 1px separator lines (`border-top: 1px solid rgba(255,255,255,0.08)`) are displayed between all adjacent metrics without trailing divider lines at the bottom of the stats column.
+- **Control Panel Uniformity**: In Visible Stats control panels, every checkbox label MUST use uniform `text-xs` (12px) font size across light and dark modes. Checkbox `<input>` elements must enforce `flex-shrink-0 mr-1` and `style="margin-right: 3px;"` to maintain 3px spacing between the checkbox box and label text. Label text containers must enforce `min-w-0 overflow-hidden whitespace-nowrap <span class="truncate">` to prevent line wrapping or column overlap.
+- **Typography & Label Clipping**: Metric labels in `.ig-stat-label` MUST enforce `white-space: nowrap`, `overflow: hidden`, `text-overflow: ellipsis`, letter spacing `0.08em`, font weight 600, opacity 0.55, and scaled font size (`calc(var(--stats-font-size) * 0.38)`).
+- **State Persistence**: Grid controls, left column width (`statsColumnWidth`), title font size (`statsTitleFontSize`), selected activity group (`statsActivityGroup`), and visible stat toggles (`statsVisibleStats`) MUST be persisted to `localStorage` and restored on `DOMContentLoaded`.
 
 ---
 
