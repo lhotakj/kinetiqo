@@ -134,13 +134,14 @@ class MySQLRepository(DatabaseRepository):
             self._ensure_connected()
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
+                cur.fetchone()
 
-                cur.execute("USE information_schema;")
                 cur.execute(
-                    "SELECT table_name FROM tables WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')",
-                    (self.config.mysql_database,))
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')",
+                    (self.config.mysql_database,)
+                )
                 tables = {row[0] for row in cur.fetchall()}
-                cur.execute(f"USE {self.config.mysql_database};")
 
                 if 'activities' not in tables:
                     logger.error("Table 'activities' is missing.")
@@ -659,11 +660,15 @@ class MySQLRepository(DatabaseRepository):
                 ORDER BY activity_id, ts
             """, int_ids)
 
+            current_aid = None
+            current_coords = None
             for row in cur:
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append([float(row[1]), float(row[2])])
+                aid = row[0]
+                if aid != current_aid:
+                    current_aid = aid
+                    current_coords = []
+                    result[str(aid)] = current_coords
+                current_coords.append([row[1], row[2]])
 
         return result
 
@@ -1014,12 +1019,12 @@ class MySQLRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute("""
                 SELECT s.activity_id, s.lat, s.lng
-                FROM streams s
-                JOIN activities a ON s.activity_id = a.activity_id
+                FROM activities a
+                JOIN streams s ON s.activity_id = a.activity_id
                 WHERE a.start_date >= %s
                   AND s.lat IS NOT NULL
                   AND s.lng IS NOT NULL
-            """, (since_date,))
+            """, (since_date_iso,))
             gps_rows = cur.fetchall()
         gps_ms = (time.perf_counter() - t0) * 1000.0
         gps_count = len(gps_rows)

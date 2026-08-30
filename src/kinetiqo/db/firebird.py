@@ -900,11 +900,15 @@ class FirebirdRepository(DatabaseRepository):
                     ORDER BY "activity_id", "ts"
                 """, chunk)
 
+                current_aid = None
+                current_coords = None
                 for row in cur:
-                    aid = str(row[0])
-                    if aid not in result:
-                        result[aid] = []
-                    result[aid].append([float(row[1]), float(row[2])])
+                    aid = row[0]
+                    if aid != current_aid:
+                        current_aid = aid
+                        current_coords = []
+                        result[str(aid)] = current_coords
+                    current_coords.append([row[1], row[2]])
 
         return result
 
@@ -1283,8 +1287,8 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute("""
                 SELECT s."activity_id", s."lat", s."lng"
-                FROM "streams" s
-                JOIN "activities" a ON s."activity_id" = a."activity_id"
+                FROM "activities" a
+                JOIN "streams" s ON s."activity_id" = a."activity_id"
                 WHERE a."start_date" >= ?
                   AND s."lat" IS NOT NULL
                   AND s."lng" IS NOT NULL

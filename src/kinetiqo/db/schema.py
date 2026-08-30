@@ -102,6 +102,24 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE DESCENDING INDEX idx_activities_distance ON "activities" ("distance")'
             },
             {
+                "name": "idx_activities_name",
+                "def_mysql": "CREATE INDEX idx_activities_name ON activities (name(255))",
+                "def_pg": "CREATE INDEX idx_activities_name ON activities (name)",
+                "def_firebird": 'CREATE INDEX idx_activities_name ON "activities" ("name")'
+            },
+            {
+                "name": "idx_activities_start_elev",
+                "def_mysql": "CREATE INDEX idx_activities_start_elev ON activities (start_date DESC, total_elevation_gain DESC)",
+                "def_pg": "CREATE INDEX idx_activities_start_elev ON activities (start_date DESC, total_elevation_gain DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_elev ON "activities" ("start_date", "total_elevation_gain")'
+            },
+            {
+                "name": "idx_activities_start_dist",
+                "def_mysql": "CREATE INDEX idx_activities_start_dist ON activities (start_date DESC, distance DESC)",
+                "def_pg": "CREATE INDEX idx_activities_start_dist ON activities (start_date DESC, distance DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_dist ON "activities" ("start_date", "distance")'
+            },
+            {
                 "name": "idx_activities_elevation",
                 "def_mysql": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
                 "def_pg": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
@@ -197,6 +215,12 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_streams_ts ON streams (ts)",
                 "def_pg": "CREATE INDEX idx_streams_ts ON streams (ts)",
                 "def_firebird": 'CREATE INDEX idx_streams_ts ON "streams" ("ts")'
+            },
+            {
+                "name": "idx_streams_activity_lat_lng",
+                "def_mysql": "CREATE INDEX idx_streams_activity_lat_lng ON streams (activity_id, lat, lng)",
+                "def_pg": "CREATE INDEX idx_streams_activity_lat_lng ON streams (activity_id) INCLUDE (lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_lat_lng ON "streams" ("activity_id", "lat", "lng")'
             },
             {
                 "name": "idx_streams_activity_gps",
