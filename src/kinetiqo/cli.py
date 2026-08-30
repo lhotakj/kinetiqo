@@ -249,6 +249,53 @@ def flightcheck(ctx, database):
             repo.close()
 
 
+def _print_benchmark_results(db_type: str, scope_days: int, results: Dict[str, Any]):
+    """Format and print database performance benchmark metrics to stdout."""
+    db_name = (db_type or "default").upper()
+    gps_ms = results.get('gps_ms', 0.0)
+    gps_count = results.get('gps_count', 0)
+    order_name_ms = results.get('order_name_ms', 0.0)
+    order_name_count = results.get('order_name_count', 0)
+    order_dist_ms = results.get('order_dist_ms', 0.0)
+    order_dist_count = results.get('order_dist_count', 0)
+    order_elev_ms = results.get('order_elev_ms', 0.0)
+    order_elev_count = results.get('order_elev_count', 0)
+
+    print("\n" + "=" * 74)
+    print(f"  Kinetiqo Database Benchmark ({db_name})")
+    print(f"  Scope: Last {scope_days} days")
+    print("=" * 74)
+    print(f"  * Fetch all GPS data for last {scope_days} days all activity types: {gps_ms:.2f} ms ({gps_count:,} records)")
+    print(f"  * Order all activities by name:                             {order_name_ms:.2f} ms ({order_name_count:,} activities)")
+    print(f"  * Order all activities by distance:                         {order_dist_ms:.2f} ms ({order_dist_count:,} activities)")
+    print(f"  * Order all activities by elevation gained:                 {order_elev_ms:.2f} ms ({order_elev_count:,} activities)")
+    print("=" * 74 + "\n")
+
+
+@cli.command(help="Run performance benchmarks on database operations")
+@click.option('--scope', '-s', type=int, default=365, show_default=True, help='Lookback window in days for database benchmark operations.')
+@database_option
+@click.pass_context
+def benchmark(ctx, scope, database):
+    """Perform database optimization benchmarks for a given day lookback scope."""
+    config = ctx.obj.config
+    if database:
+        config.database_type = database.lower()
+    validate_config(config)
+    repo = None
+    try:
+        repo = create_repository(config)
+        logger.info(f"Running database benchmark (backend={config.database_type.upper()}, scope={scope} days)...")
+        results = repo.run_benchmarks(scope_days=scope)
+        _print_benchmark_results(config.database_type, scope, results)
+    except Exception as e:
+        logger.exception(f"An error occurred during benchmark execution: {e}")
+        sys.exit(1)
+    finally:
+        if repo:
+            repo.close()
+
+
 def _parse_bool_option(value) -> bool:
     if isinstance(value, bool):
         return value

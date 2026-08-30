@@ -436,3 +436,20 @@ class DatabaseRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
+        """Run performance benchmarks on database operations for the given lookback scope.
+
+        Returns a dictionary containing:
+          - gps_ms (float): Execution time in milliseconds to fetch GPS coordinate streams.
+          - gps_count (int): Number of GPS stream records returned.
+          - order_name_ms (float): Execution time in ms to order activities by name.
+          - order_name_count (int): Number of activities returned.
+          - order_dist_ms (float): Execution time in ms to order activities by distance.
+          - order_dist_count (int): Number of activities returned.
+          - order_elev_ms (float): Execution time in ms to order activities by elevation gained.
+          - order_elev_count (int): Number of activities returned.
+        """
+        pass
+
+

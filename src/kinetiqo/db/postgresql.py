@@ -284,9 +284,10 @@ class PostgresqlRepository(DatabaseRepository):
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
-            LIMIT %s OFFSET %s
         """
-        params.extend([limit, offset])
+        if limit is not None:
+            query += "\n            LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, tuple(params))
@@ -998,3 +999,54 @@ class PostgresqlRepository(DatabaseRepository):
                 self.conn.close()
         except Exception as e:
             logger.warning(f"Error closing PostgreSQL connection: {e}")
+
+    def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
+        """Run performance benchmarks on database queries for the given lookback scope."""
+        import time
+        self._ensure_connected()
+        since_date = datetime.now(timezone.utc) - timedelta(days=scope_days)
+        since_date_iso = since_date.isoformat()
+
+        # 1. Fetch all GPS data for last scope_days days all activity types
+        t0 = time.perf_counter()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT s.activity_id, s.lat, s.lng
+                FROM streams s
+                JOIN activities a ON s.activity_id = a.activity_id
+                WHERE a.start_date >= %s
+                  AND s.lat IS NOT NULL
+                  AND s.lng IS NOT NULL
+            """, (since_date,))
+            gps_rows = cur.fetchall()
+        gps_ms = (time.perf_counter() - t0) * 1000.0
+        gps_count = len(gps_rows)
+
+        # 2. Order all activities by name
+        t0 = time.perf_counter()
+        name_activities = self.get_activities_web(limit=None, sort_by='name', sort_order='ASC', start_date=since_date_iso)
+        order_name_ms = (time.perf_counter() - t0) * 1000.0
+        order_name_count = len(name_activities)
+
+        # 3. Order all activities by distance
+        t0 = time.perf_counter()
+        dist_activities = self.get_activities_web(limit=None, sort_by='distance', sort_order='DESC', start_date=since_date_iso)
+        order_dist_ms = (time.perf_counter() - t0) * 1000.0
+        order_dist_count = len(dist_activities)
+
+        # 4. Order all activities by elevation gained
+        t0 = time.perf_counter()
+        elev_activities = self.get_activities_web(limit=None, sort_by='total_elevation_gain', sort_order='DESC', start_date=since_date_iso)
+        order_elev_ms = (time.perf_counter() - t0) * 1000.0
+        order_elev_count = len(elev_activities)
+
+        return {
+            'gps_ms': gps_ms,
+            'gps_count': gps_count,
+            'order_name_ms': order_name_ms,
+            'order_name_count': order_name_count,
+            'order_dist_ms': order_dist_ms,
+            'order_dist_count': order_dist_count,
+            'order_elev_ms': order_elev_ms,
+            'order_elev_count': order_elev_count,
+        }
