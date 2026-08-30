@@ -77,7 +77,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - **Real-time progress**: SSE-powered progress bar during sync operations via HTMX.
 - 🐳 **Container-Native**: Dockerised on `python:3.14-slim` with a two-phase build (Firebird base + app).
 - ⏱️ **Automated Scheduling**: Built-in `dcron` scheduler for unattended sync.
-- 💾 **Database Compatibility**:
+- 💾 **Database Compatibility**: (See [docs/DATABASE.md](docs/DATABASE.md) for architecture, benchmarks, and production recommendations)
   - **PostgreSQL** (version 12+)
   - **MySQL 8 / MariaDB 10+**
   - **Firebird** (versions 3.0, 4.0, 5.0)
@@ -929,12 +929,59 @@ For API key setup instructions, see [Map Configuration](#8-map-configuration) ab
 
 ## Benchmark of databases
 
-Please see a few metrics of all three databases on common operations in Kinetiqo. The benchmarking was done on the same host with using dockerized databases with default setup.
+Kinetiqo includes a CLI benchmark utility (`python src/kinetiqo.py benchmark`) for technical database performance profiling and optimization.
 
-*Fetch data for rendering map of activities (141 activities and 656,429 GPS points)*
+```bash
+# Run benchmark on default configured database for last 365 days
+python src/kinetiqo.py benchmark
 
-| Database   | Load Time (s)   |
-|------------|-----------------|
-| PostgreSQL |   1.411         |
-| MySQL      |   3.685         |
-| Firebird   |   9.840         |
+# Run benchmark for last 90 days on PostgreSQL
+python src/kinetiqo.py benchmark --scope 90 --database postgresql
+```
+
+**Options:**
+- `-s`, `--scope INTEGER`: Lookback scope in days from today (default: `365`).
+- `-d`, `--database`, `--database-type [mysql|postgresql|firebird]`: Database backend to benchmark. Overrides `.env` config.
+
+**Metrics benchmark example on three database types using default default dockerized setup:**
+```text
+$ ./kinetiqo.py benchmark --database mysql && ./kinetiqo.py benchmark --database postgresql && ./kinetiqo.py benchmarkeb --database firebird
+2026-08-30 23:58:38 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
+
+==========================================================================
+  Kinetiqo Database Benchmark (MYSQL)
+  Scope: Last 365 days
+==========================================================================
+  * Fetch all GPS data for last 365 days all activity types: 3703.84 ms (1,761,230 records)
+  * Order all activities by name:                             10.66 ms (629 activities)
+  * Order all activities by distance:                         9.29 ms (629 activities)
+  * Order all activities by elevation gained:                 9.38 ms (629 activities)
+==========================================================================
+
+2026-08-30 23:58:42 [INFO] Running database benchmark (backend=POSTGRESQL, scope=365 days)...
+
+==========================================================================
+  Kinetiqo Database Benchmark (POSTGRESQL)
+  Scope: Last 365 days
+==========================================================================
+  * Fetch all GPS data for last 365 days all activity types: 1707.30 ms (1,761,230 records)
+  * Order all activities by name:                             16.08 ms (629 activities)
+  * Order all activities by distance:                         13.72 ms (629 activities)
+  * Order all activities by elevation gained:                 28.32 ms (629 activities)
+==========================================================================
+
+2026-08-30 23:58:44 [INFO] Running database benchmark (backend=FIREBIRD, scope=365 days)...
+
+==========================================================================
+  Kinetiqo Database Benchmark (FIREBIRD)
+  Scope: Last 365 days
+==========================================================================
+  * Fetch all GPS data for last 365 days all activity types: 23115.18 ms (1,761,230 records)
+  * Order all activities by name:                             36.59 ms (629 activities)
+  * Order all activities by distance:                         35.99 ms (629 activities)
+  * Order all activities by elevation gained:                 35.20 ms (629 activities)
+==========================================================================
+```
+
+> 📖 **Deep Dive**: For a full technical analysis of database engine differences, driver bottlenecks, and production tuning guidelines, refer to [docs/DATABASE.md](docs/DATABASE.md).
+

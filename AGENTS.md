@@ -53,7 +53,7 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.4.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
-| CLI | **Click** | 8.4.1 | Entry point: `python src/kinetiqo.py <command>` |
+| CLI | **Click** | 8.4.1 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
 | Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.12 / 9.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
 | Data Processing | **pandas** | 3.0.3 | CTL/ATL/TSB calculation |
@@ -72,6 +72,7 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
   - Firebird: Use `?` placeholders and quoted identifiers.
 - All database operations must go through `DatabaseRepository` (`db/repository.py`).
 - When modifying the repository interface, **always update all three concrete backends** (`postgresql.py`, `mysql.py`, `firebird.py`).
+- Detailed database layer architecture, driver benchmark analysis, and performance tuning recommendations are documented in [docs/DATABASE.md](docs/DATABASE.md).
 
 ### 4.2 Authentication, Session Security & CSRF Protection
 - Authentication is managed via `flask-login`.
