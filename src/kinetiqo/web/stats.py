@@ -261,30 +261,46 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
     active_dates: set = set()
     daily_distance: Dict[date, float] = defaultdict(float)
     monthly_distance: Dict[int, float] = defaultdict(float)
+    monthly_elevation: Dict[int, float] = defaultdict(float)
     monthly_count: Dict[int, int] = defaultdict(int)
 
     for a, d in filtered:
         active_dates.add(d)
         dist_km = float(a.get('distance') or 0) / 1000.0
+        elev_m = float(a.get('total_elevation_gain') or 0)
         daily_distance[d] += dist_km
         monthly_distance[d.month] += dist_km
+        monthly_elevation[d.month] += elev_m
         monthly_count[d.month] += 1
 
     active_days = len(active_dates)
     max_streak = compute_max_streak(active_dates)
 
-    # Most active month (by activity count)
-    if monthly_count:
-        best_month = max(monthly_count, key=lambda m: monthly_count[m])
-        most_active_month = {
-            'number': best_month,
-            'name': MONTH_SHORT_NAMES.get(best_month, ''),
-            'count': monthly_count[best_month],
-            'distance_km': round(monthly_distance[best_month], 1),
-            'color': MONTH_COLORS.get(best_month, '#888'),
+    # Most active month by distance (tie-breaker by activity count)
+    if monthly_distance:
+        best_month_dist = max(monthly_distance, key=lambda m: (monthly_distance[m], monthly_count[m]))
+        most_active_month_distance = {
+            'number': best_month_dist,
+            'name': MONTH_SHORT_NAMES.get(best_month_dist, ''),
+            'count': monthly_count[best_month_dist],
+            'distance_km': round(monthly_distance[best_month_dist], 1),
+            'color': MONTH_COLORS.get(best_month_dist, '#888'),
         }
     else:
-        most_active_month = _empty_month()
+        most_active_month_distance = _empty_month_distance()
+
+    # Most active month by elevation (tie-breaker by activity count)
+    if monthly_elevation:
+        best_month_elev = max(monthly_elevation, key=lambda m: (monthly_elevation[m], monthly_count[m]))
+        most_active_month_elevation = {
+            'number': best_month_elev,
+            'name': MONTH_SHORT_NAMES.get(best_month_elev, ''),
+            'count': monthly_count[best_month_elev],
+            'elevation_m': round(monthly_elevation[best_month_elev]),
+            'color': MONTH_COLORS.get(best_month_elev, '#888'),
+        }
+    else:
+        most_active_month_elevation = _empty_month_elevation()
 
     # ---- Calendar heatmap ----
     calendar = build_calendar(start_date, end_date, daily_distance)
@@ -306,7 +322,9 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
         'top_speed_kmh': top_speed_kmh,
         'avg_weighted_power_w': avg_weighted_power_w,
         'max_power_w': round(max_power_w),
-        'most_active_month': most_active_month,
+        'most_active_month': most_active_month_distance,
+        'most_active_month_distance': most_active_month_distance,
+        'most_active_month_elevation': most_active_month_elevation,
         'calendar': calendar,
         'month_colors': MONTH_COLORS,
     }
@@ -316,11 +334,17 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _empty_month() -> Dict[str, Any]:
+def _empty_month_distance() -> Dict[str, Any]:
     return {'number': 0, 'name': '', 'count': 0, 'distance_km': 0, 'color': '#888'}
 
 
+def _empty_month_elevation() -> Dict[str, Any]:
+    return {'number': 0, 'name': '', 'count': 0, 'elevation_m': 0, 'color': '#888'}
+
+
 def _empty_stats(year: int, period: str, start_date: date, end_date: date) -> Dict[str, Any]:
+    empty_dist = _empty_month_distance()
+    empty_elev = _empty_month_elevation()
     return {
         'year': year,
         'period': period,
@@ -338,7 +362,9 @@ def _empty_stats(year: int, period: str, start_date: date, end_date: date) -> Di
         'top_speed_kmh': 0,
         'avg_weighted_power_w': 0,
         'max_power_w': 0,
-        'most_active_month': _empty_month(),
+        'most_active_month': empty_dist,
+        'most_active_month_distance': empty_dist,
+        'most_active_month_elevation': empty_elev,
         'calendar': build_calendar(start_date, end_date, {}),
         'month_colors': MONTH_COLORS,
     }
