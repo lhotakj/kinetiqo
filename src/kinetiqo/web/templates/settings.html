@@ -199,6 +199,50 @@
         </div>
     </div>
 
+    <!-- Map GPS Track Simplification -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">GPS Track Simplification</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure coordinate decimation scale (0–10) to speed up map reading and rendering.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="status-gps-simplification" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="max-w-xl">
+                <label for="gps-simplification-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Simplification Level <span class="font-normal text-gray-400 dark:text-gray-500">(0 = Disabled, 10 = Max decimation)</span>
+                </label>
+                <select id="gps-simplification-select"
+                        class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <option value="0">Level 0 — Disabled (0m threshold; exact raw GPS stream)</option>
+                    <option value="1">Level 1 — Minimal (3m threshold; subtle jitter removal)</option>
+                    <option value="2">Level 2 — Light (6m threshold)</option>
+                    <option value="3">Level 3 — Moderate (10m threshold)</option>
+                    <option value="4">Level 4 — Standard (15m threshold; recommended web map balance)</option>
+                    <option value="5">Level 5 — Medium (20m threshold)</option>
+                    <option value="6">Level 6 — High (30m threshold)</option>
+                    <option value="7">Level 7 — Strong (45m threshold)</option>
+                    <option value="8">Level 8 — Aggressive (60m threshold)</option>
+                    <option value="9">Level 9 — Very High (80m threshold)</option>
+                    <option value="10">Level 10 — Maximum (100m threshold; max payload reduction)</option>
+                </select>
+            </div>
+            <div class="p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                <div class="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                    <span>💡 How Simplification & Persistence Work:</span>
+                </div>
+                <ul class="list-disc list-inside space-y-1 pl-1">
+                    <li><strong>O(N) Haversine Sampling:</strong> Retains route terminus points and filters intermediate GPS points within the configured distance threshold.</li>
+                    <li><strong>Database Persistence:</strong> Stored in the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile.gps_simplification</code> column in your database.</li>
+                    <li><strong>Environment Override Logic:</strong> If the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">GPS_SIMPLIFICATION</code> environment variable is set, it updates the database on startup. If no environment variable is set, the stored database value is preserved (defaulting to 0 when unset).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
     <!-- Sync Schedules & Database Backend -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
@@ -284,7 +328,10 @@
 
         let savedProfile = {};
 
-        // Load profile templates
+        const gpsSelect = document.getElementById('gps-simplification-select');
+        const statusGpsSimp = document.getElementById('status-gps-simplification');
+
+        // Load profile settings
         fetch('/api/profile')
             .then(r => r.json())
             .then(data => {
@@ -294,8 +341,46 @@
                         savedProfile[field] = data[field] || '';
                     }
                 }
+                if (gpsSelect && data.gps_simplification !== undefined && data.gps_simplification !== null) {
+                    gpsSelect.value = String(data.gps_simplification);
+                }
             })
-            .catch(() => showStatus('Failed to load templates.', true));
+            .catch(() => showStatus('Failed to load settings.', true));
+
+        if (gpsSelect) {
+            gpsSelect.addEventListener('change', function () {
+                const val = parseInt(this.value, 10);
+                fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ gps_simplification: val })
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error('Failed to update GPS simplification');
+                    return r.json();
+                })
+                .then(updated => {
+                    if (gpsSelect && updated && updated.gps_simplification !== undefined && updated.gps_simplification !== null) {
+                        gpsSelect.value = String(updated.gps_simplification);
+                    }
+                    if (statusGpsSimp) {
+                        statusGpsSimp.textContent = 'Saved ✓';
+                        statusGpsSimp.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-100 transition-opacity duration-300';
+                        setTimeout(() => {
+                            statusGpsSimp.classList.remove('opacity-100');
+                            statusGpsSimp.classList.add('opacity-0');
+                        }, 3000);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    if (statusGpsSimp) {
+                        statusGpsSimp.textContent = 'Failed to save';
+                        statusGpsSimp.className = 'text-xs text-red-500 font-medium opacity-100 transition-opacity duration-300';
+                    }
+                });
+            });
+        }
 
         function setInputErrorState(inputEl, isError) {
             if (!inputEl) return;

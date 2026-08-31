@@ -9,7 +9,7 @@ import requests
 from kinetiqo.config import Config, UPDATE_STRAVA_MAX_ITEMS
 from kinetiqo.db.factory import create_repository
 from kinetiqo.strava import StravaClient, StravaFetchError
-from kinetiqo.profile_sync import sync_update_strava_from_env
+from kinetiqo.profile_sync import sync_update_strava_from_env, sync_gps_simplification_from_env, sync_athlete_weight_from_env
 from kinetiqo.strava_description import DescriptionContext, any_update_strava_template_configured, get_template_for_activity
 
 logger = logging.getLogger("kinetiqo")
@@ -271,8 +271,10 @@ class SyncService:
             self.db.initialize_schema()
             try:
                 sync_update_strava_from_env(self.config, self.db)
+                sync_gps_simplification_from_env(self.config, self.db)
+                sync_athlete_weight_from_env(self.config, self.db)
             except Exception as e:
-                logger.warning(f"UPDATE_STRAVA: failed to sync template from environment: {e}")
+                logger.warning(f"Failed to sync profile settings from environment: {e}")
 
             description_context = None
             description_update_ids: set[str] = set()

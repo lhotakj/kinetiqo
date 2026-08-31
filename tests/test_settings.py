@@ -110,5 +110,33 @@ class TestDatabaseEnvConfig(unittest.TestCase):
             self.assertEqual(config.database_type, "postgresql")
 
 
+class TestGpsSimplificationConfig(unittest.TestCase):
+    """Unit tests for GPS_SIMPLIFICATION environment variable parsing."""
+
+    def test_default_gps_simplification_is_zero(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {}, clear=True):
+            config = Config()
+            self.assertEqual(config.gps_simplification, 0)
+
+    def test_valid_gps_simplification_level(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {"GPS_SIMPLIFICATION": "5"}, clear=True):
+            config = Config()
+            self.assertEqual(config.gps_simplification, 5)
+
+    def test_invalid_gps_simplification_out_of_range(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {"GPS_SIMPLIFICATION": "15"}, clear=True):
+            config = Config()
+            self.assertEqual(config.gps_simplification, 0)
+
+    def test_invalid_gps_simplification_non_numeric(self):
+        from kinetiqo.config import Config
+        with patch.dict(os.environ, {"GPS_SIMPLIFICATION": "invalid"}, clear=True):
+            config = Config()
+            self.assertEqual(config.gps_simplification, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

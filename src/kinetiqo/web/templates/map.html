@@ -451,10 +451,18 @@
         exportBtn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-50', 'dark:hover:bg-gray-600', 'cursor-pointer');
     }
 
-    function updateSubtitle(count, points) {
+    function updateSubtitle(count, points, level, threshold) {
         const el = document.getElementById('map-subtitle');
         if (el && count) {
-            el.textContent = 'Showing ' + count + ' activities with ' + points.toLocaleString() + ' GPS points.';
+            let text = 'Showing ' + count + ' activities with ' + points.toLocaleString() + ' GPS points';
+            if (level !== undefined && level > 0) {
+                text += ' (Simplification Level ' + level + ': ' + threshold + 'm threshold).';
+            } else if (level === 0) {
+                text += ' (Simplification Level 0: Raw unsimplified GPS).';
+            } else {
+                text += '.';
+            }
+            el.textContent = text;
         }
     }
 
@@ -1100,8 +1108,8 @@
                 // Render polylines
                 renderPolylines();
 
-                // Update subtitle
-                updateSubtitle(data.activity_count, data.point_count);
+                // Update subtitle with simplification level and point count info
+                updateSubtitle(data.activity_count, data.point_count, data.gps_simplification, data.threshold_meters);
             }, 50);
         })
         .catch(function(error) {

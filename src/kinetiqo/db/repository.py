@@ -374,7 +374,8 @@ class DatabaseRepository(ABC):
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = "", ftp: Optional[float] = None) -> None:
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None) -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).

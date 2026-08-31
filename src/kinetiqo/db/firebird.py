@@ -1177,7 +1177,8 @@ class FirebirdRepository(DatabaseRepository):
                 'SELECT "athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token" '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", '
+                '"gps_simplification" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
@@ -1196,29 +1197,40 @@ class FirebirdRepository(DatabaseRepository):
                 'update_strava_walking': row[9],
                 'update_strava_swimming': row[10],
                 'refresh_token': row[11],
+                'gps_simplification': row[12],
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = "", ftp: Optional[float] = None):
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
+        effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+        effective_cycling_indoor = update_strava_cycling_indoor
+        effective_cycling_outdoor = update_strava_cycling_outdoor
+        effective_running_indoor = update_strava_running_indoor
+        effective_running_outdoor = update_strava_running_outdoor
+        effective_walking = update_strava_walking
+        effective_swimming = update_strava_swimming
+        effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
                 '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight, effective_ftp,
-                 update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
-                 update_strava_running_indoor or "", update_strava_running_outdoor or "",
-                 update_strava_walking or "", update_strava_swimming or "", refresh_token or "")
+                 effective_cycling_indoor, effective_cycling_outdoor,
+                 effective_running_indoor, effective_running_outdoor,
+                 effective_walking, effective_swimming, effective_refresh_token,
+                 effective_gps_simplification)
             )
         self.conn.commit()
 

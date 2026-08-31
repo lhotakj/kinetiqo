@@ -3,13 +3,37 @@ import sys
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
+import threading
 import psycopg2
+import psycopg2.pool
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 from psycopg2.extras import execute_batch, RealDictCursor
 
 logger = logging.getLogger("kinetiqo")
+
+_pg_pool = None
+_pg_pool_lock = threading.Lock()
+
+
+def _get_pg_pool(config: Config):
+    """Retrieve or initialize the thread-safe PostgreSQL connection pool."""
+    global _pg_pool
+    if _pg_pool is None:
+        with _pg_pool_lock:
+            if _pg_pool is None:
+                _pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=10,
+                    host=config.postgresql_host,
+                    port=config.postgresql_port,
+                    user=config.postgresql_user,
+                    password=config.postgresql_password,
+                    database=config.postgresql_database,
+                    sslmode=config.postgresql_ssl_mode,
+                )
+    return _pg_pool
 
 
 class PostgresqlRepository(DatabaseRepository):
@@ -23,6 +47,7 @@ class PostgresqlRepository(DatabaseRepository):
             config (Config): Application configuration instance.
         """
         self.config = config
+        self._from_pool = False
         try:
             self.conn = self._connect()
         except psycopg2.OperationalError as e:
@@ -36,33 +61,43 @@ class PostgresqlRepository(DatabaseRepository):
                 sys.exit(1)
 
     def _connect(self, dbname=None):
-        """Helper to connect to a specific database."""
-        conn = psycopg2.connect(
-            host=self.config.postgresql_host,
-            port=self.config.postgresql_port,
-            user=self.config.postgresql_user,
-            password=self.config.postgresql_password,
-            database=dbname or self.config.postgresql_database,
-            sslmode=self.config.postgresql_ssl_mode
-        )
-        # Autocommit ensures every statement (including SELECTs) runs outside
-        # a transaction and always sees the latest committed data.  This is
-        # critical when the CLI syncs new activities from a separate process
-        # while Gunicorn serves web requests.
+        """Helper to connect to a specific database using connection pool if available."""
+        target_db = dbname or self.config.postgresql_database
+        from_pool = False
+
+        if dbname is None:
+            try:
+                pool = _get_pg_pool(self.config)
+                conn = pool.getconn()
+                from_pool = True
+            except Exception as pool_err:
+                logger.debug(f"Connection pool unavailable, falling back to direct connection: {pool_err}")
+                conn = psycopg2.connect(
+                    host=self.config.postgresql_host,
+                    port=self.config.postgresql_port,
+                    user=self.config.postgresql_user,
+                    password=self.config.postgresql_password,
+                    database=target_db,
+                    sslmode=self.config.postgresql_ssl_mode
+                )
+        else:
+            conn = psycopg2.connect(
+                host=self.config.postgresql_host,
+                port=self.config.postgresql_port,
+                user=self.config.postgresql_user,
+                password=self.config.postgresql_password,
+                database=target_db,
+                sslmode=self.config.postgresql_ssl_mode
+            )
+
         conn.autocommit = True
+        self._from_pool = from_pool
         return conn
 
     def _ensure_connected(self):
-        """Verify the connection is alive; transparently reconnect if not.
-
-        Gunicorn workers may hold connections that the server has closed due
-        to idle timeout or network disruption.  ``psycopg2``'s ``conn.closed``
-        attribute is a lightweight check (no round-trip), but we also issue
-        a ``SELECT 1`` to catch connections that appear open but are actually
-        severed at the TCP level.
-        """
+        """Verify the connection is alive; transparently reconnect if not."""
         try:
-            if self.conn.closed:
+            if self.conn is None or self.conn.closed:
                 raise psycopg2.OperationalError("Connection is closed")
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
@@ -70,10 +105,20 @@ class PostgresqlRepository(DatabaseRepository):
         except Exception:
             logger.warning("PostgreSQL connection lost, reconnecting...")
             try:
-                try:
-                    self.conn.close()
-                except Exception:
-                    pass
+                if self.conn:
+                    if getattr(self, '_from_pool', False) and _pg_pool is not None:
+                        try:
+                            _pg_pool.putconn(self.conn, close=True)
+                        except Exception:
+                            try:
+                                self.conn.close()
+                            except Exception:
+                                pass
+                    else:
+                        try:
+                            self.conn.close()
+                        except Exception:
+                            pass
                 self.conn = self._connect()
             except Exception as e:
                 logger.error(f"Failed to reconnect to PostgreSQL: {e}")
@@ -913,7 +958,8 @@ class PostgresqlRepository(DatabaseRepository):
                 "SELECT athlete_id, first_name, last_name, weight, ftp, "
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
-                "update_strava_walking, update_strava_swimming, refresh_token "
+                "update_strava_walking, update_strava_swimming, refresh_token, "
+                "gps_simplification "
                 "FROM profile LIMIT 1"
             )
             row = cur.fetchone()
@@ -923,31 +969,39 @@ class PostgresqlRepository(DatabaseRepository):
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = "", ftp: Optional[float] = None):
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None):
         self._ensure_connected()
+        existing = self.get_profile()
+        effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
+        effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+
         with self.conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO profile (athlete_id, first_name, last_name, weight, ftp,
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
-                    update_strava_walking, update_strava_swimming, refresh_token)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    update_strava_walking, update_strava_swimming, refresh_token,
+                    gps_simplification)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
                         weight     = EXCLUDED.weight,
-                        ftp        = COALESCE(EXCLUDED.ftp, profile.ftp),
-                        update_strava_cycling_indoor = EXCLUDED.update_strava_cycling_indoor,
+                        ftp        = EXCLUDED.ftp,
+                        update_strava_cycling_indoor  = EXCLUDED.update_strava_cycling_indoor,
                         update_strava_cycling_outdoor = EXCLUDED.update_strava_cycling_outdoor,
-                        update_strava_running_indoor = EXCLUDED.update_strava_running_indoor,
+                        update_strava_running_indoor  = EXCLUDED.update_strava_running_indoor,
                         update_strava_running_outdoor = EXCLUDED.update_strava_running_outdoor,
-                        update_strava_walking = EXCLUDED.update_strava_walking,
-                        update_strava_swimming = EXCLUDED.update_strava_swimming,
-                        refresh_token = EXCLUDED.refresh_token
-            """, (athlete_id, first_name, last_name, weight, ftp,
+                        update_strava_walking          = EXCLUDED.update_strava_walking,
+                        update_strava_swimming         = EXCLUDED.update_strava_swimming,
+                        refresh_token                  = EXCLUDED.refresh_token,
+                        gps_simplification             = EXCLUDED.gps_simplification
+            """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
-                  update_strava_walking or "", update_strava_swimming or "", refresh_token or ""))
+                  update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
+                  effective_gps_simplification))
 
     # ------------------------------------------------------------------
     # Activity goals
@@ -997,10 +1051,20 @@ class PostgresqlRepository(DatabaseRepository):
         self.close()
 
     def close(self):
-        """Close the PostgreSQL connection if open, ignoring close errors."""
+        """Close or return the PostgreSQL connection to the pool, ignoring close errors."""
         try:
             if self.conn:
-                self.conn.close()
+                if getattr(self, '_from_pool', False) and _pg_pool is not None:
+                    try:
+                        _pg_pool.putconn(self.conn)
+                    except Exception:
+                        try:
+                            self.conn.close()
+                        except Exception:
+                            pass
+                else:
+                    self.conn.close()
+                self.conn = None
         except Exception as e:
             logger.warning(f"Error closing PostgreSQL connection: {e}")
 

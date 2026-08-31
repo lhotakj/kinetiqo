@@ -427,6 +427,7 @@ class TestProfileAPI(unittest.TestCase):
             123, 'Jane', 'User', 65.5,
             refresh_token='',
             ftp=None,
+            gps_simplification=0,
             update_strava_cycling_indoor='', update_strava_cycling_outdoor='',
             update_strava_running_indoor='', update_strava_running_outdoor='',
             update_strava_walking='', update_strava_swimming='')

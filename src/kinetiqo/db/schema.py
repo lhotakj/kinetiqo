@@ -338,6 +338,9 @@ SCHEMA_DEFINITION = {
             # kinetiqo.profile_sync.resolve_refresh_token_from_db().
             {"name": "refresh_token", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(255)"},
+            # Map GPS track decimation level (scale 0-10, 0=disabled, 1-10=3m-100m thresholds).
+            {"name": "gps_simplification", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0",
+             "type_firebird": "INTEGER DEFAULT 0"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"

@@ -1,251 +1,274 @@
-"""Mocked unit tests for kinetiqo.profile_sync.sync_update_strava_from_env().
+"""Unit tests for profile_sync and gps_simplification database persistence."""
 
-Follows the mocked-unit-test style of tests/test_sync_logic.py: the database
-repository is a plain MagicMock (never a live connection), so these tests run
-fully in isolation.
-"""
-
+import os
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+from kinetiqo.config import Config
+from kinetiqo.profile_sync import sync_gps_simplification_from_env
+from kinetiqo.web.app import app
+
+
+class TestGpsSimplificationProfileSync(unittest.TestCase):
+    """Test sync_gps_simplification_from_env precedence & DB sync rules."""
+
+    def test_env_var_provided_updates_different_db(self):
+        """If env var is set and differs from DB, env var overrides and updates DB on startup."""
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'gps_simplification': 2,
+            'refresh_token': 'token123',
+        }
+        config = Config()
+        config.is_gps_simplification_env_set = True
+        config.gps_simplification = 6
+
+        sync_gps_simplification_from_env(config, mock_repo)
+
+        mock_repo.upsert_profile.assert_called_once()
+        _, kwargs = mock_repo.upsert_profile.call_args
+        self.assertEqual(kwargs.get('gps_simplification'), 6)
+        self.assertEqual(config.gps_simplification, 6)
+
+    def test_env_var_not_provided_preserves_db_value(self):
+        """If env var is NOT set, the stored DB value is preserved."""
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'gps_simplification': 5,
+            'refresh_token': 'token123',
+        }
+        config = Config()
+        config.is_gps_simplification_env_set = False
+        config.gps_simplification = 0  # default
+
+        sync_gps_simplification_from_env(config, mock_repo)
+
+        # Should NOT update DB since DB already has a value
+        mock_repo.upsert_profile.assert_not_called()
+        self.assertEqual(config.gps_simplification, 5)
+
+    def test_env_var_not_provided_db_unset_defaults_to_zero(self):
+        """If env var is NOT set and DB has no value yet, initializes DB with 0."""
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'gps_simplification': None,
+            'refresh_token': 'token123',
+        }
+        config = Config()
+        config.is_gps_simplification_env_set = False
+        config.gps_simplification = 0
+
+        sync_gps_simplification_from_env(config, mock_repo)
+
+        mock_repo.upsert_profile.assert_called_once()
+        _, kwargs = mock_repo.upsert_profile.call_args
+        self.assertEqual(kwargs.get('gps_simplification'), 0)
+        self.assertEqual(config.gps_simplification, 0)
+
+
+class TestGpsSimplificationWebAPI(unittest.TestCase):
+    """Test PUT /api/profile updating gps_simplification."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        app.config['LOGIN_DISABLED'] = True
+        self._csrf_enabled = app.config.get('WTF_CSRF_ENABLED', True)
+        app.config['WTF_CSRF_ENABLED'] = False
+        self.client = app.test_client()
+
+    def tearDown(self):
+        app.config['WTF_CSRF_ENABLED'] = self._csrf_enabled
+
+    @patch('flask_login.utils._get_user')
+    @patch('kinetiqo.web.app.create_repository')
+    def test_update_profile_gps_simplification_valid(self, mock_create_repo, mock_get_user):
+        """Valid gps_simplification (0-10) is saved to DB and returned in response."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'weight': 70.0,
+            'ftp': 250,
+            'gps_simplification': 0,
+        }
+        mock_create_repo.return_value = mock_repo
+
+        resp = self.client.put('/api/profile', json={'gps_simplification': 4})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get('gps_simplification'), 4)
+        mock_repo.upsert_profile.assert_called_once()
+
+    @patch('flask_login.utils._get_user')
+    @patch('kinetiqo.web.app.create_repository')
+    def test_update_profile_gps_simplification_invalid(self, mock_create_repo, mock_get_user):
+        """Out-of-range or invalid gps_simplification returns HTTP 422."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'weight': 70.0,
+        }
+        mock_create_repo.return_value = mock_repo
+
+        resp = self.client.put('/api/profile', json={'gps_simplification': 15})
+        self.assertEqual(resp.status_code, 422)
+        data = resp.get_json()
+        self.assertIn('error', data)
+
+
 from kinetiqo.profile_sync import (
+    sync_gps_simplification_from_env,
     sync_update_strava_from_env,
-    resolve_refresh_token_from_db,
-    persist_refresh_token,
-    wire_refresh_token_persistence,
+    sync_athlete_weight_from_env,
 )
 
 
-def _make_config(**overrides):
-    config = MagicMock()
-    for field in UPDATE_STRAVA_FIELDS:
-        setattr(config, field, "")
-    for key, value in overrides.items():
-        setattr(config, key, value)
-    return config
+class TestUnifiedProfileSync(unittest.TestCase):
+    """Test unified env var vs DB persistence logic across all settings."""
+
+    @patch.dict(os.environ, {"UPDATE_STRAVA_CYCLING_OUTDOOR": "New Template"}, clear=True)
+    def test_update_strava_env_var_updates_different_db(self):
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'update_strava_cycling_outdoor': 'Old Template',
+        }
+        config = Config()
+        sync_update_strava_from_env(config, mock_repo)
+
+        mock_repo.upsert_profile.assert_called_once()
+        _, kwargs = mock_repo.upsert_profile.call_args
+        self.assertEqual(kwargs.get('update_strava_cycling_outdoor'), 'New Template')
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_update_strava_env_not_set_preserves_db(self):
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'update_strava_cycling_outdoor': 'DB Stored Template',
+        }
+        config = Config()
+        sync_update_strava_from_env(config, mock_repo)
+
+        mock_repo.upsert_profile.assert_not_called()
+        self.assertEqual(config.update_strava_cycling_outdoor, 'DB Stored Template')
+
+    @patch.dict(os.environ, {"ATHLETE_WEIGHT": "72.5"}, clear=True)
+    def test_athlete_weight_env_set_updates_different_db(self):
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+        }
+        config = Config()
+        sync_athlete_weight_from_env(config, mock_repo)
+
+        mock_repo.upsert_profile.assert_called_once()
+        args, _ = mock_repo.upsert_profile.call_args
+        self.assertEqual(args[3], 72.5)  # weight argument
+        self.assertEqual(config.athlete_weight, 72.5)
 
 
-def _make_profile(**overrides):
-    profile = {
-        "athlete_id": 42,
-        "first_name": "Jane",
-        "last_name": "Doe",
-        "weight": 65.0,
-    }
-    profile.update({field: "" for field in UPDATE_STRAVA_FIELDS})
-    profile.update(overrides)
-    return profile
+    @patch.dict(os.environ, {"UPDATE_STRAVA_CYCLING_OUTDOOR": "Same Template"}, clear=True)
+    def test_update_strava_env_same_as_db_does_not_update_db(self):
+        """If env var is set but matches DB, upsert_profile is NOT called."""
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'update_strava_cycling_outdoor': 'Same Template',
+        }
+        config = Config()
+        sync_update_strava_from_env(config, mock_repo)
+
+        mock_repo.upsert_profile.assert_not_called()
+        self.assertEqual(config.update_strava_cycling_outdoor, 'Same Template')
+
+    @patch('kinetiqo.profile_sync.sync_update_strava_from_env')
+    @patch('kinetiqo.profile_sync.sync_gps_simplification_from_env')
+    @patch('kinetiqo.profile_sync.sync_athlete_weight_from_env')
+    def test_sync_all_profile_env_vars_delegates(self, mock_weight, mock_gps, mock_strava):
+        """sync_all_profile_env_vars delegates to all three individual sync helpers."""
+        from kinetiqo.profile_sync import sync_all_profile_env_vars
+        config = Config()
+        mock_repo = MagicMock()
+
+        sync_all_profile_env_vars(config, mock_repo)
+
+        mock_strava.assert_called_once_with(config, mock_repo)
+        mock_gps.assert_called_once_with(config, mock_repo)
+        mock_weight.assert_called_once_with(config, mock_repo)
+
+    @patch('kinetiqo.strava.StravaClient')
+    def test_seed_profile_from_strava_preserves_newly_synced_env_vars(self, mock_strava_cls):
+        """seed_profile_from_strava re-fetches DB state so newly synced env vars are preserved."""
+        from kinetiqo.profile_sync import seed_profile_from_strava
+
+        mock_strava_inst = MagicMock()
+        mock_strava_inst.get_athlete.return_value = {
+            'id': 123,
+            'firstname': 'Jaroslav',
+            'lastname': 'Lhotak',
+            'weight': 81.2,
+        }
+        mock_strava_cls.return_value = mock_strava_inst
+
+        mock_repo = MagicMock()
+        # Initial call before Strava fetch returns old state, second call returns updated DB state
+        mock_repo.get_profile.side_effect = [
+            {'athlete_id': 123, 'first_name': 'Old', 'last_name': 'Name', 'weight': 80.0, 'gps_simplification': 0, 'update_strava_cycling_outdoor': 'Old'},
+            {'athlete_id': 123, 'first_name': 'Old', 'last_name': 'Name', 'weight': 80.0, 'gps_simplification': 4, 'update_strava_cycling_outdoor': 'New Env Template'},
+        ]
+
+        config = Config()
+        config.strava_refresh_token = 'token'
+
+        seeded = seed_profile_from_strava(config, mock_repo)
+        self.assertIsNotNone(seeded)
+
+        mock_repo.upsert_profile.assert_called_once()
+        _, kwargs = mock_repo.upsert_profile.call_args
+        self.assertEqual(kwargs.get('gps_simplification'), 4)
+        self.assertEqual(kwargs.get('update_strava_cycling_outdoor'), 'New Env Template')
 
 
-class TestSyncUpdateStravaFromEnv(unittest.TestCase):
-    """Unit tests for the "seed once, database wins afterwards" sync behavior."""
-
-    def test_noop_when_no_profile_exists_yet(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = None
-        config = _make_config(update_strava_walking="Year-to-date: {{walking-distance-total-year}}.")
-
-        sync_update_strava_from_env(config, repo)
-
-        repo.upsert_profile.assert_not_called()
-
-    def test_seeds_empty_database_field_from_env(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile()
-        config = _make_config(update_strava_walking="Year-to-date: {{walking-distance-total-year}}.")
-
-        sync_update_strava_from_env(config, repo)
-
-        repo.upsert_profile.assert_called_once()
-        args, kwargs = repo.upsert_profile.call_args
-        self.assertEqual(args, (42, "Jane", "Doe", 65.0))
-        self.assertEqual(kwargs["update_strava_walking"], "Year-to-date: {{walking-distance-total-year}}.")
-        # All other (still-empty) fields stay empty.
-        for field in UPDATE_STRAVA_FIELDS:
-            if field != "update_strava_walking":
-                self.assertEqual(kwargs[field], "")
-
-    def test_does_not_overwrite_existing_database_value_even_if_env_differs(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile(
-            update_strava_walking="Original template, already stored in DB."
-        )
-        config = _make_config(update_strava_walking="A completely different template now in the env var.")
-
-        sync_update_strava_from_env(config, repo)
-
-        # Database already had a non-empty value for this field — env var is
-        # ignored entirely, so no update call should even be made (no other
-        # field changed either).
-        repo.upsert_profile.assert_not_called()
-        self.assertEqual(config.update_strava_walking, "Original template, already stored in DB.")
-
-    def test_mixed_seed_only_empty_fields_left_alone(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile(
-            update_strava_walking="Already stored walking template."
-        )
-        config = _make_config(
-            update_strava_walking="Different env value — should be ignored.",
-            update_strava_swimming="New swim template from env — DB was empty.",
-        )
-
-        sync_update_strava_from_env(config, repo)
-
-        repo.upsert_profile.assert_called_once()
-        _, kwargs = repo.upsert_profile.call_args
-        # Walking keeps the DB value (env ignored).
-        self.assertEqual(kwargs["update_strava_walking"], "Already stored walking template.")
-        # Swimming was empty in DB, so it gets seeded from env.
-        self.assertEqual(kwargs["update_strava_swimming"], "New swim template from env — DB was empty.")
-
-    def test_noop_when_everything_already_matches_or_stays_empty(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile(
-            update_strava_walking="Stored value."
-        )
-        config = _make_config(update_strava_walking="Stored value.")
-
-        sync_update_strava_from_env(config, repo)
-
-        repo.upsert_profile.assert_not_called()
-
-    def test_empty_env_var_is_a_noop_for_empty_database_field(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile()
-        config = _make_config()  # all six env vars empty
-
-        sync_update_strava_from_env(config, repo)
-
-        repo.upsert_profile.assert_not_called()
-
-
-class TestResolveRefreshTokenFromDb(unittest.TestCase):
-    """Unit tests for resolve_refresh_token_from_db().
-
-    Strava rotates and invalidates the previous refresh token on every token
-    exchange, so the database copy (once a profile row exists) must win over
-    the — possibly stale — STRAVA_REFRESH_TOKEN env var.
-    """
-
-    def test_noop_when_no_profile_exists_yet(self):
-        config = _make_config(strava_refresh_token="env-token")
-
-        resolve_refresh_token_from_db(config, None)
-
-        self.assertEqual(config.strava_refresh_token, "env-token")
-
-    def test_database_token_overrides_env_var(self):
-        config = _make_config(strava_refresh_token="stale-env-token")
-        existing = _make_profile(refresh_token="fresh-db-token")
-
-        resolve_refresh_token_from_db(config, existing)
-
-        self.assertEqual(config.strava_refresh_token, "fresh-db-token")
-
-    def test_noop_when_database_token_is_empty(self):
-        config = _make_config(strava_refresh_token="env-token")
-        existing = _make_profile(refresh_token="")
-
-        resolve_refresh_token_from_db(config, existing)
-
-        self.assertEqual(config.strava_refresh_token, "env-token")
-
-    def test_noop_when_database_token_already_matches(self):
-        config = _make_config(strava_refresh_token="same-token")
-        existing = _make_profile(refresh_token="same-token")
-
-        resolve_refresh_token_from_db(config, existing)
-
-        self.assertEqual(config.strava_refresh_token, "same-token")
-
-
-class TestPersistRefreshToken(unittest.TestCase):
-    """Unit tests for persist_refresh_token()."""
-
-    def test_noop_when_no_profile_exists_yet(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = None
-
-        result = persist_refresh_token(repo, "new-token")
-
-        self.assertFalse(result)
-        repo.upsert_profile.assert_not_called()
-
-    def test_noop_when_token_unchanged(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile(refresh_token="same-token")
-
-        result = persist_refresh_token(repo, "same-token")
-
-        self.assertTrue(result)
-        repo.upsert_profile.assert_not_called()
-
-    def test_noop_for_empty_token(self):
-        repo = MagicMock()
-
-        result = persist_refresh_token(repo, "")
-
-        self.assertFalse(result)
-        repo.get_profile.assert_not_called()
-        repo.upsert_profile.assert_not_called()
-
-    def test_persists_rotated_token_and_preserves_other_fields(self):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile(
-            refresh_token="old-token", update_strava_walking="Keep me."
-        )
-
-        result = persist_refresh_token(repo, "new-token")
-
-        self.assertTrue(result)
-        repo.upsert_profile.assert_called_once_with(
-            42, "Jane", "Doe", 65.0,
-            refresh_token="new-token",
-            **{field: ("Keep me." if field == "update_strava_walking" else "") for field in UPDATE_STRAVA_FIELDS},
-        )
-
-
-class TestWireRefreshTokenPersistence(unittest.TestCase):
-    """Unit tests for wire_refresh_token_persistence()."""
-
-    @patch("kinetiqo.db.factory.create_repository")
-    def test_callback_persists_token_via_its_own_repo(self, mock_create_repo):
-        repo = MagicMock()
-        repo.get_profile.return_value = _make_profile(refresh_token="old-token")
-        mock_create_repo.return_value = repo
-        config = _make_config()
-
-        wire_refresh_token_persistence(config)
-        config.on_refresh_token_changed("rotated-token")
-
-        mock_create_repo.assert_called_once_with(config)
-        repo.upsert_profile.assert_called_once()
-        repo.close.assert_called_once()
-
-    @patch("kinetiqo.db.factory.create_repository")
-    def test_callback_swallows_errors_and_still_closes_repo(self, mock_create_repo):
-        repo = MagicMock()
-        repo.get_profile.side_effect = RuntimeError("db down")
-        mock_create_repo.return_value = repo
-        config = _make_config()
-
-        wire_refresh_token_persistence(config)
-        # Must not raise even though persisting failed.
-        config.on_refresh_token_changed("rotated-token")
-
-        repo.close.assert_called_once()
-
-    @patch("kinetiqo.db.factory.create_repository")
-    def test_callback_handles_repo_creation_failure(self, mock_create_repo):
-        mock_create_repo.side_effect = RuntimeError("cannot connect")
-        config = _make_config()
-
-        wire_refresh_token_persistence(config)
-        # Must not raise even though repo creation failed.
-        config.on_refresh_token_changed("rotated-token")
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
+
+

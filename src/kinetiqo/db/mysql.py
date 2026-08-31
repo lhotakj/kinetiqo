@@ -3,13 +3,39 @@ import sys
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
+import threading
 import mysql.connector
+import mysql.connector.pooling
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 from mysql.connector import errorcode
 
 logger = logging.getLogger("kinetiqo")
+
+_mysql_pool = None
+_mysql_pool_lock = threading.Lock()
+
+
+def _get_mysql_pool(config: Config):
+    """Retrieve or initialize the thread-safe MySQL connection pool."""
+    global _mysql_pool
+    if _mysql_pool is None:
+        with _mysql_pool_lock:
+            if _mysql_pool is None:
+                db_config = {
+                    "host": config.mysql_host,
+                    "port": config.mysql_port,
+                    "user": config.mysql_user,
+                    "password": config.mysql_password,
+                    "database": config.mysql_database,
+                }
+                _mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
+                    pool_name="kinetiqo_mysql_pool",
+                    pool_size=10,
+                    **db_config
+                )
+    return _mysql_pool
 
 
 class MySQLRepository(DatabaseRepository):
@@ -38,38 +64,38 @@ class MySQLRepository(DatabaseRepository):
             sys.exit(1)
 
     def _connect(self):
-        """Helper to connect to a specific database."""
-        connect_args = {
-            "host": self.config.mysql_host,
-            "port": self.config.mysql_port,
-            "user": self.config.mysql_user,
-            "password": self.config.mysql_password,
-            "database": self.config.mysql_database  # Ensure database is selected
-        }
-
+        """Helper to connect to a specific database using connection pool if available."""
         try:
-            conn = mysql.connector.connect(**connect_args)
-        except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_BAD_DB_ERROR:
-                # Database does not exist, connect without database to create it
-                del connect_args["database"]
-                try:
-                    conn = mysql.connector.connect(**connect_args)
-                except Exception as e:
-                    logger.exception(str(e))
+            pool = _get_mysql_pool(self.config)
+            conn = pool.get_connection()
+        except Exception as pool_err:
+            logger.debug(f"MySQL connection pool fallback to direct connection: {pool_err}")
+            connect_args = {
+                "host": self.config.mysql_host,
+                "port": self.config.mysql_port,
+                "user": self.config.mysql_user,
+                "password": self.config.mysql_password,
+                "database": self.config.mysql_database  # Ensure database is selected
+            }
+
+            try:
+                conn = mysql.connector.connect(**connect_args)
+            except mysql.connector.Error as err:
+                if err.errno == errorcode.ER_BAD_DB_ERROR:
+                    # Database does not exist, connect without database to create it
+                    del connect_args["database"]
+                    try:
+                        conn = mysql.connector.connect(**connect_args)
+                    except Exception as e:
+                        logger.exception(str(e))
+                        raise
+                else:
+                    logger.error(str(err))
                     raise
-            else:
+            except (ValueError, TypeError) as err:
                 logger.error(str(err))
                 raise
-        except (ValueError, TypeError) as err:
-            logger.error(str(err))
-            raise
 
-        # Enable autocommit so every statement (including SELECTs) sees the
-        # latest committed data.  Without this, InnoDB's default REPEATABLE
-        # READ isolation keeps a snapshot from the first statement in an
-        # implicit transaction, causing the web UI to show stale data after
-        # a CLI sync commits new activities from a different connection.
         conn.autocommit = True
         return conn
 
@@ -917,7 +943,8 @@ class MySQLRepository(DatabaseRepository):
                 "SELECT athlete_id, first_name, last_name, weight, ftp, "
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
-                "update_strava_walking, update_strava_swimming, refresh_token "
+                "update_strava_walking, update_strava_swimming, refresh_token, "
+                "gps_simplification "
                 "FROM profile LIMIT 1"
             )
             return cur.fetchone()
@@ -926,31 +953,40 @@ class MySQLRepository(DatabaseRepository):
                        update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
-                       refresh_token: str = "", ftp: Optional[float] = None):
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None):
         self._ensure_connected()
+        existing = self.get_profile()
+        effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
+        effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+
         with self.conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO profile (athlete_id, first_name, last_name, weight, ftp,
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
-                    update_strava_walking, update_strava_swimming, refresh_token)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    update_strava_walking, update_strava_swimming, refresh_token,
+                    gps_simplification)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
                     weight     = VALUES(weight),
-                    ftp        = COALESCE(VALUES(ftp), ftp),
-                    update_strava_cycling_indoor = VALUES(update_strava_cycling_indoor),
+                    ftp        = VALUES(ftp),
+                    update_strava_cycling_indoor  = VALUES(update_strava_cycling_indoor),
                     update_strava_cycling_outdoor = VALUES(update_strava_cycling_outdoor),
-                    update_strava_running_indoor = VALUES(update_strava_running_indoor),
+                    update_strava_running_indoor  = VALUES(update_strava_running_indoor),
                     update_strava_running_outdoor = VALUES(update_strava_running_outdoor),
-                    update_strava_walking = VALUES(update_strava_walking),
-                    update_strava_swimming = VALUES(update_strava_swimming),
-                    refresh_token = VALUES(refresh_token)
-            """, (athlete_id, first_name, last_name, weight, ftp,
+                    update_strava_walking          = VALUES(update_strava_walking),
+                    update_strava_swimming         = VALUES(update_strava_swimming),
+                    refresh_token                  = VALUES(refresh_token),
+                    gps_simplification             = VALUES(gps_simplification)
+            """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
-                  update_strava_walking or "", update_strava_swimming or "", refresh_token or ""))
+                  update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
+                  effective_gps_simplification))
+        self.conn.commit()
 
     # ------------------------------------------------------------------
     # Activity goals

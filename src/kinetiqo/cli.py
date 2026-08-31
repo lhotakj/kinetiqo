@@ -5,6 +5,7 @@ import re
 import sys
 import platform
 from collections import deque
+from typing import Dict, Any
 
 import click
 from kinetiqo.cache import CacheManager
@@ -13,7 +14,10 @@ from kinetiqo.db.factory import create_repository, get_version
 from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
 from kinetiqo.profile_sync import (
     seed_profile_from_strava,
+    sync_all_profile_env_vars,
     sync_update_strava_from_env,
+    sync_gps_simplification_from_env,
+    sync_athlete_weight_from_env,
     resolve_refresh_token_from_db,
     wire_refresh_token_persistence,
 )
@@ -212,7 +216,9 @@ def _seed_profile(config):
     try:
         repo = create_repository(config)
         seed_profile_from_strava(config, repo)
-        sync_update_strava_from_env(config, repo)
+        sync_all_profile_env_vars(config, repo)
+        from kinetiqo.web.app import mark_startup_sync_done
+        mark_startup_sync_done()
     except Exception as e:
         logger.warning(f"Could not seed profile from Strava (non-fatal): {e}")
     finally:

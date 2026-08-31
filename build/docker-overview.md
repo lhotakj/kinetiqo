@@ -36,7 +36,8 @@ docker run -d \
   -e POSTGRESQL_PORT="5432" \
   -e POSTGRESQL_USER="postgres" \
   -e POSTGRESQL_PASSWORD="password" \
-  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e LOG_LEVEL="INFO" \
+  -e GPS_SIMPLIFICATION="0" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   lhotakj/kinetiqo:latest
@@ -87,9 +88,10 @@ Kinetiqo is configured entirely via environment variables.
 |----------|-------------|---------|
 | `LOG_LEVEL` | Log level for CLI, web server, and Gunicorn (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `INFO` |
 
-### Map API Keys (Optional)
+### Map Configuration & Optimization
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `GPS_SIMPLIFICATION` | Coordinate decimation level (0-10, where 0=disabled, 1-10=3m-100m thresholds) | `0` |
 | `MAPY_API_KEY` | API key for Mapy.cz tile layers | _(empty)_ |
 | `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers | _(empty)_ |
 | `MAPTILER_API_KEY` | API key for MapTiler tile layers | _(empty)_ |

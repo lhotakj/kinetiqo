@@ -36,9 +36,10 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - [4. Logging Configuration](#4-logging-configuration)
     - [5. Web Interface Configuration](#5-web-interface-configuration)
     - [6. Athlete Configuration](#6-athlete-configuration)
-    - [7. Display Configuration](#7-display-configuration)
-    - [8. Map Configuration](#8-map-configuration)
-    - [9. Strava Description Auto-Update (`UPDATE_STRAVA_*`)](#9-strava-description-auto-update-update_strava_)
+    - [7. Database Settings vs. Environment Variable Synchronization Architecture](#7-database-settings-vs-environment-variable-synchronization-architecture)
+    - [8. Display Configuration](#8-display-configuration)
+    - [9. Map Configuration](#9-map-configuration)
+    - [10. Strava Description Auto-Update (`UPDATE_STRAVA_*`)](#10-strava-description-auto-update-update_strava_)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
@@ -213,9 +214,13 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     FIREBIRD_PASSWORD=firebird
     FIREBIRD_DATABASE=/db/data/kinetiqo.fdb
     LOG_LEVEL=INFO
+    # GPS Map Optimization
+    GPS_SIMPLIFICATION=0  # 0 = disabled, 1-10 = decimation levels (3m-100m thresholds)
     # API for Maps
-    MAPY_API_KEY="abc123"
-    THUNDERFOREST_API_KEY="abc456"
+    MAPY_API_KEY=mapy-com-api-key
+    THUNDERFOREST_API_KEY=thunderforest-api-key
+    MAPTILER_API_KEY=maptiler-api-key
+    GEOAPIFY_API_KEY=geoapify-api-key
 
     ```
     - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
@@ -260,7 +265,7 @@ Register an application in the [Strava API Settings](https://www.strava.com/sett
 |----------|-------------|----------|
 | `STRAVA_CLIENT_ID` | Strava Application Client ID. | ✅ |
 | `STRAVA_CLIENT_SECRET` | Strava Application Client Secret. | ✅ |
-| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. Also requires `activity:write` if you use the [Strava Description Auto-Update](#9-strava-description-auto-update-update_strava_) feature. | ✅ |
+| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. Also requires `activity:write` if you use the [Strava Description Auto-Update](#10-strava-description-auto-update-update_strava_) feature. | ✅ |
 
 #### 2. Database Configuration
 
@@ -394,23 +399,56 @@ openssl rand -hex 32
 #### 6. Athlete Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ATHLETE_WEIGHT` | Athlete body weight in kilograms, used for VO₂max estimation. This is a **fallback only** — the primary source is the Strava profile (synced automatically) or the **Settings → Athlete** page in the Web UI. | `0` (not set) |
+| `ATHLETE_WEIGHT` | Athlete body weight in kilograms, used for VO₂max estimation. | `0` (not set) |
 
-#### 7. Display Configuration
+#### 7. Database Settings vs. Environment Variable Synchronization Architecture
+
+Kinetiqo implements a **unified synchronization architecture** across all configurable settings that exist both as Environment Variables and stored Database profile fields (`UPDATE_STRAVA_*` templates, `GPS_SIMPLIFICATION`, `ATHLETE_WEIGHT`, and `STRAVA_REFRESH_TOKEN`):
+
+1. **Environment Variable Override on Startup / Sync:**
+   - If an Environment Variable is explicitly defined in your environment (e.g. `$UPDATE_STRAVA_CYCLING_OUTDOOR`, `GPS_SIMPLIFICATION`, `ATHLETE_WEIGHT`), its value is compared against the stored Database value. If the Environment Variable value **differs** from the Database (or if the Database field is unconfigured/empty), Kinetiqo automatically updates the Database to match the Environment Variable.
+2. **Database Value Preservation when Env Var is Omitted:**
+   - If an Environment Variable is **NOT set** in the environment (or left omitted/empty), Kinetiqo preserves whatever value is stored in the Database (such as custom templates or settings configured via the Web UI).
+3. **Live Web UI Synchronization:**
+   - Changes made through the Web UI (e.g. on the **Settings** page at `/settings`) write directly to the Database profile table and take effect immediately.
+
+#### 8. Display Configuration
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATE_FORMAT` | Date format string (Python `strftime` syntax). | `%b %d, %Y` |
 
-#### 8. Map Configuration
+#### 9. Map Configuration
 
 Kinetiqo ships with **16 map tile layers** from 7 providers. Four providers (Mapy.cz, Thunderforest, MapTiler, and Geoapify) require a free API key; the rest work out of the box.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `GPS_SIMPLIFICATION` | GPS track decimation level from `0` to `10` for map rendering. `0` disables simplification (returns exact raw track data). Levels `1`–`10` apply distance-based sampling thresholds from 3 m (`1`) up to 100 m (`10`). Stored in `profile.gps_simplification` DB column and editable via Settings UI. | `0` |
 | `MAPY_API_KEY` | API key for Mapy.cz tile layers (Basic & Outdoor). | _(empty)_ |
 | `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers (OpenCycleMap & Outdoors). | _(empty)_ |
 | `MAPTILER_API_KEY` | API key for MapTiler tile layers (Bright, Outdoor, Topo, Satellite, Aquarelle). | _(empty)_ |
 | `GEOAPIFY_API_KEY` | API key for Geoapify tile layers (OSM Bright, OSM Carto, Dark Matter). | _(empty)_ |
+
+**GPS Simplification Levels & Persistence Rules:**
+
+The setting is stored in the database (`profile.gps_simplification`) and can be adjusted directly from the **Settings** page (`/settings`).
+
+- **If `GPS_SIMPLIFICATION` environment variable is set:** The env var value (0–10) takes precedence on startup. If the database value differs or is not saved yet, the database is automatically updated to match the env var.
+- **If `GPS_SIMPLIFICATION` environment variable is NOT set:** Uses `0` as initial default. If a value has already been saved in the database (e.g. via the Settings UI), the stored database value is preserved. If no value is in the database yet, it is initialized to `0`.
+
+| Level | Distance Threshold | Best For / Description |
+|---|---|---|
+| `0` | `0 m` (Disabled) | Exact raw GPS coordinates (default, original behavior) |
+| `1` | `3 m` | Microscopic jitter removal; maximum track fidelity |
+| `2` | `6 m` | Very high detail |
+| `3` | `10 m` | High detail route overlay |
+| `4` | `15 m` | Recommended web map balance (~10–30× payload reduction) |
+| `5` | `20 m` | Standard cycling & running overlay |
+| `6` | `30 m` | Moderate decimation for large activity selections |
+| `7` | `45 m` | Coarse simplification |
+| `8` | `60 m` | Low point count overview |
+| `9` | `80 m` | Minimalist track overview |
+| `10` | `100 m` | Maximum decimation; preserves major route shape |
 
 **Available map layers:**
 
@@ -452,7 +490,7 @@ Kinetiqo ships with **16 map tile layers** from 7 providers. Four providers (Map
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
-#### 9. Strava Description Auto-Update (`UPDATE_STRAVA_*`)
+#### 10. Strava Description Auto-Update (`UPDATE_STRAVA_*`)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -791,6 +829,7 @@ docker run -d \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
   -e GEOAPIFY_API_KEY="your_geoapify_api_token" \
+  -e GPS_SIMPLIFICATION="0" \
   -e LOG_LEVEL="INFO" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
@@ -841,6 +880,7 @@ services:
       - THUNDERFOREST_API_KEY="${THUNDERFOREST_API_KEY}"
       - MAPTILER_API_KEY="${MAPTILER_API_KEY}"
       - GEOAPIFY_API_KEY="${GEOAPIFY_API_KEY}"
+      - GPS_SIMPLIFICATION="${GPS_SIMPLIFICATION:-0}"
       - LOG_LEVEL="${LOG_LEVEL:-INFO}"
       - FAST_SYNC="*/15 * * * *"
       - FULL_SYNC="0 3 * * *"
@@ -895,6 +935,7 @@ THUNDERFOREST_API_KEY=your_thunderforest_api_token
 MAPTILER_API_KEY=your_maptiler_api_token
 GEOAPIFY_API_KEY=your_geoapify_api_token
 LOG_LEVEL=INFO
+GPS_SIMPLIFICATION=0
 KINETIQO_WEB_PASSWORD=your_password_for_web_interface
 UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}"
 ```
@@ -925,7 +966,7 @@ Kinetiqo displays map tiles from the following third-party providers. Their resp
 | [CARTO](https://carto.com/) (Positron & Dark Matter) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | © OpenStreetMap contributors · © CARTO |
 | [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | © Esri, Maxar, Earthstar Geographics |
 
-For API key setup instructions, see [Map Configuration](#8-map-configuration) above.
+For API key setup instructions, see [Map Configuration](#9-map-configuration) above.
 
 ## Benchmark of databases
 

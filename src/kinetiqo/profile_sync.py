@@ -39,15 +39,22 @@ def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
         weight = 0.0
 
     # Preserve the currently-stored UPDATE_STRAVA_* templates — this call only
-    # touches name/weight, sourced from Strava.
-    preserved_templates = {field: (existing.get(field, "") if existing else "") for field in UPDATE_STRAVA_FIELDS}
+    # touches name/weight, sourced from Strava. Re-fetch latest DB state to preserve
+    # any environment variable updates performed immediately prior to profile seeding.
+    latest_existing = repo.get_profile() or existing
+    preserved_templates = {field: (latest_existing.get(field, "") if latest_existing else "") for field in UPDATE_STRAVA_FIELDS}
     # Persist whatever refresh token is currently in-memory (which may have
     # just been rotated by the get_athlete() call above — see kinetiqo.strava
     # ._get_access_token). This is what makes the token survive an app
     # restart instead of only living in the shared in-memory Config object.
-    current_refresh_token = config.strava_refresh_token or (existing.get("refresh_token", "") if existing else "")
+    current_refresh_token = config.strava_refresh_token or (latest_existing.get("refresh_token", "") if latest_existing else "")
+    existing_gps_simp = latest_existing.get("gps_simplification") if latest_existing else None
+    effective_gps_simp = existing_gps_simp if existing_gps_simp is not None else getattr(config, "gps_simplification", 0)
+
     repo.upsert_profile(athlete_id, first_name, last_name, weight,
-                        refresh_token=current_refresh_token, **preserved_templates)
+                        refresh_token=current_refresh_token,
+                        gps_simplification=effective_gps_simp,
+                        **preserved_templates)
 
     if strava_weight <= 0:
         logger.warning(
@@ -68,33 +75,68 @@ def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
     }
 
 
-def sync_update_strava_from_env(config: Config, repo) -> None:
-    """Seed empty ``UPDATE_STRAVA_*`` database fields from their env vars.
+def sync_gps_simplification_from_env(config: Config, repo) -> None:
+    """Synchronize `gps_simplification` setting between environment variable and DB.
 
-    There are six independent templates — one per activity-type/scope bucket
-    (see :mod:`kinetiqo.strava_description`):
-
-        UPDATE_STRAVA_CYCLING_INDOOR, UPDATE_STRAVA_CYCLING_OUTDOOR,
-        UPDATE_STRAVA_RUNNING_INDOOR, UPDATE_STRAVA_RUNNING_OUTDOOR,
-        UPDATE_STRAVA_WALKING, UPDATE_STRAVA_SWIMMING
-
-    The database value is authoritative once set: for each field, if the
-    ``profile`` table already stores a non-empty value, it is left completely
-    untouched — the corresponding env var is ignored, even if it now differs.
-    Only a field that is currently **empty in the database** gets seeded from
-    its env var (which may itself be empty, i.e. a no-op). This runs on every
-    application start (web server boot and CLI ``sync`` invocation) so a
-    freshly-created profile picks up whatever templates are configured via
-    the environment, without env var changes silently clobbering a value that
-    was already synced (e.g. after a template's env var is edited or removed
-    later, the previously-synced database value keeps being used).
-
-    This is a no-op (with a debug log) if no athlete profile row exists yet —
-    the profile must be seeded from Strava first (requires a known
-    ``athlete_id``). See :mod:`kinetiqo.strava_description` for how the
-    templates are actually rendered into activity descriptions during sync.
+    Precedence Rules:
+    1. If `GPS_SIMPLIFICATION` env var is explicitly set in environment:
+       - Uses the env var value (0-10).
+       - If DB has no stored value yet, or if stored DB value differs from env var, updates DB to match env var.
+       - Sets `config.gps_simplification = env_val`.
+    2. If `GPS_SIMPLIFICATION` env var is NOT set in environment:
+       - If DB has a stored value, uses the stored DB value (`config.gps_simplification = db_val`).
+       - If DB has no stored value yet, defaults to 0 and seeds DB with 0.
     """
-    env_values = {field: (getattr(config, field, "") or "") for field in UPDATE_STRAVA_FIELDS}
+    existing = repo.get_profile()
+    if not existing or not isinstance(existing, dict):
+        logger.debug("No athlete profile yet — gps_simplification will sync once profile is seeded.")
+        return
+
+    db_val = existing.get("gps_simplification")
+    is_env_set = getattr(config, "is_gps_simplification_env_set", False)
+    env_val = getattr(config, "gps_simplification", 0)
+
+    if is_env_set:
+        if db_val is None or int(db_val) != env_val:
+            preserved_templates = {field: (existing.get(field, "") or "") for field in UPDATE_STRAVA_FIELDS}
+            repo.upsert_profile(
+                existing["athlete_id"], existing["first_name"], existing["last_name"], existing["weight"],
+                refresh_token=existing.get("refresh_token", "") or "",
+                gps_simplification=env_val,
+                **preserved_templates
+            )
+            config.gps_simplification = env_val
+            logger.info("Updated profile gps_simplification in DB from env var: %d (was %s).", env_val, db_val)
+        else:
+            config.gps_simplification = int(db_val)
+    else:
+        if db_val is not None:
+            config.gps_simplification = int(db_val)
+        else:
+            preserved_templates = {field: (existing.get(field, "") or "") for field in UPDATE_STRAVA_FIELDS}
+            repo.upsert_profile(
+                existing["athlete_id"], existing["first_name"], existing["last_name"], existing["weight"],
+                refresh_token=existing.get("refresh_token", "") or "",
+                gps_simplification=0,
+                **preserved_templates
+            )
+            config.gps_simplification = 0
+            logger.info("Initialized profile gps_simplification in DB with default 0.")
+
+
+def sync_update_strava_from_env(config: Config, repo) -> None:
+    """Synchronize ``UPDATE_STRAVA_*`` database fields with environment variables.
+
+    Precedence Rules:
+    1. If an env var for a template field IS explicitly set in the environment:
+       - Uses the env var template.
+       - If DB has no stored value yet, or if DB value differs from env var, updates DB to match env var.
+       - Sets `config.<field> = env_value`.
+    2. If an env var is NOT set in the environment:
+       - If DB has a stored template, uses the stored DB template (`config.<field> = db_value`).
+       - If DB has no stored template yet, leaves it empty.
+    """
+    import os
 
     existing = repo.get_profile()
     if not existing or not isinstance(existing, dict):
@@ -102,49 +144,83 @@ def sync_update_strava_from_env(config: Config, repo) -> None:
         return
 
     new_values = {}
-    newly_seeded = []
-    ignored_env_diff = []
+    updated_fields = []
     for field in UPDATE_STRAVA_FIELDS:
-        existing_value = existing.get(field) or ""
-        if existing_value:
-            # Database already has a value for this field — it's authoritative
-            # from now on, regardless of what the env var currently says.
-            new_values[field] = existing_value
-            setattr(config, field, existing_value)
-            if env_values[field] and env_values[field] != existing_value:
-                ignored_env_diff.append(field)
-        else:
-            # Database field is empty — seed it from the env var (a no-op if
-            # the env var is also empty).
-            new_values[field] = env_values[field]
-            setattr(config, field, env_values[field])
-            if env_values[field]:
-                newly_seeded.append(field)
+        env_var_name = field.upper()
+        env_raw = os.getenv(env_var_name)
+        db_val = existing.get(field) or ""
 
-    if not newly_seeded:
-        if ignored_env_diff:
-            logger.debug(
-                "UPDATE_STRAVA_*: %d field(s) already set in the database differ from their "
-                "current env var value and were left unchanged (db value wins): %s.",
-                len(ignored_env_diff), ", ".join(ignored_env_diff),
-            )
+        if env_raw is not None and env_raw.strip() != "":
+            env_val = env_raw.strip()
+            if db_val != env_val:
+                new_values[field] = env_val
+                updated_fields.append(field)
+            else:
+                new_values[field] = db_val
+            setattr(config, field, new_values[field])
+        else:
+            new_values[field] = db_val
+            setattr(config, field, db_val)
+
+    if updated_fields:
+        repo.upsert_profile(
+            existing["athlete_id"], existing["first_name"], existing["last_name"], existing["weight"],
+            refresh_token=existing.get("refresh_token", "") or "",
+            gps_simplification=existing.get("gps_simplification"),
+            **new_values,
+        )
+        logger.info("Updated UPDATE_STRAVA_* template(s) in DB from environment: %s.", ", ".join(updated_fields))
+
+
+def sync_athlete_weight_from_env(config: Config, repo) -> None:
+    """Synchronize `athlete_weight` setting between environment variable and DB.
+
+    Precedence Rules:
+    1. If `ATHLETE_WEIGHT` env var is explicitly set in environment:
+       - Uses the env var value.
+       - Updates DB weight if DB weight is 0 or differs.
+       - Sets `config.athlete_weight = env_weight`.
+    2. If `ATHLETE_WEIGHT` env var is NOT set:
+       - If DB has a stored weight (> 0), uses stored DB weight (`config.athlete_weight = db_weight`).
+       - If DB weight is 0, leaves it 0.
+    """
+    import os
+
+    existing = repo.get_profile()
+    if not existing or not isinstance(existing, dict):
         return
 
-    repo.upsert_profile(
-        existing["athlete_id"], existing["first_name"], existing["last_name"], existing["weight"],
-        refresh_token=existing.get("refresh_token", "") or "",
-        **new_values,
-    )
-    logger.info(
-        "UPDATE_STRAVA_* templates seeded from environment for %d previously-empty field(s): %s.",
-        len(newly_seeded), ", ".join(newly_seeded),
-    )
-    if ignored_env_diff:
-        logger.debug(
-            "UPDATE_STRAVA_*: %d field(s) already set in the database differ from their "
-            "current env var value and were left unchanged (db value wins): %s.",
-            len(ignored_env_diff), ", ".join(ignored_env_diff),
-        )
+    env_weight_raw = os.getenv("ATHLETE_WEIGHT")
+    db_weight = float(existing.get("weight", 0) or 0)
+
+    if env_weight_raw is not None and env_weight_raw.strip() != "":
+        try:
+            env_weight = float(env_weight_raw)
+            if env_weight > 0 and abs(db_weight - env_weight) > 0.01:
+                preserved_templates = {field: (existing.get(field, "") or "") for field in UPDATE_STRAVA_FIELDS}
+                repo.upsert_profile(
+                    existing["athlete_id"], existing["first_name"], existing["last_name"], env_weight,
+                    refresh_token=existing.get("refresh_token", "") or "",
+                    gps_simplification=existing.get("gps_simplification"),
+                    **preserved_templates
+                )
+                config.athlete_weight = env_weight
+                logger.info("Updated athlete weight in DB from ATHLETE_WEIGHT env var: %.1f kg (was %.1f kg).", env_weight, db_weight)
+            else:
+                config.athlete_weight = db_weight if db_weight > 0 else env_weight
+        except ValueError:
+            pass
+    else:
+        if db_weight > 0:
+            config.athlete_weight = db_weight
+
+
+def sync_all_profile_env_vars(config: Config, repo) -> None:
+    """Synchronize all environment variable configurations to DB profile."""
+    sync_update_strava_from_env(config, repo)
+    sync_gps_simplification_from_env(config, repo)
+    sync_athlete_weight_from_env(config, repo)
+
 
 
 # ---------------------------------------------------------------------------

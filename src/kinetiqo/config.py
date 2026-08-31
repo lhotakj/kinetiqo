@@ -104,6 +104,10 @@ class Config:
     maptiler_api_key: str | None = os.getenv("MAPTILER_API_KEY", "")
     geoapify_api_key: str | None = os.getenv("GEOAPIFY_API_KEY", "")
 
+    # GPS Track Simplification
+    gps_simplification: int = 0  # 0 (off, default) to 10 (max decimation)
+    is_gps_simplification_env_set: bool = False  # True if env var was explicitly passed
+
     # Date Format
     date_format: str | None = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
@@ -130,8 +134,19 @@ class Config:
         Converts port and numeric environment variables to the appropriate
         numeric types and exits with an error message if values are malformed.
         """
+        self.strava_client_id = os.getenv("STRAVA_CLIENT_ID")
+        self.strava_client_secret = os.getenv("STRAVA_CLIENT_SECRET")
+        self.strava_refresh_token = os.getenv("STRAVA_REFRESH_TOKEN")
+
         db_env = os.getenv("DATABASE_TYPE") or os.getenv("DATABASE")
         self.database_type = resolve_database_type(db_env)
+
+        self.postgresql_host = os.getenv("POSTGRESQL_HOST")
+        self.postgresql_user = os.getenv("POSTGRESQL_USER")
+        self.postgresql_password = os.getenv("POSTGRESQL_PASSWORD")
+        self.postgresql_database = os.getenv("POSTGRESQL_DATABASE")
+        self.postgresql_ssl_mode = os.getenv("POSTGRESQL_SSL_MODE", "disable")
+
         if os.getenv("POSTGRESQL_PORT"):
             try:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))
@@ -139,12 +154,23 @@ class Config:
                 logger.error("Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
 
+        self.mysql_host = os.getenv("MYSQL_HOST")
+        self.mysql_user = os.getenv("MYSQL_USER")
+        self.mysql_password = os.getenv("MYSQL_PASSWORD")
+        self.mysql_database = os.getenv("MYSQL_DATABASE")
+        self.mysql_ssl_mode = os.getenv("MYSQL_SSL_MODE", "disable")
+
         if os.getenv("MYSQL_PORT"):
             try:
                 self.mysql_port = int(os.getenv("MYSQL_PORT"))
             except ValueError:
                 logger.error("Environment variable MYSQL_PORT should be a number")
                 sys.exit(1)
+
+        self.firebird_host = os.getenv("FIREBIRD_HOST")
+        self.firebird_user = os.getenv("FIREBIRD_USER")
+        self.firebird_password = os.getenv("FIREBIRD_PASSWORD")
+        self.firebird_database = os.getenv("FIREBIRD_DATABASE")
 
         if os.getenv("FIREBIRD_PORT"):
             try:
@@ -160,6 +186,21 @@ class Config:
                 logger.error("Environment variable ATHLETE_WEIGHT should be a number (kg)")
                 sys.exit(1)
 
+        self.mapy_api_key = os.getenv("MAPY_API_KEY", "")
+        self.thunderforest_api_key = os.getenv("THUNDERFOREST_API_KEY", "")
+        self.maptiler_api_key = os.getenv("MAPTILER_API_KEY", "")
+        self.geoapify_api_key = os.getenv("GEOAPIFY_API_KEY", "")
+        self.date_format = os.getenv("DATE_FORMAT", "%b %d, %Y")
+
+        self.update_strava_cycling_indoor = os.getenv("UPDATE_STRAVA_CYCLING_INDOOR", "") or ""
+        self.update_strava_cycling_outdoor = os.getenv("UPDATE_STRAVA_CYCLING_OUTDOOR", "") or ""
+        self.update_strava_running_indoor = os.getenv("UPDATE_STRAVA_RUNNING_INDOOR", "") or ""
+        self.update_strava_running_outdoor = os.getenv("UPDATE_STRAVA_RUNNING_OUTDOOR", "") or ""
+        self.update_strava_walking = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
+        self.update_strava_swimming = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
+
+        raw_placement = os.getenv("UPDATE_STRAVA_PLACEMENT", DEFAULT_UPDATE_STRAVA_PLACEMENT) or DEFAULT_UPDATE_STRAVA_PLACEMENT
+        self.update_strava_placement = raw_placement.strip().lower()
         if self.update_strava_placement not in UPDATE_STRAVA_PLACEMENT:
             logger.warning(
                 "Environment variable UPDATE_STRAVA_PLACEMENT=%r is not one of %s — "
@@ -167,5 +208,19 @@ class Config:
                 self.update_strava_placement, UPDATE_STRAVA_PLACEMENT, DEFAULT_UPDATE_STRAVA_PLACEMENT,
             )
             self.update_strava_placement = DEFAULT_UPDATE_STRAVA_PLACEMENT
+
+        gps_simp_env = os.getenv("GPS_SIMPLIFICATION") or os.getenv("GPS_SIMPLIFICATION_LEVEL")
+        if gps_simp_env is not None and gps_simp_env.strip():
+            self.is_gps_simplification_env_set = True
+            try:
+                val = int(gps_simp_env)
+                if 0 <= val <= 10:
+                    self.gps_simplification = val
+                else:
+                    logger.warning("Environment variable GPS_SIMPLIFICATION=%r is outside valid range (0-10) — defaulting to 0.", gps_simp_env)
+                    self.gps_simplification = 0
+            except ValueError:
+                logger.warning("Environment variable GPS_SIMPLIFICATION=%r should be an integer (0-10) — defaulting to 0.", gps_simp_env)
+                self.gps_simplification = 0
 
     database_connect_verbose: bool = True  # Show verbose output in init

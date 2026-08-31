@@ -29,6 +29,7 @@ except Exception as exc:
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from kinetiqo.config import Config
+from kinetiqo.gps_simplify import simplify_track, GPS_SIMPLIFICATION_THRESHOLDS
 from kinetiqo.strava_description import any_update_strava_template_configured, validate_template
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
@@ -41,7 +42,13 @@ from kinetiqo.web.fonts import (
     get_google_fonts,
     POSTER_GOOGLE_FONT_NAMES,
 )
-from kinetiqo.profile_sync import seed_profile_from_strava
+from kinetiqo.profile_sync import (
+    seed_profile_from_strava,
+    sync_all_profile_env_vars,
+    sync_update_strava_from_env,
+    sync_gps_simplification_from_env,
+    sync_athlete_weight_from_env,
+)
 from kinetiqo.strava import StravaClient
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
 from kinetiqo.web.auth import User, users
@@ -122,6 +129,48 @@ mimetypes.add_type('image/svg+xml', '.svg')
 mimetypes.add_type('font/woff2', '.woff2')
 mimetypes.add_type('font/woff', '.woff')
 mimetypes.add_type('font/ttf', '.ttf')
+
+# --- Startup Profile Synchronization (Runs EXACTLY ONCE on App Boot) ---
+_startup_sync_done = False
+_startup_sync_lock = threading.Lock()
+
+
+def ensure_startup_profile_sync() -> None:
+    """Run environment-to-DB profile synchronization once per process on startup.
+
+    Thread-safe and process-safe: executes sync logic (env vars -> DB)
+    exactly once when the web application starts up or handles its first request.
+    Subsequent API requests read directly from the database without re-evaluating
+    environment variables every time.
+    """
+    global _startup_sync_done
+    if _startup_sync_done:
+        return
+
+    with _startup_sync_lock:
+        if _startup_sync_done:
+            return
+        repo = None
+        try:
+            repo = get_db()
+            sync_all_profile_env_vars(config, repo)
+            _startup_sync_done = True
+            logger.info("Startup profile synchronization from environment completed successfully.")
+        except Exception as e:
+            logger.warning(f"Startup profile sync from environment failed: {e}")
+
+
+def mark_startup_sync_done() -> None:
+    """Mark startup environment profile synchronization as completed."""
+    global _startup_sync_done
+    _startup_sync_done = True
+
+
+@app.before_request
+def _run_startup_sync_once():
+    """Ensure startup environment-to-DB profile sync runs once per worker process."""
+    if not _startup_sync_done:
+        ensure_startup_profile_sync()
 
 # --- Self-hosted Google Fonts ---
 # Downloads fonts on first startup; serves from /static/ afterward.
@@ -946,12 +995,23 @@ def map_data_api():
         if bounds is None:
             return jsonify({'error': 'No valid GPS coordinates found.'}), 404
 
-        # Step 4: Build compact response
+        # Step 4: Build compact response with O(N) Haversine simplification
+        profile = repo.get_profile()
+        if profile and isinstance(profile, dict) and profile.get('gps_simplification') is not None and not isinstance(profile.get('gps_simplification'), MagicMock if 'MagicMock' in globals() else type(None)):
+            try:
+                level = int(profile['gps_simplification'])
+            except (ValueError, TypeError):
+                level = getattr(config, 'gps_simplification', 0)
+        else:
+            level = getattr(config, 'gps_simplification', 0)
+        threshold_meters = GPS_SIMPLIFICATION_THRESHOLDS.get(level, 0.0)
         total_points = 0
         activities_payload = {}
         for aid, coords in streams_data.items():
             if len(coords) < 2:
                 continue
+            if level > 0 and threshold_meters > 0.0:
+                coords = simplify_track(coords, threshold_meters=threshold_meters)
             total_points += len(coords)
             activities_payload[aid] = {
                 'name': activity_names.get(aid, f"Activity {aid}"),
@@ -965,7 +1025,9 @@ def map_data_api():
             'activities': activities_payload,
             'bounds': list(bounds),  # [min_lat, min_lng, max_lat, max_lng]
             'activity_count': len(activities_payload),
-            'point_count': total_points
+            'point_count': total_points,
+            'gps_simplification': level,
+            'threshold_meters': threshold_meters,
         }
 
         # Serialize to compact JSON; flask-compress handles gzip/brotli
@@ -1563,6 +1625,7 @@ def ftp():
                             prof['weight'],
                             refresh_token=prof.get('refresh_token', '') or '',
                             ftp=float(ftp_watts),
+                            gps_simplification=prof.get('gps_simplification'),
                             **preserved_templates
                         )
                         ftp_updated_msg = "FTP value in your profile has been updated."
@@ -2252,6 +2315,7 @@ def get_profile_api():
         payload.
     """
     try:
+        ensure_startup_profile_sync()
         repo = get_db()
         profile = repo.get_profile()
         if not profile:
@@ -2261,13 +2325,18 @@ def get_profile_api():
                 logger.warning(f"Could not seed athlete profile from Strava: {e}")
                 profile = None
         if not profile:
-            default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0}
+            default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0, 'gps_simplification': getattr(config, 'gps_simplification', 0)}
             default_profile.update(dict.fromkeys(UPDATE_STRAVA_FIELDS, ''))
             return jsonify(default_profile)
         # Never expose the Strava refresh token to the client — it is stored
         # in the database purely so it survives an app restart (see
         # kinetiqo.profile_sync) and has no business being in the UI/API.
         profile = {k: v for k, v in profile.items() if k != 'refresh_token'}
+        if profile.get('gps_simplification') is None:
+            profile['gps_simplification'] = getattr(config, 'gps_simplification', 0)
+        else:
+            profile['gps_simplification'] = int(profile['gps_simplification'])
+            config.gps_simplification = int(profile['gps_simplification'])
         return jsonify(profile)
     except Exception as e:
         logger.exception(f"Error fetching profile: {e}")
@@ -2324,6 +2393,23 @@ def update_profile_api():
         else:
             ftp = existing.get('ftp')
 
+        # Validate gps_simplification: integer 0-10
+        if 'gps_simplification' in data:
+            try:
+                gps_simplification = int(data['gps_simplification'])
+            except (TypeError, ValueError):
+                return jsonify({'error': 'GPS simplification level must be an integer (0-10).', 'field': 'gps_simplification'}), 422
+            if not (0 <= gps_simplification <= 10):
+                return jsonify({'error': 'GPS simplification level must be between 0 and 10.', 'field': 'gps_simplification'}), 422
+            config.gps_simplification = gps_simplification
+        else:
+            gps_simplification = existing.get('gps_simplification')
+            if gps_simplification is None:
+                gps_simplification = getattr(config, 'gps_simplification', 0)
+            else:
+                gps_simplification = int(gps_simplification)
+                config.gps_simplification = gps_simplification
+
         # UPDATE_STRAVA_* templates can be updated via GUI / API payload
         template_updates = {}
         for field in UPDATE_STRAVA_FIELDS:
@@ -2344,6 +2430,7 @@ def update_profile_api():
         repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
                             refresh_token=existing.get('refresh_token', '') or '',
                             ftp=ftp,
+                            gps_simplification=gps_simplification,
                             **template_updates)
 
         response_payload = {
@@ -2352,6 +2439,7 @@ def update_profile_api():
             'last_name': last_name,
             'weight': weight,
             'ftp': ftp,
+            'gps_simplification': gps_simplification,
         }
         response_payload.update(template_updates)
         return jsonify(response_payload)
@@ -2609,6 +2697,7 @@ def delete_activity_api(activity_id):
         repo = get_db()
 
         repo.delete_activity(activity_id)
+        _power_cache.invalidate()
 
         # Log the deletion
         try:
@@ -2639,6 +2728,7 @@ def delete_activities_api():
         repo = get_db()
 
         repo.delete_activities(activity_ids)
+        _power_cache.invalidate()
 
         try:
             repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk",
