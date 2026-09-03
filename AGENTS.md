@@ -27,6 +27,8 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 
 **This is a critical instruction.** The default testing strategy for Kinetiqo is **fast, isolated unit tests**. All external dependencies, especially the database and the Strava API, **must be mocked**.
 
+Note: Tests must not make real network or database calls. Use unittest.mock, local fakes, or test-only fixtures to simulate external services; CI jobs should never depend on live third-party services.
+
 - **Always write mocked unit tests by default.** Do not write integration tests requiring a live database unless explicitly requested.
 - **Use `unittest.mock.patch`** to intercept external boundary calls. Primary patch targets include:
   - `kinetiqo.sync.create_repository`
