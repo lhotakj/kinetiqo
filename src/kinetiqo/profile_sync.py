@@ -13,7 +13,24 @@ def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
     The helper keeps the existing database weight when Strava returns no weight
     or ``0``.  It returns the persisted profile dict, or ``None`` if Strava did
     not return a valid athlete id.
+
+    NOTE: When running under Flask testing mode (app.config['TESTING'] == True)
+    this function will skip the external Strava call and return None to avoid
+    seeding production-like data during unit tests. Tests that require a
+    seeded profile should explicitly mock this function or provide a fake repo.
     """
+    # Avoid seeding during Flask tests — current_app may not exist outside a
+    # request context, so guard access with try/except.
+    try:
+        from flask import current_app
+
+        if getattr(current_app, "config", {}).get("TESTING", False):
+            logger.info("Skipping profile seeding from Strava in TESTING mode.")
+            return None
+    except Exception:
+        # Not running inside Flask request/app context — continue normally
+        pass
+
     from kinetiqo.strava import StravaClient
 
     existing = repo.get_profile()
