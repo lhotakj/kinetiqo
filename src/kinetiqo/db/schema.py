@@ -102,6 +102,24 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE DESCENDING INDEX idx_activities_distance ON "activities" ("distance")'
             },
             {
+                "name": "idx_activities_name",
+                "def_mysql": "CREATE INDEX idx_activities_name ON activities (name(255))",
+                "def_pg": "CREATE INDEX idx_activities_name ON activities (name)",
+                "def_firebird": 'CREATE INDEX idx_activities_name ON "activities" ("name")'
+            },
+            {
+                "name": "idx_activities_start_elev",
+                "def_mysql": "CREATE INDEX idx_activities_start_elev ON activities (start_date DESC, total_elevation_gain DESC)",
+                "def_pg": "CREATE INDEX idx_activities_start_elev ON activities (start_date DESC, total_elevation_gain DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_elev ON "activities" ("start_date", "total_elevation_gain")'
+            },
+            {
+                "name": "idx_activities_start_dist",
+                "def_mysql": "CREATE INDEX idx_activities_start_dist ON activities (start_date DESC, distance DESC)",
+                "def_pg": "CREATE INDEX idx_activities_start_dist ON activities (start_date DESC, distance DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_dist ON "activities" ("start_date", "distance")'
+            },
+            {
                 "name": "idx_activities_elevation",
                 "def_mysql": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
                 "def_pg": "CREATE INDEX idx_activities_elevation ON activities (total_elevation_gain DESC)",
@@ -199,6 +217,12 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE INDEX idx_streams_ts ON "streams" ("ts")'
             },
             {
+                "name": "idx_streams_activity_lat_lng",
+                "def_mysql": "CREATE INDEX idx_streams_activity_lat_lng ON streams (activity_id, lat, lng)",
+                "def_pg": "CREATE INDEX idx_streams_activity_lat_lng ON streams (activity_id) INCLUDE (lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL",
+                "def_firebird": 'CREATE INDEX idx_streams_activity_lat_lng ON "streams" ("activity_id", "lat", "lng")'
+            },
+            {
                 "name": "idx_streams_activity_gps",
                 "def_mysql": "CREATE INDEX idx_streams_activity_gps ON streams (activity_id, ts, lat, lng)",
                 "def_pg": "CREATE INDEX idx_streams_activity_gps ON streams (activity_id, ts) INCLUDE (lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL",
@@ -290,6 +314,33 @@ SCHEMA_DEFINITION = {
              "type_firebird": "VARCHAR(255)"},
             {"name": "weight", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
              "type_firebird": _DOUBLE_PRECISION},
+            {"name": "ftp", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            # Per activity-type/scope UPDATE_STRAVA_* templates, synced from their
+            # respective environment variables on every application start.
+            # Read-only in the UI — see docs/UPDATE_STRAVA.md.
+            {"name": "update_strava_cycling_indoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(1000)"},
+            {"name": "update_strava_cycling_outdoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(1000)"},
+            {"name": "update_strava_running_indoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(1000)"},
+            {"name": "update_strava_running_outdoor", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(1000)"},
+            {"name": "update_strava_walking", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(1000)"},
+            {"name": "update_strava_swimming", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(1000)"},
+            # The current Strava OAuth2 refresh token. Strava issues a new
+            # refresh token on every token exchange and invalidates the
+            # previous one, so this column — not the STRAVA_REFRESH_TOKEN env
+            # var — is authoritative once a profile row exists. See
+            # kinetiqo.profile_sync.resolve_refresh_token_from_db().
+            {"name": "refresh_token", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
+            # Map GPS track decimation level (scale 0-10, 0=disabled, 1-10=3m-100m thresholds).
+            {"name": "gps_simplification", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0",
+             "type_firebird": "INTEGER DEFAULT 0"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
@@ -330,7 +381,17 @@ SCHEMA_DEFINITION = {
 
 
 class SchemaManager:
+    """Helper to ensure the database schema matches the repository's
+    SCHEMA_DEFINITION for the target dialect (MySQL, PostgreSQL, Firebird).
+    """
+
     def __init__(self, conn, db_type):
+        """Initialize SchemaManager.
+
+        Args:
+            conn: A DB-API connection object.
+            db_type (str): One of 'mysql', 'postgresql', or 'firebird'.
+        """
         self.conn = conn
         self.db_type = db_type  # 'mysql', 'postgresql', or 'firebird'
 
@@ -503,7 +564,7 @@ class SchemaManager:
                 )
                 return True
             else:
-                logger.error(
+                logger.exception(
                     f"{self.db_type.upper()}: Failed to create index '{idx_name}' on '{table_name}': {e}"
                 )
                 return False
@@ -615,15 +676,35 @@ class SchemaManager:
             if self._table_exists(table_name):
                 logger.info(f"{self.db_type.upper()}: Table '{table_name}' already exists.")
             else:
-                logger.error(f"{self.db_type.upper()}: Failed to create table '{table_name}': {e}")
+                logger.exception(f"{self.db_type.upper()}: Failed to create table '{table_name}': {e}")
                 raise
         finally:
             cur.close()
 
     def _update_table(self, table_name, definition):
         existing_columns = self._get_existing_columns(table_name)
-
         type_suffix = self._get_type_suffix()
+
+        # On Firebird, resize any pre-existing update_strava_* columns to fit within table record size limits
+        if self.db_type == 'firebird':
+            for col in definition["columns"]:
+                col_name_check = col["name"].lower()
+                if col_name_check in existing_columns and col["name"].startswith("update_strava_"):
+                    quoted_table = self._quote_identifier(table_name)
+                    quoted_col = self._quote_identifier(col['name'])
+                    col_type = col[f"type_{type_suffix}"]
+                    cur = self.conn.cursor()
+                    try:
+                        cur.execute(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_col} TYPE {col_type}")
+                        self.conn.commit()
+                    except Exception:
+                        try:
+                            self.conn.rollback()
+                        except Exception:
+                            pass
+                    finally:
+                        cur.close()
+
         for col in definition["columns"]:
             col_name_check = col["name"].lower() if self.db_type == 'firebird' else col["name"]
             if col_name_check not in existing_columns:

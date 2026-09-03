@@ -4,16 +4,30 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
-import firebird.driver
-from firebird.driver import tpb, Isolation, TraAccessMode
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
+
+# Optional Firebird driver module.  Only the top-level module is imported here;
+# subcomponents (driver.connect, base.tpb, Isolation, TraAccessMode) are
+# resolved dynamically in _connect() to handle variations between versions.
+try:
+    import firebird
+except Exception:
+    firebird = None
+
 
 logger = logging.getLogger("kinetiqo")
 
 
 class FirebirdRepository(DatabaseRepository):
+    """Firebird repository implementation using the firebird-driver.
+
+    This class provides the DatabaseRepository contract for Firebird backends
+    and includes connection verification, schema initialization and data
+    access methods optimized for the Firebird engine.
+    """
+
     # Minimum seconds between active connection probes.  Within this window
     # only a cheap ``is_closed()`` check is performed.  The web layer creates
     # a fresh connection per request (lifetime < 1 s), so the probe is
@@ -22,20 +36,28 @@ class FirebirdRepository(DatabaseRepository):
     _VERIFY_INTERVAL: float = 30.0
 
     def __init__(self, config: Config):
+        """Initialize Firebird repository and ensure database availability.
+
+        Args:
+            config (Config): Application configuration with Firebird connection info.
+        """
         self.config = config
         self._last_verified: float = 0.0
+        # Ensure attribute exists even if _connect() fails so close() is safe.
+        self.conn = None
         try:
             self.conn = self._connect()
             self._last_verified = time.monotonic()
         except Exception as err:
             logger.warning(f"Cannot connect to Firebird: {err}")
-            sys.exit(1)
+            # Re-raise a clearer error for callers to handle (avoids AttributeError later).
+            raise
 
         try:
             self._ensure_database()
         except Exception as err:
             logger.warning(f"Cannot ensure database: {err}")
-            sys.exit(1)
+            raise
 
     def _validate_timestamp(self, timestamp: datetime) -> datetime:
         """Validate and fix timestamps that are before Unix epoch."""
@@ -44,26 +66,83 @@ class FirebirdRepository(DatabaseRepository):
         return timestamp
 
     def _connect(self):
-        """Helper to connect to the Firebird database."""
+        """Helper to connect to the Firebird database.
+
+        This function is tolerant to multiple layouts of the installed
+        Firebird package. It tries to locate a connect() callable in the
+        most common locations and also attempts to load TPB helpers where
+        available. If the installed package does not expose a connector,
+        an informative ImportError is raised containing available attributes
+        for easier debugging.
+        """
+        if firebird is None:
+            raise ImportError(
+                "Firebird driver not available. Install the runtime dependency 'firebird-driver' "
+                "(pip install firebird-driver) or switch to a different database backend."
+            )
+
+        import importlib
+
+        # Determine the connect() callable from the installed package.
+        connect_func = None
         try:
+            if hasattr(firebird, 'driver') and hasattr(firebird.driver, 'connect'):
+                connect_func = firebird.driver.connect
+            elif hasattr(firebird, 'connect'):
+                connect_func = firebird.connect
+            else:
+                # Try to import firebird.driver module explicitly
+                try:
+                    drv = importlib.import_module('firebird.driver')
+                    if hasattr(drv, 'connect'):
+                        connect_func = drv.connect
+                except Exception:
+                    pass
+
+            if connect_func is None:
+                available = ', '.join(sorted(dir(firebird)))
+                raise ImportError(
+                    f"Installed 'firebird' module does not expose a connection function. "
+                    f"Available attributes: {available}"
+                )
+
             dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
 
-            conn = firebird.driver.connect(
+            conn = connect_func(
                 database=dsn,
                 user=self.config.firebird_user,
                 password=self.config.firebird_password,
                 charset='UTF8'
             )
 
-            # READ COMMITTED RECORD VERSION ensures we see the latest committed data
-            # without the overhead of SNAPSHOT isolation.
-            rc_tpb = tpb(isolation=Isolation.READ_COMMITTED_RECORD_VERSION,
-                         access_mode=TraAccessMode.WRITE)
-            conn.main_transaction.default_tpb = rc_tpb
+            # Try to locate TPB helpers from common module locations and set TPB if available.
+            tpb = None
+            isolation = None
+            tra_access_mode = None
+            for mod_name in ('firebird.base', 'firebird.driver', 'firebird'):
+                try:
+                    m = importlib.import_module(mod_name)
+                except Exception:
+                    continue
+                if tpb is None and hasattr(m, 'tpb'):
+                    tpb = getattr(m, 'tpb')
+                if isolation is None and hasattr(m, 'Isolation'):
+                    isolation = getattr(m, 'Isolation')
+                if tra_access_mode is None and hasattr(m, 'TraAccessMode'):
+                    tra_access_mode = getattr(m, 'TraAccessMode')
+
+            if tpb and isolation and tra_access_mode:
+                try:
+                    rc_tpb = tpb(isolation=isolation.READ_COMMITTED_RECORD_VERSION,
+                                 access_mode=tra_access_mode.WRITE)
+                    conn.main_transaction.default_tpb = rc_tpb
+                except Exception:
+                    logger.warning("Could not set TPB on Firebird connection; continuing without it.")
 
             return conn
+
         except Exception as e:
-            logger.error(f"Failed to connect to Firebird: {e}")
+            logger.exception(f"Failed to connect to Firebird: {e}")
             raise
 
     def _ensure_connected(self):
@@ -100,7 +179,7 @@ class FirebirdRepository(DatabaseRepository):
                 self.conn = self._connect()
                 self._last_verified = time.monotonic()
             except Exception as e:
-                logger.error(f"Failed to reconnect to Firebird: {e}")
+                logger.exception(f"Failed to reconnect to Firebird: {e}")
                 raise
 
     def _ensure_database(self):
@@ -115,7 +194,7 @@ class FirebirdRepository(DatabaseRepository):
                 if self.conn:
                     try:
                         self.conn.close()
-                    except:
+                    except Exception:
                         pass
                 dsn = f"{self.config.firebird_host}/{self.config.firebird_port}:{self.config.firebird_database}"
                 firebird.driver.create_database(
@@ -124,7 +203,7 @@ class FirebirdRepository(DatabaseRepository):
                 logger.info(f"Database '{self.config.firebird_database}' created successfully.")
                 self.conn = self._connect()
             except Exception as create_err:
-                logger.error(f"Could not create database: {create_err}")
+                logger.exception(f"Could not create database: {create_err}")
                 sys.exit(1)
 
     def get_firebird_version(self) -> str:
@@ -318,6 +397,7 @@ class FirebirdRepository(DatabaseRepository):
                     "start_date",
                     "average_speed",
                     "average_heartrate",
+                    "average_cadence",
                     "average_watts",
                     "max_watts",
                     "weighted_average_watts",
@@ -349,21 +429,22 @@ class FirebirdRepository(DatabaseRepository):
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
                     'average_heartrate': row[8],
-                    'average_watts': row[9],
-                    'max_watts': row[10],
-                    'weighted_average_watts': row[11],
-                    'device_watts': row[12],
-                    'calories': row[13],
-                    'kilojoules': row[14],
-                    'achievement_count': row[15],
-                    'pr_count': row[16],
-                    'suffer_score': row[17],
-                    'average_temp': row[18],
-                    'elev_high': row[19],
-                    'elev_low': row[20],
-                    'gear_id': row[21],
-                    'has_heartrate': row[22],
-                    'workout_type': row[23]
+                    'average_cadence': row[9],
+                    'average_watts': row[10],
+                    'max_watts': row[11],
+                    'weighted_average_watts': row[12],
+                    'device_watts': row[13],
+                    'calories': row[14],
+                    'kilojoules': row[15],
+                    'achievement_count': row[16],
+                    'pr_count': row[17],
+                    'suffer_score': row[18],
+                    'average_temp': row[19],
+                    'elev_high': row[20],
+                    'elev_low': row[21],
+                    'gear_id': row[22],
+                    'has_heartrate': row[23],
+                    'workout_type': row[24]
                 }
                 activities.append(activity)
             return activities
@@ -373,7 +454,7 @@ class FirebirdRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from Firebird"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -407,8 +488,9 @@ class FirebirdRepository(DatabaseRepository):
         if where_conditions:
             where_clause = "WHERE " + " AND ".join(where_conditions)
 
+        first_skip = f"FIRST {limit} SKIP {offset}" if limit is not None else ""
         query = f"""
-            SELECT FIRST {limit} SKIP {offset}
+            SELECT {first_skip}
                 "activity_id" as id,
                 CAST("name" AS VARCHAR(500)) as "name",
                 "sport" as type,
@@ -418,6 +500,7 @@ class FirebirdRepository(DatabaseRepository):
                 "start_date",
                 "average_speed",
                 "average_heartrate",
+                "average_cadence",
                 "average_watts",
                 "max_watts",
                 "weighted_average_watts",
@@ -432,7 +515,8 @@ class FirebirdRepository(DatabaseRepository):
                 "elev_low",
                 "gear_id",
                 "has_heartrate",
-                "workout_type"
+                "workout_type",
+                "max_speed"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -453,21 +537,23 @@ class FirebirdRepository(DatabaseRepository):
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
                     'average_heartrate': row[8],
-                    'average_watts': row[9],
-                    'max_watts': row[10],
-                    'weighted_average_watts': row[11],
-                    'device_watts': row[12],
-                    'calories': row[13],
-                    'kilojoules': row[14],
-                    'achievement_count': row[15],
-                    'pr_count': row[16],
-                    'suffer_score': row[17],
-                    'average_temp': row[18],
-                    'elev_high': row[19],
-                    'elev_low': row[20],
-                    'gear_id': row[21],
-                    'has_heartrate': row[22],
-                    'workout_type': row[23]
+                    'average_cadence': row[9],
+                    'average_watts': row[10],
+                    'max_watts': row[11],
+                    'weighted_average_watts': row[12],
+                    'device_watts': row[13],
+                    'calories': row[14],
+                    'kilojoules': row[15],
+                    'achievement_count': row[16],
+                    'pr_count': row[17],
+                    'suffer_score': row[18],
+                    'average_temp': row[19],
+                    'elev_high': row[20],
+                    'elev_low': row[21],
+                    'gear_id': row[22],
+                    'has_heartrate': row[23],
+                    'workout_type': row[24],
+                    'max_speed': row[25]
                 }
                 activities.append(activity)
             return activities
@@ -493,6 +579,7 @@ class FirebirdRepository(DatabaseRepository):
                     "start_date",
                     "average_speed",
                     "average_heartrate",
+                    "average_cadence",
                     "average_watts",
                     "max_watts",
                     "weighted_average_watts",
@@ -525,21 +612,22 @@ class FirebirdRepository(DatabaseRepository):
                     'start_date': row[6].isoformat() if isinstance(row[6], datetime) else row[6],
                     'average_speed': row[7],
                     'average_heartrate': row[8],
-                    'average_watts': row[9],
-                    'max_watts': row[10],
-                    'weighted_average_watts': row[11],
-                    'device_watts': row[12],
-                    'calories': row[13],
-                    'kilojoules': row[14],
-                    'achievement_count': row[15],
-                    'pr_count': row[16],
-                    'suffer_score': row[17],
-                    'average_temp': row[18],
-                    'elev_high': row[19],
-                    'elev_low': row[20],
-                    'gear_id': row[21],
-                    'has_heartrate': row[22],
-                    'workout_type': row[23]
+                    'average_cadence': row[9],
+                    'average_watts': row[10],
+                    'max_watts': row[11],
+                    'weighted_average_watts': row[12],
+                    'device_watts': row[13],
+                    'calories': row[14],
+                    'kilojoules': row[15],
+                    'achievement_count': row[16],
+                    'pr_count': row[17],
+                    'suffer_score': row[18],
+                    'average_temp': row[19],
+                    'elev_high': row[20],
+                    'elev_low': row[21],
+                    'gear_id': row[22],
+                    'has_heartrate': row[23],
+                    'workout_type': row[24]
                 }
                 activities.append(activity)
             return activities
@@ -591,15 +679,34 @@ class FirebirdRepository(DatabaseRepository):
                 'total_moving_time': result[2] if result else 0
             }
 
-    def count_activities(self, types=None):
-        """Get total count of activities"""
+    def count_activities(self, types=None, start_date=None, end_date=None):
+        """Get total count of activities, optionally filtered by sport type and date range."""
         self._ensure_connected()
-        where_clause = ""
+        where_conditions = []
         params = []
         if types:
             placeholders = ', '.join(['?'] * len(types))
-            where_clause = f'WHERE "sport" IN ({placeholders})'
+            where_conditions.append(f'"sport" IN ({placeholders})')
             params.extend(types)
+
+        if start_date:
+            where_conditions.append('"start_date" >= ?')
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date)
+            params.append(start_date)
+
+        if end_date:
+            where_conditions.append('"start_date" <= ?')
+            if isinstance(end_date, str):
+                if len(end_date) == 10:
+                    end_date = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+                else:
+                    end_date = datetime.fromisoformat(end_date)
+            params.append(end_date)
+
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
 
         with self.conn.cursor() as cur:
             cur.execute(f'SELECT COUNT(*) FROM "activities" {where_clause}', tuple(params))
@@ -793,11 +900,15 @@ class FirebirdRepository(DatabaseRepository):
                     ORDER BY "activity_id", "ts"
                 """, chunk)
 
+                current_aid = None
+                current_coords = None
                 for row in cur:
-                    aid = str(row[0])
-                    if aid not in result:
-                        result[aid] = []
-                    result[aid].append([float(row[1]), float(row[2])])
+                    aid = row[0]
+                    if aid != current_aid:
+                        current_aid = aid
+                        current_coords = []
+                        result[str(aid)] = current_coords
+                    current_coords.append([row[1], row[2]])
 
         return result
 
@@ -840,6 +951,37 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute('SELECT CAST("name" AS VARCHAR(500)) FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
+
+    def get_activity_average_cadence(self, activity_id: str) -> Optional[float]:
+        """Compute average cadence (rpm) for an activity from streams (Firebird)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT AVG("cadence") FROM "streams" WHERE "activity_id" = ? AND "cadence" IS NOT NULL', (int(activity_id),))
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] is not None else None
+
+    def get_elevation_streams_for_activity(
+        self, activity_id: str
+    ) -> tuple[list[float], list[float]]:
+        """Return (distance_m, altitude_m) arrays for *activity_id* (Firebird)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT "distance", "altitude" FROM "streams"
+                WHERE "activity_id" = ?
+                  AND "distance" IS NOT NULL
+                  AND "altitude" IS NOT NULL
+                ORDER BY "ts"
+                """,
+                (int(activity_id),),
+            )
+            rows = cur.fetchall()
+        if not rows:
+            return [], []
+        distance = [float(r[0]) for r in rows]
+        altitude = [float(r[1]) for r in rows]
+        return distance, altitude
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
@@ -1032,7 +1174,11 @@ class FirebirdRepository(DatabaseRepository):
         self._ensure_connected()
         with self.conn.cursor() as cur:
             cur.execute(
-                'SELECT "athlete_id", "first_name", "last_name", "weight" '
+                'SELECT "athlete_id", "first_name", "last_name", "weight", "ftp", '
+                '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
+                '"update_strava_running_indoor", "update_strava_running_outdoor", '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", '
+                '"gps_simplification" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
@@ -1043,17 +1189,48 @@ class FirebirdRepository(DatabaseRepository):
                 'first_name': row[1],
                 'last_name': row[2],
                 'weight': row[3],
+                'ftp': row[4],
+                'update_strava_cycling_indoor': row[5],
+                'update_strava_cycling_outdoor': row[6],
+                'update_strava_running_indoor': row[7],
+                'update_strava_running_outdoor': row[8],
+                'update_strava_walking': row[9],
+                'update_strava_swimming': row[10],
+                'refresh_token': row[11],
+                'gps_simplification': row[12],
             }
 
-    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float):
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
+                       update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
+                       update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
+                       update_strava_walking: str = "", update_strava_swimming: str = "",
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None):
         self._ensure_connected()
+        existing = self.get_profile()
+        effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
+        effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+        effective_cycling_indoor = update_strava_cycling_indoor
+        effective_cycling_outdoor = update_strava_cycling_outdoor
+        effective_running_indoor = update_strava_running_indoor
+        effective_running_outdoor = update_strava_running_outdoor
+        effective_walking = update_strava_walking
+        effective_swimming = update_strava_swimming
+        effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
-                '("athlete_id", "first_name", "last_name", "weight") '
-                'VALUES (?, ?, ?, ?) '
+                '("athlete_id", "first_name", "last_name", "weight", "ftp", '
+                '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
+                '"update_strava_running_indoor", "update_strava_running_outdoor", '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
-                (athlete_id, first_name, last_name, weight)
+                (athlete_id, first_name, last_name, weight, effective_ftp,
+                 effective_cycling_indoor, effective_cycling_outdoor,
+                 effective_running_indoor, effective_running_outdoor,
+                 effective_walking, effective_swimming, effective_refresh_token,
+                 effective_gps_simplification)
             )
         self.conn.commit()
 
@@ -1094,17 +1271,72 @@ class FirebirdRepository(DatabaseRepository):
         self.conn.commit()
 
     def __enter__(self):
+        """Enter context manager; return the repository instance."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and close connection."""
         self.close()
 
     def close(self):
+        """Close Firebird connection if open; log any errors."""
         try:
-            if self.conn:
-                self.conn.close()
+            conn = getattr(self, 'conn', None)
+            if conn:
+                conn.close()
         except Exception as e:
             logger.warning(f"Error closing Firebird connection: {e}")
+
+    def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
+        """Run performance benchmarks on database queries for the given lookback scope."""
+        import time
+        self._ensure_connected()
+        since_date = datetime.now(timezone.utc) - timedelta(days=scope_days)
+        since_date_iso = since_date.isoformat()
+
+        # 1. Fetch all GPS data for last scope_days days all activity types
+        t0 = time.perf_counter()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT s."activity_id", s."lat", s."lng"
+                FROM "activities" a
+                JOIN "streams" s ON s."activity_id" = a."activity_id"
+                WHERE a."start_date" >= ?
+                  AND s."lat" IS NOT NULL
+                  AND s."lng" IS NOT NULL
+            """, (since_date,))
+            gps_rows = cur.fetchall()
+        gps_ms = (time.perf_counter() - t0) * 1000.0
+        gps_count = len(gps_rows)
+
+        # 2. Order all activities by name
+        t0 = time.perf_counter()
+        name_activities = self.get_activities_web(limit=None, sort_by='name', sort_order='ASC', start_date=since_date_iso)
+        order_name_ms = (time.perf_counter() - t0) * 1000.0
+        order_name_count = len(name_activities)
+
+        # 3. Order all activities by distance
+        t0 = time.perf_counter()
+        dist_activities = self.get_activities_web(limit=None, sort_by='distance', sort_order='DESC', start_date=since_date_iso)
+        order_dist_ms = (time.perf_counter() - t0) * 1000.0
+        order_dist_count = len(dist_activities)
+
+        # 4. Order all activities by elevation gained
+        t0 = time.perf_counter()
+        elev_activities = self.get_activities_web(limit=None, sort_by='total_elevation_gain', sort_order='DESC', start_date=since_date_iso)
+        order_elev_ms = (time.perf_counter() - t0) * 1000.0
+        order_elev_count = len(elev_activities)
+
+        return {
+            'gps_ms': gps_ms,
+            'gps_count': gps_count,
+            'order_name_ms': order_name_ms,
+            'order_name_count': order_name_count,
+            'order_dist_ms': order_dist_ms,
+            'order_dist_count': order_dist_count,
+            'order_elev_ms': order_elev_ms,
+            'order_elev_count': order_elev_count,
+        }
 
     def __del__(self):
         try:

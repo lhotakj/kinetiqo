@@ -1,0 +1,1290 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    /* ---- Infographic container — dimensions managed by JS ---- */
+    .infographic-wrapper {
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+        transform-origin: top left;
+        flex-shrink: 0;
+    }
+
+    .infographic {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 28px 36px 24px 36px;
+        box-sizing: border-box;
+        font-family: 'Inter', sans-serif;
+        color: #fff;
+        position: relative;
+        --stats-font-size: 1.5rem;
+        --stats-column-width: 20%;
+    }
+
+    /* ---- Header ---- */
+    .ig-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 16px;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+        padding-bottom: 14px;
+    }
+
+    .ig-title {
+        font-size: var(--stats-font-size, 1.5rem);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+
+    .ig-title .brand {
+        opacity: 0.5;
+        font-weight: 400;
+    }
+
+    .ig-subtitle {
+        font-size: 0.85rem;
+        opacity: 0.65;
+        margin-top: 2px;
+    }
+
+    .ig-period {
+        font-size: 2.5rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        line-height: 1;
+        text-align: right;
+    }
+
+    .ig-period-sub {
+        font-size: 0.8rem;
+        opacity: 0.5;
+        font-weight: 400;
+    }
+
+    /* ---- Body ---- */
+    .ig-body {
+        display: flex;
+        flex: 1;
+        gap: 28px;
+        min-height: 0;
+    }
+
+    /* ---- Stats column ---- */
+    .ig-stats {
+        width: var(--stats-column-width, 20%);
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 4px;
+    }
+
+    .ig-stat {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ig-stat-label {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 0.38) !important;
+        /* Unified with slider */
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.55;
+        font-weight: 600;
+        margin-bottom: 1px;
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .ig-stat-value {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 1.03) !important;
+        font-weight: 800;
+        line-height: 1.1;
+        width: 100%;
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        flex-wrap: wrap;
+    }
+
+    .ig-stat-unit {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 0.47) !important;
+        font-weight: 400;
+        opacity: 0.6;
+        margin-left: 2px;
+    }
+
+    .ig-stat-detail {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 0.52) !important;
+        /* was 0.40, increased for better readability */
+        opacity: 0.45;
+        margin-top: 1px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        width: 100%;
+        max-width: none;
+    }
+
+    .ig-stat-divider {
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        width: 100%;
+    }
+
+    .ig-month-value {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 1.35) !important;
+        font-weight: 900;
+        line-height: 1;
+        width: 100%;
+    }
+
+    /* ---- Calendar heatmap ---- */
+    .ig-calendar-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .ig-cal-header {
+        display: flex;
+        gap: 32px;
+        margin-bottom: 10px;
+        align-items: baseline;
+    }
+
+    .ig-cal-header-stat {
+        text-align: center;
+    }
+
+    .ig-cal-header-label {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 0.55) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        opacity: 0.5;
+        font-weight: 600;
+    }
+
+    .ig-cal-header-value {
+        font-size: calc(var(--stats-font-size, 1.5rem) * 1.35) !important;
+        font-weight: 800;
+        line-height: 1.15;
+    }
+
+    /* ig-cal-grid-wrapper fills all remaining height */
+    .ig-cal-grid-wrapper {
+        flex: 1;
+        display: flex;
+        align-items: stretch;
+        overflow: hidden;
+        min-height: 0;
+    }
+
+    .ig-day-labels {
+        display: flex;
+        flex-direction: column;
+        margin-right: 6px;
+        flex-shrink: 0;
+    }
+
+    .ig-day-label {
+        font-size: 1em;
+        opacity: 0.4;
+        font-weight: 600;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .ig-cal-grid {
+        display: grid;
+        grid-template-rows: repeat(7, 1fr);
+        grid-auto-flow: column;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .ig-cal-cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .ig-cal-dot {
+        border-radius: 50%;
+        transition: transform 0.15s;
+        flex-shrink: 0;
+    }
+
+    .ig-cal-dot.active {
+        opacity: 1;
+    }
+
+    .ig-cal-dot.inactive {
+        opacity: 0.18;
+    }
+
+    .ig-cal-dot.out-of-range {
+        opacity: 0.04;
+    }
+
+    /* ---- Month colour legend ---- */
+    .ig-legend {
+        display: flex;
+        gap: 3px;
+        margin-top: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .ig-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .ig-legend-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+    }
+
+    .ig-legend-label {
+        font-size: 0.42rem;
+        opacity: 0.5;
+        font-weight: 500;
+        padding-right: 0.3em
+    }
+
+    /* ---- Footer ---- */
+    .ig-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 0.45rem;
+        opacity: 0.3;
+    }
+
+    /* ---- No-data overlay ---- */
+    .ig-no-data {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        opacity: 0.4;
+        font-weight: 600;
+        pointer-events: none;
+    }
+
+    /* ---- Control panel (matching poster.html style) ---- */
+    .control-box {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .dark .control-box {
+        border-color: #374151;
+    }
+
+    .control-box h4 {
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+        color: #374151;
+    }
+
+    .dark .control-box h4 {
+        color: #d1d5db;
+    }
+
+    .control-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+
+    .control-row>label {
+        font-size: 0.75rem;
+        min-width: 72px;
+        color: #6b7280;
+        flex-shrink: 0;
+    }
+
+    /* ---- Preview scaler ---- */
+    .stats-preview-scaler {
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+    }
+
+    /* ---- Print/PDF ---- */
+    @media print {
+
+        aside,
+        nav {
+            display: none !important;
+        }
+
+        .stats-preview-scaler {
+            overflow: visible;
+        }
+
+        .infographic-wrapper {
+            transform: none !important;
+            box-shadow: none;
+            border-radius: 0;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">📊 {{ title }}</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        Generate a Veloviewer-style infographic of your activity stats.
+    </p>
+</div>
+
+<div class="flex flex-col lg:flex-row gap-6">
+
+    <!-- ===== Left Controls Panel ===== -->
+    <div class="w-full lg:w-72 flex-shrink-0">
+
+        <!-- Action Buttons -->
+        <div class="flex gap-2 mb-4 flex-wrap">
+            <button id="btn-download-png"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition inline-flex items-center"
+                title="Download as PNG image">
+                <!-- PNG icon (stroke-only, inherits currentColor) -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true">
+                    <path
+                        d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path
+                        d="M6.5 17V15.5M6.5 15.5V13L7.25 13C7.94036 13 8.5 13.5596 8.5 14.25V14.25C8.5 14.9404 7.94036 15.5 7.25 15.5H6.5Z"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path
+                        d="M17 13H16C15.4477 13 15 13.4477 15 14V16C15 16.5523 15.4477 17 16 17H16.5C17.0523 17 17.5 16.5523 17.5 16V15.5"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M17 15.5H17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M10.5 17V13L13 17V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+                <span>PNG</span>
+            </button>
+
+            <button id="btn-download-pdf"
+                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition inline-flex items-center"
+                title="Download as PDF">
+                <!-- PDF icon (stroke-only, inherits currentColor) -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true">
+                    <path
+                        d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M11.5 13H11V17H11.5C12.6046 17 13.5 16.1046 13.5 15C13.5 13.8954 12.6046 13 11.5 13Z"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M15.5 17V13L17.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M16 15H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path
+                        d="M7 17L7 15.5M7 15.5L7 13L7.75 13C8.44036 13 9 13.5596 9 14.25V14.25C9 14.9404 8.44036 15.5 7.75 15.5H7Z"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>PDF</span>
+            </button>
+        </div>
+
+        <!-- Mega Stats Size -->
+        <div class="control-box">
+            <h4>Mega Stats Size</h4>
+            <div class="control-row">
+                <label for="stats-size">Width</label>
+                <select id="stats-size"
+                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                    <option value="M">M (width 1280px)</option>
+                    <option value="L">L (width 1440px)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">Ratio</span>
+                <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">4:3 (fixed)</span>
+            </div>
+            <div class="control-row">
+                <span class="text-sm text-gray-600 dark:text-gray-400">Dimensions</span>
+                <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Mega stats
+                    dimension: — × —</span>
+            </div>
+        </div>
+
+        <!-- Period -->
+        <div class="control-box">
+            <h4>Period</h4>
+            <div class="control-row">
+                <label for="stats-year">Year</label>
+                <select id="stats-year"
+                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                    {% for y in range(current_year, min_year - 1, -1) %}
+                    <option value="{{ y }}" {% if y==current_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="stats-period">Period</label>
+                <select id="stats-period"
+                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                    <option value="year" selected>Entire Year</option>
+                    <option value="h1">H1 (Jan–Jun)</option>
+                    <option value="h2">H2 (Jul–Dec)</option>
+                    <option value="q1">Q1 (Jan–Mar)</option>
+                    <option value="q2">Q2 (Apr–Jun)</option>
+                    <option value="q3">Q3 (Jul–Sep)</option>
+                    <option value="q4">Q4 (Oct–Dec)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Appearance -->
+        <div class="control-box">
+            <h4>Appearance</h4>
+            <div class="control-row">
+                <label for="stats-bg">Background</label>
+                <input type="color" id="stats-bg" value="#4a4a4a"
+                    class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
+            </div>
+            <div class="control-row">
+                <label for="stats-group">Activities</label>
+                <select id="stats-group"
+                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                    {% for key, grp in activity_groups.items() %}
+                    <option value="{{ key }}" {% if key=='cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Visible Stats -->
+        <div class="control-box">
+            <h4>Visible Stats</h4>
+            <div class="grid grid-cols-2 gap-x-2 gap-y-1">
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="distance" checked> <span
+                        class="truncate">Distance</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="elevation" checked> <span
+                        class="truncate">Elevation</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="longest" checked> <span
+                        class="truncate">Longest</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="highest" checked> <span
+                        class="truncate">Max elev.</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="speed" checked> <span
+                        class="truncate">Top speed</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="hours" checked> <span
+                        class="truncate">Hours</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="streak" checked> <span
+                        class="truncate">Longest streak</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap"
+                    title="Most Active Month by Distance">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month" checked> <span
+                        class="truncate">Best month (dist)</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap"
+                    title="Most Active Month by Elevation">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month-elev" checked> <span
+                        class="truncate">Best month (elev)</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="avg-power" checked> <span
+                        class="truncate">Avg power</span>
+                </label>
+                <label
+                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
+                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="max-power" checked> <span
+                        class="truncate">Max power</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Stats Title Font Size -->
+        <div class="control-box">
+            <h4>Stats title</h4>
+            <div class="control-row">
+                <label for="stats-title-font-size">Font Size</label>
+                <input type="range" id="stats-title-font-size" min="16" max="64" value="24"
+                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="stats-title-font-size-val" class="text-xs w-8">24px</span>
+            </div>
+        </div>
+
+        <!-- Stats Column Width -->
+        <div class="control-box">
+            <h4>Stats column</h4>
+            <div class="control-row">
+                <label for="stats-column-width">Width</label>
+                <input type="range" id="stats-column-width" min="20" max="50" value="20"
+                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="stats-column-width-val" class="text-xs w-10">20%</span>
+            </div>
+        </div>
+
+    </div><!-- end left panel -->
+
+    <!-- ===== Preview ===== -->
+    <div class="flex-1 min-w-0">
+        <div class="stats-preview-scaler" id="stats-preview-scaler">
+            <div class="infographic-wrapper" id="infographic-wrapper">
+                <div class="infographic" id="infographic" style="background: #4a4a4a;">
+
+                    <!-- Loading state -->
+                    <div id="ig-loading" class="ig-no-data">Loading stats…</div>
+
+                    <!-- Header -->
+                    <div class="ig-header" id="ig-header" style="display:none;">
+                        <div>
+                            <div class="ig-title">
+                                <span class="brand">Kinetiqo</span> Mega Stats – <span id="ig-group-name">Walking</span>
+                            </div>
+                            <div class="ig-subtitle" id="ig-athlete"></div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div class="ig-period" id="ig-period-label"></div>
+                            <div class="ig-period-sub" id="ig-date-range"></div>
+                        </div>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="ig-body" id="ig-body" style="display:none;">
+                        <!-- Left stats column -->
+                        <div class="ig-stats" id="ig-stats">
+                            <div class="ig-stat" id="ig-distance-stat">
+                                <div class="ig-stat-label">Total Distance</div>
+                                <div class="ig-stat-value"><span id="ig-distance">0</span><span
+                                        class="ig-stat-unit">km</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-distance-divider"></div>
+                            <div class="ig-stat" id="ig-elevation-stat">
+                                <div class="ig-stat-label">Total Elevation</div>
+                                <div class="ig-stat-value"><span id="ig-elevation">0</span><span
+                                        class="ig-stat-unit">m</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-elevation-divider"></div>
+                            <div class="ig-stat" id="ig-longest-stat">
+                                <div class="ig-stat-label" id="ig-longest-label">Longest Walk</div>
+                                <div class="ig-stat-value"><span id="ig-longest">0</span><span
+                                        class="ig-stat-unit">km</span></div>
+                                <div class="ig-stat-detail" id="ig-longest-name"></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-longest-divider"></div>
+                            <div class="ig-stat" id="ig-highest-stat">
+                                <div class="ig-stat-label" id="ig-highest-label">Max Elevation Walk</div>
+                                <div class="ig-stat-value"><span id="ig-highest-elev">0</span><span
+                                        class="ig-stat-unit">m</span></div>
+                                <div class="ig-stat-detail" id="ig-highest-name"></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-highest-divider"></div>
+                            <div class="ig-stat" id="ig-speed-stat">
+                                <div class="ig-stat-label">Top Speed</div>
+                                <div class="ig-stat-value"><span id="ig-speed">0</span><span
+                                        class="ig-stat-unit">km/h</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-speed-divider"></div>
+                            <div class="ig-stat" id="ig-avg-power-stat">
+                                <div class="ig-stat-label">⚡ Avg Weighted Power</div>
+                                <div class="ig-stat-value"><span id="ig-avg-power">0</span><span
+                                        class="ig-stat-unit">W</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-avg-power-divider"></div>
+                            <div class="ig-stat" id="ig-max-power-stat">
+                                <div class="ig-stat-label">🔥 Max Power</div>
+                                <div class="ig-stat-value"><span id="ig-max-power">0</span><span
+                                        class="ig-stat-unit">W</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-max-power-divider"></div>
+                            <div class="ig-stat" id="ig-hours-stat">
+                                <div class="ig-stat-label">Total Hours</div>
+                                <div class="ig-stat-value"><span id="ig-hours">0</span><span
+                                        class="ig-stat-unit">hrs</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-hours-divider"></div>
+                            <div class="ig-stat" id="ig-streak-stat">
+                                <div class="ig-stat-label">Max Streak</div>
+                                <div class="ig-stat-value"><span id="ig-streak">0</span><span
+                                        class="ig-stat-unit">days</span></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-streak-divider"></div>
+                            <div class="ig-stat" id="ig-best-month-stat">
+                                <div class="ig-stat-label">Most Active Month by Distance</div>
+                                <div class="ig-month-value" id="ig-best-month" style="color:#2ECC40;">–</div>
+                                <div class="ig-stat-detail" id="ig-best-month-detail"></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-best-month-divider"></div>
+                            <div class="ig-stat" id="ig-best-month-elev-stat">
+                                <div class="ig-stat-label">Most Active Month by Elevation</div>
+                                <div class="ig-month-value" id="ig-best-month-elev" style="color:#2ECC40;">–</div>
+                                <div class="ig-stat-detail" id="ig-best-month-elev-detail"></div>
+                            </div>
+                            <div class="ig-stat-divider" id="ig-best-month-elev-divider"></div>
+                        </div>
+
+                        <!-- Calendar area -->
+                        <div class="ig-calendar-area">
+                            <div class="ig-cal-header">
+                                <div class="ig-cal-header-stat">
+                                    <div class="ig-cal-header-label">Active Days</div>
+                                    <div class="ig-cal-header-value" id="ig-active-days">0</div>
+                                </div>
+                                <div class="ig-cal-header-stat">
+                                    <div class="ig-cal-header-label">Total Activities</div>
+                                    <div class="ig-cal-header-value" id="ig-total-activities">0</div>
+                                </div>
+                            </div>
+
+                            <div class="ig-cal-grid-wrapper" id="ig-cal-grid-wrapper">
+                                <div class="ig-day-labels" id="ig-day-labels"></div>
+                                <div class="ig-cal-grid" id="ig-cal-grid"></div>
+                            </div>
+
+                            <div class="ig-legend" id="ig-legend"></div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="ig-footer" id="ig-footer" style="display:none;">
+                        <span>Generated by Kinetiqo · kinetiqo.lhotak.net</span>
+                        <span id="ig-generated-date"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!-- end preview -->
+
+</div><!-- end flex row -->
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+        const SIZE_WIDTHS = { M: 1280, L: 1440 };
+
+        // Controls
+        const elYear = document.getElementById('stats-year');
+        const elPeriod = document.getElementById('stats-period');
+        const elBg = document.getElementById('stats-bg');
+        const elGroup = document.getElementById('stats-group');
+        const elSize = document.getElementById('stats-size');
+
+        // Infographic elements
+        const igEl = document.getElementById('infographic');
+        const igHeader = document.getElementById('ig-header');
+        const igBody = document.getElementById('ig-body');
+        const igFooter = document.getElementById('ig-footer');
+        const igLoading = document.getElementById('ig-loading');
+
+        // ---- Size management ----
+        function getExportSize() {
+            const w = SIZE_WIDTHS[elSize.value] || 1280;
+            return { width: w, height: Math.round(w * 3 / 4) };
+        }
+
+        function applyInfographicSize() {
+            const { width, height } = getExportSize();
+            const wrapper = document.getElementById('infographic-wrapper');
+            wrapper.style.width = width + 'px';
+            wrapper.style.height = height + 'px';
+            document.getElementById('stats-dimensions').textContent =
+                'Mega stats dimension: ' + width + ' \u00d7 ' + height;
+            updateScaler(width, height);
+        }
+
+        // ---- Stats column width ----
+        const statsColumnWidthSlider = document.getElementById('stats-column-width');
+        const statsColumnWidthVal = document.getElementById('stats-column-width-val');
+        const statsGroupStorageKey = 'statsActivityGroup';
+
+        function applyStatsColumnWidth(val) {
+            const width = Math.max(20, Math.min(50, parseInt(val, 10) || 20));
+            statsColumnWidthSlider.value = width;
+            statsColumnWidthVal.textContent = width + '%';
+            igEl.style.setProperty('--stats-column-width', width + '%');
+            localStorage.setItem('statsColumnWidth', String(width));
+
+            if (lastData && lastData.calendar) {
+                renderCalendar(lastData.calendar, lastData.month_colors);
+                if (window.updateStatsFontSize && fontSizeSlider) {
+                    window.updateStatsFontSize(fontSizeSlider.value);
+                }
+            }
+        }
+
+        function applyStatsGroup(val) {
+            var allowed = Array.from(elGroup.options).map(function (opt) { return opt.value; });
+            var group = allowed.indexOf(val) >= 0 ? val : 'cycling';
+            elGroup.value = group;
+            localStorage.setItem(statsGroupStorageKey, group);
+        }
+
+        function updateScaler(width, height) {
+            const scaler = document.getElementById('stats-preview-scaler');
+            const wrapper = document.getElementById('infographic-wrapper');
+            if (!scaler || !wrapper) return;
+            const availWidth = scaler.offsetWidth || (scaler.parentElement && scaler.parentElement.offsetWidth) || 800;
+            if (availWidth <= 10) return;
+            const scale = Math.min(1.0, availWidth / width);
+            wrapper.style.transform = 'scale(' + scale + ')';
+            wrapper.style.transformOrigin = 'top left';
+            scaler.style.height = Math.round(height * scale) + 'px';
+        }
+
+        // ---- Fetch & Render ----
+        function fetchStats() {
+            const year = elYear.value;
+            const period = elPeriod.value;
+            const group = elGroup.value;
+
+            igLoading.style.display = 'flex';
+            igLoading.textContent = 'Loading stats\u2026';
+            igHeader.style.display = 'none';
+            igBody.style.display = 'none';
+            igFooter.style.display = 'none';
+
+            fetch('/api/stats_data?year=' + year + '&period=' + period + '&group=' + group)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) { igLoading.textContent = 'Error: ' + data.error; return; }
+                    renderInfographic(data);
+                })
+                .catch(err => {
+                    igLoading.textContent = 'Failed to load data.';
+                    console.error(err);
+                });
+        }
+
+        function renderInfographic(d) {
+            lastData = d;
+            igLoading.style.display = 'none';
+            igHeader.style.display = 'flex';
+            igBody.style.display = 'flex';
+            igFooter.style.display = 'flex';
+
+            const Noun = d.group_noun.charAt(0).toUpperCase() + d.group_noun.slice(1);
+
+            document.getElementById('ig-group-name').textContent = d.group_name;
+            document.getElementById('ig-athlete').textContent = d.athlete_name || '';
+            document.getElementById('ig-period-label').textContent = d.period_label;
+            document.getElementById('ig-date-range').textContent = d.start_date_display + ' \u2192 ' + d.end_date_display;
+
+            document.getElementById('ig-distance').textContent = formatNumber(d.total_distance_km);
+            document.getElementById('ig-elevation').textContent = formatNumber(d.total_elevation_m);
+            document.getElementById('ig-hours').textContent = formatNumber(d.total_hours);
+            document.getElementById('ig-streak').textContent = d.max_streak;
+
+            document.getElementById('ig-longest-label').textContent = 'Longest ' + Noun;
+            document.getElementById('ig-longest').textContent = formatNumber(d.longest_activity.distance_km);
+            document.getElementById('ig-longest-name').textContent = d.longest_activity.name || '';
+
+            document.getElementById('ig-highest-label').textContent = 'Max Elevation ' + Noun;
+            document.getElementById('ig-highest-elev').textContent = formatNumber(d.highest_elevation_activity.elevation_m);
+            document.getElementById('ig-highest-name').textContent = d.highest_elevation_activity.name || '';
+
+            document.getElementById('ig-speed').textContent = formatNumber(d.top_speed_kmh);
+            document.getElementById('ig-active-days').textContent = d.active_days;
+            document.getElementById('ig-total-activities').textContent = d.total_activities;
+
+            // Power stats
+            document.getElementById('ig-avg-power').textContent = formatNumber(d.avg_weighted_power_w);
+            document.getElementById('ig-max-power').textContent = formatNumber(d.max_power_w);
+            applyStatVisibility();
+
+            const mamDist = d.most_active_month_distance || d.most_active_month;
+            const mamDistEl = document.getElementById('ig-best-month');
+            if (mamDistEl && mamDist) {
+                mamDistEl.textContent = mamDist.name || '\u2013';
+                mamDistEl.style.color = mamDist.color || '#888';
+                document.getElementById('ig-best-month-detail').textContent =
+                    mamDist.count ? mamDist.count + ' activities \u00b7 ' + formatNumber(mamDist.distance_km) + ' km' : '';
+            }
+
+            const mamElev = d.most_active_month_elevation;
+            const mamElevEl = document.getElementById('ig-best-month-elev');
+            if (mamElevEl && mamElev) {
+                mamElevEl.textContent = mamElev.name || '\u2013';
+                mamElevEl.style.color = mamElev.color || '#888';
+                document.getElementById('ig-best-month-elev-detail').textContent =
+                    mamElev.count ? mamElev.count + ' activities \u00b7 ' + formatNumber(mamElev.elevation_m) + ' m' : '';
+            }
+
+            // Calendar rendered after body is visible so offsetHeight is valid
+            renderCalendar(d.calendar, d.month_colors);
+            // Ensure legend font size is set after legend is rendered
+            if (window.updateStatsFontSize && fontSizeSlider) {
+                window.updateStatsFontSize(fontSizeSlider.value);
+            }
+
+            document.getElementById('ig-generated-date').textContent =
+                'Generated ' + d.generated_date_display;
+        }
+
+        // ---- Calendar Rendering ----
+        function renderCalendar(weeks, monthColors) {
+            const grid = document.getElementById('ig-cal-grid');
+            const labels = document.getElementById('ig-day-labels');
+            const legend = document.getElementById('ig-legend');
+            const wrapper = document.getElementById('ig-cal-grid-wrapper');
+
+            grid.innerHTML = '';
+            labels.innerHTML = '';
+            legend.innerHTML = '';
+
+            if (!weeks || weeks.length === 0) return;
+
+            const numWeeks = weeks.length;
+
+            // Populate day labels first — reading offsetWidth after forces layout reflow
+            DAY_LABELS.forEach(function (lbl) {
+                const el = document.createElement('div');
+                el.className = 'ig-day-label';
+                el.textContent = lbl;
+                labels.appendChild(el);
+            });
+
+            // Compute dot size from available wrapper space
+            const wrapH = wrapper.offsetHeight || 0;
+            const labelsW = labels.offsetWidth || 14;
+            const availW = wrapper.offsetWidth - labelsW - 8;
+
+            let dotSize, gap;
+            if (wrapH > 20 && availW > 20) {
+                const cellH = wrapH / 7;
+                const cellW = availW / numWeeks;
+                const cellMin = Math.min(cellH, cellW);
+                gap = Math.max(1, Math.round(cellMin * 0.12));
+                dotSize = Math.max(8, Math.round(cellMin * 0.82));
+            } else {
+                // Slightly larger than original fallback defaults
+                if (numWeeks <= 14) { dotSize = 27; gap = 5; }
+                else if (numWeeks <= 28) { dotSize = 17; gap = 3; }
+                else { dotSize = 13; gap = 2; }
+            }
+
+            grid.style.gap = gap + 'px';
+
+            for (let w = 0; w < numWeeks; w++) {
+                for (let dow = 0; dow < 7; dow++) {
+                    const day = weeks[w][dow];
+                    const cell = document.createElement('div');
+                    cell.className = 'ig-cal-cell';
+
+                    const dot = document.createElement('div');
+                    dot.className = 'ig-cal-dot';
+                    dot.style.width = dotSize + 'px';
+                    dot.style.height = dotSize + 'px';
+
+                    if (!day.in_range) {
+                        dot.classList.add('out-of-range');
+                        dot.style.backgroundColor = 'rgba(255,255,255,0.15)';
+                    } else if (day.has_activity) {
+                        dot.classList.add('active');
+                        dot.style.backgroundColor = day.color;
+                    } else {
+                        dot.classList.add('inactive');
+                        dot.style.backgroundColor = day.color;
+                    }
+
+                    if (day.in_range) {
+                        dot.title = day.date + (day.has_activity ? ' \u00b7 ' + day.distance_km + ' km' : '');
+                    }
+
+                    cell.appendChild(dot);
+                    grid.appendChild(cell);
+                }
+            }
+
+            // Month colour legend
+            const activeMonths = new Set();
+            weeks.forEach(function (wk) { wk.forEach(function (d) { if (d.in_range) activeMonths.add(d.month); }); });
+
+            const mc = monthColors || {};
+            Array.from(activeMonths).sort(function (a, b) { return a - b; }).forEach(function (m) {
+                const item = document.createElement('div');
+                item.className = 'ig-legend-item';
+                const dot = document.createElement('div');
+                dot.className = 'ig-legend-dot';
+                dot.style.backgroundColor = mc[m] || '#888';
+                const lbl = document.createElement('span');
+                lbl.className = 'ig-legend-label';
+                lbl.textContent = MONTH_NAMES[m - 1] || '';
+                item.appendChild(dot);
+                item.appendChild(lbl);
+                legend.appendChild(item);
+            });
+        }
+
+        // ---- Utility ----
+        function formatNumber(n) {
+            if (n === undefined || n === null) return '0';
+            return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+        }
+
+        // ---- Visible-stats toggles ----
+        // Each entry: data-stat value → [stat-el id, divider-el id | null]
+        // The divider for the LAST visible stat is always hidden by re-running
+        // applyStatVisibility after every toggle.
+        var STAT_DEFS = [
+            { key: 'distance', stat: 'ig-distance-stat', div: 'ig-distance-divider' },
+            { key: 'elevation', stat: 'ig-elevation-stat', div: 'ig-elevation-divider' },
+            { key: 'longest', stat: 'ig-longest-stat', div: 'ig-longest-divider' },
+            { key: 'highest', stat: 'ig-highest-stat', div: 'ig-highest-divider' },
+            { key: 'speed', stat: 'ig-speed-stat', div: 'ig-speed-divider' },
+            { key: 'avg-power', stat: 'ig-avg-power-stat', div: 'ig-avg-power-divider' },
+            { key: 'max-power', stat: 'ig-max-power-stat', div: 'ig-max-power-divider' },
+            { key: 'hours', stat: 'ig-hours-stat', div: 'ig-hours-divider' },
+            { key: 'streak', stat: 'ig-streak-stat', div: 'ig-streak-divider' },
+            { key: 'best-month', stat: 'ig-best-month-stat', div: 'ig-best-month-divider' },
+            { key: 'best-month-elev', stat: 'ig-best-month-elev-stat', div: 'ig-best-month-elev-divider' },
+        ];
+
+        function getStatCheckbox(key) {
+            return document.querySelector('.stat-toggle[data-stat="' + key + '"]');
+        }
+
+        function applyStatVisibility() {
+            // First pass: show/hide stat and divider per checkbox
+            var lastVisibleDivId = null;
+            STAT_DEFS.forEach(function (def) {
+                var cb = getStatCheckbox(def.key);
+                var vis = cb ? cb.checked : true;
+                var stat = document.getElementById(def.stat);
+                var divEl = def.div ? document.getElementById(def.div) : null;
+                if (stat) stat.style.display = vis ? '' : 'none';
+                if (divEl) {
+                    // Will be shown only if stat is visible (we'll hide the last one below)
+                    divEl.style.display = vis ? '' : 'none';
+                    if (vis) lastVisibleDivId = def.div;
+                }
+            });
+            // Hide the divider after the last visible stat (no trailing separator)
+            if (lastVisibleDivId) {
+                var lastDiv = document.getElementById(lastVisibleDivId);
+                if (lastDiv) lastDiv.style.display = 'none';
+            }
+            // Persist to localStorage
+            var state = {};
+            STAT_DEFS.forEach(function (def) {
+                var cb = getStatCheckbox(def.key);
+                state[def.key] = cb ? cb.checked : true;
+            });
+            localStorage.setItem('statsVisibleStats', JSON.stringify(state));
+        }
+
+        // Restore visible-stats prefs from localStorage
+        ; (function () {
+            var raw = localStorage.getItem('statsVisibleStats');
+            if (!raw) return;
+            try {
+                var state = JSON.parse(raw);
+                STAT_DEFS.forEach(function (def) {
+                    if (def.key in state) {
+                        var cb = getStatCheckbox(def.key);
+                        if (cb) cb.checked = state[def.key];
+                    }
+                });
+            } catch (_) { }
+        })();
+
+        // Restore selected activity group from localStorage, defaulting to Cycling
+        ; (function () {
+            var stored = localStorage.getItem(statsGroupStorageKey) || localStorage.getItem('statsGroup');
+            applyStatsGroup(stored || 'cycling');
+        })();
+
+        document.querySelectorAll('.stat-toggle').forEach(function (cb) {
+            cb.addEventListener('change', applyStatVisibility);
+        });
+
+        // ---- Event handlers ----
+        let lastData = null;
+
+        [elYear, elPeriod].forEach(function (el) { el.addEventListener('change', fetchStats); });
+        elGroup.addEventListener('change', function () {
+            applyStatsGroup(this.value);
+            fetchStats();
+        });
+
+        elSize.addEventListener('change', function () {
+            applyInfographicSize();
+            if (lastData && lastData.calendar) {
+                renderCalendar(lastData.calendar, lastData.month_colors);
+                // Ensure legend font size is set after legend is rendered
+                if (window.updateStatsFontSize && fontSizeSlider) {
+                    window.updateStatsFontSize(fontSizeSlider.value);
+                }
+            }
+        });
+
+        elBg.addEventListener('input', function () { igEl.style.backgroundColor = this.value; });
+
+        let resizeTimer;
+        window.addEventListener('resize', function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function () {
+                const { width, height } = getExportSize();
+                updateScaler(width, height);
+                if (lastData && lastData.calendar) {
+                    renderCalendar(lastData.calendar, lastData.month_colors);
+                    // Ensure legend font size is set after legend is rendered
+                    if (window.updateStatsFontSize && fontSizeSlider) {
+                        window.updateStatsFontSize(fontSizeSlider.value);
+                    }
+                }
+            }, 150);
+        });
+
+        // Download PNG (server-side Playwright export)
+        document.getElementById('btn-download-png').addEventListener('click', async function () {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Exporting\u2026';
+            try {
+                const { width, height } = getExportSize();
+                const payload = {
+                    year: elYear.value,
+                    period: elPeriod.value,
+                    group: elGroup.value,
+                    bg: elBg.value,
+                    width: width,
+                    height: height,
+                    fontSize: fontSizeSlider.value,
+                    statsColumnWidth: statsColumnWidthSlider.value
+                };
+                const resp = await fetch('/api/stats/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) {
+                    let msg = 'HTTP ' + resp.status;
+                    try { msg = (await resp.json()).error || msg; } catch (_) { }
+                    alert('Export failed: ' + msg);
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = 'kinetiqo-megastats-' + elYear.value + '-' + elPeriod.value + '.png';
+                a.href = url;
+                a.click();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+            } catch (e) {
+                alert('Export failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+                    + '<path d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M6.5 17V15.5M6.5 15.5V13L7.25 13C7.94036 13 8.5 13.5596 8.5 14.25V14.25C8.5 14.9404 7.94036 15.5 7.25 15.5H6.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M17 13H16C15.4477 13 15 13.4477 15 14V16C15 16.5523 15.4477 17 16 17H16.5C17.0523 17 17.5 16.5523 17.5 16V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M17 15.5H17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M10.5 17V13L13 17V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '</svg><span>PNG</span>';
+            }
+        });
+
+        document.getElementById('btn-download-pdf').addEventListener('click', async function () {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Exporting…';
+            try {
+                const { width, height } = getExportSize();
+                const payload = {
+                    year: elYear.value,
+                    period: elPeriod.value,
+                    group: elGroup.value,
+                    bg: elBg.value,
+                    width: width,
+                    height: height,
+                    fontSize: fontSizeSlider.value,
+                    statsColumnWidth: statsColumnWidthSlider.value,
+                    format: 'pdf'
+                };
+                const resp = await fetch('/api/stats/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) {
+                    let msg = 'HTTP ' + resp.status;
+                    try { msg = (await resp.json()).error || msg; } catch (_) { }
+                    alert('Export failed: ' + msg);
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = 'kinetiqo-megastats-' + elYear.value + '-' + elPeriod.value + '.pdf';
+                a.href = url;
+                a.click();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+            } catch (e) {
+                alert('Export failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+                    + '<path d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M11.5 13H11V17H11.5C12.6046 17 13.5 16.1046 13.5 15C13.5 13.8954 12.6046 13 11.5 13Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M15.5 17V13L17.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M16 15H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '<path d="M7 17L7 15.5M7 15.5L7 13L7.75 13C8.44036 13 9 13.5596 9 14.25V14.25C9 14.9404 8.44036 15.5 7.75 15.5H7Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                    + '</svg><span>PDF</span>';
+            }
+        });
+
+        // --- Stats Title Font Size Control ---
+        // NOTE: This must be directly inside the outer DOMContentLoaded, NOT nested in another one.
+        const fontSizeSlider = document.getElementById('stats-title-font-size');
+        const fontSizeVal = document.getElementById('stats-title-font-size-val');
+
+        window.updateStatsFontSize = function updateStatsFontSize(val) {
+            fontSizeVal.textContent = val + 'px';
+            // Also update additional elements
+            const v = parseInt(val, 10);
+            const elAthlete = document.getElementById('ig-athlete');
+            const elPeriodLabel = document.getElementById('ig-period-label');
+            const elDateRange = document.getElementById('ig-date-range');
+            const elLegend = document.getElementById('ig-legend');
+            const elFooter = document.getElementById('ig-footer');
+            const elDayLabels = document.getElementById('ig-day-labels');
+            const elBestMonthDetail = document.getElementById('ig-best-month-detail');
+            const elHighestName = document.getElementById('ig-highest-name');
+            const elLongestName = document.getElementById('ig-longest-name');
+            if (elAthlete) elAthlete.style.fontSize = (v - 12) + 'px';
+            if (elPeriodLabel) elPeriodLabel.style.fontSize = (v - 4) + 'px';
+            if (elDateRange) elDateRange.style.fontSize = (v - 16) + 'px';
+            if (elLegend) elLegend.style.fontSize = (v - 15) + 'px';
+            if (elFooter) elFooter.style.fontSize = (v - 15) + 'px';
+            if (elDayLabels) {
+                elDayLabels.style.fontSize = (v - 15) + 'px';
+                Array.from(elDayLabels.children).forEach(function (child) {
+                    child.style.fontSize = (v - 15) + 'px';
+                });
+            }
+            if (elBestMonthDetail) elBestMonthDetail.style.fontSize = (v - 8) + 'px'; // Larger font for best month detail
+            if (elHighestName) elHighestName.style.fontSize = (v - 18) + 'px';
+            if (elLongestName) elLongestName.style.fontSize = (v - 18) + 'px';
+
+            // Update all subelements of .ig-legend-item
+            var legendItems = document.querySelectorAll('.ig-legend-item');
+            legendItems.forEach(function (item) {
+                // Set font size for all .ig-legend-label spans
+                var labels = item.querySelectorAll('.ig-legend-label');
+                labels.forEach(function (label) {
+                    label.style.fontSize = (v - 12) + 'px';
+                });
+                // Set font size for any SVG or <i> icons (if present)
+                var icons = item.querySelectorAll('svg, i');
+                icons.forEach(function (icon) {
+                    icon.style.fontSize = (v - 12) + 'px';
+                    icon.style.height = (v - 12) + 'px';
+                    icon.style.width = (v - 12) + 'px';
+                });
+            });
+            // Update all .ig-legend-dot elements: scale width/height, not font-size
+            var legendDots = document.querySelectorAll('.ig-legend-dot');
+            var dotSize = Math.max(7, Math.round(v * 0.32)); // 24*0.32=7.68 ~ 7px default
+            legendDots.forEach(function (dot) {
+                dot.style.width = dotSize + 'px';
+                dot.style.height = dotSize + 'px';
+            });
+
+            igEl.style.setProperty('--stats-font-size', val + 'px');
+            localStorage.setItem('statsTitleFontSize', val);
+
+        }
+
+            // Restore from localStorage if available, else apply default
+            ; (function () {
+                var stored = localStorage.getItem('statsTitleFontSize');
+                if (stored) {
+                    fontSizeSlider.value = stored;
+                    window.updateStatsFontSize(stored);
+                } else {
+                    window.updateStatsFontSize(fontSizeSlider.value);
+                }
+            })();
+
+        fontSizeSlider.addEventListener('input', function () { window.updateStatsFontSize(this.value); });
+        fontSizeSlider.addEventListener('change', function () { window.updateStatsFontSize(this.value); });
+
+        // Restore stats column width from localStorage if available, else apply default
+        ; (function () {
+            var stored = localStorage.getItem('statsColumnWidth');
+            if (stored) {
+                applyStatsColumnWidth(stored);
+            } else {
+                applyStatsColumnWidth(statsColumnWidthSlider.value);
+            }
+        })();
+
+        statsColumnWidthSlider.addEventListener('input', function () { applyStatsColumnWidth(this.value); });
+        statsColumnWidthSlider.addEventListener('change', function () { applyStatsColumnWidth(this.value); });
+
+        // ---- Initial load ----
+        applyInfographicSize();
+        applyStatVisibility();
+        fetchStats();
+    });
+</script>
+{% endblock %}

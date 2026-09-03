@@ -1,25 +1,43 @@
 """VO2max estimation from cycling power data.
 
-Uses the Storer-Davis equation to estimate VO2max from the best 5-minute
-average power (a proxy for Maximal Aerobic Power, MAP):
+Two estimation methods are available:
+
+**1. Storer-Davis (best 5-minute MAP)**
+Estimates VO2max from the best 5-minute average power (a proxy for Maximal
+Aerobic Power, MAP):
 
     VO2max (ml/kg/min) ≈ (10.8 × MAP / body_weight_kg) + 7
 
-The per-ride estimates are then smoothed with an **asymmetric EWMA**
+This requires a near-maximal 5-minute effort to produce an accurate result.
+Real-world best-5-min values from routine training are typically 5–8 % below
+laboratory MAP, so this method tends to *underestimate* VO2max by ~2–4
+ml/kg/min compared with Garmin/Firstbeat.
+
+**2. Coggan FTP-based**
+Estimates VO2max from FTP (95 % of best 20-minute power) using the
+Coggan model derived from trained-cyclist physiology:
+
+    VO2max (ml/kg/min) ≈ FTP (W/kg) × 14.73
+
+Well-trained cyclists sustain FTP at roughly 76 % of VO2max at ~23–25 %
+mechanical efficiency, yielding the factor 14.73.  Because FTP comes from a
+20-minute effort that most endurance rides naturally contain, this estimate
+is more robust and typically aligns closely with Garmin/Firstbeat values.
+
+The per-ride Storer-Davis estimates are smoothed with an **asymmetric EWMA**
 inspired by the Firstbeat algorithm used by Garmin:
 
 - Improvements (new > smoothed) are absorbed quickly  (α_up ≈ 0.3).
 - Declines    (new < smoothed) are absorbed slowly    (α_down ≈ 0.07).
 - Gaps between rides cause a small daily decay         (≈ 0.1 %/day).
 
-This produces a chart that rises promptly with genuine fitness gains
-but resists temporary dips from individual bad rides, closely matching
-the behaviour athletes see on their Garmin watches.
-
 References:
     Storer, T.W., Davis, J.A., & Caiozzo, V.J. (1990).
     "Accurate prediction of VO2max in cycle ergometry."
     Medicine and Science in Sports and Exercise, 22(5), 704-712.
+
+    Coggan, A.R. (2003). Training and Racing with a Power Meter.
+    VeloPress. (FTP ≈ 76 % VO2max for trained cyclists.)
 
     Firstbeat Technologies (2014).
     "VO2max Estimation — White Paper."
@@ -29,6 +47,12 @@ from datetime import date
 from typing import List, Dict
 from statistics import median
 
+
+# --- Coggan FTP-based VO2max factor ---
+# Well-trained cyclists sustain FTP at ~76 % of VO2max at ~23-25 %
+# mechanical efficiency.  Rearranging gives the factor below.
+# Source: Coggan, A.R. (2003). Training and Racing with a Power Meter.
+COGGAN_FACTOR: float = 14.73  # ml/kg/min per W/kg
 
 # --- Smoothing parameters (Firstbeat-inspired) ---
 # How quickly the smoothed value rises toward a higher raw estimate.
@@ -51,6 +75,28 @@ MIN_WATTS_SAMPLES: int = 1200  # 20 minutes
 # considered recovery / junk rides and are excluded, just as Garmin
 # silently ignores easy efforts.
 OUTLIER_FRACTION: float = 0.75
+
+
+def estimate_vo2max_coggan(ftp_watts: float, body_weight_kg: float) -> float:
+    """Estimate VO2max from FTP using the Coggan model.
+
+    Uses the relationship that well-trained cyclists sustain FTP at
+    approximately 76 % of VO2max at ~23-25 % mechanical efficiency,
+    which yields the factor :data:`COGGAN_FACTOR` (14.73 ml/kg/min per W/kg).
+
+    This method is more robust than the Storer-Davis 5-min MAP approach for
+    athletes who train with power but rarely perform explicit maximal tests,
+    because FTP can be inferred from any 20-minute effort in training.  It
+    typically produces values closer to Garmin/Firstbeat estimates.
+
+    :param ftp_watts: Functional Threshold Power in watts (e.g. 95 % of best
+        20-minute average power).
+    :param body_weight_kg: Athlete body weight in kilograms.
+    :return: Estimated VO2max in ml/kg/min, or 0.0 if inputs are invalid.
+    """
+    if body_weight_kg <= 0 or ftp_watts <= 0:
+        return 0.0
+    return round((ftp_watts / body_weight_kg) * COGGAN_FACTOR, 1)
 
 
 def estimate_vo2max(map_watts: float, body_weight_kg: float) -> float:

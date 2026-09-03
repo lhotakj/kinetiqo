@@ -8,11 +8,56 @@ from .config import Config
 
 logger = logging.getLogger("kinetiqo")
 
+_MAX_ERROR_BODY_LEN = 300
+
+
+class StravaFetchError(RuntimeError):
+    """Raised when fetching activities from Strava fails after all retries.
+
+    Callers (see :class:`kinetiqo.sync.SyncService`) must treat this as a
+    signal that the fetched activity set is incomplete/unreliable and must
+    **not** infer that any activity missing from it was deleted on Strava —
+    doing so would wrongly delete local data during an outage or an expired
+    token, rather than only when Strava genuinely no longer has the activity.
+    """
+
+
+def _summarise_error_body(response: requests.Response) -> str:
+    """Return a concise single-line summary of an error response body.
+
+    Strava returns a full HTML maintenance page (several KB) on outages.
+    Logging the raw body fills the log with noise.  This helper detects HTML
+    and replaces it with a brief description; JSON bodies are truncated.
+    """
+    content_type = response.headers.get("Content-Type", "")
+    body = response.text or ""
+    if "text/html" in content_type or body.lstrip().startswith("<!"):
+        title = ""
+        import re
+        m = re.search(r"<title>([^<]+)</title>", body, re.IGNORECASE)
+        if m:
+            title = f": {m.group(1).strip()}"
+        return f"[HTML response{title}]"
+    if len(body) > _MAX_ERROR_BODY_LEN:
+        return body[:_MAX_ERROR_BODY_LEN] + "…"
+    return body
+
 
 class StravaClient:
+    """Simple Strava API client used by Kinetiqo for fetching activities,
+    athlete profile and activity streams. Supports basic retry logic and
+    optional file-based caching via CacheManager.
+    """
+
     BASE_URL = "https://www.strava.com/api/v3"
 
     def __init__(self, config: Config):
+        """Initialize the Strava client.
+
+        Args:
+            config (Config): Application configuration with Strava credentials
+                and optional client settings (timeouts, retries).
+        """
         self.config = config
         self._access_token = None
         self.cache = CacheManager(config)
@@ -22,7 +67,11 @@ class StravaClient:
         self.request_retries = getattr(self.config, 'strava_request_retries', 2)
 
     def _get_access_token(self) -> str:
-        """Exchange refresh token for a new access token."""
+        """Exchange the refresh token for an access token and cache it.
+
+        Returns:
+            str: A valid OAuth2 access token for Strava API calls.
+        """
         if self._access_token:
             return self._access_token
 
@@ -39,27 +88,79 @@ class StravaClient:
         try:
             r = requests.post(url, data=payload, timeout=self.request_timeout)
         except Exception as e:
-            logger.error(f"Token exchange request failed: {e}")
+            logger.exception(f"Token exchange request failed: {e}")
             raise
 
         if r.status_code != 200:
-            logger.error(f"Token exchange failed: {r.status_code}")
-            logger.error(f"Response: {r.text}")
+            logger.error("Token exchange failed: %s — %s", r.status_code, _summarise_error_body(r))
             r.raise_for_status()
 
         data = r.json()
         self._access_token = data["access_token"]
-        logger.debug("Access token refreshed successfully.")
-
-        # Strava returns a new refresh token - store it for next time
         new_refresh_token = data.get("refresh_token")
         if new_refresh_token and new_refresh_token != self.config.strava_refresh_token:
-            logger.warning(f"⚠ New refresh token issued: {new_refresh_token}")
-            logger.warning("Update your STRAVA_REFRESH_TOKEN environment variable!")
+            self.config.strava_refresh_token = new_refresh_token
+            self._notify_refresh_token_changed(new_refresh_token)
+        logger.debug("Access token refreshed successfully.")
+
+        if new_refresh_token:
+            logger.debug("New Strava refresh token issued and stored in memory.")
 
         return self._access_token
 
+    def _notify_refresh_token_changed(self, new_refresh_token: str) -> None:
+        """Invoke the configured callback so the rotated token can be persisted.
+
+        Strava issues a new refresh token — and invalidates the previous one
+        — on every token exchange. If the rotated token is only kept on the
+        in-memory ``Config`` instance, it is lost when the process exits,
+        which then makes the *next* startup fail immediately with an
+        "invalid" refresh_token error (even though the previous run ended
+        cleanly). See :mod:`kinetiqo.profile_sync` for the callback that
+        persists it to the database.
+        """
+        callback = getattr(self.config, "on_refresh_token_changed", None)
+        if not callback:
+            return
+        try:
+            callback(new_refresh_token)
+        except Exception:
+            logger.exception("Failed to persist rotated Strava refresh token.")
+
+    def exchange_authorization_code(self, code: str) -> dict:
+        """Exchange an OAuth authorization code for tokens."""
+        url = "https://www.strava.com/oauth/token"
+        payload = {
+            "client_id": self.config.strava_client_id,
+            "client_secret": self.config.strava_client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+        }
+
+        logger.debug(f"POST {url} (authorization_code exchange)")
+        try:
+            r = requests.post(url, data=payload, timeout=self.request_timeout)
+        except Exception as e:
+            logger.exception(f"Authorization code exchange failed: {e}")
+            raise
+
+        if r.status_code != 200:
+            logger.error("Authorization code exchange failed: %s — %s", r.status_code, _summarise_error_body(r))
+            r.raise_for_status()
+
+        data = r.json()
+        new_refresh_token = data.get("refresh_token")
+        if new_refresh_token and new_refresh_token != self.config.strava_refresh_token:
+            self.config.strava_refresh_token = new_refresh_token
+            self._notify_refresh_token_changed(new_refresh_token)
+        return data
+
     def _headers(self) -> dict:
+        """Return HTTP headers for authenticated requests.
+
+        Returns:
+            dict: Headers with Authorization Bearer token.
+        """
         return {"Authorization": f"Bearer {self._get_access_token()}"}
 
     def get_activities(self, result_container: list, after: int = None):
@@ -105,7 +206,11 @@ class StravaClient:
                     yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
                     if attempt > self.request_retries:
                         yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
-                        return
+                        # Preserve any complete pages fetched before this failure, but
+                        # signal the failure to the caller so it never treats the
+                        # (incomplete) result as authoritative for stale-activity deletion.
+                        result_container.extend(activities)
+                        raise StravaFetchError(str(e)) from e
                     # For HTTP 429 (rate-limited), honour the server's Retry-After header if present
                     if e.response is not None and e.response.status_code == 429:
                         retry_after = e.response.headers.get("Retry-After")
@@ -119,14 +224,16 @@ class StravaClient:
                     yield f"Warning: Strava API request failed (attempt {attempt}): {e}"
                     if attempt > self.request_retries:
                         yield f"Error: Failed to fetch activities from Strava after {attempt} attempts: {e}"
-                        return
+                        result_container.extend(activities)
+                        raise StravaFetchError(str(e)) from e
                     time.sleep(2 ** attempt)
             try:
                 batch = r.json()
             except Exception as e:
-                logger.error(f"Failed to decode Strava response JSON: {e}")
+                logger.exception(f"Failed to decode Strava response JSON: {e}")
                 yield f"Error: Failed to decode Strava response: {e}"
-                return
+                result_container.extend(activities)
+                raise StravaFetchError(str(e)) from e
 
             msg = f"Page {page}: Found {len(batch)} activities."
             logger.debug(msg)
@@ -174,7 +281,7 @@ class StravaClient:
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Strava athlete request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
                     raise
                 time.sleep(2 ** attempt)
 
@@ -207,7 +314,7 @@ class StravaClient:
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Strava streams request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to fetch streams for {activity_id} after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to fetch streams for {activity_id} after {attempt} attempts: {e}")
                     raise
 
         streams = r.json()
@@ -216,3 +323,89 @@ class StravaClient:
         self.cache.set(f"streams/{activity_id}", streams)
 
         return streams
+
+    def get_activity_detail(self, activity_id) -> dict:
+        """Fetch the full (detailed) activity representation from Strava.
+
+        Unlike the summary activities returned by :meth:`get_activities`, the
+        detailed representation includes the ``description`` field, which is
+        required by the ``UPDATE_STRAVA`` description-update feature. This call
+        always hits the network (never cached) so the description we read is
+        never stale relative to our own prior updates.
+
+        :param activity_id: Strava activity ID.
+        :return: Detailed activity dictionary (includes ``description``).
+        """
+        url = f"{self.BASE_URL}/activities/{activity_id}"
+        logger.debug(f"GET {url}")
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = requests.get(url, headers=self._headers(), timeout=self.request_timeout)
+                r.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Strava activity detail request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.exception(f"Failed to fetch activity detail for {activity_id} after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+
+        return r.json()
+
+    def update_activity_description(self, activity_id, description: str) -> dict:
+        """Update an activity's description on Strava.
+
+        Note that this endpoint requires the ``activity:write`` OAuth scope
+        in addition to the read scopes used everywhere else in this client.
+        A ``401 Unauthorized`` here — even though reads (activity list,
+        streams, activity detail) succeed fine — almost always means the
+        stored refresh token was never authorized with ``activity:write``.
+        This is a permanent condition (not a transient auth glitch), so it is
+        **not retried**: retrying would just burn the same 401 three times
+        with exponential backoff for every single activity in the sync,
+        which for e.g. 50+ activities in one run can add several minutes of
+        pure waiting for a call that can never succeed until the token is
+        reauthorized (Settings → Reconnect with Strava, which now requests
+        ``activity:write``).
+
+        :param activity_id: Strava activity ID.
+        :param description: New full description text to store.
+        :return: The updated activity dictionary as returned by Strava.
+        """
+        url = f"{self.BASE_URL}/activities/{activity_id}"
+        payload = {"description": description}
+        logger.debug(f"PUT {url} (updating description)")
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                r = requests.put(url, headers=self._headers(), data=payload, timeout=self.request_timeout)
+                r.raise_for_status()
+                break
+            except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code == 401:
+                    logger.exception(
+                        "UPDATE_STRAVA: 401 Unauthorized updating description for activity %s — "
+                        "the stored Strava refresh token most likely lacks the 'activity:write' scope "
+                        "(reads work, writes don't). Reconnect via Settings -> Reconnect with Strava to "
+                        "grant it; not retrying since this won't resolve on its own.",
+                        activity_id,
+                    )
+                    raise
+                logger.warning(f"Strava update-description request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.exception(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Strava update-description request failed (attempt {attempt}): {e}")
+                if attempt > self.request_retries:
+                    logger.exception(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
+                    raise
+                time.sleep(2 ** attempt)
+
+        return r.json()

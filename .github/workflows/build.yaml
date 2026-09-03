@@ -71,7 +71,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # The build script pulls lhotakj/firebird-python:3.13 from DockerHub as
+      # The build script pulls lhotakj/firebird-python:3.14 from DockerHub as
       # its base image (no Firebird compilation here — that lives in the
       # separate "Build Firebird Python Base Image" workflow).
       - name: Build Docker image

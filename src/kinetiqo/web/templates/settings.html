@@ -4,96 +4,256 @@
 <div class="">
     <div class="mb-8">
         <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Settings</h1>
-        <p class="text-gray-500 dark:text-gray-400">View system configuration and schedules.</p>
+        <p class="text-gray-500 dark:text-gray-400">Manage Strava activity description templates, view sync schedules, and database backend details.</p>
     </div>
 
-    <!-- Athlete Profile -->
+    <!-- Strava Description Templates -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Athlete</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava. Changes are saved automatically.</p>
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Strava Description Templates</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure auto-update templates per activity type. Changes are saved automatically on blur with server validation.</p>
         </div>
         <div class="p-6 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label for="profile-first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
-                    <input type="text" id="profile-first-name"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
+            <div class="space-y-3">
+                <div class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    UPDATE_STRAVA_* templates
+                    <span class="font-normal text-gray-400 dark:text-gray-500">(editable, prefix is fixed, changes are saved automatically)</span>
                 </div>
-                <div>
-                    <label for="profile-last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
-                    <input type="text" id="profile-last-name"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
-                </div>
-                <div>
-                    <label for="profile-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Weight (kg)</label>
-                    <input type="text" id="profile-weight" inputmode="decimal"
-                           pattern="[0-9]*\.?[0-9]*"
-                           class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                           value="" placeholder="Loading...">
-                    <div id="profile-weight-error" class="mt-1 text-xs text-red-500 hidden"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="profile-update-strava-cycling-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Cycling (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_INDOOR</code></span>
+                        </label>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="shrink-0">✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-cycling-indoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400 shrink-0 ml-2">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-cycling-indoor" rows="6"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-cycling-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Cycling (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_CYCLING_OUTDOOR</code></span>
+                        </label>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="shrink-0">✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-cycling-outdoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400 shrink-0 ml-2">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-cycling-outdoor" rows="6"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-running-indoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Running (Indoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_INDOOR</code></span>
+                        </label>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="shrink-0">✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-running-indoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400 shrink-0 ml-2">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-running-indoor" rows="6"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-running-outdoor" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Running (Outdoor) <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_RUNNING_OUTDOOR</code></span>
+                        </label>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="shrink-0">✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-running-outdoor" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400 shrink-0 ml-2">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-running-outdoor" rows="6"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-walking" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Walking / Hiking <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_WALKING</code></span>
+                        </label>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="shrink-0">✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-walking" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400 shrink-0 ml-2">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-walking" rows="6"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="profile-update-strava-swimming" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            Swimming <span class="font-normal text-gray-400 dark:text-gray-500">— <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_SWIMMING</code></span>
+                        </label>
+                        <div class="rounded-lg border border-gray-300 dark:border-zinc-600 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white dark:bg-zinc-700 shadow-sm">
+                            <div class="px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-600 text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center justify-between select-none">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="shrink-0">✨ Kinetiqo:</span>
+                                    <span id="status-profile-update-strava-swimming" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                                </div>
+                                <span class="text-[10px] font-normal text-gray-400 dark:text-gray-400 shrink-0 ml-2">Fixed prefix</span>
+                            </div>
+                            <textarea id="profile-update-strava-swimming" rows="6"
+                                      class="w-full bg-transparent border-0 text-gray-900 dark:text-white text-sm p-2.5 font-mono resize-y focus:ring-0 focus:outline-none"
+                                      placeholder="Enter template e.g. &#123;&#123;workout-summary&#125;&#125;"></textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <!-- Supported Template Variables Info Box -->
+            <div class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">✨</span>
+                        <label for="strava-var-search" class="text-sm font-semibold text-gray-800 dark:text-gray-200">Supported Template Variables</label>
+                        <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Sorted A–Z</span>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <input type="text" id="strava-var-search" placeholder="Search variables (e.g. distance, year)..."
+                               class="w-full sm:w-64 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <label for="strava-var-dropdown" class="sr-only">Select a template variable</label>
+                    <select id="strava-var-dropdown"
+                            class="flex-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </select>
+                    <button id="strava-var-copy-btn" type="button"
+                            class="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap">
+                        <span>Copy Variable</span>
+                    </button>
+                </div>
+
+                <div id="strava-var-preview" class="p-3 rounded-lg border border-gray-200 dark:border-zinc-700/60 bg-white dark:bg-zinc-800/90 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Variable:</span>
+                            <span class="font-mono font-bold px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs" id="strava-var-preview-token"></span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-gray-400 dark:text-gray-500 uppercase tracking-wider text-[10px] font-bold">Explanation:</span>
+                            <span class="text-sky-600 dark:text-sky-400 font-semibold text-xs" id="strava-var-preview-desc"></span>
+                        </div>
+                    </div>
+                    <span id="strava-var-copy-toast" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hidden">✓ Copied!</span>
+                </div>
+            </div>
+
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                When set, the applicable template (chosen per activity by its own sport type) is rendered and
+                merged into that synced activity's Strava description — appended at the end by default, or
+                prepended if <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_PLACEMENT=begin</code>
+                is set. See
+                <a href="https://github.com/lhotakj/kinetiqo/blob/main/docs/UPDATE_STRAVA.md" target="_blank" class="underline hover:text-blue-500">docs/UPDATE_STRAVA.md</a>
+                for the full placeholder reference.
+            </p>
+
             <div id="profile-status" class="text-xs text-gray-400 dark:text-gray-500 h-4"></div>
         </div>
     </div>
 
-    <!-- Training Goals -->
+    <!-- Authorization -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Training Goals</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Set distance (km) and elevation (m) targets per activity type. Changes are saved automatically on blur.
-            </p>
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Authorization</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage Strava API OAuth connection and requested permission scopes.</p>
         </div>
         <div class="p-6">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse">
-                    <thead>
-                        <tr class="border-b border-gray-200 dark:border-zinc-700">
-                            <th scope="col" class="py-2 pr-4 text-left font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Activity</th>
-                            <!-- Distance group -->
-                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-orange-600 dark:text-orange-400 border-l border-gray-200 dark:border-zinc-600">
-                                📏 Distance Goal (km)
-                            </th>
-                            <!-- Elevation group -->
-                            <th scope="colgroup" colspan="3" class="py-2 px-2 text-center font-medium text-indigo-600 dark:text-indigo-400 border-l border-gray-200 dark:border-zinc-600">
-                                ⛰️ Elevation Goal (m)
-                            </th>
-                        </tr>
-                        <tr class="border-b border-gray-200 dark:border-zinc-700 text-xs text-gray-500 dark:text-gray-400">
-                            <th scope="col" class="py-1 pr-4"></th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center border-l border-gray-200 dark:border-zinc-600">Weekly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Monthly</th>
-                            <th scope="col" class="py-1 px-2 font-medium text-center">Yearly</th>
-                        </tr>
-                    </thead>
-                    <tbody id="goals-tbody" class="divide-y divide-gray-100 dark:divide-zinc-700">
-                        <tr>
-                            <td colspan="7" class="py-3 text-center text-gray-400 dark:text-gray-500 text-xs">Loading…</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
+                    Need to refresh your Strava authorization? Reconnecting requests <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>
+                    so the app can read your profile details, and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>
+                    so the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature can update activity descriptions.
+                </p>
+                <a href="{{ url_for('strava_reconnect') }}"
+                   class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition whitespace-nowrap">
+                    Reconnect with Strava
+                </a>
             </div>
-            <div id="goals-status" class="mt-3 text-xs text-gray-400 dark:text-gray-500 h-4"></div>
         </div>
     </div>
 
+    <!-- Map GPS Track Simplification -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">GPS Track Simplification</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure coordinate decimation scale (0–10) to speed up map reading and rendering.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="status-gps-simplification" class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300">Saved ✓</span>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div class="max-w-xl">
+                <label for="gps-simplification-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Simplification Level <span class="font-normal text-gray-400 dark:text-gray-500">(0 = Disabled, 10 = Max decimation)</span>
+                </label>
+                <select id="gps-simplification-select"
+                        class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <option value="0">Level 0 — Disabled (0m threshold; exact raw GPS stream)</option>
+                    <option value="1">Level 1 — Minimal (3m threshold; subtle jitter removal)</option>
+                    <option value="2">Level 2 — Light (6m threshold)</option>
+                    <option value="3">Level 3 — Moderate (10m threshold)</option>
+                    <option value="4">Level 4 — Standard (15m threshold; recommended web map balance)</option>
+                    <option value="5">Level 5 — Medium (20m threshold)</option>
+                    <option value="6">Level 6 — High (30m threshold)</option>
+                    <option value="7">Level 7 — Strong (45m threshold)</option>
+                    <option value="8">Level 8 — Aggressive (60m threshold)</option>
+                    <option value="9">Level 9 — Very High (80m threshold)</option>
+                    <option value="10">Level 10 — Maximum (100m threshold; max payload reduction)</option>
+                </select>
+            </div>
+            <div class="p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                <div class="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                    <span>💡 How Simplification & Persistence Work:</span>
+                </div>
+                <ul class="list-disc list-inside space-y-1 pl-1">
+                    <li><strong>O(N) Haversine Sampling:</strong> Retains route terminus points and filters intermediate GPS points within the configured distance threshold.</li>
+                    <li><strong>Database Persistence:</strong> Stored in the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile.gps_simplification</code> column in your database.</li>
+                    <li><strong>Environment Override Logic:</strong> If the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">GPS_SIMPLIFICATION</code> environment variable is set, it updates the database on startup. If no environment variable is set, the stored database value is preserved (defaulting to 0 when unset).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Schedules & Database Backend -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules</h2>
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules & Database</h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">These schedules are defined by environment variables.</p>
         </div>
 
         <div class="p-6 space-y-6" id="settings-container">
             <!-- Full Sync -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Sync Schedule</label>
+                <label for="full-sync-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Sync Schedule</label>
                 <div class="relative">
                     <input type="text" id="full-sync-input" readonly
                            class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
@@ -104,7 +264,7 @@
 
             <!-- Fast Sync -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fast Sync Schedule</label>
+                <label for="fast-sync-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fast Sync Schedule</label>
                 <div class="relative">
                     <input type="text" id="fast-sync-input" readonly
                            class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-gray-500 focus:border-gray-500 block p-2.5"
@@ -115,18 +275,18 @@
 
             <!-- Database Info -->
             <div class="mt-8">
-                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h2>
+                <h3 class="text-md font-medium text-warm-900 dark:text-gray-100 mb-2">Database Backend</h3>
                 <div class="grid grid-cols-3 gap-4 mb-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <label for="db-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
                         <input type="text" id="db-type" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Host</label>
+                        <label for="db-host" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Host</label>
                         <input type="text" id="db-host" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
+                        <label for="db-port" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
                         <input type="text" id="db-port" readonly class="w-full bg-gray-50 dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg block p-2.5" value="Loading...">
                     </div>
                 </div>
@@ -148,86 +308,117 @@
 </div>
 
 <script>
-    // ── Number formatting helpers (outer scope for SonarCloud) ───────────────
-    /** Format a positive number with thousands separators, ≤1 decimal place. */
-    function formatGoalNum(val) {
-        if (val == null || val <= 0) return '';
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 1,
-        }).format(val);
-    }
-
-    /** Parse a (potentially formatted) string → positive float or null. */
-    function parseGoalNum(str) {
-        if (!str || str.trim() === '') return null;
-        const v = Number.parseFloat(str.replaceAll(',', ''));   // strip thousands separators
-        return (!Number.isNaN(v) && v > 0) ? v : null;
-    }
-
     document.addEventListener('DOMContentLoaded', function () {
-
-        // --- Athlete Profile ---
-        const firstNameInput = document.getElementById('profile-first-name');
-        const lastNameInput = document.getElementById('profile-last-name');
-        const weightInput = document.getElementById('profile-weight');
-        const weightError = document.getElementById('profile-weight-error');
+        const updateStravaInputs = {
+            update_strava_cycling_indoor: document.getElementById('profile-update-strava-cycling-indoor'),
+            update_strava_cycling_outdoor: document.getElementById('profile-update-strava-cycling-outdoor'),
+            update_strava_running_indoor: document.getElementById('profile-update-strava-running-indoor'),
+            update_strava_running_outdoor: document.getElementById('profile-update-strava-running-outdoor'),
+            update_strava_walking: document.getElementById('profile-update-strava-walking'),
+            update_strava_swimming: document.getElementById('profile-update-strava-swimming'),
+        };
         const profileStatus = document.getElementById('profile-status');
 
         function showStatus(msg, isError) {
+            if (!profileStatus) return;
             profileStatus.textContent = msg;
             profileStatus.className = 'text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
             if (!isError) setTimeout(() => { profileStatus.textContent = ''; }, 3000);
         }
 
-        // Snapshot of the last-saved values so we only PUT on actual changes
-        let savedProfile = { first_name: '', last_name: '', weight: '' };
+        let savedProfile = {};
 
-        // Load profile
+        const gpsSelect = document.getElementById('gps-simplification-select');
+        const statusGpsSimp = document.getElementById('status-gps-simplification');
+
+        // Load profile settings
         fetch('/api/profile')
             .then(r => r.json())
             .then(data => {
-                firstNameInput.value = data.first_name || '';
-                lastNameInput.value = data.last_name || '';
-                weightInput.value = data.weight || '';
-                firstNameInput.placeholder = '';
-                lastNameInput.placeholder = '';
-                weightInput.placeholder = '';
-                savedProfile = {
-                    first_name: firstNameInput.value,
-                    last_name: lastNameInput.value,
-                    weight: weightInput.value
-                };
+                for (const field in updateStravaInputs) {
+                    if (updateStravaInputs[field]) {
+                        updateStravaInputs[field].value = data[field] || '';
+                        savedProfile[field] = data[field] || '';
+                    }
+                }
+                if (gpsSelect && data.gps_simplification !== undefined && data.gps_simplification !== null) {
+                    gpsSelect.value = String(data.gps_simplification);
+                }
             })
-            .catch(() => showStatus('Failed to load profile.', true));
+            .catch(() => showStatus('Failed to load settings.', true));
 
-        function validateWeight(value) {
-            if (value === '' || value === '0') return true;
-            return /^\d+(\.\d+)?$/.test(value) && parseFloat(value) >= 0;
+        if (gpsSelect) {
+            gpsSelect.addEventListener('change', function () {
+                const val = parseInt(this.value, 10);
+                fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ gps_simplification: val })
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error('Failed to update GPS simplification');
+                    return r.json();
+                })
+                .then(updated => {
+                    if (gpsSelect && updated && updated.gps_simplification !== undefined && updated.gps_simplification !== null) {
+                        gpsSelect.value = String(updated.gps_simplification);
+                    }
+                    if (statusGpsSimp) {
+                        statusGpsSimp.textContent = 'Saved ✓';
+                        statusGpsSimp.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-100 transition-opacity duration-300';
+                        setTimeout(() => {
+                            statusGpsSimp.classList.remove('opacity-100');
+                            statusGpsSimp.classList.add('opacity-0');
+                        }, 3000);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    if (statusGpsSimp) {
+                        statusGpsSimp.textContent = 'Failed to save';
+                        statusGpsSimp.className = 'text-xs text-red-500 font-medium opacity-100 transition-opacity duration-300';
+                    }
+                });
+            });
         }
 
-        function hasProfileChanged() {
-            return firstNameInput.value !== savedProfile.first_name
-                || lastNameInput.value !== savedProfile.last_name
-                || weightInput.value !== savedProfile.weight;
-        }
-
-        function saveProfile() {
-            if (!hasProfileChanged()) return;
-
-            const w = weightInput.value.trim();
-            if (w !== '' && !validateWeight(w)) {
-                weightError.textContent = 'Must be a positive number.';
-                weightError.classList.remove('hidden');
-                return;
+        function setInputErrorState(inputEl, isError) {
+            if (!inputEl) return;
+            const container = inputEl.closest('.rounded-lg');
+            if (!container) return;
+            if (isError) {
+                container.classList.remove('bg-white', 'dark:bg-zinc-700', 'border-gray-300', 'dark:border-zinc-600');
+                container.classList.add('bg-red-50', 'dark:bg-red-950/40', 'border-red-400', 'dark:border-red-600');
+            } else {
+                container.classList.remove('bg-red-50', 'dark:bg-red-950/40', 'border-red-400', 'dark:border-red-600');
+                container.classList.add('bg-white', 'dark:bg-zinc-700', 'border-gray-300', 'dark:border-zinc-600');
             }
-            weightError.classList.add('hidden');
+        }
 
-            const payload = {
-                first_name: firstNameInput.value.trim(),
-                last_name: lastNameInput.value.trim(),
-                weight: w === '' ? 0 : parseFloat(w)
-            };
+        function saveTemplates(changedInput) {
+            const payload = {};
+            for (const field in updateStravaInputs) {
+                const inp = updateStravaInputs[field];
+                if (inp && (!changedInput || changedInput === inp)) {
+                    let val = inp.value.trim();
+                    if (val.startsWith('✨ Kinetiqo:')) {
+                        val = val.replace(/^✨ Kinetiqo:\s*/, '');
+                        inp.value = val;
+                    }
+                    if (val !== savedProfile[field]) {
+                        payload[field] = val;
+                    } else {
+                        setInputErrorState(inp, false);
+                        const statusEl = document.getElementById('status-' + inp.id);
+                        if (statusEl && statusEl.classList.contains('text-red-600')) {
+                            statusEl.textContent = 'Saved ✓';
+                            statusEl.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate';
+                        }
+                    }
+                }
+            }
+
+            if (Object.keys(payload).length === 0) return;
 
             fetch('/api/profile', {
                 method: 'PUT',
@@ -235,183 +426,66 @@
                 body: JSON.stringify(payload)
             })
             .then(r => {
-                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
+                if (!r.ok) return r.json().then(d => { throw { message: d.error || 'Save failed', field: d.field }; });
                 return r.json();
             })
-            .then(() => {
-                savedProfile = {
-                    first_name: firstNameInput.value,
-                    last_name: lastNameInput.value,
-                    weight: weightInput.value
-                };
+            .then(updated => {
+                for (const field in updateStravaInputs) {
+                    if (field in payload && updateStravaInputs[field]) {
+                        savedProfile[field] = updateStravaInputs[field].value;
+                        setInputErrorState(updateStravaInputs[field], false);
+                        const statusEl = document.getElementById('status-' + updateStravaInputs[field].id);
+                        if (statusEl) {
+                            statusEl.textContent = 'Saved ✓';
+                            statusEl.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-100 transition-opacity duration-300 truncate';
+                            setTimeout(() => {
+                                statusEl.classList.remove('opacity-100');
+                                statusEl.classList.add('opacity-0');
+                            }, 3000);
+                        }
+                    }
+                }
                 showStatus('Saved ✓', false);
             })
-            .catch(err => showStatus(err.message, true));
-        }
-
-        firstNameInput.addEventListener('blur', saveProfile);
-        lastNameInput.addEventListener('blur', saveProfile);
-        weightInput.addEventListener('blur', saveProfile);
-
-        // Client-side: block non-numeric keys in weight field
-        weightInput.addEventListener('keypress', function(e) {
-            const char = String.fromCodePoint(e.which || e.keyCode);
-            if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
-            if (!/[\d.]/.test(char)) { e.preventDefault(); }
-        });
-
-        // ----------------------------------------------------------------
-        // Training Goals
-        // ----------------------------------------------------------------
-        const goalsTbody    = document.getElementById('goals-tbody');
-        const goalsStatus   = document.getElementById('goals-status');
-        let savedGoals      = {};   // { "1": { weekly_distance_goal: …, … }, … }
-
-        const GOAL_FIELDS = [
-            { key: 'weekly_distance_goal',   group: 'dist' },
-            { key: 'monthly_distance_goal',  group: 'dist' },
-            { key: 'yearly_distance_goal',   group: 'dist' },
-            { key: 'weekly_elevation_goal',  group: 'elev' },
-            { key: 'monthly_elevation_goal', group: 'elev' },
-            { key: 'yearly_elevation_goal',  group: 'elev' },
-        ];
-
-        function showGoalStatus(msg, isError) {
-            goalsStatus.textContent = msg;
-            goalsStatus.className = 'mt-3 text-xs h-4 ' + (isError ? 'text-red-500' : 'text-green-600 dark:text-green-400');
-            if (!isError) setTimeout(() => { goalsStatus.textContent = ''; }, 3000);
-        }
-
-        // ── Number formatting helpers — see outer scope ──────────────────
-
-    // ── buildGoalInput moved to outer scope for SonarQube compliance ──
-    function buildGoalInput(typeId, fieldKey, currentVal) {
-        // Display as formatted text; raw value restored on focus for editing.
-        const display = (currentVal !== null && currentVal !== undefined && currentVal > 0) ? formatGoalNum(currentVal) : '';
-        const borderClass = fieldKey.includes('dist')
-            ? 'focus:ring-orange-400 focus:border-orange-400'
-            : 'focus:ring-indigo-400 focus:border-indigo-400';
-        return `<input type="text" inputmode="decimal"
-                    data-type-id="${typeId}" data-field="${fieldKey}"
-                    class="goal-input w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600
-                           text-gray-900 dark:text-white text-sm rounded-lg ${borderClass}
-                           block p-1.5 text-center"
-                    value="${display}" placeholder="">`;
-    }
-
-        function renderGoalsTable(goalsData) {
-            savedGoals = goalsData;
-            let html = '';
-            const typeIds = Object.keys(goalsData).map(Number).sort((a, b) => a - b);
-            for (const typeId of typeIds) {
-                const g = goalsData[String(typeId)];
-                html += `<tr class="hover:bg-gray-50 dark:hover:bg-zinc-700/40">
-                    <td class="py-2 pr-4 font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">
-                        <span class="mr-1">${g.icon}</span>${g.name}
-                    </td>`;
-                GOAL_FIELDS.forEach((f, i) => {
-                    const borderLeft = (i === 0 || i === 3) ? 'border-l border-gray-200 dark:border-zinc-600' : '';
-                    html += `<td class="py-2 px-2 ${borderLeft}">${buildGoalInput(typeId, f.key, g[f.key])}</td>`;
-                });
-                html += '</tr>';
-            }
-            goalsTbody.innerHTML = html || '<tr><td colspan="7" class="py-3 text-center text-gray-400 text-xs">No goal types defined.</td></tr>';
-
-            // Attach event handlers for each goal input
-            goalsTbody.querySelectorAll('.goal-input').forEach(inp => {
-                // Strip formatting on focus so the user edits a plain number
-                inp.addEventListener('focus', function () {
-                    const raw = parseGoalNum(this.value);
-                    // SonarQube: explicit null check for clarity
-                    if (raw === null) {
-                        this.value = '';
-                    } else {
-                        this.value = String(raw);
-                    }
-                });
-                inp.addEventListener('blur', onGoalInputBlur);
-                // Allow digits and one decimal dot; commas are stripped on parse
-                inp.addEventListener('keypress', function (e) {
-                    const char = String.fromCodePoint(e.which || e.keyCode);
-                    if (char === '.' && this.value.includes('.')) { e.preventDefault(); return; }
-                    if (!/[\d.]/.test(char)) e.preventDefault();
-                });
-            });
-        }
-
-        function onGoalInputBlur() {
-            const typeId    = Number.parseInt(this.dataset.typeId);
-            const fieldKey  = this.dataset.field;
-            const newVal    = parseGoalNum(this.value);   // handles formatted or raw strings
-            const typeIdStr = String(typeId);
-
-            // Compare against saved value
-            const prevVal  = savedGoals[typeIdStr] ? savedGoals[typeIdStr][fieldKey] : null;
-            const prevNorm = (prevVal == null || prevVal <= 0) ? null : prevVal;
-            const newNorm  = newVal;   // parseGoalNum already returns null for ≤0
-            if (prevNorm === newNorm) {
-                // No change — just reformat the display in case user typed equivalent value
-                // SonarQube: explicit null check for clarity
-                if (newNorm === null) {
-                    this.value = '';
-                } else {
-                    this.value = formatGoalNum(newNorm);
-                }
-                return;
-            }
-
-            // Collect current row values for a full upsert
-            const row = savedGoals[typeIdStr] || {};
-            const payload = { activity_type_id: typeId };
-            GOAL_FIELDS.forEach(f => {
-                const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
-                const v = inp ? parseGoalNum(inp.value) : row[f.key];
-                payload[f.key] = v;   // parseGoalNum already returns null for empty/invalid
-            });
-
-            fetch('/api/goals', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify([payload])
-            })
-            .then(r => {
-                if (!r.ok) return r.json().then(d => { throw new Error(d.error || 'Save failed'); });
-                return r.json();
-            })
-            .then(() => {
-                // Update the full row snapshot and reformat all non-focused inputs in the row
-                if (!savedGoals[typeIdStr]) savedGoals[typeIdStr] = {};
-                GOAL_FIELDS.forEach(f => {
-                    savedGoals[typeIdStr][f.key] = payload[f.key] === null ? null : payload[f.key];
-                    const inp = goalsTbody.querySelector(`[data-type-id="${typeId}"][data-field="${f.key}"]`);
-                    if (inp && inp !== document.activeElement) {
-                        inp.value = payload[f.key] === null ? '' : formatGoalNum(payload[f.key]);
-                    }
-                });
-                showGoalStatus('Saved ✓', false);
-            })
-            .catch(err => showGoalStatus(err.message, true));
-        }
-
-        // Load goals
-        fetch('/api/goals')
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                renderGoalsTable(data);
-            })
             .catch(err => {
-                goalsTbody.innerHTML = `<tr><td colspan="7" class="py-3 text-center text-red-500 text-xs">${err.message}</td></tr>`;
+                const errMsg = err.message || String(err);
+                let targetedField = err.field;
+                if (!targetedField && changedInput && changedInput.id) {
+                    for (const f in updateStravaInputs) {
+                        if (updateStravaInputs[f] === changedInput) {
+                            targetedField = f;
+                            break;
+                        }
+                    }
+                }
+                if (targetedField && updateStravaInputs[targetedField]) {
+                    const inputEl = updateStravaInputs[targetedField];
+                    setInputErrorState(inputEl, true);
+                    const statusEl = document.getElementById('status-' + inputEl.id);
+                    if (statusEl) {
+                        statusEl.textContent = errMsg;
+                        statusEl.className = 'text-xs text-red-600 dark:text-red-400 font-medium opacity-100 transition-opacity duration-300 truncate';
+                    }
+                } else {
+                    showStatus(errMsg, true);
+                }
             });
+        }
 
-        // --- Settings (existing) ---
+        for (const field in updateStravaInputs) {
+            if (updateStravaInputs[field]) {
+                const inp = updateStravaInputs[field];
+                inp.addEventListener('blur', () => saveTemplates(inp));
+                inp.addEventListener('input', () => setInputErrorState(inp, false));
+            }
+        }
+
+        // Settings API
         fetch('/api/settings')
             .then(response => response.json())
             .then(data => {
-                // Full Sync
                 const fullSyncInput = document.getElementById('full-sync-input');
                 const fullSyncDesc = document.getElementById('full-sync-desc');
-
                 if (data.full_sync.expression) {
                     fullSyncInput.value = data.full_sync.expression;
                     fullSyncDesc.textContent = data.full_sync.description;
@@ -420,10 +494,8 @@
                     fullSyncDesc.textContent = "No schedule configured";
                 }
 
-                // Fast Sync
                 const fastSyncInput = document.getElementById('fast-sync-input');
                 const fastSyncDesc = document.getElementById('fast-sync-desc');
-
                 if (data.fast_sync.expression) {
                     fastSyncInput.value = data.fast_sync.expression;
                     fastSyncDesc.textContent = data.fast_sync.description;
@@ -432,7 +504,6 @@
                     fastSyncDesc.textContent = "No schedule configured";
                 }
 
-                // Database Info
                 const dbType = document.getElementById('db-type');
                 const dbHost = document.getElementById('db-host');
                 const dbPort = document.getElementById('db-port');
@@ -443,7 +514,6 @@
                     dbHost.value = data.database.host || "Unknown";
                     dbPort.value = data.database.port || "Unknown";
 
-                    // Table counts
                     dbTableCounts.innerHTML = "";
                     const counts = data.database.table_counts || {};
                     const keys = Object.keys(counts);
@@ -476,6 +546,265 @@
                 document.getElementById('db-port').value = "Error";
                 document.getElementById('db-table-counts').innerHTML = '<tr><td class="px-4 py-2">Error</td><td class="px-4 py-2">-</td></tr>';
             });
+
+        // Initialize Supported Strava Template Variables Explorer
+        {% raw %}
+        const STRAVA_VARIABLES = [
+            { token: "{{current-month}}", desc: "Full month name of the activity (e.g. July)" },
+            { token: "{{current-year}}", desc: "4-digit year of the activity (e.g. 2026)" },
+            { token: "{{workout-summary}}", desc: "RestOrTrain-style workout summary (e.g. Endurance | 120min @ 191W or HR fallback)" },
+            { token: "{{cycling-activities-indoor-month}}", desc: "Number of indoor cycling activities this month" },
+            { token: "{{cycling-activities-indoor-week}}", desc: "Number of indoor cycling activities this week" },
+            { token: "{{cycling-activities-indoor-year}}", desc: "Number of indoor cycling activities this year" },
+            { token: "{{cycling-activities-outdoor-month}}", desc: "Number of outdoor cycling activities this month" },
+            { token: "{{cycling-activities-outdoor-week}}", desc: "Number of outdoor cycling activities this week" },
+            { token: "{{cycling-activities-outdoor-year}}", desc: "Number of outdoor cycling activities this year" },
+            { token: "{{cycling-activities-total-month}}", desc: "Total number of cycling activities this month" },
+            { token: "{{cycling-activities-total-week}}", desc: "Total number of cycling activities this week" },
+            { token: "{{cycling-activities-total-year}}", desc: "Total number of cycling activities this year" },
+            { token: "{{cycling-count-indoor-month}}", desc: "Indoor cycling count this month with 🎉 milestone celebration" },
+            { token: "{{cycling-count-indoor-week}}", desc: "Indoor cycling count this week with 🎉 milestone celebration" },
+            { token: "{{cycling-count-indoor-year}}", desc: "Indoor cycling count this year with 🎉 milestone celebration" },
+            { token: "{{cycling-count-outdoor-month}}", desc: "Outdoor cycling count this month with 🎉 milestone celebration" },
+            { token: "{{cycling-count-outdoor-week}}", desc: "Outdoor cycling count this week with 🎉 milestone celebration" },
+            { token: "{{cycling-count-outdoor-year}}", desc: "Outdoor cycling count this year with 🎉 milestone celebration" },
+            { token: "{{cycling-count-total-month}}", desc: "Total cycling count this month with 🎉 milestone celebration" },
+            { token: "{{cycling-count-total-week}}", desc: "Total cycling count this week with 🎉 milestone celebration" },
+            { token: "{{cycling-count-total-year}}", desc: "Total cycling count this year with 🎉 milestone celebration" },
+            { token: "{{cycling-distance-deviation-indoor-month}}", desc: "Indoor cycling distance vs prorated monthly plan" },
+            { token: "{{cycling-distance-deviation-indoor-week}}", desc: "Indoor cycling distance vs prorated weekly plan" },
+            { token: "{{cycling-distance-deviation-indoor-year}}", desc: "Indoor cycling distance vs prorated yearly plan" },
+            { token: "{{cycling-distance-deviation-outdoor-month}}", desc: "Outdoor cycling distance vs prorated monthly plan" },
+            { token: "{{cycling-distance-deviation-outdoor-week}}", desc: "Outdoor cycling distance vs prorated weekly plan" },
+            { token: "{{cycling-distance-deviation-outdoor-year}}", desc: "Outdoor cycling distance vs prorated yearly plan" },
+            { token: "{{cycling-distance-deviation-total-month}}", desc: "Total cycling distance vs prorated monthly plan" },
+            { token: "{{cycling-distance-deviation-total-week}}", desc: "Total cycling distance vs prorated weekly plan" },
+            { token: "{{cycling-distance-deviation-total-year}}", desc: "Total cycling distance vs prorated yearly plan (e.g. ahead of plan by 1,201 km)" },
+            { token: "{{cycling-distance-goal-indoor-month}}", desc: "Configured monthly cycling distance goal" },
+            { token: "{{cycling-distance-goal-indoor-week}}", desc: "Configured weekly cycling distance goal" },
+            { token: "{{cycling-distance-goal-indoor-year}}", desc: "Configured yearly cycling distance goal" },
+            { token: "{{cycling-distance-goal-outdoor-month}}", desc: "Configured monthly cycling distance goal" },
+            { token: "{{cycling-distance-goal-outdoor-week}}", desc: "Configured weekly cycling distance goal" },
+            { token: "{{cycling-distance-goal-outdoor-year}}", desc: "Configured yearly cycling distance goal" },
+            { token: "{{cycling-distance-goal-total-month}}", desc: "Configured monthly cycling distance goal (formatted with km)" },
+            { token: "{{cycling-distance-goal-total-week}}", desc: "Configured weekly cycling distance goal (formatted with km)" },
+            { token: "{{cycling-distance-goal-total-year}}", desc: "Configured yearly cycling distance goal (formatted with km)" },
+            { token: "{{cycling-distance-indoor-month}}", desc: "Indoor cycling distance this month (km)" },
+            { token: "{{cycling-distance-indoor-week}}", desc: "Indoor cycling distance this week (km)" },
+            { token: "{{cycling-distance-indoor-year}}", desc: "Indoor cycling distance this year (km)" },
+            { token: "{{cycling-distance-outdoor-month}}", desc: "Outdoor cycling distance this month (km)" },
+            { token: "{{cycling-distance-outdoor-week}}", desc: "Outdoor cycling distance this week (km)" },
+            { token: "{{cycling-distance-outdoor-year}}", desc: "Outdoor cycling distance this year (km)" },
+            { token: "{{cycling-distance-percent-indoor-month}}", desc: "Percentage of monthly cycling goal achieved (indoor)" },
+            { token: "{{cycling-distance-percent-indoor-week}}", desc: "Percentage of weekly cycling goal achieved (indoor)" },
+            { token: "{{cycling-distance-percent-indoor-year}}", desc: "Percentage of yearly cycling goal achieved (indoor)" },
+            { token: "{{cycling-distance-percent-outdoor-month}}", desc: "Percentage of monthly cycling goal achieved (outdoor)" },
+            { token: "{{cycling-distance-percent-outdoor-week}}", desc: "Percentage of weekly cycling goal achieved (outdoor)" },
+            { token: "{{cycling-distance-percent-outdoor-year}}", desc: "Percentage of yearly cycling goal achieved (outdoor)" },
+            { token: "{{cycling-distance-percent-total-month}}", desc: "Percentage of monthly cycling distance goal achieved (%)" },
+            { token: "{{cycling-distance-percent-total-week}}", desc: "Percentage of weekly cycling distance goal achieved (%)" },
+            { token: "{{cycling-distance-percent-total-year}}", desc: "Percentage of yearly cycling distance goal achieved (e.g. 56.10%)" },
+            { token: "{{cycling-distance-total-month}}", desc: "Total cycling distance this month (km)" },
+            { token: "{{cycling-distance-total-week}}", desc: "Total cycling distance this week (km)" },
+            { token: "{{cycling-distance-total-year}}", desc: "Total cycling distance this year (km)" },
+            { token: "{{cycling-elevation-deviation-total-month}}", desc: "Total cycling elevation vs prorated monthly plan" },
+            { token: "{{cycling-elevation-deviation-total-week}}", desc: "Total cycling elevation vs prorated weekly plan" },
+            { token: "{{cycling-elevation-deviation-total-year}}", desc: "Total cycling elevation vs prorated yearly plan" },
+            { token: "{{cycling-elevation-goal-total-month}}", desc: "Configured monthly cycling elevation goal" },
+            { token: "{{cycling-elevation-goal-total-week}}", desc: "Configured weekly cycling elevation goal" },
+            { token: "{{cycling-elevation-goal-total-year}}", desc: "Configured yearly cycling elevation goal" },
+            { token: "{{cycling-elevation-indoor-month}}", desc: "Indoor cycling elevation gain this month (m)" },
+            { token: "{{cycling-elevation-indoor-week}}", desc: "Indoor cycling elevation gain this week (m)" },
+            { token: "{{cycling-elevation-indoor-year}}", desc: "Indoor cycling elevation gain this year (m)" },
+            { token: "{{cycling-elevation-outdoor-month}}", desc: "Outdoor cycling elevation gain this month (m)" },
+            { token: "{{cycling-elevation-outdoor-week}}", desc: "Outdoor cycling elevation gain this week (m)" },
+            { token: "{{cycling-elevation-outdoor-year}}", desc: "Outdoor cycling elevation gain this year (m)" },
+            { token: "{{cycling-elevation-percent-total-month}}", desc: "Percentage of monthly cycling elevation goal achieved" },
+            { token: "{{cycling-elevation-percent-total-week}}", desc: "Percentage of weekly cycling elevation goal achieved" },
+            { token: "{{cycling-elevation-percent-total-year}}", desc: "Percentage of yearly cycling elevation goal achieved" },
+            { token: "{{cycling-elevation-total-month}}", desc: "Total cycling elevation gain this month (m)" },
+            { token: "{{cycling-elevation-total-week}}", desc: "Total cycling elevation gain this week (m)" },
+            { token: "{{cycling-elevation-total-year}}", desc: "Total cycling elevation gain this year (m)" },
+            { token: "{{cycling-ordinal-indoor-month}}", desc: "Indoor cycling ordinal count this month with 🎉 milestone" },
+            { token: "{{cycling-ordinal-indoor-week}}", desc: "Indoor cycling ordinal count this week with 🎉 milestone" },
+            { token: "{{cycling-ordinal-indoor-year}}", desc: "Indoor cycling ordinal count this year with 🎉 milestone" },
+            { token: "{{cycling-ordinal-outdoor-month}}", desc: "Outdoor cycling ordinal count this month with 🎉 milestone" },
+            { token: "{{cycling-ordinal-outdoor-week}}", desc: "Outdoor cycling ordinal count this week with 🎉 milestone" },
+            { token: "{{cycling-ordinal-outdoor-year}}", desc: "Outdoor cycling ordinal count this year with 🎉 milestone" },
+            { token: "{{cycling-ordinal-total-month}}", desc: "Total cycling ordinal count this month with 🎉 milestone" },
+            { token: "{{cycling-ordinal-total-week}}", desc: "Total cycling ordinal count this week with 🎉 milestone" },
+            { token: "{{cycling-ordinal-total-year}}", desc: "Total cycling ordinal count of the year with 🎉 milestone (e.g. 42nd)" },
+            { token: "{{new-line}}", desc: "Literal line break (\\n) in description template" },
+            { token: "{{running-activities-indoor-month}}", desc: "Number of indoor runs this month" },
+            { token: "{{running-activities-indoor-week}}", desc: "Number of indoor runs this week" },
+            { token: "{{running-activities-indoor-year}}", desc: "Number of indoor runs this year" },
+            { token: "{{running-activities-outdoor-month}}", desc: "Number of outdoor runs this month" },
+            { token: "{{running-activities-outdoor-week}}", desc: "Number of outdoor runs this week" },
+            { token: "{{running-activities-outdoor-year}}", desc: "Number of outdoor runs this year" },
+            { token: "{{running-activities-total-month}}", desc: "Total number of runs this month" },
+            { token: "{{running-activities-total-week}}", desc: "Total number of runs this week" },
+            { token: "{{running-activities-total-year}}", desc: "Total number of runs this year" },
+            { token: "{{running-count-indoor-month}}", desc: "Indoor run count this month with 🎉 milestone celebration" },
+            { token: "{{running-count-indoor-week}}", desc: "Indoor run count this week with 🎉 milestone celebration" },
+            { token: "{{running-count-indoor-year}}", desc: "Indoor run count this year with 🎉 milestone celebration" },
+            { token: "{{running-count-outdoor-month}}", desc: "Outdoor run count this month with 🎉 milestone celebration" },
+            { token: "{{running-count-outdoor-week}}", desc: "Outdoor run count this week with 🎉 milestone celebration" },
+            { token: "{{running-count-outdoor-year}}", desc: "Outdoor run count this year with 🎉 milestone celebration" },
+            { token: "{{running-count-total-month}}", desc: "Total run count this month with 🎉 milestone celebration" },
+            { token: "{{running-count-total-week}}", desc: "Total run count this week with 🎉 milestone celebration" },
+            { token: "{{running-count-total-year}}", desc: "Total run count this year with 🎉 milestone celebration" },
+            { token: "{{running-distance-indoor-month}}", desc: "Indoor running distance this month (km)" },
+            { token: "{{running-distance-indoor-week}}", desc: "Indoor running distance this week (km)" },
+            { token: "{{running-distance-indoor-year}}", desc: "Indoor running distance this year (km)" },
+            { token: "{{running-distance-outdoor-month}}", desc: "Outdoor running distance this month (km)" },
+            { token: "{{running-distance-outdoor-week}}", desc: "Outdoor running distance this week (km)" },
+            { token: "{{running-distance-outdoor-year}}", desc: "Outdoor running distance this year (km)" },
+            { token: "{{running-distance-total-month}}", desc: "Total running distance this month (km)" },
+            { token: "{{running-distance-total-week}}", desc: "Total running distance this week (km)" },
+            { token: "{{running-distance-total-year}}", desc: "Total running distance this year (km)" },
+            { token: "{{running-elevation-indoor-month}}", desc: "Indoor running elevation gain this month (m)" },
+            { token: "{{running-elevation-indoor-week}}", desc: "Indoor running elevation gain this week (m)" },
+            { token: "{{running-elevation-indoor-year}}", desc: "Indoor running elevation gain this year (m)" },
+            { token: "{{running-elevation-outdoor-month}}", desc: "Outdoor running elevation gain this month (m)" },
+            { token: "{{running-elevation-outdoor-week}}", desc: "Outdoor running elevation gain this week (m)" },
+            { token: "{{running-elevation-outdoor-year}}", desc: "Outdoor running elevation gain this year (m)" },
+            { token: "{{running-elevation-total-month}}", desc: "Total running elevation gain this month (m)" },
+            { token: "{{running-elevation-total-week}}", desc: "Total running elevation gain this week (m)" },
+            { token: "{{running-elevation-total-year}}", desc: "Total running elevation gain this year (m)" },
+            { token: "{{running-ordinal-indoor-month}}", desc: "Indoor run ordinal count this month with 🎉 milestone" },
+            { token: "{{running-ordinal-indoor-week}}", desc: "Indoor run ordinal count this week with 🎉 milestone" },
+            { token: "{{running-ordinal-indoor-year}}", desc: "Indoor run ordinal count this year with 🎉 milestone" },
+            { token: "{{running-ordinal-outdoor-month}}", desc: "Outdoor run ordinal count this month with 🎉 milestone" },
+            { token: "{{running-ordinal-outdoor-week}}", desc: "Outdoor run ordinal count this week with 🎉 milestone" },
+            { token: "{{running-ordinal-outdoor-year}}", desc: "Outdoor run ordinal count this year with 🎉 milestone" },
+            { token: "{{running-ordinal-total-month}}", desc: "Total run ordinal count this month with 🎉 milestone" },
+            { token: "{{running-ordinal-total-week}}", desc: "Total run ordinal count this week with 🎉 milestone" },
+            { token: "{{running-ordinal-total-year}}", desc: "Total run ordinal count this year with 🎉 milestone" },
+            { token: "{{swimming-activities-total-month}}", desc: "Total number of swims this month" },
+            { token: "{{swimming-activities-total-week}}", desc: "Total number of swims this week" },
+            { token: "{{swimming-activities-total-year}}", desc: "Total number of swims this year" },
+            { token: "{{swimming-count-total-month}}", desc: "Total swim count this month with 🎉 milestone celebration" },
+            { token: "{{swimming-count-total-week}}", desc: "Total swim count this week with 🎉 milestone celebration" },
+            { token: "{{swimming-count-total-year}}", desc: "Total swim count this year with 🎉 milestone celebration" },
+            { token: "{{swimming-distance-total-month}}", desc: "Total swimming distance this month (km)" },
+            { token: "{{swimming-distance-total-week}}", desc: "Total swimming distance this week (km)" },
+            { token: "{{swimming-distance-total-year}}", desc: "Total swimming distance this year (km)" },
+            { token: "{{swimming-elevation-total-month}}", desc: "Total swimming elevation gain this month (m)" },
+            { token: "{{swimming-elevation-total-week}}", desc: "Total swimming elevation gain this week (m)" },
+            { token: "{{swimming-elevation-total-year}}", desc: "Total swimming elevation gain this year (m)" },
+            { token: "{{swimming-ordinal-total-month}}", desc: "Total swim ordinal count this month with 🎉 milestone" },
+            { token: "{{swimming-ordinal-total-week}}", desc: "Total swim ordinal count this week with 🎉 milestone" },
+            { token: "{{swimming-ordinal-total-year}}", desc: "Total swim ordinal count this year with 🎉 milestone" },
+            { token: "{{walking-activities-total-month}}", desc: "Total number of walks/hikes this month" },
+            { token: "{{walking-activities-total-week}}", desc: "Total number of walks/hikes this week" },
+            { token: "{{walking-activities-total-year}}", desc: "Total number of walks/hikes this year" },
+            { token: "{{walking-count-total-month}}", desc: "Total walk/hike count this month with 🎉 milestone celebration" },
+            { token: "{{walking-count-total-week}}", desc: "Total walk/hike count this week with 🎉 milestone celebration" },
+            { token: "{{walking-count-total-year}}", desc: "Total walk/hike count this year with 🎉 milestone celebration" },
+            { token: "{{walking-distance-deviation-total-month}}", desc: "Total walking/hiking distance vs prorated monthly plan" },
+            { token: "{{walking-distance-deviation-total-week}}", desc: "Total walking/hiking distance vs prorated weekly plan" },
+            { token: "{{walking-distance-deviation-total-year}}", desc: "Total walking/hiking distance vs prorated yearly plan" },
+            { token: "{{walking-distance-goal-total-month}}", desc: "Configured monthly walking distance goal" },
+            { token: "{{walking-distance-goal-total-week}}", desc: "Configured weekly walking distance goal" },
+            { token: "{{walking-distance-goal-total-year}}", desc: "Configured yearly walking distance goal" },
+            { token: "{{walking-distance-percent-total-month}}", desc: "Percentage of monthly walking distance goal achieved" },
+            { token: "{{walking-distance-percent-total-week}}", desc: "Percentage of weekly walking distance goal achieved" },
+            { token: "{{walking-distance-percent-total-year}}", desc: "Percentage of yearly walking distance goal achieved" },
+            { token: "{{walking-distance-total-month}}", desc: "Total walking/hiking distance this month (km)" },
+            { token: "{{walking-distance-total-week}}", desc: "Total walking/hiking distance this week (km)" },
+            { token: "{{walking-distance-total-year}}", desc: "Total walking/hiking distance this year (km)" },
+            { token: "{{walking-elevation-deviation-total-month}}", desc: "Total walking elevation vs prorated monthly plan" },
+            { token: "{{walking-elevation-deviation-total-week}}", desc: "Total walking elevation vs prorated weekly plan" },
+            { token: "{{walking-elevation-deviation-total-year}}", desc: "Total walking elevation vs prorated yearly plan" },
+            { token: "{{walking-elevation-goal-total-month}}", desc: "Configured monthly walking elevation goal" },
+            { token: "{{walking-elevation-goal-total-week}}", desc: "Configured weekly walking elevation goal" },
+            { token: "{{walking-elevation-goal-total-year}}", desc: "Configured yearly walking elevation goal" },
+            { token: "{{walking-elevation-percent-total-month}}", desc: "Percentage of monthly walking elevation goal achieved" },
+            { token: "{{walking-elevation-percent-total-week}}", desc: "Percentage of weekly walking elevation goal achieved" },
+            { token: "{{walking-elevation-percent-total-year}}", desc: "Percentage of yearly walking elevation goal achieved" },
+            { token: "{{walking-elevation-total-month}}", desc: "Total walking/hiking elevation gain this month (m)" },
+            { token: "{{walking-elevation-total-week}}", desc: "Total walking/hiking elevation gain this week (m)" },
+            { token: "{{walking-elevation-total-year}}", desc: "Total walking/hiking elevation gain this year (m)" },
+            { token: "{{walking-ordinal-total-month}}", desc: "Total walk/hike ordinal count this month with 🎉 milestone" },
+            { token: "{{walking-ordinal-total-week}}", desc: "Total walk/hike ordinal count this week with 🎉 milestone" },
+            { token: "{{walking-ordinal-total-year}}", desc: "Total walk/hike ordinal count this year with 🎉 milestone" }
+        ];
+        {% endraw %}
+
+        STRAVA_VARIABLES.sort((a, b) => a.token.localeCompare(b.token));
+
+        const dropdown = document.getElementById('strava-var-dropdown');
+        const searchInput = document.getElementById('strava-var-search');
+        const previewToken = document.getElementById('strava-var-preview-token');
+        const previewDesc = document.getElementById('strava-var-preview-desc');
+        const copyBtn = document.getElementById('strava-var-copy-btn');
+        const copyToast = document.getElementById('strava-var-copy-toast');
+
+        function renderDropdown(filterText = '') {
+            if (!dropdown) return;
+            const query = filterText.toLowerCase().trim();
+            dropdown.innerHTML = '';
+
+            const matches = STRAVA_VARIABLES.filter(item =>
+                item.token.toLowerCase().includes(query) || item.desc.toLowerCase().includes(query)
+            );
+
+            if (matches.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No matching variables found';
+                dropdown.appendChild(opt);
+                if (previewToken) previewToken.textContent = '—';
+                if (previewDesc) previewDesc.textContent = 'No matching variable';
+                return;
+            }
+
+            matches.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.token;
+                opt.dataset.desc = item.desc;
+                opt.textContent = `${item.token} — ${item.desc}`;
+                dropdown.appendChild(opt);
+            });
+
+            updatePreview(matches[0].token, matches[0].desc);
+        }
+
+        function updatePreview(token, desc) {
+            if (previewToken) previewToken.textContent = token;
+            if (previewDesc) previewDesc.textContent = desc;
+        }
+
+        if (dropdown && searchInput) {
+            renderDropdown();
+
+            searchInput.addEventListener('input', (e) => {
+                renderDropdown(e.target.value);
+            });
+
+            dropdown.addEventListener('change', () => {
+                const selectedOpt = dropdown.options[dropdown.selectedIndex];
+                if (selectedOpt && selectedOpt.value) {
+                    updatePreview(selectedOpt.value, selectedOpt.dataset.desc);
+                }
+            });
+
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    const tokenToCopy = previewToken ? previewToken.textContent : '';
+                    if (!tokenToCopy || tokenToCopy === '—') return;
+
+                    navigator.clipboard.writeText(tokenToCopy).then(() => {
+                        if (copyToast) {
+                            copyToast.classList.remove('hidden');
+                            setTimeout(() => copyToast.classList.add('hidden'), 2000);
+                        }
+                    }).catch(err => {
+                        console.error('Failed to copy token:', err);
+                    });
+                });
+            }
+        }
     });
 </script>
 {% endblock %}

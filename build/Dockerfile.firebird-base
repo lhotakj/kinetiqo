@@ -1,90 +1,127 @@
 # =============================================================================
 # Firebird Python Base Image
 # =============================================================================
-# Builds a minimal Python Alpine image with the Firebird 5.x client library
-# pre-compiled and installed. This image is intended to be used as the base
-# for the Kinetiqo application image so that the ~40-minute Firebird
-# compilation step does not block every application build.
+# Builds a minimal Python Debian-slim image with:
+#   • Firebird 5.x client library (compiled from source)
+#   • System Chromium browser (for Playwright poster-export in the app image)
+#
+# Bundling Chromium here means the ~300 MB apt install runs only once when
+# the base is rebuilt — not on every application build.  Playwright is
+# configured via ENV to use this system binary instead of downloading its own.
 #
 # Published to Docker Hub as: lhotakj/firebird-python:<python_version>
-# Example: lhotakj/firebird-python:3.13
 # =============================================================================
 
-ARG PYTHON_VERSION=3.13
-ARG FIREBIRD_VERSION=5.0.3
+ARG PYTHON_VERSION=3.14
+ARG FIREBIRD_VERSION=5.0.4
 
 # -----------------------------------------------------------------------------
 # Stage 1: Builder — compile Firebird client-only from source
 # -----------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-alpine AS builder
+FROM python:${PYTHON_VERSION}-slim AS builder
 
 ARG FIREBIRD_VERSION
 
-# Build toolchain + Firebird build-time dependencies
-RUN apk add --no-cache \
-        build-base \
-        icu-dev \
-        zlib-dev \
-        wget \
-        tar \
+# Build toolchain + Firebird build-time dependencies.
+# libtomcrypt-dev: use Debian's system libtomcrypt instead of Firebird's
+#   bundled copy — the bundled build requires libtool in a way that is
+#   unreliable on Debian slim and causes "libtool: No such file or directory".
+RUN apt-get update && apt-get install -y --no-install-recommends \
         autoconf \
         automake \
-        libtool \
-        pkgconf \
+        build-essential \
+        libicu-dev \
+        libncurses-dev \
+        libtomcrypt-dev \
         libtommath-dev \
-        ncurses-dev
+        libtool \
+        pkg-config \
+        unzip \
+        wget \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Download, configure and compile the Firebird client library.
 # Notes:
-#   --disable-server      → we only need the client shared library
 #   --enable-client-only  → skip all server-side components
-#   --with-builtin-tomcrypt → bundle cryptography, no external dep needed
-#   sed removes the -p flag from generated makefiles which is incompatible
-#   with Alpine's musl libc on ARM64.
-# The compiled .so files are collected into /firebird-lib for easy COPY
-# into the final stage.
+#   (no --with-builtin-tomcrypt) → use system libtomcrypt from libtomcrypt-dev
+#   autogen.sh is called without args so it only runs autoreconf once;
+#   ./configure is then called separately with our flags.
 RUN mkdir -p /firebird-lib \
-    && wget -q "https://github.com/FirebirdSQL/firebird/archive/refs/tags/v${FIREBIRD_VERSION}.tar.gz" \
+    && wget --https-only --secure-protocol=TLSv1_2 --max-redirect=0 -q -O "v${FIREBIRD_VERSION}.tar.gz" "https://codeload.github.com/FirebirdSQL/firebird/tar.gz/refs/tags/v${FIREBIRD_VERSION}" \
     && tar xzf "v${FIREBIRD_VERSION}.tar.gz" \
     && cd "firebird-${FIREBIRD_VERSION}" \
     && chmod +x ./autogen.sh \
-    && ./autogen.sh --with-builtin-tomcrypt \
+    && ./autogen.sh \
     && ./configure \
-           --disable-server \
            --enable-client-only \
-           --with-builtin-tomcrypt \
-    && sed -i 's/ -p / /g' gen/make.platform \
     && make -j"$(nproc)" \
-    && cp ./gen/Release/firebird/lib/* /firebird-lib/
+    && cp ./gen/Release/firebird/lib/* /firebird-lib/ \
+    && strip --strip-unneeded /firebird-lib/*.so* 2>/dev/null || true \
+    && rm -rf "firebird-${FIREBIRD_VERSION}" "v${FIREBIRD_VERSION}.tar.gz"
 
 # -----------------------------------------------------------------------------
-# Stage 2: Runtime — minimal Python Alpine + Firebird client only
+# Stage 2: Runtime — minimal Python Debian slim + Firebird client only
 # -----------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-alpine
+FROM python:${PYTHON_VERSION}-slim
 
 ARG PYTHON_VERSION
 ARG FIREBIRD_VERSION
 
 LABEL maintainer="jarda@lhotak.net" \
-      description="Python ${PYTHON_VERSION} Alpine base image with Firebird ${FIREBIRD_VERSION} client library" \
+      description="Python ${PYTHON_VERSION} Debian slim base image with Firebird ${FIREBIRD_VERSION} client library" \
       org.opencontainers.image.source="https://github.com/lhotakj/kinetiqo"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LD_LIBRARY_PATH=/usr/local/lib \
-    FIREBIRD_LIB=/usr/local/lib/libfbclient.so
+    FIREBIRD_LIB=/usr/local/lib/libfbclient.so \
+    # Tell Playwright to use the system Chromium instead of downloading its own.
+    # PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH points to the system binary.
+    # When executable_path is set on launch(), Playwright skips version checks.
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PLAYWRIGHT_HEADLESS=1
 
-# Runtime-only system libraries required by the Firebird client and psycopg2
-RUN apk add --no-cache \
-        libtommath \
-        libgcc \
-        libpq
+# Runtime-only system libraries:
+#   • Firebird client deps  (libtommath1, libtomcrypt1)
+#   • psycopg2              (libpq5)
+#   • cron scheduler        (cron)
+#   • Chromium + its full dependency tree so Playwright can launch headlessly.
+#     Using --no-install-recommends keeps it as lean as possible.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        chromium \
+        cron \
+        fonts-noto-color-emoji \
+        libpq5 \
+        libtomcrypt1 \
+        libtommath1 \
+    && apt-get clean \
+    && rm -rf \
+        /var/lib/apt/lists/* \
+        /var/cache/apt/archives/* \
+        /root/.cache \
+        /tmp/* \
+        /var/tmp/* \
+        /usr/share/man \
+        /usr/share/groff \
+        /usr/share/info \
+        /usr/share/lintian \
+        /usr/share/locale \
+        /usr/lib/python3/dist-packages/pip \
+        /usr/lib/python3/dist-packages/setuptools \
+        /usr/lib/chromium/swiftshader \
+    && find /usr/share/doc -mindepth 1 -maxdepth 1 -not -name "libc6" -exec rm -rf {} + 2>/dev/null || true \
+    # Chromium ships ~100 locale .pak files (~180 MB total).
+    # Headless Playwright only needs en-US.pak — delete everything else.
+    && find /usr/lib/chromium/locales -name "*.pak" ! -name "en-US.pak" -delete 2>/dev/null || true
 
 # Copy the compiled Firebird client shared library from the builder stage
 COPY --from=builder /firebird-lib/ /usr/local/lib/
 
-# Sanity check — fails the build if the library is missing
-RUN ls -la /usr/local/lib/libfbclient.so* \
-    && echo "Firebird client library installed successfully."
-
-
+# Sanity checks — fail the build if anything is missing or broken.
+RUN ldconfig \
+    && ls -la /usr/local/lib/libfbclient.so* \
+    && python3 -c "import ctypes; ctypes.CDLL('/usr/local/lib/libfbclient.so'); print('Firebird client library v${FIREBIRD_VERSION} — loaded OK')" \
+    && chromium --version \
+    && echo "Base image sanity checks passed."

@@ -8,6 +8,21 @@ from typing import Optional, Set, List, Dict, Any, Tuple
 GOAL_TYPE_CYCLING = 1   # Ride, VirtualRide, EBikeRide, GravelRide, …
 GOAL_TYPE_WALKING = 2   # Walk, Hike
 
+# ---------------------------------------------------------------------------
+# UPDATE_STRAVA_* per activity-type/scope description-template columns on the
+# ``profile`` table. Cycling and running are split by indoor/outdoor; walking
+# and swimming have no such distinction in Strava's taxonomy and get a single
+# template each. See docs/UPDATE_STRAVA.md.
+# ---------------------------------------------------------------------------
+UPDATE_STRAVA_FIELDS: Tuple[str, ...] = (
+    "update_strava_cycling_indoor",
+    "update_strava_cycling_outdoor",
+    "update_strava_running_indoor",
+    "update_strava_running_outdoor",
+    "update_strava_walking",
+    "update_strava_swimming",
+)
+
 
 def compute_best_average_power(watts_series: List[float], duration_seconds: int) -> float:
     """O(N) sliding-window maximum average power for a single activity.
@@ -143,7 +158,13 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
-    def count_activities(self, types=None):
+    def count_activities(self, types=None, start_date=None, end_date=None):
+        """Get total count of activities, optionally filtered by sport type and date range.
+
+        :param types: Optional list of sport-type strings to filter on.
+        :param start_date: Optional inclusive lower bound on ``start_date`` (ISO string or datetime).
+        :param end_date: Optional inclusive upper bound on ``start_date`` (ISO string or datetime).
+        """
         pass
 
     @abstractmethod
@@ -211,6 +232,29 @@ class DatabaseRepository(ABC):
     @abstractmethod
     def get_activity_name(self, activity_id: str) -> Optional[str]:
         """Get the name of an activity by its ID."""
+        pass
+
+    @abstractmethod
+    def get_activity_average_cadence(self, activity_id: str) -> Optional[float]:
+        """Return the average cadence (rpm) for the given activity computed from streams.
+
+        Returns a float (average cadence) or ``None`` if no cadence samples exist.
+        """
+        pass
+
+    @abstractmethod
+    def get_elevation_streams_for_activity(
+        self, activity_id: str
+    ) -> tuple[list[float], list[float]]:
+        """Return (distance_m, altitude_m) arrays for *activity_id* from the DB.
+
+        Both lists are ordered by timestamp (1 sample per second, same row
+        order as the streams table).  Either list may be empty if the activity
+        has no streams or no altitude/distance data was recorded.
+
+        :param activity_id: The activity ID to query.
+        :return: Tuple of (distance_array, altitude_array).
+        """
         pass
 
     @abstractmethod
@@ -315,18 +359,46 @@ class DatabaseRepository(ABC):
     def get_profile(self) -> Optional[Dict[str, Any]]:
         """Return the first athlete profile row, or ``None`` if the table is empty.
 
-        :return: Dict with ``athlete_id``, ``first_name``, ``last_name``, ``weight`` keys.
+        :return: Dict with ``athlete_id``, ``first_name``, ``last_name``, ``weight``,
+            the six ``UPDATE_STRAVA_FIELDS`` keys (the raw per activity-type/scope
+            description templates synced from their environment variables — see
+            docs/UPDATE_STRAVA.md), and ``refresh_token`` (the current Strava OAuth2
+            refresh token; see :mod:`kinetiqo.profile_sync`). Callers that expose
+            this dict over an API **must** strip ``refresh_token`` before returning
+            it to the client.
         """
         pass
 
     @abstractmethod
-    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float) -> None:
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
+                       update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
+                       update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
+                       update_strava_walking: str = "", update_strava_swimming: str = "",
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None) -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).
         :param first_name: Athlete first name.
         :param last_name: Athlete last name.
         :param weight: Athlete body weight in kilograms.
+        :param update_strava_cycling_indoor: Raw UPDATE_STRAVA_CYCLING_INDOOR template.
+        :param update_strava_cycling_outdoor: Raw UPDATE_STRAVA_CYCLING_OUTDOOR template.
+        :param update_strava_running_indoor: Raw UPDATE_STRAVA_RUNNING_INDOOR template.
+        :param update_strava_running_outdoor: Raw UPDATE_STRAVA_RUNNING_OUTDOOR template.
+        :param update_strava_walking: Raw UPDATE_STRAVA_WALKING template.
+        :param update_strava_swimming: Raw UPDATE_STRAVA_SWIMMING template.
+        :param refresh_token: The current Strava OAuth2 refresh token. Strava
+            rotates and invalidates the previous refresh token on every token
+            exchange, so this is the durable, authoritative copy — see
+            :mod:`kinetiqo.profile_sync`.
+
+        All six ``update_strava_*`` values and ``refresh_token`` are only
+        changed when the caller intends to change them. Callers that don't
+        want to change one of these fields should pass through its current
+        value (e.g. from a prior ``get_profile()`` call) rather than omitting
+        it, since omitting it would overwrite the stored value with an empty
+        string.
         """
         pass
 
@@ -364,4 +436,21 @@ class DatabaseRepository(ABC):
         Pass ``None`` for any goal that should be cleared / left unset.
         """
         pass
+
+    @abstractmethod
+    def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
+        """Run performance benchmarks on database operations for the given lookback scope.
+
+        Returns a dictionary containing:
+          - gps_ms (float): Execution time in milliseconds to fetch GPS coordinate streams.
+          - gps_count (int): Number of GPS stream records returned.
+          - order_name_ms (float): Execution time in ms to order activities by name.
+          - order_name_count (int): Number of activities returned.
+          - order_dist_ms (float): Execution time in ms to order activities by distance.
+          - order_dist_count (int): Number of activities returned.
+          - order_elev_ms (float): Execution time in ms to order activities by elevation gained.
+          - order_elev_count (int): Number of activities returned.
+        """
+        pass
+
 

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Reconnect with Strava</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Reauthorize the app so it can read your full athlete profile (including weight) and update activity descriptions.</p>
+    </div>
+
+    {% if error_message %}
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6">
+        <p class="text-red-800 dark:text-red-200 font-semibold">Reconnect failed</p>
+        <p class="text-red-700 dark:text-red-300 mt-2">{{ error_message }}</p>
+        <a href="{{ settings_url }}" class="inline-flex mt-4 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600">
+            Back to Settings
+        </a>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-zinc-800 border border-warm-200 dark:border-zinc-700 rounded-xl shadow-sm p-6 space-y-6">
+        {% if success %}
+        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <p class="text-green-800 dark:text-green-200 font-semibold">Reconnect complete</p>
+            <p class="text-green-700 dark:text-green-300 text-sm mt-1">
+                Save the refresh token below in your environment, then restart the app.
+            </p>
+        </div>
+        {% endif %}
+
+        <div class="space-y-2">
+            <label for="refresh-token" class="block text-sm font-medium text-gray-700 dark:text-gray-300">New refresh token</label>
+            <textarea id="refresh-token" readonly rows="3"
+                      class="w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-gray-50 dark:bg-zinc-700 text-gray-900 dark:text-gray-100 text-sm p-3">{{ refresh_token }}</textarea>
+            <button type="button" id="copy-token"
+                    class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition">
+                Copy token
+            </button>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-lg bg-gray-50 dark:bg-zinc-900/40 p-4">
+                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Granted scopes</p>
+                <p class="mt-1 text-sm text-gray-800 dark:text-gray-200">{{ scope or 'Unknown' }}</p>
+            </div>
+            <div class="rounded-lg bg-gray-50 dark:bg-zinc-900/40 p-4">
+                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Imported weight</p>
+                <p class="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                    {% if seeded_weight > 0 %}{{ seeded_weight }} kg{% else %}Not available yet{% endif %}
+                </p>
+            </div>
+        </div>
+
+        <div class="rounded-lg border border-dashed border-gray-300 dark:border-zinc-600 p-4 text-sm text-gray-600 dark:text-gray-300 space-y-2">
+            <p><strong>What to do next:</strong></p>
+            <p>1. Paste the refresh token into <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">STRAVA_REFRESH_TOKEN</code>.</p>
+            <p>2. Make sure the token was authorized with <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code> and, if you use the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature, <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>.</p>
+            <p>3. Restart Kinetiqo so it uses the new token.</p>
+        </div>
+
+        <div class="flex gap-3">
+            <a href="{{ settings_url }}" class="inline-flex items-center px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600">
+                Back to Settings
+            </a>
+            {% if athlete and athlete.firstname %}
+            <div class="inline-flex items-center text-sm text-gray-500 dark:text-gray-400">
+                Signed in as <span class="font-medium text-gray-800 dark:text-gray-200 ml-1">{{ athlete.firstname }} {{ athlete.lastname or '' }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if not error_message %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('copy-token');
+    var token = document.getElementById('refresh-token');
+    if (!btn || !token) return;
+    btn.addEventListener('click', function() {
+        token.select();
+        token.setSelectionRange(0, token.value.length);
+        navigator.clipboard.writeText(token.value);
+        btn.textContent = 'Copied';
+        setTimeout(function() { btn.textContent = 'Copy token'; }, 1500);
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

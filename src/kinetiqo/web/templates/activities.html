@@ -1,21 +1,23 @@
 {% extends "base.html" %}
 
 {% block head %}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
-<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css"/>
+{% include "_npm_select2_css.html" %}
+{% include "_npm_daterangepicker_css.html" %}
 <!-- DataTables Buttons (3.x for DT 2.x) -->
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.6/css/buttons.dataTables.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables/buttons-3.2.6.dataTables.min.css', v=app_version) }}">
 <!-- ColReorder extension for DataTables -->
-<link rel="stylesheet" href="https://cdn.datatables.net/colreorder/2.1.2/css/colReorder.dataTables.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables/colReorder.dataTables-2.1.2.min.css', v=app_version) }}">
 
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.2.6/js/dataTables.buttons.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.2.6/js/buttons.html5.min.js"></script>
-<script src="https://cdn.datatables.net/colreorder/2.1.2/js/dataTables.colReorder.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+{% include "_npm_select2.html" %}
+{% include "_npm_moment.html" %}
+{% include "_npm_daterangepicker.html" %}
+<script src="{{ url_for('static', filename='vendor/datatables/dataTables.buttons-3.2.6.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/jszip/jszip-3.10.1.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/buttons.html5-3.2.6.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/dataTables.colReorder-2.1.2.min.js', v=app_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/sortable/sortable-1.15.7.min.js', v=app_version) }}"></script>
+<!-- SheetJS for true XLSX export (self-hosted) -->
+<script src="{{ url_for('static', filename='vendor/sheetjs/xlsx.full.min.js', v=app_version) }}" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
 {% endblock %}
 
 {% block content %}
@@ -179,48 +181,92 @@
         <div class="flex-grow"></div>
         <div id="custom-buttons-wrapper" class="flex gap-2 mb-0.5 items-center">
             <button id="selectAllBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activity types">
-                Select All
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Select all activity types">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>Select All</span>
             </button>
             <button id="deselectAllBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Deselect all activity types">
-                Deselect All
+                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px] flex items-center" title="Deselect all activity types">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>Deselect All</span>
             </button>
         </div>
     </div>
     <div class="w-full mt-4 flex justify-between items-center flex-wrap gap-4">
         <div class="flex gap-2 items-center flex-wrap">
             <button id="selectAllOnAllPagesBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Select all activities that match the current filters, across all pages">
-                Select all activities on all pages
+                    class="activity-action-btn px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled title="Select all activities that match the current filters, across all pages">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 12h6M7 17h10M3 5h.01M3 12h.01M3 19h.01"/></svg>
+                <span>Select all activities on all pages</span>
             </button>
             <button id="clearSelectionBtn"
-                    class="activity-action-btn px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-small transition h-[40px]" title="Clear the current selection of activities">
-                Clear selection
+                    class="activity-action-btn px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center" disabled title="Clear the current selection of activities">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg>
+                <span>Clear selection</span>
             </button>
             <button id="deleteSelectedBtn"
-                    class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Delete the selected activities from the database">Delete selected
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Delete the selected activities from the database">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+                <span>Delete selected</span>
             </button>
             <button id="displayOnMapBtn"
-                    class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Display the selected activities on a map">Display on map
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Display the selected activities on a map">
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor">
+                  <!-- simplified, outline-only folded-map icon (no fills) -->
+                  <path d="M3 6.5L9 3l6 3 6-3v14l-6 3-6-3-6 3V6.5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                  <path d="M9 3v17" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                  <path d="M15 6v15" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                </svg>
+                <span>Display on map</span>
             </button>
             <button id="powerSkillsBtn"
-                    class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Analyze the power skills for the selected activities">⚡ Power Skills
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Analyze the power skills for the selected activities">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>Power Skills</span>
             </button>
             <button id="selectColumnsBtn"
                     class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    title="Choose which columns to display in the table">Select columns
+                    title="Choose which columns to display in the table">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+                <span>Select columns</span>
             </button>
             <button id="resetViewBtn"
                     class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    title="Reset columns to default configuration">Reset View
+                    title="Reset columns to default configuration">
+                <!-- Reset icon adapted: stroke-only, no fill, inherits currentColor -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M27,8H6.83l3.58-3.59L9,3,3,9l6,6,1.41-1.41L6.83,10H27V26H7V19H5v7a2,2,0,0,0,2,2H27a2,2,0,0,0,2-2V10A2,2,0,0,0,27,8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Reset View</span>
             </button>
             <button id="exportCsvBtn"
-                    class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-small transition h-[40px] flex items-center"
-                    disabled title="Export the selected activities to a CSV file">Export to CSV
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Export the selected activities to a CSV file">
+                <!-- CSV icon adapted: stroke-only, no fill, inherits currentColor -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M3 9.5H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M3 14.5H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 4.5V19.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6.2 19.5H17.8C18.9201 19.5 19.4802 19.5 19.908 19.282C20.2843 19.0903 20.5903 18.7843 20.782 18.408C21 17.9802 21 17.4201 21 16.3V7.7C21 6.5799 21 6.01984 20.782 5.59202C20.5903 5.21569 20.2843 4.90973 19.908 4.71799C19.4802 4.5 18.9201 4.5 17.8 4.5H6.2C5.0799 4.5 4.51984 4.5 4.09202 4.71799C3.71569 4.90973 3.40973 5.21569 3.21799 5.59202C3 6.01984 3 6.57989 3 7.7V16.3C3 17.4201 3 17.9802 3.21799 18.408C3.40973 18.7843 3.71569 19.0903 4.09202 19.282C4.51984 19.5 5.07989 19.5 6.2 19.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Export to CSV</span>
+            </button>
+            <button id="exportXlsxBtn"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Export the selected activities to an Excel XLSX file">
+                <!-- XLS/XLSX icon: adapted from provided SVG and styled to match PNG/PDF stroke-only icons -->
+                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M11.5 13L11.5 17L13 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M16.5 13H16C15.4477 13 15 13.4477 15 14V14C15 14.5523 15.4477 15 16 15V15C16.5523 15 17 15.4477 17 16V16C17 16.5523 16.5523 17 16 17H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9.5 13L7 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 13L9.5 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Export as XLSX</span>
             </button>
         </div>
         <div id="selectionSummary" class="text-sm text-gray-500 dark:text-gray-400"></div>
@@ -228,7 +274,8 @@
 </div>
 
 <!-- Column selection modal -->
-<div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50 hidden">
+<div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center z-50 hidden"
+     style="background-color: rgba(0, 0, 0, 0.3);">
     <div class="bg-white rounded-lg shadow-lg p-6 w-96 flex flex-col" style="max-height: 90vh;">
         <h3 class="text-lg font-semibold mb-4 flex-shrink-0">Select columns to display</h3>
         <form id="columnSelectForm" class="flex-1 overflow-y-auto min-h-0">
@@ -260,7 +307,10 @@
     <table id="activitiesTable" class="w-full text-left border-collapse">
         <thead>
         <tr class="text-sm font-semibold text-gray-600 border-b border-gray-200">
-            <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="selectAllOnPage"></th>
+            <th class="py-3 px-4 w-12 text-center">
+                <label for="selectAllOnPage" class="sr-only">Select all activities on this page</label>
+                <input type="checkbox" id="selectAllOnPage" aria-label="Select all activities on this page">
+            </th>
             <th class="py-3 px-4">Activity Name</th>
             <th class="py-3 px-4 w-32">Type</th>
             <th class="py-3 px-4 w-32">Date</th>
@@ -286,6 +336,7 @@
             <th class="py-3 px-4 w-20">Has HR</th>
             <th class="py-3 px-4 w-24">Workout Type</th>
             <th class="py-3 px-4 w-32">Link to Strava</th>
+            <th class="py-3 px-4 w-20 text-center">Poster</th>
             <th class="py-3 px-4 w-20 text-center">Delete</th>
         </tr>
         </thead>
@@ -305,6 +356,33 @@
 
 <style>
 .dt-info { padding-left: 1rem !important; }
+#activityTypeFilter + .select2-container .select2-selection--multiple,
+#activityTypeFilter + .select2-container .select2-selection__choice,
+#activityTypeFilter + .select2-container .select2-selection__choice__remove,
+.select2-results__option,
+.date-preset-btn,
+.activity-action-btn,
+#custom-buttons-wrapper button,
+#selectColumnsBtn,
+#resetViewBtn,
+#closeColumnSelectModal,
+#saveColumnSelect {
+    cursor: pointer;
+}
+#dateFilter,
+#deleteSelectedBtn,
+#displayOnMapBtn,
+#powerSkillsBtn,
+#exportCsvBtn,
+#exportXlsxBtn,
+#selectAllOnPage,
+.activity-checkbox,
+.column-drag-handle {
+    cursor: pointer;
+}
+button:disabled {
+    cursor: not-allowed;
+}
 </style>
 
 <script>
@@ -352,7 +430,7 @@ function hideFlash() {
 const COLUMN_STORAGE_KEY = 'activities_column_selection';
 const COLUMN_ORDER_KEY   = 'activities_column_order';
 const SORT_STORAGE_KEY   = 'activities_sort_order';
-const SCHEMA_VERSION_KEY = 'activities_schema_v5';
+const SCHEMA_VERSION_KEY = 'activities_schema_v6';
 
 var columnDefs = [
     {label: 'Select',            mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  0, defaultSort: null  }, //  0
@@ -380,7 +458,8 @@ var columnDefs = [
     {label: 'Has HR',            mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 22, defaultSort: null  }, // 22
     {label: 'Workout Type',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 23, defaultSort: null  }, // 23
     {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 24, defaultSort: null  }, // 24
-    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 25, defaultSort: null  }  // 25
+    {label: 'Poster',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 25, defaultSort: null  }, // 25
+    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 26, defaultSort: null  }  // 26
 ];
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -788,7 +867,7 @@ var table = null;
                     "orderable": false,
                     "className": "text-center",
                     "render": function (data, type, row) {
-                        return `<input type="checkbox" class="activity-checkbox" value="${data}">`;
+                        return `<input type="checkbox" class="activity-checkbox" value="${data}" aria-label="Select activity ${data}">`;
                     }
                 },
                 {"data": "name"},
@@ -953,6 +1032,16 @@ var table = null;
                     "orderable": false,
                     "className": "text-center",
                     "render": function (data, type, row) {
+                        return `<a href="/poster/${row.id}" class="text-indigo-500 hover:text-indigo-700 transition" title="Create Poster">
+                            <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </a>`;
+                    }
+                },
+                {
+                    "data": null,
+                    "orderable": false,
+                    "className": "text-center",
+                    "render": function (data, type, row) {
                         return `<button onclick="deleteActivity('${row.id}')" class="text-red-500 hover:text-red-700 transition" title="Delete Activity">
                             <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>`;
@@ -979,6 +1068,7 @@ var table = null;
             },
             "drawCallback": function (settings) {
                 updateCheckboxes();
+                updateSelectionButtons();
             }
         });
 
@@ -1293,19 +1383,29 @@ var table = null;
         });
 
         // --- Selection Logic ---
+        function setButtonState(selector, enabled, enabledClasses, disabledClasses) {
+            $(selector)
+                .prop('disabled', !enabled)
+                .toggleClass(enabledClasses, enabled)
+                .toggleClass(disabledClasses, !enabled);
+        }
+
         function updateSelectionButtons() {
+            const hasRows = table && table.rows({filter: 'applied'}).count() > 0;
             const count = selectedActivities.size;
-            if (count > 0) {
-                $('#deleteSelectedBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-red-500');
-                $('#displayOnMapBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-orange-500');
-                $('#powerSkillsBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-purple-600');
-                $('#exportCsvBtn').prop('disabled', false).removeClass('bg-gray-400').addClass('bg-blue-600');
-            } else {
-                $('#deleteSelectedBtn').prop('disabled', true).removeClass('bg-red-500').addClass('bg-gray-400');
-                $('#displayOnMapBtn').prop('disabled', true).removeClass('bg-orange-500').addClass('bg-gray-400');
-                $('#powerSkillsBtn').prop('disabled', true).removeClass('bg-purple-600').addClass('bg-gray-400');
-                $('#exportCsvBtn').prop('disabled', true).removeClass('bg-blue-600').addClass('bg-gray-400');
-            }
+            const hasSelection = hasRows && count > 0;
+
+            setButtonState(
+                '#selectAllOnAllPagesBtn, #clearSelectionBtn',
+                hasRows,
+                'bg-gray-100 hover:bg-gray-200 text-gray-700',
+                'bg-gray-400 text-white'
+            );
+            setButtonState('#deleteSelectedBtn', hasSelection, 'bg-red-500 hover:bg-red-600', 'bg-gray-400');
+            setButtonState('#displayOnMapBtn', hasSelection, 'bg-orange-500 hover:bg-orange-600', 'bg-gray-400');
+            setButtonState('#powerSkillsBtn', hasSelection, 'bg-purple-600 hover:bg-purple-700', 'bg-gray-400');
+            setButtonState('#exportCsvBtn', hasSelection, 'bg-blue-600 hover:bg-blue-700', 'bg-gray-400');
+            setButtonState('#exportXlsxBtn', hasSelection, 'bg-green-600 hover:bg-green-700', 'bg-gray-400');
         }
 
         function updateCheckboxes() {
@@ -1458,6 +1558,9 @@ var table = null;
             });
 
             // Append form to body and submit
+            if (window.kinetiqoAddCsrfField) {
+                window.kinetiqoAddCsrfField(form[0]);
+            }
             form.appendTo('body').submit();
             form.remove();
         });
@@ -1481,6 +1584,9 @@ var table = null;
                 }).appendTo(form);
             });
 
+            if (window.kinetiqoAddCsrfField) {
+                window.kinetiqoAddCsrfField(form[0]);
+            }
             form.appendTo('body').submit();
             form.remove();
         });
@@ -1539,6 +1645,97 @@ var table = null;
                 link.click();
                 document.body.removeChild(link);
             }
+        });
+
+        // Export as XLSX — respects currently visible columns in their visual order
+        $('#exportXlsxBtn').on('click', function () {
+            if (selectedActivities.size === 0) return;
+
+            const allData = table.data().toArray();
+            const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
+
+            if (selectedData.length === 0) return;
+
+            // Columns whose content cannot be meaningfully exported (UI-only)
+            const SKIP_COLS = new Set([0, 25, 26]); // Select checkbox, Poster, Actions/Delete
+
+            // Per-column data extractor: originalColIndex → function(row) → cell value
+            // Mirrors the render logic in the DataTables column definitions above.
+            const colExtractors = {
+                1:  row => row.name || '',
+                2:  row => row.type || '',
+                3:  row => {
+                        // timestamp is Unix seconds from Python; Date() needs ms
+                        const ts = row.date && row.date.timestamp;
+                        if (ts) return new Date(ts * 1000);
+                        const disp = (row.date && row.date.display) ? row.date.display : row.date;
+                        return disp ? new Date(disp) : '';
+                    },
+                4:  row => Number.parseFloat((row.distance / 1000).toFixed(2)),
+                5:  row => Number.parseFloat(Number(row.elevation).toFixed(2)),
+                6:  row => formatDuration(row.moving_time),
+                7:  row => Number.parseFloat((row.average_speed * 3.6).toFixed(1)),
+                8:  row => row.average_watts > 0 ? Math.round(row.average_watts) : '',
+                9:  row => row.max_watts > 0 ? Math.round(row.max_watts) : '',
+                10: row => row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '',
+                11: row => row.weighted_average_watts ? Math.round(row.weighted_average_watts) : '',
+                12: row => row.device_watts ? Math.round(row.device_watts) : '',
+                13: row => row.calories ? Math.round(row.calories) : '',
+                14: row => row.kilojoules ? Math.round(row.kilojoules) : '',
+                15: row => row.achievement_count || 0,
+                16: row => row.pr_count || 0,
+                17: row => row.suffer_score ? Math.round(row.suffer_score) : '',
+                18: row => (row.average_temp !== null && row.average_temp !== undefined)
+                              ? Number.parseFloat(Number(row.average_temp).toFixed(1)) : '',
+                19: row => row.elev_high ? Number.parseFloat(Number(row.elev_high).toFixed(2)) : '',
+                20: row => row.elev_low  ? Number.parseFloat(Number(row.elev_low).toFixed(2))  : '',
+                21: row => row.gear_id || '',
+                22: row => row.has_heartrate ? 'Yes' : 'No',
+                23: row => row.workout_type || '',
+                24: row => 'https://www.strava.com/activities/' + row.id
+            };
+
+            // Determine which columns to export: current visual order, visible, and exportable
+            const order = readColumnOrder(); // position → originalColIndex
+            const visibleCols = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
+            const exportCols = order.filter(origIdx =>
+                visibleCols.includes(origIdx) &&
+                !SKIP_COLS.has(origIdx) &&
+                colExtractors[origIdx] !== undefined
+            );
+
+            if (exportCols.length === 0) {
+                showFlash('No exportable columns are currently visible.', 'warning');
+                return;
+            }
+
+            // Build header row from columnDefs labels in visual order
+            const headers = exportCols.map(origIdx => columnDefs[origIdx].label);
+
+            // Build data rows
+            const rows = selectedData.map(row =>
+                exportCols.map(origIdx => colExtractors[origIdx](row))
+            );
+
+            // Create worksheet and set auto column widths
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 12) }));
+
+            // Apply Excel date format to the Date column cells
+            const dateExportPos = exportCols.indexOf(3);
+            if (dateExportPos >= 0) {
+                const dateColLetter = XLSX.utils.encode_col(dateExportPos);
+                for (let r = 0; r < rows.length; r++) {
+                    const cellRef = dateColLetter + (r + 2); // +1 header, +1 1-based
+                    if (ws[cellRef] && ws[cellRef].t === 'd') {
+                        ws[cellRef].z = 'yyyy-mm-dd';
+                    }
+                }
+            }
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Activities');
+            XLSX.writeFile(wb, 'selected_activities.xlsx');
         });
 
 

@@ -1,0 +1,22 @@
+
+docker run -it \
+  --name kinetiqo \
+  --network traefik_cloudflare_traefik-proxy \
+  -e STRAVA_CLIENT_ID=$STRAVA_CLIENT_ID \
+  -e STRAVA_CLIENT_SECRET=$STRAVA_CLIENT_SECRET \
+  -e STRAVA_REFRESH_TOKEN=$STRAVA_REFRESH_TOKEN \
+  -e DATABASE_TYPE=postgresql \
+  -e POSTGRESQL_HOST=postgresql \
+  -e POSTGRESQL_PORT=$POSTGRESQL_PORT \
+  -e POSTGRESQL_USER=$POSTGRESQL_USER \
+  -e POSTGRESQL_PASSWORD=$POSTGRESQL_PASSWORD \
+  -e POSTGRESQL_DATABASE=$POSTGRESQL_DATABASE \
+  -e MAPY_API_KEY=$MAPY_API_KEY\
+  -e THUNDERFOREST_API_KEY=$HUNDERFOREST_API_KEY \
+  -e WEB_LOGIN=$WEB_LOGIN \
+  -e WEB_PASSWORD=$WEB_PASSWORD \
+  -e FAST_SYNC="*/15 * * * *" \
+  -e FULL_SYNC="0 3 * * *" \
+  -p 4444:4444 \
+  docker.io/lhotakj/kinetiqo:latest
+

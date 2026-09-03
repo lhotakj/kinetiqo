@@ -1,0 +1,1484 @@
+{% extends "base.html" %}
+
+{% block head %}
+<!-- NOSONAR: loading Chart.js from CDN intentionally; add SRI in future if required -->
+{% include "_npm_chartjs.html" %}
+<!-- NOSONAR: Google Fonts CDN used intentionally; SRI pins the exact stylesheet response -->
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
+<style>
+    .poster-container {
+        position: relative;
+        overflow: hidden;
+        background: #333;
+        max-width: 2048px;
+        box-sizing: border-box;
+        border-radius: 0 !important;
+    }
+    .poster-container * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    .poster-container img.poster-bg {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        position: absolute;
+        top: 0; left: 0;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+    /* Watermark (kinetiqo logo) - static, non-interactive, positioned bottom-right
+       Size is controlled by WATERMARK_SIZE_PCT JS constant (fraction of poster width)
+       Opacity is controlled by WATERMARK_OPACITY JS constant (0.0 - 1.0).
+    */
+    .poster-watermark {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        pointer-events: none; /* non-interactive */
+        z-index: 99999; /* above all draggable UI */
+        height: auto;
+        display: block;
+        image-rendering: -webkit-optimize-contrast;
+    }
+    .poster-overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        padding-left: 20px;
+        padding-right: 20px;
+        pointer-events: none;
+    }
+    .poster-title {
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        -webkit-text-stroke: 0 black;
+        paint-order: stroke fill;
+    }
+     .draggable-box {
+         position: absolute;
+         z-index: 10;
+         transition: box-shadow 0.2s, border-color 0.2s;
+         cursor: grab;
+         border: 2px solid transparent;
+         border-radius: 4px;
+         box-sizing: border-box;
+         user-select: none;
+         pointer-events: auto;
+         min-width: 60px;
+         min-height: 24px;
+         overflow: hidden;
+     }
+     .resize-handle {
+         position: absolute;
+         right: 0; bottom: 0;
+         width: 22px; height: 22px;
+         background: rgba(14, 165, 233, 0.92);
+         border-radius: 0 0 2px 0;
+         cursor: nwse-resize;
+         z-index: 20;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         /* shadow removed as requested */
+         border-top: 1px solid rgba(255,255,255,0.28);
+         border-left: 1px solid rgba(255,255,255,0.18);
+     }
+     /* Three diagonal dots — classic resize indicator (adjusted positions for smaller control) */
+     .resize-handle::before,
+     .resize-handle::after,
+     .resize-handle span {
+         content: '';
+         display: block;
+         position: absolute;
+         border-radius: 50%;
+         background: #fff;
+         opacity: 0.95;
+     }
+     .resize-handle::before { width: 4px; height: 4px; right: 4px;  bottom: 10px; }
+     .resize-handle::after  { width: 4px; height: 4px; right: 4px;  bottom: 4px;  }
+     .resize-handle span    { width: 4px; height: 4px; right: 10px; bottom: 4px;  pointer-events: none; }
+      /* NOSONAR: classes used dynamically by JS (added/removed via classList) */
+      .draggable-box.resizing {
+         cursor: nwse-resize !important;
+         opacity: 0.85;
+     }
+     .hide-drag-ui .resize-handle {
+         display: none !important;
+     }
+    .draggable-box.drag-hover {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px #38bdf8, 0 0 10px 2px #38bdf8;
+        animation: border-flash 1s infinite alternate;
+        cursor: move;
+    }
+    @keyframes border-flash {
+        0% { border-color: #38bdf8; }
+        100% { border-color: #0ea5e9; }
+    }
+    .draggable-box.dragging {
+        opacity: 0.7;
+        cursor: grabbing;
+        z-index: 100;
+    }
+    .hide-drag-ui .draggable-box {
+        /* Keep the border width to avoid layout shift when hiding the UI;
+           only make it transparent so the visual chrome is hidden but the
+           element's size doesn't change. */
+        border: 2px solid transparent !important;
+        box-shadow: none !important;
+        cursor: default !important;
+    }
+     .poster-elevation {
+         width: 100%;
+         height: 180px;
+         display: flex;
+         align-items: stretch;
+     }
+     #boxElevation {
+         height: 180px;
+     }
+     #boxElevation .poster-elevation {
+         height: 180px;
+     }
+     #elevationChart {
+         width: 100%;
+         height: 180px;
+         display: block;
+     }
+
+    .poster-stats {
+        display: flex;
+        flex-direction: row;
+        /* allow stats to wrap to next line when container gets narrow */
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 16px; /* vertical and horizontal gaps */
+    }
+    .poster-stats .stat-item {
+        display: inline-flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+        /* allow the text inside stat items to wrap onto multiple lines when needed */
+        white-space: normal;
+        /* allow items to shrink but keep layout stable */
+        flex: 0 1 auto;
+        min-width: 0; /* enable text truncation/wrapping inside flex items */
+    }
+    .poster-stats .stat-item .stat-icon svg {
+        display: block;   /* removes the inline whitespace gap below the SVG */
+        width: 20px;
+        height: 20px;
+    }
+    /* Keep stat text vertically centred alongside the icon */
+    .poster-stats .stat-item > span:not(.stat-icon) {
+        vertical-align: middle;
+    }
+    .control-box {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    .control-box h4 {
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+    }
+    .control-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+    .control-row label {
+        font-size: 0.75rem;
+        min-width: 80px;
+        color: #6b7280;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100">{{ title }}</h1>
+    <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">{{ activity.get('name', 'Activity') }}</p>
+</div>
+
+     <div class="flex flex-col lg:flex-row gap-6">
+    <!-- Controls -->
+    <div class="w-full lg:w-80 flex-shrink-0">
+        <!-- Action Buttons -->
+        <div class="flex gap-2 mb-4 flex-wrap">
+            <button id="resetStylesBtn" class="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm font-medium transition h-10">Reset Styles</button>
+            <button id="resetLayoutBtn" class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium transition h-10">Reset Layout</button>
+            <button id="savePngBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition">Save as PNG</button>
+            <button id="loadStravaBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition">Load from Strava</button>
+            <label class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer">
+                Upload Image
+                <input type="file" id="uploadInput" accept=".png,.jpg,.jpeg,.heic,.heif" class="hidden">
+            </label>
+        </div>
+
+        <!-- Poster Size -->
+        <div class="control-box">
+            <h4>Poster Size</h4>
+            <div class="control-row">
+                <label for="posterSize">Width</label>
+                <select id="posterSize" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="800">XS (width 800px)</option>
+                    <option value="1024">S (width 1024px)</option>
+                    <option value="1280">M (width 1280px)</option>
+                    <option value="1440">L (width 1440px)</option>
+                    <option value="1600">XL (width 1600px)</option>
+                    <option value="1920">XXL (width 1920px)</option>
+                    <option value="2048">XXXL (width 2048px)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="ratioSelect">Ratio</label>
+                <select id="ratioSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="4/3">4:3 (Standard)</option>
+                    <option value="16/9">16:9 (Wide)</option>
+                    <option value="1/1">1:1 (Square)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="posterDimensions">Dimensions</label>
+                <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Poster dimensions: — × —</div>
+            </div>
+        </div>
+
+        <!-- Activity Name Controls -->
+        <div class="control-box">
+            <h4>Activity Name</h4>
+            <div class="control-row">
+                <label for="titleFont">Font</label>
+                <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    {% include "_font_options.html" %}
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="titleAlign">Text Align</label>
+                <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="titleStyle">Font Style</label>
+                <select id="titleStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                    <option value="bold">Bold</option>
+                    <option value="bolditalic">Bold Italic</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="titleLineHeight">Line Height</label>
+                <input type="range" id="titleLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleLineHeightVal" class="text-xs w-10">0%</span>
+            </div>
+            <div class="control-row">
+                <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
+                <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
+            </div>
+            <div class="control-row">
+                <label for="titleFontSize">Font Size</label>
+                <input type="range" id="titleFontSize" min="12" max="72" value="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleFontSizeVal" class="text-xs w-8">30px</span>
+            </div>
+            <div class="control-row">
+                <label for="titleColor">Color</label>
+                <input type="color" id="titleColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label for="titleOutlineColor">Outline Color</label>
+                <input type="color" id="titleOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label for="titleOutlineWidth">Outline Width</label>
+                <input type="range" id="titleOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleOutlineWidthVal" class="text-xs w-6">1</span>
+            </div>
+            <div class="control-row">
+                <label for="titleOpacity">Opacity</label>
+                <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="titleOpacityVal" class="text-xs w-8">100%</span>
+            </div>
+        </div>
+
+        <!-- Stats Controls -->
+        <div class="control-box">
+            <h4>Stats</h4>
+            <div class="control-row">
+                <label for="statsFont">Font</label>
+                <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                                                                                                                                                                                    {% include "_font_options.html" %}
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="statsStyle">Font Style</label>
+                <select id="statsStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                    <option value="bold">Bold</option>
+                    <option value="bolditalic">Bold Italic</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="statsAlign">Text Align</label>
+                <select id="statsAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="statsFontSize">Font Size</label>
+                <input type="range" id="statsFontSize" min="10" max="48" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsFontSizeVal" class="text-xs w-8">20px</span>
+            </div>
+            <div class="control-row">
+                <label for="statsLineHeight">Line Height</label>
+                <input type="range" id="statsLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsLineHeightVal" class="text-xs w-10">0%</span>
+            </div>
+            <div class="control-row">
+                <label for="statsColor">Color</label>
+                <input type="color" id="statsColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label for="statsOutlineColor">Outline Color</label>
+                <input type="color" id="statsOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label for="statsOutlineWidth">Outline Width</label>
+                <input type="range" id="statsOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsOutlineWidthVal" class="text-xs w-6">1</span>
+            </div>
+            <div class="control-row">
+                <label for="statsOpacity">Opacity</label>
+                <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="statsOpacityVal" class="text-xs w-8">100%</span>
+            </div>
+                <div class="control-row">
+                    <label for="statsVisible_distance">Visible Stats</label>
+                    <div id="statsVisibility" class="flex flex-wrap gap-2 items-center">
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_distance" class="mr-2">Distance</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_elevation" class="mr-2">Elevation</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_speed" class="mr-2">Avg speed</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_cadence" class="mr-2">Avg cadence</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_heartrate" class="mr-2">Avg heart rate</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_time" class="mr-2">Time</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_avg_power" class="mr-2">⚡ Avg power</label>
+                        <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_max_power" class="mr-2">🔥 Max power</label>
+                    </div>
+                </div>
+        </div>
+
+        <!-- Elevation Controls -->
+        <div class="control-box">
+            <h4>Elevation Chart</h4>
+            <div class="control-row">
+                <label for="elevFontSize">Font Size</label>
+                <input type="range" id="elevFontSize" min="8" max="36" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="elevFontSizeVal" class="text-xs w-8">20px</span>
+            </div>
+            <div class="control-row">
+                <label for="elevColor">Line Color</label>
+                <input type="color" id="elevColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label for="elevFillColor">Fill Color</label>
+                <input type="color" id="elevFillColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+            </div>
+            <div class="control-row">
+                <label for="elevOpacity">Opacity</label>
+                <input type="range" id="elevOpacity" min="0" max="100" value="70" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                <span id="elevOpacityVal" class="text-xs w-8">70%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Poster Preview -->
+    <div class="flex-1">
+        <div id="posterContainer" class="poster-container shadow-lg" style="aspect-ratio: 4/3;">
+            <img id="posterBg" class="poster-bg" src="" alt="" style="display:none;">
+            <!-- NOSONAR: static asset intentionally referenced; runtime JS will manage visibility -->
+            <!-- Watermark image (static) - created/managed by JS -->
+            <img id="posterWatermark" class="poster-watermark" src="/static/img/kinetiqo_logo.png" alt="Kinetiqo logo" style="display:none;" aria-hidden="true" />
+             <div class="poster-overlay" id="posterOverlay">
+                 <!-- Activity Name -->
+                   <div class="draggable-box" id="boxTitle">
+                       <div id="posterTitle" class="poster-title">{{ activity.get('name', '') }}</div>
+                       <div class="resize-handle" title="Drag to resize"><span></span></div>
+                   </div>
+                  <!-- Stats -->
+                  <div class="draggable-box" id="boxStats">
+                      <div id="posterStats" class="poster-stats">
+                           <div class="stat-item" data-field="distance">
+                                <span class="stat-icon" data-icon="/static/icons/distance.svg"></span>
+                                <span id="statDistance">{{ "%.1f"|format(activity.get('distance', 0) / 1000) }} km</span>
+                            </div>
+                            <div class="stat-item" data-field="elevation">
+                                <span class="stat-icon" data-icon="/static/icons/elevation.svg"></span>
+                                <span id="statElevation">{{ "%.0f"|format(activity.get('total_elevation_gain', 0)) }} m</span>
+                            </div>
+                            <div class="stat-item" data-field="speed">
+                                <span class="stat-icon" data-icon="/static/icons/speed.svg"></span>
+                                <span id="statSpeed">{{ "%.1f"|format(activity.get('average_speed', 0) * 3.6) }} km/h</span>
+                            </div>
+                            <!-- Crank / Cadence -->
+                             <div class="stat-item" data-field="cadence">
+                                <!-- Use the SVG icon (crank.svg) which lives in the repo's static/icons/ directory.
+                                     The inline-SVG loader below will fetch and inline the SVG so its stroke/fill can be styled via JS. -->
+                                 <span class="stat-icon" data-icon="/static/icons/crank.svg?v=2"></span>
+                                <span id="statCadence">{% if activity.get('average_cadence') is not none %}{{ "%d"|format(activity.get('average_cadence')|round(0)) }} rpm{% else %}— rpm{% endif %}</span>
+                            </div>
+                            <!-- Heart / Average Heartrate -->
+                            <div class="stat-item" data-field="heartrate">
+                                <!-- Heart icon: outlined (no data-fill) so it is rendered as a stroked outline to match other stat icons -->
+                                <span class="stat-icon" data-icon="/static/icons/heart.svg"></span>
+                                <span id="statHeart">{% if activity.get('average_heartrate') is not none %}{{ "%d"|format(activity.get('average_heartrate')|round(0)) }} bpm{% else %}— bpm{% endif %}</span>
+                            </div>
+                            <div class="stat-item" data-field="time">
+                                <span class="stat-icon" data-icon="/static/icons/time.svg"></span>
+                                <span id="statTime">
+                                   {% set s = activity.get('moving_time', 0)|int %}
+                                   {{ "%02d:%02d:%02d"|format(s // 3600, (s % 3600) // 60, s % 60) }}
+                               </span>
+                           </div>
+                           <!-- Avg Weighted Power -->
+                           <div class="stat-item" data-field="avg_power">
+                               <span class="stat-icon" data-icon="/static/icons/thunder.svg"></span>
+                               <span id="statAvgPower">{% if activity.get('weighted_average_watts') is not none %}{{ "%d"|format(activity.get('weighted_average_watts')|round(0)) }} W{% else %}— W{% endif %}</span>
+                           </div>
+                           <!-- Max Power -->
+                           <div class="stat-item" data-field="max_power">
+                               <span class="stat-icon" data-icon="/static/icons/muscle.svg"></span>
+                               <span id="statMaxPower">{% if activity.get('max_watts') is not none %}{{ "%d"|format(activity.get('max_watts')|round(0)) }} W{% else %}— W{% endif %}</span>
+                           </div>
+                      </div>
+                      <div class="resize-handle" title="Drag to resize"><span></span></div>
+                  </div>
+                  <!-- Elevation Chart -->
+                   <div class="draggable-box" id="boxElevation">
+                       <div id="posterElevation" class="poster-elevation">
+                           <canvas id="elevationChart" style="width:100%;height:100%;"></canvas>
+                       </div>
+                       <div class="resize-handle" title="Drag to resize"><span></span></div>
+                   </div>
+             </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // Global diagnostics: capture uncaught errors and unhandled promise rejections
+        window.addEventListener('error', function (ev) {
+            try {
+                console.error('Unhandled error (captured):', ev.message, ev.filename + ':' + ev.lineno, ev.error || ev);
+            } catch (e) {}
+        });
+        window.addEventListener('unhandledrejection', function (ev) {
+            try {
+                console.warn('Unhandled promise rejection (captured):', ev.reason);
+            } catch (e) {}
+        });
+    const ACTIVITY_ID = '{{ activity.get("id", "") }}';
+    const LS_KEY = 'poster_settings_v2';
+
+    // Defaults
+    const DEFAULTS = {
+        posterSize: 1280, ratio: '4/3',
+        titleFont: 'Roboto Condensed', titleFontSize: 58, titleColor: '#ffffff', titleOutlineColor: '#000000', titleOutlineWidth: 1, titleOpacity: 100,
+        // Title style tweaks
+        titleStyle: 'normal',        // options: normal, italic, bold, bolditalic
+        titleLineHeight: 0,          // percent offset (-20 .. 20)
+        titleAlign: 'left',
+        statsFont: 'Roboto Condensed', statsFontSize: 20, statsColor: '#ffffff', statsOutlineColor: '#000000', statsOutlineWidth: 1, statsOpacity: 100,
+        // Stats layout tweaks
+        statsStyle: 'normal',        // options: normal, italic, bold, bolditalic
+        statsLineHeight: 0,          // percent offset (-20 .. 20)
+        statsAlign: 'left',
+        // Which stats are visible on the poster (all enabled by default)
+        statsVisible: { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true, avg_power: true, max_power: true },
+        elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
+        singleLine: true
+    };
+
+    // Watermark constants - change these to tune watermark size (fraction of poster width)
+    // and opacity. WATERMARK_SIZE_PCT: 0.10 means 10% of poster width.
+    const WATERMARK_SIZE_PCT = 0.10;
+    const WATERMARK_OPACITY = 0.8; // 1.0 == fully opaque, 0.0 == fully transparent
+
+
+    function loadSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(LS_KEY));
+            if (saved && typeof saved === 'object') return { ...DEFAULTS, ...saved };
+        } catch(e) {}
+        return { ...DEFAULTS };
+    }
+
+    function saveSettings(settings) {
+        localStorage.setItem(LS_KEY, JSON.stringify(settings));
+    }
+
+    let settings = loadSettings();
+
+    // Apply settings to controls
+    function applyToControls(s) {
+        document.getElementById('posterSize').value = s.posterSize;
+        document.getElementById('ratioSelect').value = s.ratio;
+        document.getElementById('titleFont').value = s.titleFont;
+        document.getElementById('titleFontSize').value = s.titleFontSize;
+        document.getElementById('titleFontSizeVal').textContent = s.titleFontSize + 'px';
+        document.getElementById('titleColor').value = s.titleColor;
+        document.getElementById('titleOutlineColor').value = s.titleOutlineColor;
+        document.getElementById('titleOutlineWidth').value = s.titleOutlineWidth;
+        document.getElementById('titleOutlineWidthVal').textContent = s.titleOutlineWidth;
+        document.getElementById('titleOpacity').value = s.titleOpacity;
+        document.getElementById('titleOpacityVal').textContent = s.titleOpacity + '%';
+        // Title style controls
+        if (document.getElementById('titleStyle')) document.getElementById('titleStyle').value = s.titleStyle || 'normal';
+        if (document.getElementById('titleLineHeight')) {
+            document.getElementById('titleLineHeight').value = s.titleLineHeight || 0;
+            document.getElementById('titleLineHeightVal').textContent = (s.titleLineHeight || 0) + '%';
+        }
+        document.getElementById('statsFont').value = s.statsFont;
+        document.getElementById('statsFontSize').value = s.statsFontSize;
+        document.getElementById('statsFontSizeVal').textContent = s.statsFontSize + 'px';
+        document.getElementById('statsColor').value = s.statsColor;
+        document.getElementById('statsOutlineColor').value = s.statsOutlineColor;
+        document.getElementById('statsOutlineWidth').value = s.statsOutlineWidth;
+        document.getElementById('statsOutlineWidthVal').textContent = s.statsOutlineWidth;
+        document.getElementById('statsOpacity').value = s.statsOpacity;
+        document.getElementById('statsOpacityVal').textContent = s.statsOpacity + '%';
+        // Stats style controls
+        if (document.getElementById('statsStyle')) document.getElementById('statsStyle').value = s.statsStyle || 'normal';
+        if (document.getElementById('statsLineHeight')) {
+            document.getElementById('statsLineHeight').value = s.statsLineHeight || 0;
+            document.getElementById('statsLineHeightVal').textContent = (s.statsLineHeight || 0) + '%';
+        }
+        if (document.getElementById('statsAlign')) document.getElementById('statsAlign').value = s.statsAlign || 'left';
+        document.getElementById('elevFontSize').value = s.elevFontSize;
+        document.getElementById('elevFontSizeVal').textContent = s.elevFontSize + 'px';
+        document.getElementById('elevColor').value = s.elevColor;
+        document.getElementById('elevFillColor').value = s.elevFillColor;
+        document.getElementById('elevOpacity').value = s.elevOpacity;
+        document.getElementById('elevOpacityVal').textContent = s.elevOpacity + '%';
+        document.getElementById('singleLineCheckbox').checked = s.singleLine !== false;
+        document.getElementById('titleAlign').value = s.titleAlign || 'left';
+        // Apply stats visibility checkbox states (if present)
+        try { applyStatsVisibilityControls(s); } catch (e) { /* ignore */ }
+    }
+
+    function updateDimensionsDisplay(width, height) {
+        const dimensionsEl = document.getElementById('posterDimensions');
+        dimensionsEl.textContent = `Poster dimensions: ${width} × ${height}`;
+    }
+
+     function renderPoster() {
+         const container = document.getElementById('posterContainer');
+         // Compute exact height from posterSize and aspect ratio
+         const ratioMatch = settings.ratio.match(/(\d+)\/(\d+)/);
+         let posterHeight = settings.posterSize;
+         if (ratioMatch) {
+             const rw = Number.parseInt(ratioMatch[1], 10);
+             const rh = Number.parseInt(ratioMatch[2], 10);
+             posterHeight = Math.round(settings.posterSize * rh / rw);
+         }
+         // Set exact dimensions so WYSIWYG preview matches export output.
+         container.style.width = settings.posterSize + 'px';
+         container.style.height = posterHeight + 'px';
+         container.style.maxWidth = 'none';
+         container.style.maxHeight = 'none';
+         container.style.aspectRatio = settings.ratio;
+         // Update dimensions display
+         updateDimensionsDisplay(settings.posterSize, posterHeight);
+         // Title — use -webkit-text-stroke for proper outline
+         const titleEl = document.getElementById('posterTitle');
+         titleEl.style.fontFamily = `'${settings.titleFont}', sans-serif`;
+         titleEl.style.fontSize = settings.titleFontSize + 'px';
+         titleEl.style.color = settings.titleColor;
+         titleEl.style.webkitTextStroke = settings.titleOutlineWidth > 0
+             ? settings.titleOutlineWidth + 'px ' + settings.titleOutlineColor
+             : '0px transparent';
+         titleEl.style.paintOrder = 'stroke fill';
+         titleEl.style.opacity = settings.titleOpacity / 100;
+         // Title style (fontStyle/fontWeight) and line-height
+         (function(){
+             const style = (settings.titleStyle || 'normal').toLowerCase();
+             if (style === 'italic') { titleEl.style.fontStyle = 'italic'; titleEl.style.fontWeight = '400'; }
+             else if (style === 'bold') { titleEl.style.fontStyle = 'normal'; titleEl.style.fontWeight = '700'; }
+             else if (style === 'bolditalic') { titleEl.style.fontStyle = 'italic'; titleEl.style.fontWeight = '700'; }
+             else { titleEl.style.fontStyle = 'normal'; titleEl.style.fontWeight = '400'; }
+             const th = 1 + ((settings.titleLineHeight || 0) / 100);
+             titleEl.style.lineHeight = String(th);
+         })();
+         titleEl.style.textAlign = settings.titleAlign || 'left';
+          // Stats — use -webkit-text-stroke for proper outline
+          const statsEl = document.getElementById('posterStats');
+         statsEl.style.fontFamily = `'${settings.statsFont}', sans-serif`;
+         statsEl.style.fontSize = settings.statsFontSize + 'px';
+         statsEl.style.color = settings.statsColor;
+         statsEl.style.webkitTextStroke = settings.statsOutlineWidth > 0
+             ? settings.statsOutlineWidth + 'px ' + settings.statsOutlineColor
+             : '0px transparent';
+         statsEl.style.paintOrder = 'stroke fill';
+         statsEl.style.opacity = settings.statsOpacity / 100;
+         // Stats style, line-height and align
+         (function(){
+             const style = (settings.statsStyle || 'normal').toLowerCase();
+             if (style === 'italic') { statsEl.style.fontStyle = 'italic'; statsEl.style.fontWeight = '400'; }
+             else if (style === 'bold') { statsEl.style.fontStyle = 'normal'; statsEl.style.fontWeight = '700'; }
+             else if (style === 'bolditalic') { statsEl.style.fontStyle = 'italic'; statsEl.style.fontWeight = '700'; }
+             else { statsEl.style.fontStyle = 'normal'; statsEl.style.fontWeight = '400'; }
+             const sh = 1 + ((settings.statsLineHeight || 0) / 100);
+             statsEl.style.lineHeight = String(sh);
+             // Align stats horizontally — poster-stats is a flex container, so use justifyContent
+             try {
+                 const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+                 statsEl.style.justifyContent = alignMap[settings.statsAlign] || 'flex-start';
+             } catch (e) { statsEl.style.justifyContent = 'flex-start'; }
+         })();
+          // Apply visibility flags to stat items
+          try {
+              statsEl.querySelectorAll('.stat-item[data-field]').forEach(item => {
+                  const key = item.getAttribute('data-field');
+                  const visible = settings.statsVisible && settings.statsVisible[key];
+                  item.style.display = visible ? 'inline-flex' : 'none';
+              });
+          } catch (e) { /* ignore */ }
+          // Icons: support both inline SVGs and raster images (PNG) so the
+          // crank.png icon can be used alongside existing SVG icons.
+                   statsEl.querySelectorAll('.stat-icon').forEach(iconSpan => {
+              const sizePx = settings.statsFontSize + 'px';
+              const svg = iconSpan.querySelector('svg');
+              if (svg) {
+                  svg.style.width = sizePx;
+                  svg.style.height = sizePx;
+                  svg.style.overflow = 'visible';
+                  // Apply main stroke color to all elements
+                           // If the host span requests a filled icon (data-fill="true"), apply fill color
+                           const wantFill = iconSpan.getAttribute('data-fill') === 'true' || iconSpan.classList.contains('stat-fill');
+                           svg.querySelectorAll('*').forEach(el => {
+                               if (wantFill) {
+                                   el.style.fill = settings.statsColor;
+                                   // Ensure stroke is none so filled icons render as solid shapes
+                                   el.style.stroke = 'none';
+                               } else {
+                                   el.style.fill = 'none';
+                                   el.style.stroke = settings.statsColor;
+                               }
+                               el.style.strokeWidth = '2';
+                               el.style.strokeLinecap = 'round';
+                               el.style.strokeLinejoin = 'round';
+                           });
+                  // Apply opacity
+                  svg.style.opacity = settings.statsOpacity / 100;
+              } else {
+                  // Try raster image (img element) — set size and opacity to match SVGs
+                  const img = iconSpan.querySelector('img');
+                  if (img) {
+                      img.style.width = sizePx;
+                      img.style.height = sizePx;
+                      img.style.objectFit = 'contain';
+                      img.style.opacity = settings.statsOpacity / 100;
+                      img.style.display = 'inline-block';
+                      img.style.verticalAlign = 'middle';
+                  }
+              }
+          });
+         // Elevation
+         const elevEl = document.getElementById('posterElevation');
+         elevEl.style.opacity = settings.elevOpacity / 100;
+          // --- Single line only logic for activity name ---
+          const singleLineCheckbox = document.getElementById('singleLineCheckbox');
+          if (settings.singleLine === undefined) settings.singleLine = true;
+          function applySingleLineMode(singleLine) {
+              if (!titleEl) return;
+              if (singleLine) {
+                  titleEl.style.whiteSpace = 'nowrap';
+                  titleEl.style.overflow = 'hidden';
+                  titleEl.style.textOverflow = 'ellipsis';
+              } else {
+                  titleEl.style.whiteSpace = 'normal';
+                  titleEl.style.overflow = 'visible';
+                  titleEl.style.textOverflow = 'unset';
+              }
+          }
+          // Bind the checkbox once to avoid duplicate listeners when renderPoster runs repeatedly
+          if (singleLineCheckbox && !singleLineCheckbox._bound) {
+              singleLineCheckbox._bound = true;
+              singleLineCheckbox.addEventListener('change', function() {
+                  settings.singleLine = this.checked;
+                  saveSettings(settings);
+                  applySingleLineMode(this.checked);
+              });
+          }
+          // Immediately sync the checkbox state with settings
+          if (singleLineCheckbox) {
+              singleLineCheckbox.checked = settings.singleLine !== false;
+              applySingleLineMode(singleLineCheckbox.checked);
+          }
+        // Title align now handled by bindControl('titleAlign', 'titleAlign', false) below
+          renderElevationChart();
+          // Ensure positions are applied after rendering (container size may have changed)
+          try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed in renderPoster', e); }
+           // Update watermark size/visibility after layout changes
+           try { updateWatermark(); } catch (e) { console.debug('updateWatermark failed', e); }
+     }
+
+    // Elevation chart
+    let elevChart = null;
+    let elevData = { distance: [], altitude: [] };
+
+    function renderElevationChart() {
+        const canvas = document.getElementById('elevationChart');
+        const ctx = canvas.getContext('2d');
+
+        if (elevChart) elevChart.destroy();
+        if (!elevData.distance.length) return;
+
+        // Convert distance to km
+        const distKm = elevData.distance.map(d => d / 1000);
+        const maxDist = distKm[distKm.length - 1];
+        const fillColor = settings.elevFillColor + '80'; // 50% alpha
+        const fontSize = settings.elevFontSize || 20;
+
+        elevChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: distKm,
+                datasets: [{
+                    data: elevData.altitude,
+                    borderColor: settings.elevColor,
+                    backgroundColor: fillColor,
+                    fill: true,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        min: 0,
+                        max: maxDist,
+                        title: { display: true, text: 'km', color: settings.elevColor, font: { size: fontSize - 4 } },
+                        ticks: { color: settings.elevColor, font: { size: fontSize - 4 }, callback: v => v.toFixed(0) /* NOSONAR */ },
+                        grid: { display: false }
+                    },
+                    y: {
+                        title: { display: false },
+                        ticks: { color: settings.elevColor, font: { size: fontSize - 4 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    // Load elevation data
+    function loadElevation() {
+        fetch(`/api/poster/elevation/${ACTIVITY_ID}`)
+            .then(r => r.json())
+            .then(data => {
+                elevData = data;
+                renderElevationChart();
+            });
+    }
+
+    // Load photo
+    function loadPhoto() {
+        const img = document.getElementById('posterBg');
+        img.onload = () => { img.style.display = 'block'; };
+        img.src = `/api/poster/photo/${ACTIVITY_ID}?t=${Date.now()}`;
+    }
+
+    // Watermark management - keep watermark sized to WATERMARK_SIZE_PCT of poster width
+    function ensureWatermark() {
+        const wm = document.getElementById('posterWatermark');
+        if (!wm) return null;
+        // Ensure src is set (in case templates change) and make it visible
+        if (!wm.src || wm.src.indexOf('kinetiqo_logo') === -1) wm.src = '/static/img/kinetiqo_logo.png';
+        wm.style.opacity = WATERMARK_OPACITY;
+        wm.style.display = 'block';
+        wm.setAttribute('aria-hidden', 'true');
+        return wm;
+    }
+
+    function updateWatermark() {
+        const container = document.getElementById('posterContainer');
+        if (!container) return;
+        const wm = ensureWatermark();
+        if (!wm) return;
+        // compute width based on poster container width
+        const cw = container.offsetWidth || Number.parseInt(window.getComputedStyle(container).width, 10) || 0;
+        const targetW = Math.max(12, Math.round(cw * WATERMARK_SIZE_PCT));
+        wm.style.width = targetW + 'px';
+        // Keep the watermark inside the rounded area (respect offsets)
+        // right/bottom are controlled by CSS (10px) so it will stay inside
+        // Ensure it stays above everything
+        wm.style.zIndex = 99999;
+    }
+
+    // Reload from Strava
+    document.getElementById('loadStravaBtn').addEventListener('click', function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        fetch(`/api/poster/photo/${ACTIVITY_ID}`, { method: 'POST' })
+            .then(r => {
+                if (r.ok) loadPhoto();
+                else alert('No photo found on Strava for this activity.');
+            })
+            .finally(() => { btn.disabled = false; btn.textContent = 'Load from Strava'; });
+    });
+
+    // Upload
+    document.getElementById('uploadInput').addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch(`/api/poster/upload/${ACTIVITY_ID}`, { method: 'POST', body: formData })
+            .then(r => {
+                if (r.ok) loadPhoto();
+                else r.json().then(d => alert(d.error || 'Upload failed'));
+            });
+    });
+
+    // Save as PNG — server-side Playwright render
+    // The payload now includes both `settings` and the current `positions` so
+    // the headless renderer reproduces the user's last layout.
+    // Compute and persist the precise current positions/sizes of all draggable
+    // boxes and return the positions object. Use getBoundingClientRect to avoid
+    // relying on inline style values which may be empty in some browsers.
+    function saveCurrentPositionsForExport() {
+        const container = document.getElementById('posterContainer');
+        if (!container) return {};
+        const contRect = container.getBoundingClientRect();
+        const pos = {};
+        DRAGGABLES.forEach(({ boxId }) => {
+            const box = document.getElementById(boxId);
+            if (!box) return;
+            const rect = box.getBoundingClientRect();
+            const leftPx = rect.left - contRect.left;
+            const topPx  = rect.top  - contRect.top;
+            pos[boxId] = {
+                left:  (leftPx + rect.width / 2) / container.offsetWidth,
+                top:   (topPx  + rect.height / 2) / container.offsetHeight,
+                width: rect.width / container.offsetWidth
+            };
+            if (rect.height) pos[boxId].height = rect.height / container.offsetHeight;
+        });
+        savePositions(pos);
+        return pos;
+    }
+
+    document.getElementById('savePngBtn').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled    = true;
+        btn.textContent = 'Saving…';
+
+            // Hide drag UI and persist latest positions before export. We take
+            // the computed positions directly from the helper to avoid any
+            // race or key-mismatch with localStorage reads.
+            setDragUiHidden(true);
+            try {
+                const currentPositions = saveCurrentPositionsForExport() || loadPositions();
+                const payload = { settings: settings, positions: currentPositions };
+
+            const resp = await fetch(`/api/poster/export/${ACTIVITY_ID}`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                let msg = `HTTP ${resp.status}`;
+                try { msg = (await resp.json()).error || msg; } catch (_) {}
+                alert('Export failed: ' + msg);
+                return;
+            }
+
+            // Stream the PNG bytes into a transient object URL and click it
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.download = `poster_${ACTIVITY_ID}.png`;
+            a.href     = url;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+
+        } catch (e) {
+            alert('Export failed: ' + e.message);
+        } finally {
+            setDragUiHidden(false);
+            btn.disabled    = false;
+            btn.textContent = 'Save as PNG';
+        }
+    });
+
+    // Bind controls
+    function bindControl(id, settingKey, isRange, valSpanId, suffix) {
+        const el = document.getElementById(id);
+        el.addEventListener('input', function() {
+            settings[settingKey] = isRange ? Number.parseInt(this.value, 10) : this.value;
+            if (valSpanId) {
+                document.getElementById(valSpanId).textContent = this.value + (suffix || '');
+            }
+            saveSettings(settings);
+            renderPoster();
+        });
+    }
+    // Font-picker variant: waits for the chosen font to be ready before re-rendering
+    // so the poster never repaints with a fallback/incorrect typeface.
+    function bindFontControl(id, settingKey, fontSize) {
+        const el = document.getElementById(id);
+        el.addEventListener('input', function() {
+            const fontName = this.value;
+            settings[settingKey] = fontName;
+            saveSettings(settings);
+            document.fonts.load(`bold ${fontSize || 24}px "${fontName}"`).then(function() {
+                renderPoster();
+            }).catch(function() {
+                renderPoster(); // fallback: render anyway
+            });
+        });
+    }
+
+    bindControl('posterSize', 'posterSize', true);
+    bindControl('ratioSelect', 'ratio', false);
+    bindFontControl('titleFont', 'titleFont');
+    bindControl('titleFontSize', 'titleFontSize', true, 'titleFontSizeVal', 'px');
+    bindControl('titleColor', 'titleColor', false);
+    bindControl('titleOutlineColor', 'titleOutlineColor', false);
+    bindControl('titleOutlineWidth', 'titleOutlineWidth', true, 'titleOutlineWidthVal', '');
+    bindControl('titleOpacity', 'titleOpacity', true, 'titleOpacityVal', '%');
+    bindControl('titleStyle', 'titleStyle', false);
+    bindControl('titleAlign', 'titleAlign', false);
+    bindControl('titleLineHeight', 'titleLineHeight', true, 'titleLineHeightVal', '%');
+    bindFontControl('statsFont', 'statsFont');
+    bindControl('statsStyle', 'statsStyle', false);
+    bindControl('statsAlign', 'statsAlign', false);
+    bindControl('statsFontSize', 'statsFontSize', true, 'statsFontSizeVal', 'px');
+    bindControl('statsLineHeight', 'statsLineHeight', true, 'statsLineHeightVal', '%');
+    bindControl('statsColor', 'statsColor', false);
+    bindControl('statsOutlineColor', 'statsOutlineColor', false);
+    bindControl('statsOutlineWidth', 'statsOutlineWidth', true, 'statsOutlineWidthVal', '');
+    bindControl('statsOpacity', 'statsOpacity', true, 'statsOpacityVal', '%');
+    bindControl('elevFontSize', 'elevFontSize', true, 'elevFontSizeVal', 'px');
+    bindControl('elevColor', 'elevColor', false);
+    bindControl('elevFillColor', 'elevFillColor', false);
+    bindControl('elevOpacity', 'elevOpacity', true, 'elevOpacityVal', '%');
+
+    // Stats visibility checkboxes: wire up, persist, and reflect rendering
+    const STAT_KEYS = ['distance','elevation','speed','cadence','heartrate','time','avg_power','max_power'];
+    function applyStatsVisibilityControls(s) {
+        STAT_KEYS.forEach(k => {
+            const el = document.getElementById('statsVisible_' + k);
+            if (!el) return;
+            try { el.checked = !!(s.statsVisible && s.statsVisible[k]); } catch (e) { el.checked = true; }
+            // Add change handler once
+            if (!el._bound) {
+                el._bound = true;
+                el.addEventListener('change', function() {
+                    settings.statsVisible = settings.statsVisible || {};
+                    settings.statsVisible[k] = !!this.checked;
+                    saveSettings(settings);
+                    renderPoster();
+                });
+            }
+        });
+    }
+
+    // Load inline SVGs for stat icons (so color/stroke can be controlled via CSS/JS)
+    function loadInlineSvgs() {
+        document.querySelectorAll('.stat-icon[data-icon]').forEach(span => {
+            const url = span.getAttribute('data-icon');
+            // If SVG, fetch text and inline; otherwise create an <img> for raster icons
+            if (url && url.split('?')[0].toLowerCase().endsWith('.svg')) {
+                fetch(url)
+                    .then(r => r.text())
+                    .then(svgText => {
+                        span.innerHTML = svgText;
+                        renderPoster(); // re-apply styles after SVGs are loaded
+                    })
+                    .catch(err => { console.warn('Failed to load inline svg', url, err); });
+            } else if (url) {
+                // Raster image (png/jpg). Create an IMG element and append it.
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = '';
+                img.style.display = 'inline-block';
+                img.style.verticalAlign = 'middle';
+                img.onload = () => { renderPoster(); };
+                img.onerror = () => { console.warn('Failed to load icon image', url); };
+                // Clear any existing content and append
+                span.innerHTML = '';
+                span.appendChild(img);
+            }
+        });
+    }
+
+    // Init — wait for all poster fonts (loaded from CDN <link>) to be ready before
+    // rendering. document.fonts.ready resolves once every @font-face in the current
+    // CSS has finished downloading, ensuring no FOUT on the poster canvas.
+    document.fonts.ready.then(function() {
+        applyToControls(settings);
+        renderPoster();
+        loadPhoto();
+        loadElevation();
+        loadInlineSvgs();
+        // Ensure watermark is initialised and sized
+        try { updateWatermark(); } catch (e) { console.debug('initial updateWatermark failed', e); }
+        // If there are no saved positions (first use or corrupted localStorage), apply a sensible default layout
+        try {
+            const raw = localStorage.getItem(POS_KEY());
+            console.debug('init: raw posterPositions key=', POS_KEY(), raw);
+            const existing = loadPositions();
+            console.debug('init: cleaned positions=', existing);
+            if (!raw || Object.keys(existing).length === 0) {
+                // Defer a tick to ensure renderPoster() has set container size
+                console.debug('init: no saved positions found; applying default layout');
+                setTimeout(() => resetBoxPositions(), 0);
+            } else {
+                console.debug('init: found saved positions, applying them');
+                // applyBoxPositions already called in init after enableDraggableBoxes
+            }
+        } catch (e) {
+            console.warn('init: loadPositions failed', e);
+        }
+    });
+    // --- Draggable poster elements ---
+     const DRAGGABLES = [
+         { boxId: 'boxTitle',     default: { left: 0.5, top: 0.16, width: 0.6 } },
+         { boxId: 'boxStats',     default: { left: 0.5, top: 0.5,  width: 0.4 } },
+         { boxId: 'boxElevation', default: { left: 0.5, top: 0.92, width: 0.9 } },
+     ];
+    function POS_KEY() {
+        return `posterPositions_${ACTIVITY_ID}`;
+    }
+    // Enable draggable boxes now (script is at end of body so DOM exists). Apply positions
+    // immediately so a reload (F5) restores the last layout. Placed after DRAGGABLES
+    // declaration so the function has the data it needs.
+    try { enableDraggableBoxes(); } catch (e) { console.debug('enableDraggableBoxes failed', e); }
+    try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed on init', e); }
+    function _isNumberBetweenZeroAndOne(v) {
+        return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1;
+    }
+
+    function loadPositions() {
+        try {
+            const key = POS_KEY();
+            const raw = localStorage.getItem(key);
+            if (!raw) return {};
+            let parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch (e) {
+                console.warn('poster positions JSON parse failed, clearing key', key, e);
+                localStorage.removeItem(key);
+                return {};
+            }
+            if (!parsed || typeof parsed !== 'object') return {};
+            // Validate each saved box entry — only keep numeric fractional values in [0,1]
+            const clean = {};
+            Object.keys(parsed).forEach(k => {
+                const v = parsed[k];
+                if (!v || typeof v !== 'object') return;
+                const out = {};
+                if (_isNumberBetweenZeroAndOne(v.left)) out.left = v.left;
+                if (_isNumberBetweenZeroAndOne(v.top)) out.top = v.top;
+                if (_isNumberBetweenZeroAndOne(v.width) && v.width > 0) out.width = v.width;
+                if (_isNumberBetweenZeroAndOne(v.height) && v.height > 0) out.height = v.height;
+                if (Object.keys(out).length) clean[k] = out;
+            });
+            console.debug('loadPositions ->', key, parsed, '=> clean=', clean);
+            return clean;
+        } catch (e) {
+            // Corrupt JSON or localStorage error — remove the key to allow reset and return empty
+            try { localStorage.removeItem(POS_KEY()); } catch (_) {}
+            return {};
+        }
+    }
+
+    function savePositions(pos) {
+        try {
+            if (!pos || typeof pos !== 'object') return;
+            const key = POS_KEY();
+            // Sanitize and round floats to 4 decimals to avoid huge JSONs
+            const out = {};
+            Object.keys(pos).forEach(k => {
+                const v = pos[k];
+                if (!v || typeof v !== 'object') return;
+                const entry = {};
+                if (_isNumberBetweenZeroAndOne(v.left)) entry.left = Math.round(v.left * 10000) / 10000;
+                if (_isNumberBetweenZeroAndOne(v.top)) entry.top = Math.round(v.top * 10000) / 10000;
+                if (_isNumberBetweenZeroAndOne(v.width) && v.width > 0) entry.width = Math.round(v.width * 10000) / 10000;
+                if (_isNumberBetweenZeroAndOne(v.height) && v.height > 0) entry.height = Math.round(v.height * 10000) / 10000;
+                if (Object.keys(entry).length) out[k] = entry;
+            });
+            localStorage.setItem(key, JSON.stringify(out));
+            console.debug('savePositions ->', key, out);
+        } catch (e) {
+            // best-effort: don't crash the UI
+            console.warn('Failed to save poster positions', e);
+        }
+    }
+    // Flush current DOM positions synchronously (used on beforeunload to avoid losing
+    // state when the user quickly reloads the page before throttled saves fire).
+    function flushPositionsNow() {
+        try {
+            const container = document.getElementById('posterContainer');
+            if (!container) return;
+            const contRect = container.getBoundingClientRect();
+            const pos = {};
+            DRAGGABLES.forEach(({ boxId }) => {
+                const box = document.getElementById(boxId);
+                if (!box) return;
+                const rect = box.getBoundingClientRect();
+                const leftPx = rect.left - contRect.left;
+                const topPx  = rect.top  - contRect.top;
+                pos[boxId] = {
+                    left:  (leftPx + rect.width / 2) / container.offsetWidth,
+                    top:   (topPx  + rect.height / 2) / container.offsetHeight,
+                    width: rect.width / container.offsetWidth
+                };
+                if (rect.height) pos[boxId].height = rect.height / container.offsetHeight;
+            });
+            savePositions(pos);
+            console.debug('flushPositionsNow -> saved', pos);
+        } catch (e) {
+            console.warn('flushPositionsNow failed', e);
+        }
+    }
+    window.addEventListener('beforeunload', function () { flushPositionsNow(); });
+    // Throttle map for in-flight saves while dragging/resizing so quick
+    // interactions persist frequently but not on every mousemove event.
+    const _saveThrottleMs = 150;
+    const _saveTimers = {}; // keyed by boxId -> timeout id
+    function scheduleSaveBox(boxId) {
+        try {
+            if (!boxId) return;
+            if (_saveTimers[boxId]) clearTimeout(_saveTimers[boxId]);
+            _saveTimers[boxId] = setTimeout(() => {
+                try {
+                    const container = document.getElementById('posterContainer');
+                    const box = document.getElementById(boxId);
+                    if (!container || !box) return;
+                    const current = loadPositions();
+                    const leftPct = Number.parseFloat(box.style.left) / 100;
+                    const topPct  = Number.parseFloat(box.style.top)  / 100;
+                    current[boxId] = current[boxId] || {};
+                    if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
+                    if (!isNaN(topPct))  current[boxId].top  = topPct;
+                    current[boxId].width  = box.offsetWidth  / container.offsetWidth;
+                    if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
+                    savePositions(current);
+                } catch (e) { console.debug('scheduled save failed', e); }
+                delete _saveTimers[boxId];
+            }, _saveThrottleMs);
+        } catch (e) { /* swallow */ }
+    }
+      function applyBoxPositions() {
+         const pos = loadPositions();
+         DRAGGABLES.forEach(({ boxId, default: def }) => {
+             const box = document.getElementById(boxId);
+             if (!box) return;
+             let p = pos[boxId];
+             if (!p) p = {};
+             // Default: center X, Y as percent of container
+             const left  = (p.left  !== undefined ? p.left  : def.left);
+             const top   = (p.top   !== undefined ? p.top   : def.top);
+             const width = (p.width !== undefined ? p.width : def.width);
+             const height = (p.height !== undefined ? p.height : def.height);
+                // Apply width/height first so offsetWidth/offsetHeight reflect
+                // the intended size when computing centered left/top positions.
+              if (width !== undefined) {
+                  // Use percent width so it scales with poster size
+                  box.style.width = (width * 100) + '%';
+              } else {
+                  box.style.width = '';
+              }
+              // Apply height when available (only if explicitly saved by user resize)
+              if (height !== undefined) {
+                  box.style.height = (height * 100) + '%';
+              } else {
+                  box.style.height = '';
+              }
+              // Ensure centering transform so left/top represent the box center
+              box.style.transform = 'translate(-50%, -50%)';
+              // Convert percent to px (center the box)
+                      // Use percent left/top so that saved positions are resolution
+                      // independent and consistent with the drag handlers.
+                      const leftPct = left * 100;
+                      const topPct = top * 100;
+                      console.debug('applyBoxPositions', boxId, {left, top, width, height, computed:{leftPct, topPct, boxW:box.offsetWidth,boxH:box.offsetHeight}});
+                      box.style.left = leftPct + '%';
+                      box.style.top  = topPct + '%';
+         });
+     }
+           function enableDraggableBoxes() {
+            // Prevent double-binding
+            if (enableDraggableBoxes._bound) return;
+            enableDraggableBoxes._bound = true;
+          const container = document.getElementById('posterContainer');
+           DRAGGABLES.forEach(({ boxId }) => {
+                try {
+                 const box = document.getElementById(boxId);
+                 if (!box) return;
+                 let dragging = false, resizing = false, offsetX = 0, offsetY = 0, startW = 0, startH = 0;
+             // Drag logic
+             box.addEventListener('mouseenter', () => {
+                 if (!dragging && !resizing) box.classList.add('drag-hover');
+             });
+             box.addEventListener('mouseleave', () => {
+                 if (!dragging && !resizing) box.classList.remove('drag-hover');
+             });
+              box.addEventListener('mousedown', e => {
+                  try {
+                  // Only drag if not on resize handle (support clicks on inner children via closest)
+                  if (e.target && e.target.closest && e.target.closest('.resize-handle')) return;
+                 dragging = true;
+                 box.classList.add('dragging');
+                 box.classList.remove('drag-hover');
+                 const rect = box.getBoundingClientRect();
+                 const contRect = container.getBoundingClientRect();
+                 offsetX = e.clientX - rect.left;
+                 offsetY = e.clientY - rect.top;
+                 document.body.style.userSelect = 'none';
+                   function onMove(ev) {
+                      if (!dragging) return;
+                      // Compute center coordinates and convert to percent of container
+                      const centerX = ev.clientX - contRect.left - offsetX + box.offsetWidth / 2;
+                      const centerY = ev.clientY - contRect.top - offsetY + box.offsetHeight / 2;
+                      let cx = centerX / container.offsetWidth;
+                      let cy = centerY / container.offsetHeight;
+                      // Clamp so the box stays fully inside the container
+                      const halfW = (box.offsetWidth / 2) / container.offsetWidth;
+                      const halfH = (box.offsetHeight / 2) / container.offsetHeight;
+                      cx = Math.max(halfW, Math.min(1 - halfW, cx));
+                      cy = Math.max(halfH, Math.min(1 - halfH, cy));
+                      box.style.left = (cx * 100) + '%';
+                      box.style.top  = (cy * 100) + '%';
+                      box.style.transform = 'translate(-50%, -50%)';
+                       // Throttled persist while dragging so quick reloads catch recent state
+                       scheduleSaveBox(boxId);
+                  }
+                   function onUp() {
+                       if (!dragging) return;
+                       dragging = false;
+                       box.classList.remove('dragging');
+                       document.removeEventListener('mousemove', onMove);
+                       document.removeEventListener('mouseup', onUp);
+                       document.body.style.userSelect = '';
+                       // Read latest positions (avoid closure-stale object), update this box and persist
+                       try {
+                           const current = loadPositions();
+                           // box.style.left/top are percentages like '50%'
+                           const leftPct = Number.parseFloat(box.style.left) / 100;
+                           const topPct  = Number.parseFloat(box.style.top)  / 100;
+                           if (!current[boxId]) current[boxId] = {};
+                           if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
+                           if (!Number.isNaN(topPct))  current[boxId].top  = topPct;
+                           current[boxId].width = box.offsetWidth / container.offsetWidth;
+                           if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
+                           savePositions(current);
+                       } catch (e) {
+                           console.warn('Failed to persist drag position', e);
+                       }
+                   }
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                  } catch (err) { console.error('drag mousedown handler failed for', boxId, err); }
+             });
+              // Resize logic — both horizontal and vertical
+              const handle = box.querySelector('.resize-handle');
+               if (handle) {
+                   handle.addEventListener('mousedown', e => {
+                       try {
+                       e.stopPropagation();
+                       resizing = true;
+                      box.classList.add('resizing');
+                      startW = box.offsetWidth;
+                      startH = box.offsetHeight;
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      document.body.style.userSelect = 'none';
+                         function onMove(ev) {
+                            if (!resizing) return;
+                            let dx = ev.clientX - startX;
+                            let dy = ev.clientY - startY;
+                            // Compute new width/height in px (clamped)
+                            let newW = Math.max(60, Math.min(startW + dx, container.offsetWidth));
+                            let newH = Math.max(24, Math.min(startH + dy, container.offsetHeight));
+                            // Determine current box top-left in container coords
+                            const contRect = container.getBoundingClientRect();
+                            const boxRect = box.getBoundingClientRect();
+                            const leftPx = boxRect.left - contRect.left;
+                            const topPx  = boxRect.top  - contRect.top;
+                            // Compute new center so the top-left stays fixed while resizing
+                            let newCenterX = leftPx + newW / 2;
+                            let newCenterY = topPx  + newH / 2;
+                            // Clamp center so the box stays fully inside the container
+                            newCenterX = Math.max(newW/2, Math.min(container.offsetWidth - newW/2, newCenterX));
+                            newCenterY = Math.max(newH/2, Math.min(container.offsetHeight - newH/2, newCenterY));
+                            // Apply sizes as percent and update center (left/top) as percent
+                            box.style.width  = (newW  / container.offsetWidth  * 100) + '%';
+                            box.style.height = (newH  / container.offsetHeight * 100) + '%';
+                            box.style.left = (newCenterX / container.offsetWidth * 100) + '%';
+                            box.style.top  = (newCenterY / container.offsetHeight * 100) + '%';
+                            box.style.transform = 'translate(-50%, -50%)';
+                            // Throttled persist while resizing
+                            scheduleSaveBox(boxId);
+                        }
+                          function onUp() {
+                           if (!resizing) return;
+                           resizing = false;
+                           box.classList.remove('resizing');
+                           document.removeEventListener('mousemove', onMove);
+                           document.removeEventListener('mouseup', onUp);
+                           document.body.style.userSelect = '';
+                           try {
+                               const current = loadPositions();
+                               if (!current[boxId]) current[boxId] = {};
+                               current[boxId].width  = box.offsetWidth  / container.offsetWidth;
+                               current[boxId].height = box.offsetHeight / container.offsetHeight;
+                               // Also persist current center percent
+                               const leftPct = Number.parseFloat(box.style.left) / 100;
+                               const topPct  = Number.parseFloat(box.style.top)  / 100;
+                               if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
+                               if (!Number.isNaN(topPct))  current[boxId].top  = topPct;
+                               savePositions(current);
+                           } catch (e) {
+                               console.warn('Failed to persist resize', e);
+                           }
+                       }
+                       document.addEventListener('mousemove', onMove);
+                       document.addEventListener('mouseup', onUp);
+                       } catch (err) { console.error('resize mousedown handler failed for', boxId, err); }
+                  });
+               }
+            } catch (err) {
+                console.error('Failed to enable draggable for', boxId, err);
+            }
+         });
+     }
+      function resetBoxPositions() {
+          const container = document.getElementById('posterContainer');
+          const w = container.offsetWidth, h = container.offsetHeight;
+          const pos = {};
+          // Title: span full width with 10px padding left/right and 10px from top
+          const titleFontSize = Number.parseInt(settings.titleFontSize, 10) || DEFAULTS.titleFontSize;
+          const titleLineHeight = titleFontSize * 1.2;
+          const titlePaddingTop = 10;
+          const titleHeightPx = Math.round(titleLineHeight + 8);
+          const titleWidthPx = Math.max(120, w - 20);
+          pos['boxTitle'] = {
+              left: 0.5,
+              top: (titlePaddingTop + titleHeightPx / 2) / h,
+              width: titleWidthPx / w
+          };
+
+          // Stats: place below title. Make it span the full width with same left/right padding so text fits.
+          const statsFontSize = Number.parseInt(settings.statsFontSize, 10) || DEFAULTS.statsFontSize;
+          const statsLineHeight = statsFontSize * 1.2;
+          const statsHeightPx = Math.round(statsLineHeight + 8);
+          const gap = 8;
+          const statsTopPx = titlePaddingTop + titleHeightPx + gap + statsHeightPx / 2;
+          pos['boxStats'] = {
+              left: 0.5,
+              top: Math.min(0.95, statsTopPx / h),
+              width: Math.max(120, w - 20) / w
+          };
+
+          // Elevation: span full width with 10px left/right and 10px from bottom
+          const elevHeightPx = Math.round(Math.min(Math.max(120, h * 0.18), 300));
+          const elevBottomPad = 10;
+          const elevTopPx = h - elevBottomPad - elevHeightPx / 2;
+          pos['boxElevation'] = {
+              left: 0.5,
+              top: Math.min(0.98, elevTopPx / h),
+              width: Math.max(120, w - 20) / w,
+              height: elevHeightPx / h
+          };
+
+          savePositions(pos);
+          // Also clear inline height so boxes snap back to content size unless explicitly set above
+          DRAGGABLES.forEach(({ boxId }) => {
+              const box = document.getElementById(boxId);
+              if (box) box.style.height = '';
+          });
+          applyBoxPositions();
+      }
+      function resetStyles() {
+         // Clear saved settings and restore defaults. Ensure single-line
+         // mode is explicitly enabled by the reset action.
+         localStorage.removeItem(LS_KEY);
+         settings = { ...DEFAULTS };
+         settings.singleLine = true;
+         // Persist the fresh defaults so subsequent loads pick them up
+         saveSettings(settings);
+         applyToControls(settings);
+         // Re-render the poster which applies single-line mode as part of renderPoster
+         renderPoster();
+     }
+    // On poster resize, re-apply positions
+    function onResizeApplyPositions() {
+        applyBoxPositions();
+        try { updateWatermark(); } catch (e) { console.debug('updateWatermark on resize failed', e); }
+    }
+    window.addEventListener('resize', onResizeApplyPositions);
+    // After renderPoster (which sets container size), applyBoxPositions is invoked
+    // from within renderPoster itself and during init. We avoid DOMContentLoaded
+    // listeners to prevent missed events when the script runs late in the page.
+    // Hide drag UI for PNG export
+    function setDragUiHidden(hidden) {
+        const overlay = document.getElementById('posterOverlay');
+        if (overlay) {
+            if (hidden) overlay.classList.add('hide-drag-ui');
+            else overlay.classList.remove('hide-drag-ui');
+        }
+    }
+    // (export flow handled inline in the Save as PNG handler)
+     // Reset buttons
+     document.getElementById('resetLayoutBtn').addEventListener('click', function() {
+         // Reset layout should also reset styles to defaults so the whole poster
+         // returns to a known default state (fonts, colors, single-line, etc.)
+         try {
+             resetStyles();
+         } catch (e) {
+             console.warn('Failed to reset styles during resetLayout', e);
+         }
+         // Then reset box positions to the default layout
+         resetBoxPositions();
+     });
+     document.getElementById('resetStylesBtn').addEventListener('click', function() {
+         resetStyles();
+         resetBoxPositions();
+     });
+     // ...existing code...
+    })();
+</script>
+{% endblock %}

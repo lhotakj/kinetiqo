@@ -1,11 +1,8 @@
 {% extends "base.html" %}
-
 {% block head %}
-<!-- Leaflet CSS & JS loaded directly — no Folium server-side rendering -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Leaflet CSS & JS loaded locally — no Folium server-side rendering -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.css', v=app_version) }}">
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.min.js', v=app_version) }}"></script>
 <!-- Override Tailwind preflight styles that break Leaflet tile rendering -->
 <style>
     .leaflet-container img {
@@ -15,6 +12,12 @@
     .leaflet-container .leaflet-control-zoom a {
         text-decoration: none;
     }
+    /* Pin attribution text metrics locally so live view and PNG export clones match. */
+    .leaflet-container .leaflet-control-attribution {
+        font: 11px/1.4 "Helvetica Neue", Arial, Helvetica, sans-serif;
+        padding: 0 5px;
+        box-sizing: border-box;
+    }
     /* Pulsing glow for hovered route — the highlight pane must be
        transparent to pointer events so canvas mouseover/mouseout still fire. */
     .leaflet-highlight-pane { pointer-events: none !important; }
@@ -22,6 +25,86 @@
     .leaflet-highlight-pane path {
         pointer-events: none !important;
         animation: route-pulse 0.5s ease-in-out infinite alternate;
+    }
+    .leaflet-map-tone-pane {
+        pointer-events: none !important;
+    }
+    .leaflet-map-tone-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none !important;
+        opacity: 0;
+    }
+    /* PNG export-only styling: keep Leaflet defaults and apply minimal adjustments. */
+    #map-container.png-export .leaflet-control-zoom,
+    #map-container.png-export .leaflet-control-fullscreen,
+    #map-container.png-export .leaflet-control-export {
+        display: none !important;
+    }
+
+    /* Match fullscreen & export control sizing/appearance to Leaflet zoom buttons */
+    .leaflet-bar a,
+    .leaflet-control-fullscreen.leaflet-bar a,
+    .leaflet-control-export.leaflet-bar a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        background: #ffffff;
+        color: #333333;
+        border: 1px solid rgba(0,0,0,0.12);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        border-radius: 8px;
+        margin-bottom: 6px;
+        -webkit-font-smoothing: antialiased;
+        background-clip: padding-box;
+    }
+    .leaflet-bar a svg,
+    .leaflet-control-fullscreen.leaflet-bar a svg,
+    .leaflet-control-export.leaflet-bar a svg {
+        display: block;
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+    }
+
+    /* Ensure zoom anchors are stacked with a single 1px outer border (zoom out on top) */
+    .leaflet-control-zoom.leaflet-bar {
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 0;
+        background: #ffffff; /* single panel background */
+        border: 1px solid rgba(0,0,0,0.12); /* single 1px outer border */
+        border-radius: 8px;
+        overflow: hidden; /* clip inner corners */
+        padding: 0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .leaflet-control-zoom.leaflet-bar a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+        color: #333333;
+        border: none; /* anchors have no border; container provides the border */
+        box-shadow: none;
+    }
+    .leaflet-control-zoom.leaflet-bar a svg { width: 16px; height: 16px; }
+
+    /* Remove extra outer container styling for the other controls so they remain standalone */
+    .leaflet-control-fullscreen.leaflet-bar,
+    .leaflet-control-export.leaflet-bar {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
     }
     @keyframes route-pulse {
         0%   { opacity: 0.35; }
@@ -39,6 +122,36 @@
         60%  { transform: translateX(250%); }
         100% { transform: translateX(250%); }
     }
+
+    /* Export confirmation modal */
+    .export-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .export-modal {
+        background: #ffffff;
+        color: #111827;
+        padding: 1rem 1.25rem;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        min-width: 260px;
+        text-align: center;
+        font-weight: 600;
+    }
+    .export-modal button {
+        margin-top: 0.5rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        border: none;
+        background: #FC4C02;
+        color: white;
+        cursor: pointer;
+    }
 </style>
 {% endblock %}
 
@@ -52,51 +165,71 @@
                 Loading activity data…
             </p>
         </div>
-        <div class="flex flex-wrap items-center gap-4">
-            <!-- Base Map Selector -->
-            <div class="flex items-center gap-2">
-                <label for="basemapPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Base
-                    Map:</label>
-                <select id="basemapPicker"
-                        class="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
-                    {% for key, provider in tile_providers.items() %}
-                    {% set is_disabled = provider.get('disabled', False) %}
-                    <option value="{{ key }}"
-                            {{ 'selected' if key == current_basemap else '' }}
-                            {{ 'disabled' if is_disabled else '' }}
-                            style="{{ 'color:#9ca3af;' if is_disabled else '' }}">{{ provider.name }}{{ ' (API key required)' if is_disabled else '' }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% include "_map_control_basemap.html" %}
+            {% include "_map_control_separator.html" %}
 
-            <!-- Color Picker -->
-            <div class="flex items-center gap-2">
-                <label for="colorPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Color:</label>
-                <input type="color" id="colorPicker" value="{{ current_color }}"
-                       class="h-9 w-16 p-1 rounded border border-gray-300 dark:border-gray-600 cursor-pointer">
-            </div>
+            {% set control_id = 'mapOpacityPicker' %}
+            {% set label = 'Map Opacity:' %}
+            {% set value = current_map_opacity %}
+            {% set min_value = 0 %}
+            {% set max_value = 100 %}
+            {% set suffix = '%' %}
+            {% include "_map_control_range.html" %}
+            {% include "_map_control_separator.html" %}
 
-            <!-- Width Slider -->
-            <div class="flex items-center gap-2">
-                <label for="widthPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Width:</label>
-                <input type="range" id="widthPicker" min="1" max="20" value="{{ current_width }}"
-                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
-                <span id="widthValue" class="text-sm text-gray-500 dark:text-gray-400 w-6">{{ current_width }}</span>
-            </div>
+            {% set map_tone_value = current_map_tone_color if current_map_tone_color else '#ffffff' %}
+            {% set map_tone_text = current_map_tone_color if current_map_tone_color else 'None' %}
+            {% set control_id = 'mapTonePicker' %}
+            {% set label = 'Map Color Tone:' %}
+            {% set value = map_tone_value %}
+            {% set clear_button_id = 'mapToneClearBtn' %}
+            {% set clear_button_label = 'None' %}
+            {% set value_text_id = 'mapToneValue' %}
+            {% set value_text = map_tone_text %}
+            {% include "_map_control_color.html" %}
+            {% include "_map_control_separator.html" %}
 
-            <!-- Opacity Slider -->
-            <div class="flex items-center gap-2">
-                <label for="opacityPicker" class="text-sm font-medium text-gray-700 dark:text-gray-300">Opacity:</label>
-                <input type="range" id="opacityPicker" min="0" max="100" value="{{ current_opacity }}"
-                       class="w-24 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
-                <span id="opacityValue"
-                      class="text-sm text-gray-500 dark:text-gray-400 w-8">{{ current_opacity }}%</span>
-            </div>
+            {% set control_id = 'toneOpacityPicker' %}
+            {% set label = 'Tone Opacity:' %}
+            {% set value = current_tone_opacity %}
+            {% set min_value = 0 %}
+            {% set max_value = 100 %}
+            {% set suffix = '%' %}
+            {% include "_map_control_range.html" %}
+            {% include "_map_control_separator.html" %}
+
+            {% set control_id = 'colorPicker' %}
+            {% set label = 'Route Color:' %}
+            {% set value = current_color %}
+            {% set clear_button_id = None %}
+            {% set clear_button_label = 'Clear' %}
+            {% set value_text_id = None %}
+            {% set value_text = '' %}
+            {% include "_map_control_color.html" %}
+            {% include "_map_control_separator.html" %}
+
+            {% set control_id = 'widthPicker' %}
+            {% set label = 'Route Width:' %}
+            {% set value = current_width %}
+            {% set min_value = 1 %}
+            {% set max_value = 20 %}
+            {% set suffix = '' %}
+            {% include "_map_control_range.html" %}
+            {% include "_map_control_separator.html" %}
+
+            {% set control_id = 'opacityPicker' %}
+            {% set label = 'Route Opacity:' %}
+            {% set value = current_opacity %}
+            {% set min_value = 0 %}
+            {% set max_value = 100 %}
+            {% set suffix = '%' %}
+            {% include "_map_control_range.html" %}
 
             <!-- Export Button -->
             <button id="exportBtn" disabled
-                    class="px-4 py-2 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed transition shadow-sm flex items-center">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="h-10 px-4 bg-gray-300 dark:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-md text-sm font-medium cursor-not-allowed transition shadow-sm inline-flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
@@ -105,7 +238,11 @@
 
             <!-- Back to List -->
             <a href="{{ url_for('activities') }}"
-               class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition">
+               class="h-10 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium transition inline-flex items-center justify-center gap-2 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"></path>
+                </svg>
                 Back to List
             </a>
         </div>
@@ -113,7 +250,7 @@
 
     <!-- Map Container -->
     <div id="map-container"
-         class="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden relative z-0">
+         class="flex-1 min-h-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm relative z-0">
         <!-- Loading State -->
         <div id="loading-state"
              class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 z-10">
@@ -135,6 +272,7 @@
 
         <!-- Leaflet map target (rendered directly, no iframe) -->
         <div id="leaflet-map" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></div>
+        <div id="map-tone-overlay" class="leaflet-map-tone-overlay" style="display: none; z-index: 250;"></div>
 
         <!-- Error State -->
         <div id="error-state"
@@ -153,7 +291,7 @@
         </div>
     </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/html2canvas/html2canvas-1.4.1.min.js', v=app_version) }}"></script>
 <script>
     // --- Configuration from server ---
     const activityIds = {{ activity_ids | tojson | safe }};
@@ -161,24 +299,87 @@
 
     // Server-side defaults (used when localStorage has no saved value)
     const DEFAULTS = {
-        color:   "{{ current_color }}",
-        width:   parseInt("{{ current_width }}", 10) || 2,
-        opacity: parseInt("{{ current_opacity }}", 10) || 100,
+        routeColor: "{{ current_color }}",
+        routeWidth: (function() {
+            var parsed = parseInt("{{ current_width }}", 10);
+            return Number.isNaN(parsed) ? 2 : parsed;
+        })(),
+        routeOpacity: (function() {
+            var parsed = parseInt("{{ current_opacity }}", 10);
+            return Number.isNaN(parsed) ? 100 : parsed;
+        })(),
+        mapOpacity: (function() {
+            var parsed = parseInt("{{ current_map_opacity }}", 10);
+            return Number.isNaN(parsed) ? 100 : parsed;
+        })(),
+        toneOpacity: (function() {
+            var parsed = parseInt("{{ current_tone_opacity }}", 10);
+            return Number.isNaN(parsed) ? 50 : parsed;
+        })(),
+        mapToneColor: "{{ current_map_tone_color }}",
         basemap: "{{ current_basemap }}"
     };
 
     const STORAGE_KEY = 'kinetiqo_map_settings';
+    const MAP_WATERMARK_SIZE_PCT = 0.05;
+    const MAP_WATERMARK_OPACITY = 0.8;
+    const MAP_WATERMARK_MARGIN_PCT = 10 / 1280;
+    const MAP_WATERMARK_SRC = "{{ url_for('static', filename='img/kinetiqo_logo.png', v=app_version) }}";
+
+    function loadImage(src) {
+        return new Promise(function(resolve, reject) {
+            var img = new Image();
+            img.onload = function() { resolve(img); };
+            img.onerror = function() { reject(new Error('Could not load image: ' + src)); };
+            img.src = src;
+        });
+    }
+
+    async function drawMapWatermark(ctx, canvas) {
+        var img = await loadImage(MAP_WATERMARK_SRC);
+        var naturalWidth = img.naturalWidth || img.width;
+        var naturalHeight = img.naturalHeight || img.height;
+        if (!naturalWidth || !naturalHeight) {
+            throw new Error('Watermark image has invalid dimensions.');
+        }
+
+        var targetWidth = Math.max(12, Math.round(canvas.width * MAP_WATERMARK_SIZE_PCT));
+        var targetHeight = Math.round(targetWidth * naturalHeight / naturalWidth);
+        var margin = Math.max(10, Math.round(canvas.width * MAP_WATERMARK_MARGIN_PCT));
+        var x = canvas.width - targetWidth - margin;
+        var y = canvas.height - targetHeight - margin;
+
+        ctx.save();
+        ctx.globalAlpha = MAP_WATERMARK_OPACITY;
+        ctx.drawImage(img, x, y, targetWidth, targetHeight);
+        ctx.restore();
+    }
+
+    function isValidHexColor(value) {
+        return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+    }
+
+    function normalizeInteger(value, fallback, minValue, maxValue) {
+        var parsed = Number(value);
+        if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return fallback;
+        if (parsed < minValue || parsed > maxValue) return fallback;
+        return parsed;
+    }
 
     function loadSettings() {
         try {
             var raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return Object.assign({}, DEFAULTS);
             var saved = JSON.parse(raw);
+            var mapToneColor = isValidHexColor(saved.mapToneColor || saved.toneColor) ? (saved.mapToneColor || saved.toneColor) : DEFAULTS.mapToneColor;
             return {
-                color:   (typeof saved.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.color)) ? saved.color : DEFAULTS.color,
-                width:   (Number.isInteger(saved.width)   && saved.width >= 1   && saved.width <= 20)  ? saved.width   : DEFAULTS.width,
-                opacity: (Number.isInteger(saved.opacity) && saved.opacity >= 0 && saved.opacity <= 100) ? saved.opacity : DEFAULTS.opacity,
-                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap])            ? saved.basemap : DEFAULTS.basemap
+                routeColor: isValidHexColor(saved.routeColor || saved.color) ? (saved.routeColor || saved.color) : DEFAULTS.routeColor,
+                routeWidth: normalizeInteger((saved.routeWidth !== undefined ? saved.routeWidth : saved.width), DEFAULTS.routeWidth, 1, 20),
+                routeOpacity: normalizeInteger((saved.routeOpacity !== undefined ? saved.routeOpacity : saved.opacity), DEFAULTS.routeOpacity, 0, 100),
+                mapOpacity: normalizeInteger(saved.mapOpacity, DEFAULTS.mapOpacity, 0, 100),
+                toneOpacity: normalizeInteger(saved.toneOpacity, DEFAULTS.toneOpacity, 0, 100),
+                mapToneColor: mapToneColor,
+                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap]) ? saved.basemap : DEFAULTS.basemap
             };
         } catch (e) {
             return Object.assign({}, DEFAULTS);
@@ -188,9 +389,16 @@
     function saveSettings() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                color:   currentColor,
-                width:   currentWidth,
+                routeColor: currentColor,
+                color: currentColor,
+                routeWidth: currentWidth,
+                width: currentWidth,
+                routeOpacity: currentOpacity,
                 opacity: currentOpacity,
+                mapOpacity: currentMapOpacity,
+                toneOpacity: currentToneOpacity,
+                mapToneColor: currentMapToneColor,
+                toneColor: currentMapToneColor,
                 basemap: currentBasemap
             }));
         } catch (e) { /* quota exceeded or private browsing — silently ignore */ }
@@ -198,14 +406,18 @@
 
     // Initialise from localStorage (or server defaults)
     var _s = loadSettings();
-    let currentColor   = _s.color;
-    let currentWidth   = _s.width;
-    let currentOpacity = _s.opacity;
-    let currentBasemap = _s.basemap;
+    let currentColor        = _s.routeColor;
+    let currentWidth        = _s.routeWidth;
+    let currentOpacity      = _s.routeOpacity;
+    let currentMapOpacity   = _s.mapOpacity;
+    let currentToneOpacity  = _s.toneOpacity;
+    let currentMapToneColor = _s.mapToneColor;
+    let currentBasemap      = _s.basemap;
 
     // --- Leaflet state ---
     let leafletMap = null;
     let tileLayer  = null;
+    let mapToneOverlay = null;
     let canvasRenderer = null;
     let highlightRenderer = null; // shared SVG renderer for the highlight overlay
     let polylines  = [];          // Array of L.Polyline instances
@@ -239,10 +451,18 @@
         exportBtn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-50', 'dark:hover:bg-gray-600', 'cursor-pointer');
     }
 
-    function updateSubtitle(count, points) {
+    function updateSubtitle(count, points, level, threshold) {
         const el = document.getElementById('map-subtitle');
         if (el && count) {
-            el.textContent = 'Showing ' + count + ' activities with ' + points.toLocaleString() + ' GPS points.';
+            let text = 'Showing ' + count + ' activities with ' + points.toLocaleString() + ' GPS points';
+            if (level !== undefined && level > 0) {
+                text += ' (Simplification Level ' + level + ': ' + threshold + 'm threshold).';
+            } else if (level === 0) {
+                text += ' (Simplification Level 0: Raw unsimplified GPS).';
+            } else {
+                text += '.';
+            }
+            el.textContent = text;
         }
     }
 
@@ -280,6 +500,304 @@
 
         // Set initial tile layer
         setTileLayer(currentBasemap);
+        ensureMapToneLayer();
+        applyMapVisualState();
+
+        // --- Fullscreen & Export controls (placed next to zoom) ---
+        (function() {
+            let originalView = null;
+            function isInFullscreen() {
+                return document.fullscreenElement === document.getElementById('map-container');
+            }
+
+            const ExportControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-control-export leaflet-bar');
+                    const btn = L.DomUtil.create('a', '', container);
+                    btn.href = '#';
+                    btn.title = 'Export PNG';
+                    btn.setAttribute('aria-label', 'Export PNG');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>';
+                    L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
+                        exportMapToPNG();
+                    });
+                    return container;
+                }
+            });
+
+            const FullscreenControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-control-fullscreen leaflet-bar');
+                    const btn = L.DomUtil.create('a', '', container);
+                    btn.href = '#';
+                    btn.title = 'Toggle Fullscreen';
+                    btn.setAttribute('aria-label', 'Toggle Fullscreen');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+                    L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
+                        if (!document.fullscreenElement) {
+                            // entering fullscreen: store original view
+                            originalView = { center: leafletMap.getCenter(), zoom: leafletMap.getZoom() };
+                            document.getElementById('map-container').requestFullscreen().catch(()=>{});
+                        } else {
+                            document.exitFullscreen().catch(()=>{});
+                        }
+                    });
+                    document.addEventListener('fullscreenchange', function() {
+                        if (isInFullscreen()) {
+                            // replace button with back-to-original view control
+                            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 12l6 6M3 12l6-6"/></svg>';
+                            btn.title = 'Back to original view';
+                            L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
+                                if (originalView) {
+                                    leafletMap.setView(originalView.center, originalView.zoom);
+                                }
+                                if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+                            });
+                        } else {
+                            // restore fullscreen icon
+                            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+                            btn.title = 'Toggle Fullscreen';
+                        }
+                    });
+                    return container;
+                }
+            });
+
+            // Add controls - zoom is already present; add fullscreen and export so they appear next to it
+            leafletMap.addControl(new FullscreenControl());
+            leafletMap.addControl(new ExportControl());
+        })();
+    }
+
+    function ensureMapToneLayer() {
+        if (mapToneOverlay) return;
+        mapToneOverlay = document.getElementById('map-tone-overlay');
+    }
+
+    function updateMapToneLayer() {
+        if (!mapToneOverlay) return;
+
+        if (currentMapToneColor) {
+            mapToneOverlay.style.display = 'block';
+            mapToneOverlay.style.backgroundColor = currentMapToneColor;
+            mapToneOverlay.style.opacity = currentMapOpacity === 0 ? '1' : String(currentToneOpacity / 100.0);
+        } else {
+            mapToneOverlay.style.display = 'none';
+            mapToneOverlay.style.backgroundColor = 'transparent';
+            mapToneOverlay.style.opacity = '0';
+        }
+    }
+
+    function updateMapOpacityLayer() {
+        if (!tileLayer || typeof tileLayer.setOpacity !== 'function') return;
+        tileLayer.setOpacity(currentMapOpacity / 100.0);
+    }
+
+    function applyMapVisualState() {
+        updateMapOpacityLayer();
+        updateMapToneLayer();
+    }
+
+    // Wait until the map is stable (no ongoing tile loads / movement) before capturing
+    function waitForMapStable(timeout = 800) {
+        return new Promise(function(resolve) {
+            var done = function() { try { resolve(); } catch(e) { resolve(); } };
+
+            try {
+                // If the map is already idle, resolve quickly
+                leafletMap.once('idle', done);
+
+                // Also listen for tile layer load (if present)
+                if (tileLayer && typeof tileLayer.once === 'function') {
+                    tileLayer.once('load', done);
+                }
+            } catch (e) {
+                // ignore and fallback to timeout
+            }
+
+            // Fallback timeout
+            setTimeout(done, timeout);
+        });
+    }
+
+    // Export helper: render exact leaflet map area to PNG (cropped to map viewport)
+    async function exportMapToPNG(filename = 'kinetiqo-map.png') {
+        if (!leafletMap) return;
+        const mapEl = leafletMap.getContainer();
+        const rect = mapEl.getBoundingClientRect();
+        // Use actual devicePixelRatio for high-DPI screens, but cap to avoid huge canvases
+        const dpr = (window.devicePixelRatio && Number(window.devicePixelRatio)) || 1;
+        const scale = Math.max(1, Math.min(4, dpr));
+
+        // Give clear UI feedback while export runs
+        const exportBtn = document.getElementById('exportBtn');
+        let originalBtnHTML = null;
+        if (exportBtn) {
+            originalBtnHTML = exportBtn.innerHTML;
+            exportBtn.disabled = true;
+            exportBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            exportBtn.textContent = 'Exporting…';
+        }
+
+        // Ensure Leaflet has recalculated sizes and finished loading tiles
+        try { leafletMap.invalidateSize(); } catch(e) {}
+        await waitForMapStable(1200);
+
+        try {
+            // Ask html2canvas to render at the requested scale. Also pass explicit width/height
+            const canvas = await html2canvas(mapEl, {
+                useCORS: true,
+                allowTaint: true,
+                scale: scale,
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+                onclone: function(clonedDoc) {
+                    try {
+                        // reset clone document layout so positions match
+                        clonedDoc.documentElement.style.margin = '0';
+                        clonedDoc.body.style.margin = '0';
+                        clonedDoc.body.style.overflow = 'hidden';
+
+                        // sync scroll positions so cloned layout aligns with original
+                        try { clonedDoc.documentElement.scrollTop = document.documentElement.scrollTop; } catch(e) {}
+                        try { clonedDoc.documentElement.scrollLeft = document.documentElement.scrollLeft; } catch(e) {}
+                        try { clonedDoc.body.scrollTop = document.body.scrollTop; } catch(e) {}
+                        try { clonedDoc.body.scrollLeft = document.body.scrollLeft; } catch(e) {}
+                        try { if (clonedDoc.defaultView && clonedDoc.defaultView.scrollTo) clonedDoc.defaultView.scrollTo(window.scrollX || window.pageXOffset, window.scrollY || window.pageYOffset); } catch(e) {}
+                    } catch(e) {}
+
+                    var clonedContainer = clonedDoc.getElementById('map-container');
+                    var originalContainer = document.getElementById('map-container');
+                    if (clonedContainer && originalContainer) {
+                        clonedContainer.classList.add('png-export');
+
+                        // Force exact pixel size for the cloned container
+                        clonedContainer.style.width = Math.round(rect.width) + 'px';
+                        clonedContainer.style.height = Math.round(rect.height) + 'px';
+                        clonedContainer.style.margin = '0';
+                        clonedContainer.style.padding = '0';
+                        clonedContainer.style.boxSizing = 'border-box';
+
+                        // Position the cloned container so its internal panes line up with the original render
+                        var origRect = originalContainer.getBoundingClientRect();
+                        var left = Math.round(origRect.left - (window.scrollX || window.pageXOffset));
+                        var top = Math.round(origRect.top - (window.scrollY || window.pageYOffset));
+                        clonedContainer.style.position = 'absolute';
+                        clonedContainer.style.left = left + 'px';
+                        clonedContainer.style.top = top + 'px';
+
+                        // Copy computed transform and positioning from original map panes to preserve tile offsets
+                        try {
+                            var origMapPane = originalContainer.querySelector('.leaflet-map-pane');
+                            var clonedMapPane = clonedContainer.querySelector('.leaflet-map-pane');
+                            if (origMapPane && clonedMapPane) {
+                                var paneCS = window.getComputedStyle(origMapPane);
+                                clonedMapPane.style.transform = paneCS.transform || '';
+                                clonedMapPane.style.left = paneCS.left || '';
+                                clonedMapPane.style.top = paneCS.top || '';
+                            }
+
+                            var origTilePane = originalContainer.querySelector('.leaflet-tile-pane');
+                            var clonedTilePane = clonedContainer.querySelector('.leaflet-tile-pane');
+                            if (origTilePane && clonedTilePane) {
+                                var tileCS = window.getComputedStyle(origTilePane);
+                                clonedTilePane.style.transform = tileCS.transform || '';
+                            }
+                        } catch(e) {}
+
+                        // Ensure tile images are not constrained in the clone
+                        var imgs = clonedContainer.querySelectorAll('img');
+                        imgs.forEach(function(i){
+                            i.style.maxWidth = 'none';
+                            i.style.maxHeight = 'none';
+                            i.style.width = 'auto';
+                            i.style.height = 'auto';
+                        });
+
+                        // Remove any scroll offset in the clone
+                        try { clonedContainer.scrollTop = 0; clonedContainer.scrollLeft = 0; } catch(e) {}
+                    }
+                }
+            });
+
+            // Create final canvas at device pixels so PNG matches screen pixel size (fullscreen on 4k)
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = Math.round(rect.width * scale);
+            finalCanvas.height = Math.round(rect.height * scale);
+            const ctx = finalCanvas.getContext('2d');
+
+            // Draw the captured canvas into the final canvas (should already be at the same scale)
+            ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, finalCanvas.width, finalCanvas.height);
+            await drawMapWatermark(ctx, finalCanvas);
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = finalCanvas.toDataURL('image/png');
+            link.click();
+
+            // Show a short confirmation modal
+            try { showExportCompleteModal(filename); } catch(e) { /* ignore */ }
+        } catch (err) {
+            console.error('Export failed:', err);
+            alert('Could not export map to image. Try taking a screenshot instead.');
+        } finally {
+            if (exportBtn) {
+                exportBtn.disabled = false;
+                exportBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                if (originalBtnHTML) exportBtn.innerHTML = originalBtnHTML;
+            }
+        }
+    }
+
+    // Show a transient modal to confirm export completion
+    function showExportCompleteModal(filename) {
+        // Remove existing modal if present
+        var existing = document.getElementById('export-modal-backdrop');
+        if (existing) { existing.remove(); }
+
+        var backdrop = document.createElement('div');
+        backdrop.id = 'export-modal-backdrop';
+        backdrop.className = 'export-modal-backdrop';
+
+        var box = document.createElement('div');
+        box.className = 'export-modal';
+        box.innerHTML = '<div>Map export complete</div><div style="font-weight:400;font-size:0.9rem;color:#374151;margin-top:6px;">Downloaded: ' + (filename || 'kinetiqo-map.png') + '</div>';
+
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = 'OK';
+        closeBtn.addEventListener('click', function() { backdrop.remove(); });
+        box.appendChild(closeBtn);
+
+        backdrop.appendChild(box);
+
+        // Determine where to attach the modal so it is visible in fullscreen
+        var mapContainer = document.getElementById('map-container');
+        var fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || null;
+        var host = document.body;
+        var useAbsolute = false;
+        if (fullscreenEl && mapContainer && fullscreenEl === mapContainer) {
+            host = mapContainer;
+            useAbsolute = true;
+        }
+
+        if (useAbsolute) {
+            // Append inside the fullscreen map container and use absolute positioning
+            backdrop.style.position = 'absolute';
+            backdrop.style.inset = '0';
+            backdrop.style.zIndex = '99999';
+            host.appendChild(backdrop);
+        } else {
+            // Append to body and fixed-position (normal mode)
+            backdrop.style.position = 'fixed';
+            backdrop.style.inset = '0';
+            backdrop.style.zIndex = '9999';
+            document.body.appendChild(backdrop);
+        }
+
+        // Auto-dismiss after 3 seconds
+        setTimeout(function() { try { backdrop.remove(); } catch(e) {} }, 3000);
     }
 
     // --- Complementary color helper ---
@@ -400,6 +918,7 @@
             opts.subdomains = provider.subdomains;
         }
         tileLayer = L.tileLayer(provider.url, opts).addTo(leafletMap);
+        applyMapVisualState();
     }
 
     // --- Render polylines from cached data ---
@@ -589,8 +1108,8 @@
                 // Render polylines
                 renderPolylines();
 
-                // Update subtitle
-                updateSubtitle(data.activity_count, data.point_count);
+                // Update subtitle with simplification level and point count info
+                updateSubtitle(data.activity_count, data.point_count, data.gps_simplification, data.threshold_meters);
             }, 50);
         })
         .catch(function(error) {
@@ -607,6 +1126,13 @@
         var widthValue    = document.getElementById('widthValue');
         var opacityPicker = document.getElementById('opacityPicker');
         var opacityValue  = document.getElementById('opacityValue');
+        var mapOpacityPicker = document.getElementById('mapOpacityPicker');
+        var mapOpacityValue  = document.getElementById('mapOpacityValue');
+        var toneOpacityPicker = document.getElementById('toneOpacityPicker');
+        var toneOpacityValue  = document.getElementById('toneOpacityValue');
+        var mapTonePicker = document.getElementById('mapTonePicker');
+        var mapToneClearBtn = document.getElementById('mapToneClearBtn');
+        var mapToneValue = document.getElementById('mapToneValue');
         var basemapPicker = document.getElementById('basemapPicker');
 
         if (colorPicker)   colorPicker.value         = currentColor;
@@ -614,6 +1140,12 @@
         if (widthValue)    widthValue.textContent     = currentWidth;
         if (opacityPicker) opacityPicker.value        = currentOpacity;
         if (opacityValue)  opacityValue.textContent   = currentOpacity + '%';
+        if (mapOpacityPicker) mapOpacityPicker.value  = currentMapOpacity;
+        if (mapOpacityValue)  mapOpacityValue.textContent = currentMapOpacity + '%';
+        if (toneOpacityPicker) toneOpacityPicker.value  = currentToneOpacity;
+        if (toneOpacityValue)  toneOpacityValue.textContent = currentToneOpacity + '%';
+        if (mapTonePicker) mapTonePicker.value = currentMapToneColor || '#ffffff';
+        if (mapToneValue) mapToneValue.textContent = currentMapToneColor || 'None';
         if (basemapPicker) basemapPicker.value        = currentBasemap;
 
         // Start loading map data
@@ -661,23 +1193,56 @@
             });
         }
 
-        // Export — render the Leaflet Canvas to PNG
+        // Map Opacity Picker — updates the Leaflet tile layer opacity only
+        if (mapOpacityPicker && mapOpacityValue) {
+            mapOpacityPicker.addEventListener('input', function(e) {
+                mapOpacityValue.textContent = e.target.value + '%';
+            });
+            mapOpacityPicker.addEventListener('change', function(e) {
+                currentMapOpacity = parseInt(e.target.value, 10);
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        // Tone Opacity Picker — adjusts how strongly the tone overlay is applied
+        if (toneOpacityPicker && toneOpacityValue) {
+            toneOpacityPicker.addEventListener('input', function(e) {
+                toneOpacityValue.textContent = e.target.value + '%';
+            });
+            toneOpacityPicker.addEventListener('change', function(e) {
+                currentToneOpacity = parseInt(e.target.value, 10);
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        // Map Tone Picker — applies/removes the overlay wash above the tiles
+        if (mapTonePicker && mapToneValue) {
+            mapTonePicker.addEventListener('change', function(e) {
+                currentMapToneColor = e.target.value;
+                mapToneValue.textContent = currentMapToneColor || 'None';
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        if (mapToneClearBtn && mapTonePicker && mapToneValue) {
+            mapToneClearBtn.addEventListener('click', function() {
+                currentMapToneColor = '';
+                mapTonePicker.value = '#ffffff';
+                mapToneValue.textContent = 'None';
+                saveSettings();
+                applyMapVisualState();
+            });
+        }
+
+        // Export — render the Leaflet Canvas to PNG (uses shared helper)
         const exportBtn = document.getElementById('exportBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', function() {
                 if (exportBtn.disabled) return;
-                const mapContainer = document.getElementById('map-container');
-                html2canvas(mapContainer, { useCORS: true, allowTaint: true })
-                    .then(function(canvas) {
-                        const link = document.createElement('a');
-                        link.download = 'kinetiqo-map.png';
-                        link.href = canvas.toDataURL();
-                        link.click();
-                    })
-                    .catch(function(err) {
-                        console.error('Export failed:', err);
-                        alert('Could not export map to image. Try taking a screenshot instead.');
-                    });
+                exportMapToPNG();
             });
         }
     });

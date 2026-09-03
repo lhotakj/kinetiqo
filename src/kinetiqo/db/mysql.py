@@ -3,7 +3,9 @@ import sys
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
+import threading
 import mysql.connector
+import mysql.connector.pooling
 from kinetiqo.config import Config
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
@@ -11,9 +13,43 @@ from mysql.connector import errorcode
 
 logger = logging.getLogger("kinetiqo")
 
+_mysql_pool = None
+_mysql_pool_lock = threading.Lock()
+
+
+def _get_mysql_pool(config: Config):
+    """Retrieve or initialize the thread-safe MySQL connection pool."""
+    global _mysql_pool
+    if _mysql_pool is None:
+        with _mysql_pool_lock:
+            if _mysql_pool is None:
+                db_config = {
+                    "host": config.mysql_host,
+                    "port": config.mysql_port,
+                    "user": config.mysql_user,
+                    "password": config.mysql_password,
+                    "database": config.mysql_database,
+                }
+                _mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
+                    pool_name="kinetiqo_mysql_pool",
+                    pool_size=10,
+                    **db_config
+                )
+    return _mysql_pool
+
 
 class MySQLRepository(DatabaseRepository):
+    """MySQL/MariaDB repository implementation for the database backend.
+
+    Implements DatabaseRepository using mysql-connector-python and raw SQL.
+    """
+
     def __init__(self, config: Config):
+        """Initialize MySQL repository and ensure the target database exists.
+
+        Args:
+            config (Config): Application configuration containing MySQL connection info.
+        """
         self.config = config
         try:
             self.conn = self._connect()
@@ -28,38 +64,38 @@ class MySQLRepository(DatabaseRepository):
             sys.exit(1)
 
     def _connect(self):
-        """Helper to connect to a specific database."""
-        connect_args = {
-            "host": self.config.mysql_host,
-            "port": self.config.mysql_port,
-            "user": self.config.mysql_user,
-            "password": self.config.mysql_password,
-            "database": self.config.mysql_database  # Ensure database is selected
-        }
-
+        """Helper to connect to a specific database using connection pool if available."""
         try:
-            conn = mysql.connector.connect(**connect_args)
-        except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_BAD_DB_ERROR:
-                # Database does not exist, connect without database to create it
-                del connect_args["database"]
-                try:
-                    conn = mysql.connector.connect(**connect_args)
-                except Exception as e:
-                    logger.error(str(e))
-                    raise
-            else:
-                logger.error(str(err))
-                raise
-        except (ValueError, TypeError) as err:
-            logger.error(str(err))
-            raise
+            pool = _get_mysql_pool(self.config)
+            conn = pool.get_connection()
+        except Exception as pool_err:
+            logger.debug(f"MySQL connection pool fallback to direct connection: {pool_err}")
+            connect_args = {
+                "host": self.config.mysql_host,
+                "port": self.config.mysql_port,
+                "user": self.config.mysql_user,
+                "password": self.config.mysql_password,
+                "database": self.config.mysql_database  # Ensure database is selected
+            }
 
-        # Enable autocommit so every statement (including SELECTs) sees the
-        # latest committed data.  Without this, InnoDB's default REPEATABLE
-        # READ isolation keeps a snapshot from the first statement in an
-        # implicit transaction, causing the web UI to show stale data after
-        # a CLI sync commits new activities from a different connection.
+            try:
+                conn = mysql.connector.connect(**connect_args)
+            except mysql.connector.Error as err:
+                if err.errno == errorcode.ER_BAD_DB_ERROR:
+                    # Database does not exist, connect without database to create it
+                    del connect_args["database"]
+                    try:
+                        conn = mysql.connector.connect(**connect_args)
+                    except Exception as e:
+                        logger.exception(str(e))
+                        raise
+                else:
+                    logger.exception(str(err))
+                    raise
+            except (ValueError, TypeError) as err:
+                logger.exception(str(err))
+                raise
+
         conn.autocommit = True
         return conn
 
@@ -79,7 +115,7 @@ class MySQLRepository(DatabaseRepository):
                 self.conn = self._connect()
                 self.conn.database = self.config.mysql_database
             except Exception as e:
-                logger.error(f"Failed to reconnect to MySQL: {e}")
+                logger.exception(f"Failed to reconnect to MySQL: {e}")
                 raise
         # Re-apply autocommit in case ping's reconnect reset session state
         if not self.conn.autocommit:
@@ -97,10 +133,10 @@ class MySQLRepository(DatabaseRepository):
 
             self.conn.database = self.config.mysql_database
 
-        except Exception as err:
+        except Exception:
             try:
                 self.conn.database = self.config.mysql_database
-            except:
+            except Exception as err:
                 logger.warning(f"Cannot create/select database: {err}")
                 sys.exit(1)
 
@@ -124,13 +160,14 @@ class MySQLRepository(DatabaseRepository):
             self._ensure_connected()
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
+                cur.fetchone()
 
-                cur.execute("USE information_schema;")
                 cur.execute(
-                    "SELECT table_name FROM tables WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')",
-                    (self.config.mysql_database,))
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = %s AND table_name IN ('activities', 'streams', 'logs')",
+                    (self.config.mysql_database,)
+                )
                 tables = {row[0] for row in cur.fetchall()}
-                cur.execute(f"USE {self.config.mysql_database};")
 
                 if 'activities' not in tables:
                     logger.error("Table 'activities' is missing.")
@@ -144,7 +181,7 @@ class MySQLRepository(DatabaseRepository):
 
                 return True
         except Exception as e:
-            logger.error(f"Flight check failed: {e}")
+            logger.exception(f"Flight check failed: {e}")
             return False
 
     def get_latest_activity_time(self) -> Optional[int]:
@@ -229,7 +266,7 @@ class MySQLRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from MySQL"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -268,6 +305,7 @@ class MySQLRepository(DatabaseRepository):
                 start_date,
                 average_speed,
                 average_heartrate,
+                average_cadence,
                 average_watts,
                 max_watts,
                 weighted_average_watts,
@@ -282,13 +320,15 @@ class MySQLRepository(DatabaseRepository):
                 elev_low,
                 gear_id,
                 has_heartrate,
-                workout_type
+                workout_type,
+                max_speed
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
-            LIMIT %s OFFSET %s
         """
-        params.extend([limit, offset])
+        if limit is not None:
+            query += "\n            LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
 
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute(query, tuple(params))
@@ -322,6 +362,7 @@ class MySQLRepository(DatabaseRepository):
                     start_date,
                     average_speed,
                     average_heartrate,
+                    average_cadence,
                     average_watts,
                     max_watts,
                     weighted_average_watts,
@@ -389,15 +430,29 @@ class MySQLRepository(DatabaseRepository):
             result = cur.fetchone()
             return dict(result) if result else {'total_distance': 0, 'total_elevation': 0, 'total_moving_time': 0}
 
-    def count_activities(self, types=None):
-        """Get total count of activities"""
+    def count_activities(self, types=None, start_date=None, end_date=None):
+        """Get total count of activities, optionally filtered by sport type and date range."""
         self._ensure_connected()
-        where_clause = ""
+        where_conditions = []
         params = []
         if types:
             placeholders = ', '.join(['%s'] * len(types))
-            where_clause = f"WHERE sport IN ({placeholders})"
+            where_conditions.append(f"sport IN ({placeholders})")
             params.extend(types)
+
+        if start_date:
+            where_conditions.append("start_date >= %s")
+            params.append(start_date)
+
+        if end_date:
+            if len(end_date) == 10:
+                end_date += " 23:59:59.999999"
+            where_conditions.append("start_date <= %s")
+            params.append(end_date)
+
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
 
         with self.conn.cursor() as cur:
             cur.execute(f"SELECT COUNT(*) FROM activities {where_clause}", tuple(params))
@@ -631,11 +686,15 @@ class MySQLRepository(DatabaseRepository):
                 ORDER BY activity_id, ts
             """, int_ids)
 
+            current_aid = None
+            current_coords = None
             for row in cur:
-                aid = str(row[0])
-                if aid not in result:
-                    result[aid] = []
-                result[aid].append([float(row[1]), float(row[2])])
+                aid = row[0]
+                if aid != current_aid:
+                    current_aid = aid
+                    current_coords = []
+                    result[str(aid)] = current_coords
+                current_coords.append([row[1], row[2]])
 
         return result
 
@@ -672,6 +731,40 @@ class MySQLRepository(DatabaseRepository):
                         """, (int(activity_id),))
             row = cur.fetchone()
             return row[0] if row else None
+
+    def get_activity_average_cadence(self, activity_id: str) -> Optional[float]:
+        """Compute average cadence (rpm) for an activity from streams (MySQL)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT AVG(cadence) FROM streams
+                WHERE activity_id = %s AND cadence IS NOT NULL
+            """, (int(activity_id),))
+            row = cur.fetchone()
+            return float(row[0]) if row and row[0] is not None else None
+
+    def get_elevation_streams_for_activity(
+        self, activity_id: str
+    ) -> tuple[list[float], list[float]]:
+        """Return (distance_m, altitude_m) arrays for *activity_id* (MySQL)."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT distance, altitude FROM streams
+                WHERE activity_id = %s
+                  AND distance IS NOT NULL
+                  AND altitude IS NOT NULL
+                ORDER BY ts
+                """,
+                (int(activity_id),),
+            )
+            rows = cur.fetchall()
+        if not rows:
+            return [], []
+        distance = [float(r[0]) for r in rows]
+        altitude = [float(r[1]) for r in rows]
+        return distance, altitude
 
     def log_sync(self, added: int, removed: int, trigger: str, success: bool, action: str, user: str):
         """Log the result of a sync operation."""
@@ -846,20 +939,54 @@ class MySQLRepository(DatabaseRepository):
     def get_profile(self):
         self._ensure_connected()
         with self.conn.cursor(dictionary=True) as cur:
-            cur.execute("SELECT athlete_id, first_name, last_name, weight FROM profile LIMIT 1")
+            cur.execute(
+                "SELECT athlete_id, first_name, last_name, weight, ftp, "
+                "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
+                "update_strava_running_indoor, update_strava_running_outdoor, "
+                "update_strava_walking, update_strava_swimming, refresh_token, "
+                "gps_simplification "
+                "FROM profile LIMIT 1"
+            )
             return cur.fetchone()
 
-    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float):
+    def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
+                       update_strava_cycling_indoor: str = "", update_strava_cycling_outdoor: str = "",
+                       update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
+                       update_strava_walking: str = "", update_strava_swimming: str = "",
+                       refresh_token: str = "", ftp: Optional[float] = None,
+                       gps_simplification: Optional[int] = None):
         self._ensure_connected()
+        existing = self.get_profile()
+        effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
+        effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO profile (athlete_id, first_name, last_name, weight)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO profile (athlete_id, first_name, last_name, weight, ftp,
+                    update_strava_cycling_indoor, update_strava_cycling_outdoor,
+                    update_strava_running_indoor, update_strava_running_outdoor,
+                    update_strava_walking, update_strava_swimming, refresh_token,
+                    gps_simplification)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
-                    weight     = VALUES(weight)
-            """, (athlete_id, first_name, last_name, weight))
+                    weight     = VALUES(weight),
+                    ftp        = VALUES(ftp),
+                    update_strava_cycling_indoor  = VALUES(update_strava_cycling_indoor),
+                    update_strava_cycling_outdoor = VALUES(update_strava_cycling_outdoor),
+                    update_strava_running_indoor  = VALUES(update_strava_running_indoor),
+                    update_strava_running_outdoor = VALUES(update_strava_running_outdoor),
+                    update_strava_walking          = VALUES(update_strava_walking),
+                    update_strava_swimming         = VALUES(update_strava_swimming),
+                    refresh_token                  = VALUES(refresh_token),
+                    gps_simplification             = VALUES(gps_simplification)
+            """, (athlete_id, first_name, last_name, weight, effective_ftp,
+                  update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
+                  update_strava_running_indoor or "", update_strava_running_outdoor or "",
+                  update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
+                  effective_gps_simplification))
+        self.conn.commit()
 
     # ------------------------------------------------------------------
     # Activity goals
@@ -901,14 +1028,68 @@ class MySQLRepository(DatabaseRepository):
                   weekly_elevation_goal, monthly_elevation_goal, yearly_elevation_goal))
 
     def __enter__(self):
+        """Enter context manager; return the repository instance."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and close the repository."""
         self.close()
 
     def close(self):
+        """Close the MySQL connection if it's open; log any errors."""
         try:
             if self.conn and self.conn.is_connected():
                 self.conn.close()
         except Exception as e:
             logger.warning(f"Error closing MySQL connection: {e}")
+
+    def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
+        """Run performance benchmarks on database queries for the given lookback scope."""
+        import time
+        self._ensure_connected()
+        since_date = datetime.now(timezone.utc) - timedelta(days=scope_days)
+        since_date_iso = since_date.isoformat()
+
+        # 1. Fetch all GPS data for last scope_days days all activity types
+        t0 = time.perf_counter()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT s.activity_id, s.lat, s.lng
+                FROM activities a
+                JOIN streams s ON s.activity_id = a.activity_id
+                WHERE a.start_date >= %s
+                  AND s.lat IS NOT NULL
+                  AND s.lng IS NOT NULL
+            """, (since_date_iso,))
+            gps_rows = cur.fetchall()
+        gps_ms = (time.perf_counter() - t0) * 1000.0
+        gps_count = len(gps_rows)
+
+        # 2. Order all activities by name
+        t0 = time.perf_counter()
+        name_activities = self.get_activities_web(limit=None, sort_by='name', sort_order='ASC', start_date=since_date_iso)
+        order_name_ms = (time.perf_counter() - t0) * 1000.0
+        order_name_count = len(name_activities)
+
+        # 3. Order all activities by distance
+        t0 = time.perf_counter()
+        dist_activities = self.get_activities_web(limit=None, sort_by='distance', sort_order='DESC', start_date=since_date_iso)
+        order_dist_ms = (time.perf_counter() - t0) * 1000.0
+        order_dist_count = len(dist_activities)
+
+        # 4. Order all activities by elevation gained
+        t0 = time.perf_counter()
+        elev_activities = self.get_activities_web(limit=None, sort_by='total_elevation_gain', sort_order='DESC', start_date=since_date_iso)
+        order_elev_ms = (time.perf_counter() - t0) * 1000.0
+        order_elev_count = len(elev_activities)
+
+        return {
+            'gps_ms': gps_ms,
+            'gps_count': gps_count,
+            'order_name_ms': order_name_ms,
+            'order_name_count': order_name_count,
+            'order_dist_ms': order_dist_ms,
+            'order_dist_count': order_dist_count,
+            'order_elev_ms': order_elev_ms,
+            'order_elev_count': order_elev_count,
+        }

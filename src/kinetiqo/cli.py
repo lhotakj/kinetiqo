@@ -1,30 +1,28 @@
+
 import logging
 import os
 import re
 import sys
+import platform
+from collections import deque
+from typing import Dict, Any
 
 import click
 from kinetiqo.cache import CacheManager
 from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository, get_version
-from kinetiqo.sync import SyncService
-
-# -----------------------------
-# LOGGING SETUP
-# -----------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
+from kinetiqo.profile_sync import (
+    seed_profile_from_strava,
+    sync_all_profile_env_vars,
+    sync_update_strava_from_env,
+    sync_gps_simplification_from_env,
+    sync_athlete_weight_from_env,
+    resolve_refresh_token_from_db,
+    wire_refresh_token_persistence,
 )
+from kinetiqo.sync import SyncService
 logger = logging.getLogger("kinetiqo")
-logger.setLevel(logging.INFO)
-
-# Reduce noise from libraries
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("werkzeug").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def print_version():
@@ -34,6 +32,11 @@ def print_version():
 
 def validate_config(config):
     """Ensures all required environment variables are set."""
+    from kinetiqo.config import VALID_DATABASE_TYPES
+    if config.database_type not in VALID_DATABASE_TYPES:
+        logger.error(f"Invalid database type {config.database_type!r}. Valid choices are: {', '.join(VALID_DATABASE_TYPES)}.")
+        sys.exit(1)
+
     if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
         logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
         sys.exit(1)
@@ -66,10 +69,14 @@ def parse_period(period_str):
     value = int(match.group(1))
     unit = match.group(2).lower()
 
-    if unit == 'd': return value
-    if unit == 'w': return value * 7
-    if unit == 'm': return value * 30
-    if unit == 'y': return value * 365
+    if unit == 'd':
+        return value
+    if unit == 'w':
+        return value * 7
+    if unit == 'm':
+        return value * 30
+    if unit == 'y':
+        return value * 365
     return 0
 
 
@@ -109,41 +116,70 @@ def _load_api_keys(config):
     else:
         logger.warning("No Thunderforest key provided, Thunderforest map layers won't be available")
 
+    geoapify_key = os.getenv("GEOAPIFY_API_KEY", "")
+    if geoapify_key:
+        config.geoapify_api_key = geoapify_key
+    if config.geoapify_api_key:
+        logger.info("API key for Geoapify provided")
+    else:
+        logger.warning("No Geoapify key provided, Geoapify map layers won't be available")
+
+
+database_option = click.option(
+    '--database-type', '--database', '-d', 'database',
+    type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
+    default=None,
+    help='Database backend to use (overrides config).'
+)
+
 
 @click.group(help="Kinetiqo - Strava Sync Tool")
-@click.option('--database', '-d',
-              type=click.Choice(['mysql', 'postgresql', 'firebird'], case_sensitive=False),
-              default=None,
-              help='Database backend to use (overrides config).')
+@click.option('--log-level',
+              envvar='LOG_LEVEL',
+              type=click.Choice(LOG_LEVEL_CHOICES, case_sensitive=False),
+              default='INFO',
+              show_default=True,
+              help='Set the log verbosity for CLI commands.')
+@database_option
 @click.pass_context
-def cli(ctx, database):
+def cli(ctx, log_level, database):
     """Main CLI entry point."""
     ctx.obj = State()
     config = Config()
     if database:
         config.database_type = database.lower()
+    config.log_level = log_level.upper()
     ctx.obj.config = config
+    ctx.obj.log_level = config.log_level
+    configure_logging(config.log_level)
 
-    if ctx.invoked_subcommand in ['web', 'sync', 'flightcheck']:
-        validate_config(config)
-        repo = None
-        try:
-            repo = create_repository(config)
 
-            db_version, host_info = _get_db_info(config, repo)
-            db_type = config.database_type.capitalize()
-            logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
-            logger.info(f"DB Version: {db_version}")
+def _prepare_db(config, database=None):
+    """Initialize schema and resolve refresh token for the chosen database."""
+    if database:
+        config.database_type = database.lower()
+    validate_config(config)
+    repo = None
+    try:
+        repo = create_repository(config)
 
-            repo.initialize_schema()
-            _load_api_keys(config)
+        db_version, host_info = _get_db_info(config, repo)
+        db_type = config.database_type.capitalize()
+        logger.info(f"Using {db_type} backend (Kinetiqo v{get_version()}) on {host_info}")
+        logger.info(f"Running in Python {platform.python_version()}")
+        logger.info(f"DB Version: {db_version}")
 
-        except Exception as e:
-            logger.error(f"Failed to initialize database: {e}", exc_info=True)
-            sys.exit(1)
-        finally:
-            if repo:
-                repo.close()
+        repo.initialize_schema()
+
+        wire_refresh_token_persistence(config)
+        resolve_refresh_token_from_db(config, repo.get_profile())
+
+    except Exception as e:
+        logger.exception(f"Failed to initialize database: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        if repo:
+            repo.close()
 
 
 @cli.command(help="Show the version and exit")
@@ -155,9 +191,11 @@ def version():
 @cli.command(help="Start the web interface")
 @click.option('--port', default=4444, help='Port to run the web server on')
 @click.option('--host', default='0.0.0.0', help='Host to bind to')
+@database_option
 @click.pass_context
-def web(ctx, port, host):
+def web(ctx, port, host, database):
     """Start the web interface."""
+    _prepare_db(ctx.obj.config, database)
     logger.info(f"Starting web server on {host}:{port}")
 
     # Seed athlete profile from Strava before starting the web server
@@ -174,34 +212,13 @@ def _seed_profile(config):
     Runs once at web startup.  Failures are logged but never block the
     web server from starting.
     """
-    from kinetiqo.strava import StravaClient
     repo = None
     try:
-        strava = StravaClient(config)
-        athlete = strava.get_athlete()
-        athlete_id = int(athlete.get("id", 0))
-        if athlete_id <= 0:
-            logger.warning("Strava athlete profile has no valid ID — skipping profile seed.")
-            return
-
-        first_name = athlete.get("firstname", "") or ""
-        last_name = athlete.get("lastname", "") or ""
-        strava_weight = float(athlete.get("weight", 0) or 0)
-
         repo = create_repository(config)
-
-        # Preserve the existing DB weight when Strava returns null/0
-        existing = repo.get_profile()
-        if strava_weight > 0:
-            weight = strava_weight
-        elif existing:
-            weight = float(existing.get("weight", 0) or 0)
-        else:
-            weight = 0.0
-
-        repo.upsert_profile(athlete_id, first_name, last_name, weight)
-        logger.info(f"Profile seeded from Strava: {first_name} {last_name}, {weight} kg"
-                     + (" (weight kept from DB — Strava returned 0)" if strava_weight <= 0 and weight > 0 else ""))
+        seed_profile_from_strava(config, repo)
+        sync_all_profile_env_vars(config, repo)
+        from kinetiqo.web.app import mark_startup_sync_done
+        mark_startup_sync_done()
     except Exception as e:
         logger.warning(f"Could not seed profile from Strava (non-fatal): {e}")
     finally:
@@ -213,11 +230,14 @@ def _seed_profile(config):
 
 
 @cli.command(help="Check database availability and schema")
+@database_option
 @click.pass_context
-def flightcheck(ctx):
+def flightcheck(ctx, database):
     """Perform a health check on the database."""
     logger.info("Performing flight check...")
     config = ctx.obj.config
+    if database:
+        config.database_type = database.lower()
     repo = None
     try:
         repo = create_repository(config)
@@ -228,11 +248,71 @@ def flightcheck(ctx):
             logger.error("Database check failed.")
             sys.exit(1)
     except Exception as e:
-        logger.error(f"An error occurred during flight check: {e}")
+        logger.exception(f"An error occurred during flight check: {e}")
         sys.exit(1)
     finally:
         if repo:
             repo.close()
+
+
+def _print_benchmark_results(db_type: str, scope_days: int, results: Dict[str, Any]):
+    """Format and print database performance benchmark metrics to stdout."""
+    db_name = (db_type or "default").upper()
+    gps_ms = results.get('gps_ms', 0.0)
+    gps_count = results.get('gps_count', 0)
+    order_name_ms = results.get('order_name_ms', 0.0)
+    order_name_count = results.get('order_name_count', 0)
+    order_dist_ms = results.get('order_dist_ms', 0.0)
+    order_dist_count = results.get('order_dist_count', 0)
+    order_elev_ms = results.get('order_elev_ms', 0.0)
+    order_elev_count = results.get('order_elev_count', 0)
+
+    print("\n" + "=" * 74)
+    print(f"  Kinetiqo Database Benchmark ({db_name})")
+    print(f"  Scope: Last {scope_days} days")
+    print("=" * 74)
+    print(f"  * Fetch all GPS data for last {scope_days} days all activity types: {gps_ms:.2f} ms ({gps_count:,} records)")
+    print(f"  * Order all activities by name:                             {order_name_ms:.2f} ms ({order_name_count:,} activities)")
+    print(f"  * Order all activities by distance:                         {order_dist_ms:.2f} ms ({order_dist_count:,} activities)")
+    print(f"  * Order all activities by elevation gained:                 {order_elev_ms:.2f} ms ({order_elev_count:,} activities)")
+    print("=" * 74 + "\n")
+
+
+@cli.command(help="Run performance benchmarks on database operations")
+@click.option('--scope', '-s', type=int, default=365, show_default=True, help='Lookback window in days for database benchmark operations.')
+@database_option
+@click.pass_context
+def benchmark(ctx, scope, database):
+    """Perform database optimization benchmarks for a given day lookback scope."""
+    config = ctx.obj.config
+    if database:
+        config.database_type = database.lower()
+    validate_config(config)
+    repo = None
+    try:
+        repo = create_repository(config)
+        logger.info(f"Running database benchmark (backend={config.database_type.upper()}, scope={scope} days)...")
+        results = repo.run_benchmarks(scope_days=scope)
+        _print_benchmark_results(config.database_type, scope, results)
+    except Exception as e:
+        logger.exception(f"An error occurred during benchmark execution: {e}")
+        sys.exit(1)
+    finally:
+        if repo:
+            repo.close()
+
+
+def _parse_bool_option(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return True
+    val_str = str(value).strip().lower()
+    if val_str in ("true", "1", "yes"):
+        return True
+    if val_str in ("false", "0", "no"):
+        return False
+    raise click.BadParameter(f"Invalid boolean value: {value!r}. Expected true/false, 1/0, or yes/no.")
 
 
 @cli.command(help="Synchronize activities with database")
@@ -242,9 +322,13 @@ def flightcheck(ctx):
 @click.option('--enable-strava-cache', is_flag=True, help='Enable caching of Strava API responses.')
 @click.option('--cache-ttl', type=int, default=60, help='Cache TTL in minutes.')
 @click.option('--clear-cache', is_flag=True, help='Clear the cache before syncing.')
+@click.option('--update-strava-description', '--update-strava', '-U', 'update_strava_description', default='true', help='Update Strava activity descriptions (true/false, 1/0, yes/no). Default: true.')
+@database_option
 @click.pass_context
-def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache):
+def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache, update_strava_description, database):
     """Synchronize activities with database."""
+    _prepare_db(ctx.obj.config, database)
+
     if full_sync and fast_sync:
         raise click.UsageError("Cannot specify both --full-sync and --fast-sync.")
 
@@ -263,10 +347,15 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
     if clear_cache:
         CacheManager(config).clear()
 
+    update_strava_flag = _parse_bool_option(update_strava_description)
+
     sync_service = SyncService(config)
     try:
-        for _ in sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days):
-            pass
+        # Exhaust the generator returned by sync() for its side-effects.
+        # Using deque(..., maxlen=0) efficiently consumes the iterator without
+        # storing items in memory. This keeps behavior identical to the
+        # previous empty for-loop but avoids Sonar S108 (empty loop bodies).
+        deque(sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days, update_strava=update_strava_flag), maxlen=0)
     finally:
         sync_service.close()
 

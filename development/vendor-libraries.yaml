@@ -1,0 +1,175 @@
+# ---------------------------------------------------------------------------
+# Kinetiqo Vendor Libraries & Prerequisites Configuration
+# ---------------------------------------------------------------------------
+# Used by development/download-vendor-libraries.py to download all offline
+# frontend assets into src/kinetiqo/web/static/vendor/
+# ---------------------------------------------------------------------------
+
+settings:
+  vendor_base_dir: "src/kinetiqo/web/static/vendor"
+  bin_dir: "development/bin"
+
+prerequisites:
+  tailwind_cli:
+    id: "tailwind-cli"
+    name: "Tailwind CSS CLI"
+    version: "v4.3.3"
+    target_dir: "development/bin"
+    asset_template: "https://github.com/tailwindlabs/tailwindcss/releases/download/{version}/tailwindcss-{os}-{arch}{ext}"
+    latest_template: "https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-{os}-{arch}{ext}"
+    os_map:
+      linux: "linux"
+      darwin: "macos"
+      windows: "windows"
+    arch_map:
+      x86_64: "x64"
+      amd64: "x64"
+      aarch64: "arm64"
+      arm64: "arm64"
+    filename: "tailwindcss"
+    build_step:
+      input_css: "src/kinetiqo/web/static/css/tailwind.input.css"
+      output_css: "src/kinetiqo/web/static/css/tailwind.css"
+      vendor_css: "src/kinetiqo/web/static/vendor/tailwind/tailwind.css"
+      minify: true
+
+libraries:
+  - id: "tailwind"
+    name: "Tailwind CSS Standalone JS"
+    target_dir: "tailwind"
+    version: "3.4.1"
+    files:
+      - filename: "tailwind.js"
+        url: "https://cdn.tailwindcss.com"
+
+  - id: "htmx"
+    name: "HTMX"
+    target_dir: "htmx"
+    version: "2.0.10"
+    files:
+      - filename: "htmx-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/htmx.org@{version}/dist/htmx.min.js"
+
+  - id: "jquery"
+    name: "jQuery"
+    target_dir: "jquery"
+    version: "3.7.1"
+    files:
+      - filename: "jquery-{version}.min.js"
+        url: "https://code.jquery.com/jquery-{version}.min.js"
+
+  - id: "leaflet"
+    name: "Leaflet.js"
+    target_dir: "leaflet"
+    version: "1.9.4"
+    files:
+      - filename: "leaflet-{version}.css"
+        url: "https://unpkg.com/leaflet@{version}/dist/leaflet.css"
+      - filename: "leaflet-{version}.min.js"
+        url: "https://unpkg.com/leaflet@{version}/dist/leaflet.js"
+
+  - id: "chart"
+    name: "Chart.js & Adapters"
+    target_dir: "chartjs"
+    versions:
+      chartjs: "4.5.1"
+      date_fns: "3.0.0"
+      moment: "1.0.1"
+    files:
+      - filename: "chart-{versions.chartjs}.umd.min.js"
+        url: "https://cdn.jsdelivr.net/npm/chart.js@{versions.chartjs}/dist/chart.umd.min.js"
+      - filename: "chartjs-adapter-date-fns-{versions.date_fns}.bundle.min.js"
+        url: "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@{versions.date_fns}/dist/chartjs-adapter-date-fns.bundle.min.js"
+      - filename: "chartjs-adapter-moment-{versions.moment}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@{versions.moment}/dist/chartjs-adapter-moment.min.js"
+
+  - id: "datatables"
+    name: "DataTables & Extensions"
+    target_dir: "datatables"
+    versions:
+      datatables: "2.3.7"
+      buttons: "3.2.6"
+      colreorder: "2.1.2"
+    files:
+      - filename: "dataTables-{versions.datatables}.min.css"
+        url: "https://cdn.datatables.net/{versions.datatables}/css/dataTables.dataTables.min.css"
+      - filename: "dataTables-{versions.datatables}.min.js"
+        url: "https://cdn.datatables.net/{versions.datatables}/js/dataTables.min.js"
+      - filename: "buttons-{versions.buttons}.dataTables.min.css"
+        url: "https://cdn.datatables.net/buttons/{versions.buttons}/css/buttons.dataTables.min.css"
+      - filename: "dataTables.buttons-{versions.buttons}.min.js"
+        url: "https://cdn.datatables.net/buttons/{versions.buttons}/js/dataTables.buttons.min.js"
+      - filename: "buttons.html5-{versions.buttons}.min.js"
+        url: "https://cdn.datatables.net/buttons/{versions.buttons}/js/buttons.html5.min.js"
+      - filename: "colReorder.dataTables-{versions.colreorder}.min.css"
+        url: "https://cdn.datatables.net/colreorder/{versions.colreorder}/css/colReorder.dataTables.min.css"
+      - filename: "dataTables.colReorder-{versions.colreorder}.min.js"
+        url: "https://cdn.datatables.net/colreorder/{versions.colreorder}/js/dataTables.colReorder.min.js"
+
+  - id: "select2"
+    name: "Select2"
+    target_dir: "select2"
+    version: "4.1.0"
+    files:
+      - filename: "select2-{version}.min.css"
+        url: "https://cdn.jsdelivr.net/npm/select2@{version}/dist/css/select2.min.css"
+      - filename: "select2-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/select2@{version}/dist/js/select2.min.js"
+
+  - id: "daterangepicker"
+    name: "Date Range Picker"
+    target_dir: "daterangepicker"
+    version: "3.1.0"
+    files:
+      - filename: "daterangepicker-{version}.css"
+        url: "https://cdn.jsdelivr.net/npm/daterangepicker@{version}/daterangepicker.css"
+      - filename: "daterangepicker-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/daterangepicker@{version}/daterangepicker.min.js"
+
+  - id: "moment"
+    name: "Moment.js"
+    target_dir: "moment"
+    version: "2.30.1"
+    files:
+      - filename: "moment-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/moment@{version}/min/moment.min.js"
+
+  - id: "jszip"
+    name: "JSZip"
+    target_dir: "jszip"
+    version: "3.10.1"
+    files:
+      - filename: "jszip-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/jszip@{version}/dist/jszip.min.js"
+
+  - id: "sortable"
+    name: "SortableJS"
+    target_dir: "sortable"
+    version: "1.15.7"
+    files:
+      - filename: "sortable-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/sortablejs@{version}/Sortable.min.js"
+
+  - id: "html2canvas"
+    name: "html2canvas"
+    target_dir: "html2canvas"
+    version: "1.4.1"
+    files:
+      - filename: "html2canvas-{version}.min.js"
+        url: "https://cdn.jsdelivr.net/npm/html2canvas@{version}/dist/html2canvas.min.js"
+
+  - id: "htmx-ext-sse"
+    name: "HTMX Ext SSE"
+    target_dir: "htmx-ext-sse"
+    version: "2.2.4"
+    files:
+      - filename: "sse.js"
+        url: "https://unpkg.com/htmx-ext-sse@{version}/sse.js"
+
+  - id: "sheetjs"
+    name: "SheetJS (xlsx)"
+    target_dir: "sheetjs"
+    version: "0.20.3"
+    files:
+      - filename: "xlsx.full.min.js"
+        url: "https://cdn.sheetjs.com/xlsx-{version}/package/dist/xlsx.full.min.js"

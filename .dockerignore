@@ -17,6 +17,7 @@ __pycache__/
 tests/
 development/
 dashboards/
+promo-web/
 
 # Documentation
 README.md
@@ -27,3 +28,5 @@ kinetiqo-activities-map.json
 build/
 !build/Dockerfile
 !build/entrypoint.sh
+
+src/kinetiqo/web/posters-cache
