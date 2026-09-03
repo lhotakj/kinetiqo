@@ -92,7 +92,7 @@ def get_power_zone_name(pct_ftp: float) -> str:
         return "Anaerobic"
 
 
-def _detect_blocks(watts_stream: List[float], time_stream: Optional[List[float]], ftp: float, overall_avg_w: float = 0.0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def _detect_blocks(watts_stream: List[float], _time_stream: Optional[List[float]], ftp: float, overall_avg_w: float = 0.0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Detect sustained blocks (5-20 min in Z3+) and short surges (1-3 min in Z4+) from watts stream.
 
     Returns (sustained_blocks, short_surges).
@@ -272,8 +272,8 @@ def format_peaks_highlight(peaks: List[Dict[str, Any]], max_shown: int = PEAK_MA
 def generate_workout_summary(
     activity: Dict[str, Any],
     watts_stream: Optional[List[float]] = None,
-    time_stream: Optional[List[float]] = None,
-    hr_stream: Optional[List[float]] = None,
+    _time_stream: Optional[List[float]] = None,
+    _hr_stream: Optional[List[float]] = None,
     ftp: Optional[float] = None,
     peak_threshold_w: Optional[float] = None
 ) -> str:

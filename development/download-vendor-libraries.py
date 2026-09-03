@@ -196,7 +196,6 @@ def download_tailwind_cli(
 def build_tailwind_css(
     build_cfg: dict[str, Any],
     binary_path: Path,
-    verbose: bool = False,
 ) -> bool:
     """Execute the Tailwind CLI to compile input CSS to minified output CSS."""
     input_css = _REPO_ROOT / build_cfg["input_css"]
@@ -324,7 +323,7 @@ def main() -> int:
             tw_cli_binary = download_tailwind_cli(tw_cfg, force=args.force, verbose=args.verbose)
 
             if "build_step" in tw_cfg and not args.skip_build:
-                build_tailwind_css(tw_cfg["build_step"], tw_cli_binary, verbose=args.verbose)
+                build_tailwind_css(tw_cfg["build_step"], tw_cli_binary)
 
     # If only targeting tailwind-cli, exit early
     if target_lib_filter in ("tailwind-cli", "tailwind_cli"):
