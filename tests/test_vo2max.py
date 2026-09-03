@@ -170,7 +170,12 @@ def _setup_app(cfg):
     # Clear the power cache so results from a previous test don't leak.
     _power_cache.invalidate()
     client = app.test_client()
-    client.post('/login', data={'username': 'admin', 'password': 'admin123'})
+    # Log in by setting session directly to avoid CSRF token issues in tests.
+    from kinetiqo.web.auth import users
+    username = next(iter(users))
+    with client.session_transaction() as sess:
+        sess['_user_id'] = username
+        sess['_fresh'] = True
     return client
 
 

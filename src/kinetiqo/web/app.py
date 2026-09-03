@@ -564,14 +564,6 @@ def login():
 
     return render_template('login.html', current_year=datetime.now().year)
 
-# Exempt the login route from CSRF checks to allow test helpers to POST without fetching a token.
-# This is safe for tests and acceptable since login CSRF risk is low; the full application
-# should still protect other forms and API endpoints.
-if csrf is not None:
-    try:
-        csrf.exempt(login)
-    except Exception:
-        pass
 
 
 @app.route('/logout', methods=['POST'])
