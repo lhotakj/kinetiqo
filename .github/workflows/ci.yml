@@ -30,6 +30,10 @@ jobs:
           pip install pytest
         shell: bash
 
-      - name: Run tests
-        run: pytest -o pythonpath=src -q
+      - name: Make tests script executable
+        run: chmod +x development/run-unit-tests.sh
+        shell: bash
+
+      - name: Run unit tests
+        run: development/run-unit-tests.sh
         shell: bash
