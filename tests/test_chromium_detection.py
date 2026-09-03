@@ -101,7 +101,7 @@ def test_chromium_detection():
     except ImportError:
         print("      ✗ Playwright not installed")
         print("        Run: pip install playwright")
-        return False
+        assert False, 'Playwright is not installed'
 
     print("\n[3/4] Testing Chromium launch scenarios...")
 
@@ -116,7 +116,7 @@ def test_chromium_detection():
                 print(f"      ✓ Launched successfully (version: {version})")
         except Exception as e:
             print(f"      ✗ Failed: {e}")
-            return False
+            assert False, f'System Chromium scenario failed: {e}'
 
     # Scenario 2: Playwright bundled Chromium
     print("\n      [Scenario 2] Playwright bundled Chromium (default)")
@@ -128,7 +128,7 @@ def test_chromium_detection():
             print(f"      ✓ Launched successfully (version: {version})")
     except Exception as e:
         print(f"      ✗ Failed: {e}")
-        return False
+        assert False, f'Playwright bundled scenario failed: {e}'
 
     print("\n[4/4] Testing combined detection logic...")
     try:
@@ -153,7 +153,7 @@ def test_chromium_detection():
 
     except Exception as e:
         print(f"      ✗ Combined detection failed: {e}")
-        return False
+        assert False, f'Combined detection failed: {e}'
 
     print("\n" + "="*80)
     print("  ✓ All tests passed! Chromium detection working correctly.")
@@ -163,13 +163,17 @@ def test_chromium_detection():
     print("    • Playwright-installed headless chromium")
     print("    • Playwright-installed chromium (bundled)")
     print("="*80 + "\n")
-    return True
+    # Test should not return a value; exit code logic handled below when run as script
+    return None
 
 
 if __name__ == '__main__':
     try:
-        success = test_chromium_detection()
-        sys.exit(0 if success else 1)
+        test_chromium_detection()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"\n✗ Test failed: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"\n✗ Unexpected error: {e}")
         import traceback

@@ -148,6 +148,8 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 4. Follow accessibility (S6853) and XSS (S5725) rules.
 5. Write mocked unit tests in `tests/test_feature.py`.
 
+IMPORTANT: Any new feature, endpoint, CLI command, or public API change MUST include corresponding unit tests. Pull requests that add or modify functionality without appropriate tests will be returned for coverage before merging.
+
 ### Update the Database Interface
 1. Add abstract methods to `DatabaseRepository` (`db/repository.py`).
 2. Implement parameterized raw SQL in `postgresql.py`, `mysql.py`, and `firebird.py`.
