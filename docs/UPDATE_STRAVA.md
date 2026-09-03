@@ -125,12 +125,26 @@ Every placeholder has the shape:
 | `{{current-year}}` | The 4-digit year of the activity being synced (e.g. `2026`). |
 | `{{current-month}}` | The full month name of the activity being synced (e.g. `July`). |
 | `{{new-line}}` | A literal line break (`\n`) — Strava descriptions don't render Markdown, so use this instead of a raw newline in your `UPDATE_STRAVA_*` env var. |
-| `{{workout-summary}}` | Inserts a RestOrTrain-style workout summary (e.g. `Endurance | 120min @ 191W`, `Tempo | 120min @ 224W`, `Endurance | 45min @ 195W + 2min @ 244W`, `Endurance | 4h @ 209W normalized (74% FTP), with 10-15min blocks @ 220-243W (78-86%)`, or HR fallback `Endurance | About 2h30m aerobic riding @ 125bpm average HR`). |
+| `{{workout-summary}}` | Inserts a RestOrTrain-style workout summary (e.g. `Endurance | 120min @ 191W`, `Tempo | 120min @ 224W`, `Endurance | 49min @ 150W + peak 2min @360-400W`, `Endurance | 90min @ 180W + 3x surges 1-2min @360-400W`, `Endurance | 4h @ 209W normalized (74% FTP), with 10-15min blocks @ 220-243W (78-86%)`, or HR fallback `Endurance | About 2h30m aerobic riding @ 125bpm average HR`). Significant high-watt peaks (≥1min) are highlighted as best moments — see [Peak highlights](#peak-highlights-in-workout-summary). |
 
 Any placeholder that doesn't match this grammar, or references data that can't
 be resolved (e.g. no goal configured, running with a `goal`/`percent`/`deviation`
 modifier since only cycling & walking support goals), resolves to an **empty
 string** and logs a `WARNING` explaining why — it never breaks the render.
+
+### Peak highlights in `{{workout-summary}}`
+
+When an activity's watts stream contains **significant high-watt peaks** —
+sustained efforts of at least 1 minute at or above the peak threshold — the
+summary appends the best ones so the ride's standout moments are visible at a
+glance: one peak renders as `… + peak 2min @360-400W`, several as
+`… + 3x surges 1-2min @360-400W` (the best 3 by avg watts, `3+` when there
+were more). The threshold is the **higher** of an absolute watt floor
+(`300 W` by default, configurable via `WORKOUT_SUMMARY_PEAK_THRESHOLD_W`)
+and `110%` of your configured FTP. Brief drops below the threshold shorter
+than 20 seconds don't split a peak, and peaks shorter than 1 minute are
+never highlighted. Peaks fully contained in an already-reported sustained
+block are not repeated.
 
 ## Metric reference
 

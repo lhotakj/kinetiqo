@@ -88,5 +88,39 @@ class TestWorkoutSummary(unittest.TestCase):
         self.assertIn("Endurance | 120min @ 191W", rendered)
 
 
+
+    def test_generate_workout_summary_highlights_single_peak(self):
+        """A sustained 2-min surge well above the threshold is highlighted."""
+        activity = {"moving_time": 3600, "average_watts": 180.0}
+        watts_stream = [180.0] * 3600
+        for i in range(600, 720):
+            watts_stream[i] = 380.0
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertIn("Endurance", res)
+        self.assertIn("+ peak 2min @380W", res)
+
+    def test_generate_workout_summary_highlights_multiple_peaks(self):
+        """Several surges above the threshold are highlighted as 'Nx surges'."""
+        activity = {"moving_time": 5400, "average_watts": 180.0}
+        watts_stream = [180.0] * 5400
+        for start, watts in ((600, 360.0), (1800, 380.0), (3000, 400.0)):
+            for i in range(start, start + 90):
+                watts_stream[i] = watts
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertIn("3x surges", res)
+        self.assertIn("@360-400W", res)
+
+    def test_generate_workout_summary_no_peaks_below_threshold_or_too_short(self):
+        """Sub-threshold or sub-minute efforts are not highlighted."""
+        activity = {"moving_time": 3600, "average_watts": 180.0}
+        watts_stream = [180.0] * 3600
+        for i in range(600, 645):   # 45s — too short
+            watts_stream[i] = 380.0
+        for i in range(1200, 1320):  # below the 300W floor / 110% FTP
+            watts_stream[i] = 280.0
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertNotIn("peak", res)
+        self.assertNotIn("surges", res)
+
 if __name__ == "__main__":
     unittest.main()

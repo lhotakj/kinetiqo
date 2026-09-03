@@ -128,6 +128,11 @@ class Config:
     # the default with a logged warning (see __post_init__).
     update_strava_placement: str = (os.getenv("UPDATE_STRAVA_PLACEMENT", DEFAULT_UPDATE_STRAVA_PLACEMENT) or DEFAULT_UPDATE_STRAVA_PLACEMENT).strip().lower()
 
+    # Absolute watt floor for highlighting high-watt peaks in the
+    # {{workout-summary}} placeholder (see docs/UPDATE_STRAVA.md). The
+    # effective threshold is the higher of this value and 110% of FTP.
+    workout_summary_peak_threshold_w: float = 300.0
+
     def __post_init__(self):
         """Post-initialization to coerce and validate environment values.
 
@@ -208,6 +213,18 @@ class Config:
                 self.update_strava_placement, UPDATE_STRAVA_PLACEMENT, DEFAULT_UPDATE_STRAVA_PLACEMENT,
             )
             self.update_strava_placement = DEFAULT_UPDATE_STRAVA_PLACEMENT
+
+        self.workout_summary_peak_threshold_w = 300.0
+        raw_peak_threshold = os.getenv("WORKOUT_SUMMARY_PEAK_THRESHOLD_W")
+        if raw_peak_threshold:
+            try:
+                val = float(raw_peak_threshold)
+                if val > 0:
+                    self.workout_summary_peak_threshold_w = val
+                else:
+                    logger.warning("Environment variable WORKOUT_SUMMARY_PEAK_THRESHOLD_W=%r should be a positive number (watts) — falling back to the default (300).", raw_peak_threshold)
+            except ValueError:
+                logger.warning("Environment variable WORKOUT_SUMMARY_PEAK_THRESHOLD_W=%r should be a number (watts) — falling back to the default (300).", raw_peak_threshold)
 
         gps_simp_env = os.getenv("GPS_SIMPLIFICATION") or os.getenv("GPS_SIMPLIFICATION_LEVEL")
         if gps_simp_env is not None and gps_simp_env.strip():

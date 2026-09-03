@@ -593,7 +593,9 @@ class DescriptionContext:
                 except Exception as e:
                     logger.warning(f"UPDATE_STRAVA: failed to fetch watts stream for workout-summary: {e}")
 
-            return generate_workout_summary(act_obj, watts_stream=watts_stream, ftp=athlete_ftp)
+            peak_threshold_w = getattr(self.config, "workout_summary_peak_threshold_w", None)
+            return generate_workout_summary(act_obj, watts_stream=watts_stream, ftp=athlete_ftp,
+                                            peak_threshold_w=peak_threshold_w)
 
         parsed = _parse_placeholder(token)
         if parsed is None:
