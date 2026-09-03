@@ -64,7 +64,7 @@ class TestDownloadVendorLibraries(unittest.TestCase):
     def test_format_template_str_versions_dict(self):
         """Test template substitution with multiple versions dictionary."""
         template = "chartjs-adapter-moment-{versions.moment}.min.js"
-        versions = {"chartjs": "4.4.1", "moment": "1.0.1"}
+        versions = {"chartjs": "4.5.1", "moment": "1.0.1"}
         result = dvl.format_template_str(template, version=None, versions=versions)
         self.assertEqual(result, "chartjs-adapter-moment-1.0.1.min.js")
 

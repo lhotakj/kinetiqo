@@ -27,9 +27,7 @@
     </script>
 
     <script src="{{ url_for('static', filename='vendor/htmx/htmx-2.0.10.min.js', v=app_version) }}"></script>
-    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"
-            integrity="sha384-fw+eTlCc7suMV/1w/7fr2/PmwElUIt5i82bi+qTiLXvjRXZ2/FkiTNA/w0MhXnGI"
-            crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='vendor/htmx-ext-sse/sse.js', v=app_version) }}" integrity="sha384-fw+eTlCc7suMV/1w/7fr2/PmwElUIt5i82bi+qTiLXvjRXZ2/FkiTNA/w0MhXnGI" crossorigin="anonymous"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables/dataTables-2.3.7.min.css', v=app_version) }}">
     <script src="{{ url_for('static', filename='vendor/jquery/jquery-3.7.1.min.js', v=app_version) }}"></script>

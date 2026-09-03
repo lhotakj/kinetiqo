@@ -72,7 +72,7 @@ libraries:
     name: "Chart.js & Adapters"
     target_dir: "chartjs"
     versions:
-      chartjs: "4.4.1"
+      chartjs: "4.5.1"
       date_fns: "3.0.0"
       moment: "1.0.1"
     files:
@@ -145,7 +145,7 @@ libraries:
   - id: "sortable"
     name: "SortableJS"
     target_dir: "sortable"
-    version: "1.15.0"
+    version: "1.15.7"
     files:
       - filename: "sortable-{version}.min.js"
         url: "https://cdn.jsdelivr.net/npm/sortablejs@{version}/Sortable.min.js"
@@ -157,3 +157,19 @@ libraries:
     files:
       - filename: "html2canvas-{version}.min.js"
         url: "https://cdn.jsdelivr.net/npm/html2canvas@{version}/dist/html2canvas.min.js"
+
+  - id: "htmx-ext-sse"
+    name: "HTMX Ext SSE"
+    target_dir: "htmx-ext-sse"
+    version: "2.2.4"
+    files:
+      - filename: "sse.js"
+        url: "https://unpkg.com/htmx-ext-sse@{version}/sse.js"
+
+  - id: "sheetjs"
+    name: "SheetJS (xlsx)"
+    target_dir: "sheetjs"
+    version: "0.20.3"
+    files:
+      - filename: "xlsx.full.min.js"
+        url: "https://cdn.sheetjs.com/xlsx-{version}/package/dist/xlsx.full.min.js"

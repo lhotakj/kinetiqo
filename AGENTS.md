@@ -53,7 +53,7 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | Frontend CSS | **Tailwind CSS** | v4 CLI (4.3.3) | Compiled to `static/css/tailwind.css` via `download-tailwind.sh` |
 | Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.2 | SSE for sync progress bar |
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
-| Charting | **Chart.js** + **chartjs-adapter-moment** | 4.4.1 / 1.0 | Client-side Canvas rendering |
+| Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
 | CLI | **Click** | 8.4.1 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
 | Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.12 / 9.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |

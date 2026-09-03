@@ -15,9 +15,9 @@
 <script src="{{ url_for('static', filename='vendor/jszip/jszip-3.10.1.min.js', v=app_version) }}"></script>
 <script src="{{ url_for('static', filename='vendor/datatables/buttons.html5-3.2.6.min.js', v=app_version) }}"></script>
 <script src="{{ url_for('static', filename='vendor/datatables/dataTables.colReorder-2.1.2.min.js', v=app_version) }}"></script>
-<script src="{{ url_for('static', filename='vendor/sortable/sortable-1.15.0.min.js', v=app_version) }}"></script>
-<!-- SheetJS for true XLSX export -->
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='vendor/sortable/sortable-1.15.7.min.js', v=app_version) }}"></script>
+<!-- SheetJS for true XLSX export (self-hosted) -->
+<script src="{{ url_for('static', filename='vendor/sheetjs/xlsx.full.min.js', v=app_version) }}" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
 {% endblock %}
 
 {% block content %}

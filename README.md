@@ -177,11 +177,13 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
 5.  **Refresh local frontend vendors (Optional):**
-    The `development` directory contains a unified Python script and YAML config to download all offline frontend vendor assets (HTMX, Leaflet, jQuery, Chart.js, Moment, DataTables, Select2, Date Range Picker, JSZip, SortableJS, html2canvas, Tailwind CSS CLI) into `src/kinetiqo/web/static/vendor/`.
+    The `development` directory contains a unified Python script and YAML config to download all offline frontend vendor assets (HTMX, Leaflet, jQuery, Chart.js, Moment, DataTables, Select2, Date Range Picker, JSZip, SheetJS, SortableJS, html2canvas, Tailwind CSS CLI) into `src/kinetiqo/web/static/vendor/`.
     ```bash
     python development/download-vendor-libraries.py
     ```
-    Pass `--force` to re-download existing files, or `--library <id>` (e.g. `--library htmx`, `--library chart`, `--library tailwind`) to update a specific asset suite. Parameters are defined in `development/vendor-libraries.yaml`.
+    Pass `--force` to re-download existing files, or `--library <id>` (e.g. `--library htmx`, `--library chart`, `--library tailwind`, `--library sheetjs`) to update a specific asset suite. Parameters are defined in `development/vendor-libraries.yaml`.
+
+    Note: New vendor entries "htmx-ext-sse" and "sheetjs" have been added and are served locally. Templates reference these local copies with Subresource Integrity (SRI) attributes and `crossorigin="anonymous"`. To refresh or pin different versions, update `development/vendor-libraries.yaml` and run the downloader.
 
 6.  **Configure Environment Variables:**
     Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
