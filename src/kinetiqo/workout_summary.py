@@ -272,8 +272,8 @@ def format_peaks_highlight(peaks: List[Dict[str, Any]], max_shown: int = PEAK_MA
 def generate_workout_summary(
     activity: Dict[str, Any],
     watts_stream: Optional[List[float]] = None,
-    _time_stream: Optional[List[float]] = None,
-    _hr_stream: Optional[List[float]] = None,
+    time_stream: Optional[List[float]] = None,
+    hr_stream: Optional[List[float]] = None,
     ftp: Optional[float] = None,
     peak_threshold_w: Optional[float] = None
 ) -> str:
