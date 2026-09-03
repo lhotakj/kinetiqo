@@ -94,8 +94,8 @@ def test_ensure_database_creates_on_failure(monkeypatch):
     def fake_create_db(sql):
         created['ok'] = True
 
-    # Ensure firebird.driver.create_database exists
-    monkeypatch.setitem(__import__('sys').modules, 'firebird', types.SimpleNamespace(driver=types.SimpleNamespace(create_database=fake_create_db)))
+    # Ensure firebird.driver.create_database exists by patching the module reference
+    monkeypatch.setattr('kinetiqo.db.firebird.firebird', types.SimpleNamespace(driver=types.SimpleNamespace(create_database=fake_create_db)), raising=False)
 
     # Patch _connect to return a new conn after creation
     new_conn = DummyConn(closed=False, cursor_obj=cursor)

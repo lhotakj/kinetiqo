@@ -132,7 +132,7 @@ class PostgresqlRepository(DatabaseRepository):
                 cur.execute(f"CREATE DATABASE {self.config.postgresql_database}")
                 logger.info(f"Database '{self.config.postgresql_database}' created successfully.")
         except psycopg2.Error as e:
-        logger.exception(f"Could not create database '{self.config.postgresql_database}': {e}")
+            logger.exception(f"Could not create database '{self.config.postgresql_database}': {e}")
             sys.exit(1)
         finally:
             if 'conn_temp' in locals() and conn_temp:
