@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import yaml, json, urllib.request, sys
 from pathlib import Path
-repo_root = Path(__file__).resolve().parent.parent
+repo_root = Path('.').resolve().parent.parent
 cfg_path = repo_root / 'development' / 'vendor-libraries.yaml'
 with open(cfg_path,'r',encoding='utf-8') as f:
     cfg = yaml.safe_load(f)
