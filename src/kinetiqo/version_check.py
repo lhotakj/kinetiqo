@@ -39,7 +39,7 @@ async def get_latest_version() -> str|None:
         CACHE_FILE.write_text(latest_version)
         return latest_version
     except (httpx.RequestError, KeyError) as e:
-        logger.error(f"Failed to fetch latest version from GitHub: {e}")
+        logger.exception(f"Failed to fetch latest version from GitHub: {e}")
         return None
 
 

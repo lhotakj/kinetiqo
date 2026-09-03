@@ -455,7 +455,7 @@ class SyncService:
                 except Exception as e:
                     msg = f"Error syncing activity {activity_id}: {e}"
                     sync_warnings.append(msg)
-                    logger.error(msg)
+                    logger.exception(msg)
                     yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}) — failed: {e}")
                 time.sleep(0.1)
 
@@ -477,7 +477,7 @@ class SyncService:
 
         except Exception as e:
             success = False
-            logger.error(f"Sync failed: {e}", exc_info=True)
+            logger.exception(f"Sync failed: {e}")
             yield yield_log(f"Sync failed: {e}", final=True)
             raise
         finally:
@@ -489,7 +489,7 @@ class SyncService:
                     user
                 )
             except Exception as e:
-                logger.error(f"Failed to write sync log: {e}")
+                logger.exception(f"Failed to write sync log: {e}")
 
 
     def close(self):

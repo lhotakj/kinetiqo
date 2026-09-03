@@ -3089,7 +3089,7 @@ def poster_export(activity_id):
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        logger.error('playwright package is not installed')
+        logger.exception('playwright package is not installed')
         return jsonify({'error': 'playwright is not installed on the server. '
                                  'Run: pip install playwright && playwright install chromium'}), 500
 
@@ -3341,7 +3341,7 @@ def stats_export():
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        logger.error('playwright package is not installed')
+        logger.exception('playwright package is not installed')
         return jsonify({'error': 'playwright is not installed on the server. '
                                  'Run: pip install playwright && playwright install chromium'}), 500
 

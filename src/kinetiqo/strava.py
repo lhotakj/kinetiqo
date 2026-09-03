@@ -281,7 +281,7 @@ class StravaClient:
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Strava athlete request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
                     raise
                 time.sleep(2 ** attempt)
 
@@ -314,7 +314,7 @@ class StravaClient:
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Strava streams request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to fetch streams for {activity_id} after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to fetch streams for {activity_id} after {attempt} attempts: {e}")
                     raise
 
         streams = r.json()
@@ -349,7 +349,7 @@ class StravaClient:
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Strava activity detail request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to fetch activity detail for {activity_id} after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to fetch activity detail for {activity_id} after {attempt} attempts: {e}")
                     raise
                 time.sleep(2 ** attempt)
 
@@ -388,7 +388,7 @@ class StravaClient:
                 break
             except requests.exceptions.HTTPError as e:
                 if e.response is not None and e.response.status_code == 401:
-                    logger.error(
+                    logger.exception(
                         "UPDATE_STRAVA: 401 Unauthorized updating description for activity %s — "
                         "the stored Strava refresh token most likely lacks the 'activity:write' scope "
                         "(reads work, writes don't). Reconnect via Settings -> Reconnect with Strava to "
@@ -398,13 +398,13 @@ class StravaClient:
                     raise
                 logger.warning(f"Strava update-description request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
                     raise
                 time.sleep(2 ** attempt)
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Strava update-description request failed (attempt {attempt}): {e}")
                 if attempt > self.request_retries:
-                    logger.error(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
+                    logger.exception(f"Failed to update description for {activity_id} after {attempt} attempts: {e}")
                     raise
                 time.sleep(2 ** attempt)
 

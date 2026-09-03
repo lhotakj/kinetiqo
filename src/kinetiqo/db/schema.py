@@ -564,7 +564,7 @@ class SchemaManager:
                 )
                 return True
             else:
-                logger.error(
+                logger.exception(
                     f"{self.db_type.upper()}: Failed to create index '{idx_name}' on '{table_name}': {e}"
                 )
                 return False
@@ -676,7 +676,7 @@ class SchemaManager:
             if self._table_exists(table_name):
                 logger.info(f"{self.db_type.upper()}: Table '{table_name}' already exists.")
             else:
-                logger.error(f"{self.db_type.upper()}: Failed to create table '{table_name}': {e}")
+                logger.exception(f"{self.db_type.upper()}: Failed to create table '{table_name}': {e}")
                 raise
         finally:
             cur.close()

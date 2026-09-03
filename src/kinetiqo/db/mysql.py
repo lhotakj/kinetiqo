@@ -90,10 +90,10 @@ class MySQLRepository(DatabaseRepository):
                         logger.exception(str(e))
                         raise
                 else:
-                    logger.error(str(err))
+                    logger.exception(str(err))
                     raise
             except (ValueError, TypeError) as err:
-                logger.error(str(err))
+                logger.exception(str(err))
                 raise
 
         conn.autocommit = True

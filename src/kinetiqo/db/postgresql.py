@@ -56,7 +56,7 @@ class PostgresqlRepository(DatabaseRepository):
                 self._create_database()
                 self.conn = self._connect()
             else:
-                logger.error(
+                logger.exception(
                     f"Failed to connect to PostgreSQL at {config.postgresql_host}:{config.postgresql_port}: {e}")
                 sys.exit(1)
 
@@ -121,7 +121,7 @@ class PostgresqlRepository(DatabaseRepository):
                             pass
                 self.conn = self._connect()
             except Exception as e:
-                logger.error(f"Failed to reconnect to PostgreSQL: {e}")
+                logger.exception(f"Failed to reconnect to PostgreSQL: {e}")
                 raise
 
     def _create_database(self):
@@ -132,7 +132,7 @@ class PostgresqlRepository(DatabaseRepository):
                 cur.execute(f"CREATE DATABASE {self.config.postgresql_database}")
                 logger.info(f"Database '{self.config.postgresql_database}' created successfully.")
         except psycopg2.Error as e:
-            logger.error(f"Could not create database '{self.config.postgresql_database}': {e}")
+        logger.exception(f"Could not create database '{self.config.postgresql_database}': {e}")
             sys.exit(1)
         finally:
             if 'conn_temp' in locals() and conn_temp:
@@ -178,7 +178,7 @@ class PostgresqlRepository(DatabaseRepository):
 
                 return True
         except Exception as e:
-            logger.error(f"Flight check failed: {e}")
+            logger.exception(f"Flight check failed: {e}")
             return False
 
     def get_latest_activity_time(self) -> Optional[int]:

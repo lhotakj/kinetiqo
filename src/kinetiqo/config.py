@@ -156,7 +156,7 @@ class Config:
             try:
                 self.postgresql_port = int(os.getenv("POSTGRESQL_PORT"))
             except ValueError:
-                logger.error("Environment variable POSTGRESQL_PORT should be a number")
+                logger.exception("Environment variable POSTGRESQL_PORT should be a number")
                 sys.exit(1)
 
         self.mysql_host = os.getenv("MYSQL_HOST")
@@ -169,7 +169,7 @@ class Config:
             try:
                 self.mysql_port = int(os.getenv("MYSQL_PORT"))
             except ValueError:
-                logger.error("Environment variable MYSQL_PORT should be a number")
+                logger.exception("Environment variable MYSQL_PORT should be a number")
                 sys.exit(1)
 
         self.firebird_host = os.getenv("FIREBIRD_HOST")
@@ -181,14 +181,14 @@ class Config:
             try:
                 self.firebird_port = int(os.getenv("FIREBIRD_PORT"))
             except ValueError:
-                logger.error("Environment variable FIREBIRD_PORT should be a number")
+                logger.exception("Environment variable FIREBIRD_PORT should be a number")
                 sys.exit(1)
 
         if os.getenv("ATHLETE_WEIGHT"):
             try:
                 self.athlete_weight = float(os.getenv("ATHLETE_WEIGHT"))
             except ValueError:
-                logger.error("Environment variable ATHLETE_WEIGHT should be a number (kg)")
+                logger.exception("Environment variable ATHLETE_WEIGHT should be a number (kg)")
                 sys.exit(1)
 
         self.mapy_api_key = os.getenv("MAPY_API_KEY", "")
