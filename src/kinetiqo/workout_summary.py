@@ -256,8 +256,8 @@ def format_peaks_highlight(peaks: List[Dict[str, Any]], max_shown: int = PEAK_MA
         return f"{max(1, int(round(seconds / 60)))}min"
 
     shown = peaks[:max_shown]
-    min_w = round(min(p["min_w"] for p in shown))
-    max_w = round(max(p["max_w"] for p in shown))
+    min_w = round(min(p["avg_w"] for p in shown))
+    max_w = round(max(p["avg_w"] for p in shown))
     w_str = f"{min_w}W" if min_w == max_w else f"{min_w}-{max_w}W"
     if len(peaks) == 1:
         return f" + peak {_fmt_peak_min(shown[0]['duration_s'])} @{w_str}"

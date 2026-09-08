@@ -16,7 +16,7 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **FTP & VO₂max Estimation**: 95% 20-min power history and Townsend 5-min MAP power trend analysis.
 - **Activity Goals**: Weekly, monthly, and yearly distance/elevation goals per activity type.
 - **MEGA Stats Infographic**: Infographic with selectable period/activity groups, persisted font size, left-column width, most active month by distance & elevation metrics, and custom date formatting.
-- **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, and Playwright-powered PNG export.
+- **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, background photo mode (with clear image option) or interactive Leaflet map mode (tile provider selection, map opacity control, route line color/opacity/weight), collapsible control boxes with element checkboxes, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), and configurable placement (`begin`/`end`).
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
 - **Security & Performance**: Session auth (`flask-login`), CSRF validation (`flask-wtf`), response compression (`flask-compress`), self-hosted base fonts, and compiled Tailwind CSS.

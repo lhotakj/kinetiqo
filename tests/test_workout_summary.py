@@ -122,5 +122,26 @@ class TestWorkoutSummary(unittest.TestCase):
         self.assertNotIn("peak", res)
         self.assertNotIn("surges", res)
 
+    def test_generate_workout_summary_surges_use_average_watts_not_sample_spikes(self):
+        """Surges with 0W dropouts or high single-sample spikes use average power, not min/max sample range."""
+        activity = {"moving_time": 3480, "average_watts": 180.0}
+        watts_stream = [180.0] * 3480
+        # Surge 1 (70s): avg ~ 350W, but contains 0W dropout and 663W spike
+        for i in range(600, 670):
+            watts_stream[i] = 350.0
+        watts_stream[610] = 0.0
+        watts_stream[620] = 663.0
+
+        # Surge 2 (70s): avg ~ 370W
+        for i in range(1800, 1870):
+            watts_stream[i] = 370.0
+
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertIn("2x surges", res)
+        self.assertNotIn("0-", res)
+        self.assertNotIn("663", res)
+        self.assertIn("@349-370W", res)
+
+
 if __name__ == "__main__":
     unittest.main()

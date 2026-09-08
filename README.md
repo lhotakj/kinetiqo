@@ -62,7 +62,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 
 - 📊 **Advanced Visualization**: A streamlined web interface for daily monitoring and comprehensive Grafana dashboards for in-depth analysis.
 - 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year/period statistics with activity calendar heatmaps, selectable by year, half-year, quarter, and activity type. Includes metrics for Most Active Month by Distance and Most Active Month by Elevation. The left stats column width, title font size, visible stat toggles, and activity group are persisted in the browser, and the displayed dates follow `DATE_FORMAT`. Export as PNG or PDF.
-- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation chart, and Playwright-powered PNG export at exact pixel dimensions.
+- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation chart, background photo support with clear image option, interactive Leaflet activity track map background mode (with tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element visibility toggles, and Playwright-powered PNG export at exact pixel dimensions.
 - ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s to 1h) with a spider chart, selectable per-activity or aggregated.
 - 🏋️ **FTP Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data, with a per-ride history chart.
 - 🫁 **VO₂max Estimation**: Estimates your VO₂max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
@@ -100,7 +100,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
 | `/vo2max` | VO₂max | VO₂max estimation from 5-min MAP power with trend and classification |
 | `/stats` | MEGA Stats | Veloviewer-style infographic of year/period stats with activity calendar heatmap, configurable stats column width, and date formatting via `DATE_FORMAT` |
-| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), and aspect ratios (4:3, 16:9, 1:1). WYSIWYG preview, elevation chart, background photo support |
+| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), collapsible control sections, background image (with Strava reload, upload, clear) or interactive Leaflet map mode (tile provider, map opacity, line styling), elevation chart, and Playwright PNG export |
 | `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
 | `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |

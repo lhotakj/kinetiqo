@@ -2916,7 +2916,7 @@ def poster(activity_id):
         flash("Activity not found.")
         return redirect(url_for('activities'))
 
-    return render_template('poster.html', title="Activity Poster", activity=activity)
+    return render_template('poster.html', title="Activity Poster", activity=activity, tile_providers=_build_tile_providers())
 
 
 @app.route('/api/poster/photo/<activity_id>', methods=['GET'])
@@ -3246,6 +3246,17 @@ def poster_export(activity_id):
                 "  var img = document.getElementById('posterBg');"
                 "  if (!img) return true;"
                 "  return img.complete;"  # true for both loaded and errored
+                "})()",
+                timeout=15_000
+            )
+
+            # ── Wait for the background map (if map mode selected) ────────────
+            page.wait_for_function(
+                "(function() {"
+                "  var s = JSON.parse(localStorage.getItem('poster_settings_v2') || '{}');"
+                "  if (s.bgType !== 'map') return true;"
+                "  var mapEl = document.getElementById('posterMap');"
+                "  return mapEl && (mapEl.querySelector('.leaflet-tile') !== null || mapEl._fetchedActivityId !== undefined);"
                 "})()",
                 timeout=15_000
             )

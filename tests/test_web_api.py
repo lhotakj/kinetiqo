@@ -53,3 +53,42 @@ def test_elevation_from_strava(monkeypatch):
     data = resp.get_json()
     assert data['distance'] == [5, 6]
     assert data['altitude'] == [50, 60]
+
+
+def test_poster_page_controls(monkeypatch):
+    app.config['LOGIN_DISABLED'] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['_user_id'] = 'admin'
+
+    class PosterDummyRepo(DummyRepo):
+        def get_activities_by_ids(self, activity_ids):
+            return [{'id': activity_ids[0], 'name': 'Morning Ride', 'distance': 10000}]
+
+    dummy_repo = PosterDummyRepo()
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: dummy_repo)
+
+    resp = client.get('/poster/789')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'id="boxVisible_title"' in html
+    assert 'id="boxVisible_stats"' in html
+    assert 'id="boxVisible_elevation"' in html
+    assert 'data-box-id="boxTitle"' in html
+    assert 'data-box-id="boxStats"' in html
+    assert 'data-box-id="boxElevation"' in html
+    assert 'data-box-id="posterSize"' in html
+    assert 'data-box-id="background"' in html
+    assert 'id="bgTypeSelect"' in html
+    assert 'Poster content' in html
+    assert 'id="bgColor"' in html
+    assert 'id="clearImageBtn"' in html
+    assert 'id="mapProviderSelect"' in html
+    assert 'id="mapOpacity"' in html
+    assert 'id="mapLineColor"' in html
+    assert 'id="mapLineOpacity"' in html
+    assert 'id="mapLineWidth"' in html
+    assert 'id="posterMap"' in html
+
+
+

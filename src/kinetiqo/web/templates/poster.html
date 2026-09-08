@@ -5,6 +5,9 @@
 {% include "_npm_chartjs.html" %}
 <!-- NOSONAR: Google Fonts CDN used intentionally; SRI pins the exact stylesheet response -->
 <link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
+<!-- Leaflet CSS & JS for Poster Map mode -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.css', v=app_version) }}">
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.min.js', v=app_version) }}"></script>
 <style>
     .poster-container {
         position: relative;
@@ -13,6 +16,11 @@
         max-width: 2048px;
         box-sizing: border-box;
         border-radius: 0 !important;
+    }
+    .poster-map .leaflet-container img,
+    #posterMap img {
+        max-width: none !important;
+        max-height: none !important;
     }
     .poster-container * {
         margin: 0;
@@ -190,8 +198,27 @@
     }
     .control-box h4 {
         font-weight: 600;
-        margin-bottom: 8px;
+        margin-bottom: 0;
         font-size: 0.875rem;
+    }
+    .control-box-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+        margin-bottom: 8px;
+    }
+    .control-box-header .chevron-icon {
+        width: 16px;
+        height: 16px;
+        transition: transform 0.2s ease;
+    }
+    .control-box-header.collapsed .chevron-icon {
+        transform: rotate(-90deg);
+    }
+    .control-box-body.collapsed {
+        display: none !important;
     }
     .control-row {
         display: flex;
@@ -221,157 +248,256 @@
         <div class="flex gap-2 mb-4 flex-wrap">
             <button id="resetStylesBtn" class="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm font-medium transition h-10">Reset Styles</button>
             <button id="resetLayoutBtn" class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium transition h-10">Reset Layout</button>
-            <button id="savePngBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition">Save as PNG</button>
-            <button id="loadStravaBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition">Load from Strava</button>
-            <label class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer">
-                Upload Image
-                <input type="file" id="uploadInput" accept=".png,.jpg,.jpeg,.heic,.heif" class="hidden">
-            </label>
+            <button id="savePngBtn" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition h-10">Save as PNG</button>
         </div>
 
         <!-- Poster Size -->
         <div class="control-box">
-            <h4>Poster Size</h4>
-            <div class="control-row">
-                <label for="posterSize">Width</label>
-                <select id="posterSize" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="800">XS (width 800px)</option>
-                    <option value="1024">S (width 1024px)</option>
-                    <option value="1280">M (width 1280px)</option>
-                    <option value="1440">L (width 1440px)</option>
-                    <option value="1600">XL (width 1600px)</option>
-                    <option value="1920">XXL (width 1920px)</option>
-                    <option value="2048">XXXL (width 2048px)</option>
-                </select>
+            <div class="control-box-header" data-box-id="posterSize">
+                <h4 class="text-gray-900 dark:text-gray-100">Poster Size</h4>
+                <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Poster Size section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <label for="ratioSelect">Ratio</label>
-                <select id="ratioSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="4/3">4:3 (Standard)</option>
-                    <option value="16/9">16:9 (Wide)</option>
-                    <option value="1/1">1:1 (Square)</option>
-                </select>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="posterSize">Width</label>
+                    <select id="posterSize" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="800">XS (width 800px)</option>
+                        <option value="1024">S (width 1024px)</option>
+                        <option value="1280">M (width 1280px)</option>
+                        <option value="1440">L (width 1440px)</option>
+                        <option value="1600">XL (width 1600px)</option>
+                        <option value="1920">XXL (width 1920px)</option>
+                        <option value="2048">XXXL (width 2048px)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="ratioSelect">Ratio</label>
+                    <select id="ratioSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="4/3">4:3 (Standard)</option>
+                        <option value="16/9">16:9 (Wide)</option>
+                        <option value="1/1">1:1 (Square)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="posterDimensions">Dimensions</label>
+                    <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Poster dimensions: — × —</div>
+                </div>
             </div>
-            <div class="control-row">
-                <label for="posterDimensions">Dimensions</label>
-                <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Poster dimensions: — × —</div>
+        </div>
+
+        <!-- Background Controls -->
+        <div class="control-box">
+            <div class="control-box-header" data-box-id="background">
+                <h4 class="text-gray-900 dark:text-gray-100">Background</h4>
+                <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Background section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="bgTypeSelect">Poster content</label>
+                    <select id="bgTypeSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="image">Image</option>
+                        <option value="map">Map</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="bgColor">Background Color</label>
+                    <input type="color" id="bgColor" value="#333333" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+
+                <!-- Image Controls -->
+                <div id="imageControlsContainer">
+                    <div class="flex gap-2 mt-3 flex-wrap">
+                        <button id="loadStravaBtn" class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition flex-1 text-center">Load from Strava</button>
+                        <label class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer flex-1 text-center">
+                            Upload Image
+                            <input type="file" id="uploadInput" accept=".png,.jpg,.jpeg,.heic,.heif" class="hidden">
+                        </label>
+                        <button id="clearImageBtn" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition flex-1 text-center">Clear Image</button>
+                    </div>
+                </div>
+
+                <!-- Map Controls -->
+                <div id="mapControlsContainer" style="display:none;">
+                    <div class="control-row">
+                        <label for="mapProviderSelect">Map Style</label>
+                        <select id="mapProviderSelect" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                            {% if tile_providers %}
+                                {% for key, provider in tile_providers.items() %}
+                                    <option value="{{ key }}">{{ provider.name }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="openstreetmap">OpenStreetMap</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="control-row">
+                        <label for="mapOpacity">Map Opacity</label>
+                        <input type="range" id="mapOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="mapOpacityVal" class="text-xs w-8">100%</span>
+                    </div>
+                    <div class="control-row">
+                        <label for="mapLineColor">Line Color</label>
+                        <input type="color" id="mapLineColor" value="#38bdf8" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                    </div>
+                    <div class="control-row">
+                        <label for="mapLineOpacity">Line Opacity</label>
+                        <input type="range" id="mapLineOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="mapLineOpacityVal" class="text-xs w-8">100%</span>
+                    </div>
+                    <div class="control-row">
+                        <label for="mapLineWidth">Line Width</label>
+                        <input type="range" id="mapLineWidth" min="1" max="20" value="4" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="mapLineWidthVal" class="text-xs w-8">4px</span>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Activity Name Controls -->
         <div class="control-box">
-            <h4>Activity Name</h4>
-            <div class="control-row">
-                <label for="titleFont">Font</label>
-                <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    {% include "_font_options.html" %}
-                </select>
+            <div class="control-box-header" data-box-id="boxTitle">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="boxVisible_title" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Activity Name on poster">
+                    <h4 class="text-gray-900 dark:text-gray-100">Activity Name</h4>
+                </div>
+                <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Activity Name section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <label for="titleAlign">Text Align</label>
-                <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="left">Left</option>
-                    <option value="center">Center</option>
-                    <option value="right">Right</option>
-                </select>
-            </div>
-            <div class="control-row">
-                <label for="titleStyle">Font Style</label>
-                <select id="titleStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="normal">Normal</option>
-                    <option value="italic">Italic</option>
-                    <option value="bold">Bold</option>
-                    <option value="bolditalic">Bold Italic</option>
-                </select>
-            </div>
-            <div class="control-row">
-                <label for="titleLineHeight">Line Height</label>
-                <input type="range" id="titleLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="titleLineHeightVal" class="text-xs w-10">0%</span>
-            </div>
-            <div class="control-row">
-                <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
-                <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
-            </div>
-            <div class="control-row">
-                <label for="titleFontSize">Font Size</label>
-                <input type="range" id="titleFontSize" min="12" max="72" value="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="titleFontSizeVal" class="text-xs w-8">30px</span>
-            </div>
-            <div class="control-row">
-                <label for="titleColor">Color</label>
-                <input type="color" id="titleColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-            </div>
-            <div class="control-row">
-                <label for="titleOutlineColor">Outline Color</label>
-                <input type="color" id="titleOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-            </div>
-            <div class="control-row">
-                <label for="titleOutlineWidth">Outline Width</label>
-                <input type="range" id="titleOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="titleOutlineWidthVal" class="text-xs w-6">1</span>
-            </div>
-            <div class="control-row">
-                <label for="titleOpacity">Opacity</label>
-                <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="titleOpacityVal" class="text-xs w-8">100%</span>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="titleFont">Font</label>
+                    <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        {% include "_font_options.html" %}
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="titleAlign">Text Align</label>
+                    <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="left">Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="titleStyle">Font Style</label>
+                    <select id="titleStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="normal">Normal</option>
+                        <option value="italic">Italic</option>
+                        <option value="bold">Bold</option>
+                        <option value="bolditalic">Bold Italic</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="titleLineHeight">Line Height</label>
+                    <input type="range" id="titleLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="titleLineHeightVal" class="text-xs w-10">0%</span>
+                </div>
+                <div class="control-row">
+                    <input type="checkbox" id="singleLineCheckbox" class="mr-2" checked>
+                    <label for="singleLineCheckbox" class="text-xs select-none">Single line only</label>
+                </div>
+                <div class="control-row">
+                    <label for="titleFontSize">Font Size</label>
+                    <input type="range" id="titleFontSize" min="12" max="72" value="30" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="titleFontSizeVal" class="text-xs w-8">30px</span>
+                </div>
+                <div class="control-row">
+                    <label for="titleColor">Color</label>
+                    <input type="color" id="titleColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+                <div class="control-row">
+                    <label for="titleOutlineColor">Outline Color</label>
+                    <input type="color" id="titleOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+                <div class="control-row">
+                    <label for="titleOutlineWidth">Outline Width</label>
+                    <input type="range" id="titleOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="titleOutlineWidthVal" class="text-xs w-6">1</span>
+                </div>
+                <div class="control-row">
+                    <label for="titleOpacity">Opacity</label>
+                    <input type="range" id="titleOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="titleOpacityVal" class="text-xs w-8">100%</span>
+                </div>
             </div>
         </div>
 
         <!-- Stats Controls -->
         <div class="control-box">
-            <h4>Stats</h4>
-            <div class="control-row">
-                <label for="statsFont">Font</label>
-                <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                                                                                                                                                                                    {% include "_font_options.html" %}
-                </select>
+            <div class="control-box-header" data-box-id="boxStats">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="boxVisible_stats" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Stats on poster">
+                    <h4 class="text-gray-900 dark:text-gray-100">Stats</h4>
+                </div>
+                <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Stats section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <label for="statsStyle">Font Style</label>
-                <select id="statsStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="normal">Normal</option>
-                    <option value="italic">Italic</option>
-                    <option value="bold">Bold</option>
-                    <option value="bolditalic">Bold Italic</option>
-                </select>
-            </div>
-            <div class="control-row">
-                <label for="statsAlign">Text Align</label>
-                <select id="statsAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                    <option value="left">Left</option>
-                    <option value="center">Center</option>
-                    <option value="right">Right</option>
-                </select>
-            </div>
-            <div class="control-row">
-                <label for="statsFontSize">Font Size</label>
-                <input type="range" id="statsFontSize" min="10" max="48" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="statsFontSizeVal" class="text-xs w-8">20px</span>
-            </div>
-            <div class="control-row">
-                <label for="statsLineHeight">Line Height</label>
-                <input type="range" id="statsLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="statsLineHeightVal" class="text-xs w-10">0%</span>
-            </div>
-            <div class="control-row">
-                <label for="statsColor">Color</label>
-                <input type="color" id="statsColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-            </div>
-            <div class="control-row">
-                <label for="statsOutlineColor">Outline Color</label>
-                <input type="color" id="statsOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-            </div>
-            <div class="control-row">
-                <label for="statsOutlineWidth">Outline Width</label>
-                <input type="range" id="statsOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="statsOutlineWidthVal" class="text-xs w-6">1</span>
-            </div>
-            <div class="control-row">
-                <label for="statsOpacity">Opacity</label>
-                <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="statsOpacityVal" class="text-xs w-8">100%</span>
-            </div>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="statsFont">Font</label>
+                    <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        {% include "_font_options.html" %}
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="statsStyle">Font Style</label>
+                    <select id="statsStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="normal">Normal</option>
+                        <option value="italic">Italic</option>
+                        <option value="bold">Bold</option>
+                        <option value="bolditalic">Bold Italic</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="statsAlign">Text Align</label>
+                    <select id="statsAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
+                        <option value="left">Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="statsFontSize">Font Size</label>
+                    <input type="range" id="statsFontSize" min="10" max="48" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="statsFontSizeVal" class="text-xs w-8">20px</span>
+                </div>
+                <div class="control-row">
+                    <label for="statsLineHeight">Line Height</label>
+                    <input type="range" id="statsLineHeight" min="-20" max="20" value="0" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="statsLineHeightVal" class="text-xs w-10">0%</span>
+                </div>
+                <div class="control-row">
+                    <label for="statsColor">Color</label>
+                    <input type="color" id="statsColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+                <div class="control-row">
+                    <label for="statsOutlineColor">Outline Color</label>
+                    <input type="color" id="statsOutlineColor" value="#000000" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+                <div class="control-row">
+                    <label for="statsOutlineWidth">Outline Width</label>
+                    <input type="range" id="statsOutlineWidth" min="0" max="20" value="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="statsOutlineWidthVal" class="text-xs w-6">1</span>
+                </div>
+                <div class="control-row">
+                    <label for="statsOpacity">Opacity</label>
+                    <input type="range" id="statsOpacity" min="0" max="100" value="100" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="statsOpacityVal" class="text-xs w-8">100%</span>
+                </div>
                 <div class="control-row">
                     <label for="statsVisible_distance">Visible Stats</label>
                     <div id="statsVisibility" class="flex flex-wrap gap-2 items-center">
@@ -385,36 +511,50 @@
                         <label class="inline-flex items-center text-sm"><input type="checkbox" id="statsVisible_max_power" class="mr-2">🔥 Max power</label>
                     </div>
                 </div>
+            </div>
         </div>
 
         <!-- Elevation Controls -->
         <div class="control-box">
-            <h4>Elevation Chart</h4>
-            <div class="control-row">
-                <label for="elevFontSize">Font Size</label>
-                <input type="range" id="elevFontSize" min="8" max="36" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="elevFontSizeVal" class="text-xs w-8">20px</span>
+            <div class="control-box-header" data-box-id="boxElevation">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="boxVisible_elevation" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Elevation Chart on poster">
+                    <h4 class="text-gray-900 dark:text-gray-100">Elevation Chart</h4>
+                </div>
+                <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Elevation Chart section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <label for="elevColor">Line Color</label>
-                <input type="color" id="elevColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-            </div>
-            <div class="control-row">
-                <label for="elevFillColor">Fill Color</label>
-                <input type="color" id="elevFillColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-            </div>
-            <div class="control-row">
-                <label for="elevOpacity">Opacity</label>
-                <input type="range" id="elevOpacity" min="0" max="100" value="70" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="elevOpacityVal" class="text-xs w-8">70%</span>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="elevFontSize">Font Size</label>
+                    <input type="range" id="elevFontSize" min="8" max="36" value="20" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="elevFontSizeVal" class="text-xs w-8">20px</span>
+                </div>
+                <div class="control-row">
+                    <label for="elevColor">Line Color</label>
+                    <input type="color" id="elevColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+                <div class="control-row">
+                    <label for="elevFillColor">Fill Color</label>
+                    <input type="color" id="elevFillColor" value="#ffffff" class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                </div>
+                <div class="control-row">
+                    <label for="elevOpacity">Opacity</label>
+                    <input type="range" id="elevOpacity" min="0" max="100" value="70" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="elevOpacityVal" class="text-xs w-8">70%</span>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Poster Preview -->
     <div class="flex-1">
-        <div id="posterContainer" class="poster-container shadow-lg" style="aspect-ratio: 4/3;">
+        <div id="posterContainer" class="poster-container shadow-lg" style="aspect-ratio: 4/3; background-color: #333333;">
             <img id="posterBg" class="poster-bg" src="" alt="" style="display:none;">
+            <div id="posterMap" class="poster-map" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; display:none;"></div>
             <!-- NOSONAR: static asset intentionally referenced; runtime JS will manage visibility -->
             <!-- Watermark image (static) - created/managed by JS -->
             <img id="posterWatermark" class="poster-watermark" src="/static/img/kinetiqo_logo.png" alt="Kinetiqo logo" style="display:none;" aria-hidden="true" />
@@ -515,9 +655,22 @@
         statsAlign: 'left',
         // Which stats are visible on the poster (all enabled by default)
         statsVisible: { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true, avg_power: true, max_power: true },
+        // Box visibility on canvas preview (all enabled by default)
+        boxVisible: { boxTitle: true, boxStats: true, boxElevation: true },
+        // Box collapsed states in control panel (all expanded by default)
+        boxCollapsed: { posterSize: false, background: false, boxTitle: false, boxStats: false, boxElevation: false },
+        bgColor: '#333333',
+        bgType: 'image',             // options: 'image', 'map'
+        mapProvider: 'openstreetmap',
+        mapOpacity: 100,
+        mapLineColor: '#38bdf8',
+        mapLineOpacity: 100,
+        mapLineWidth: 4,
         elevFontSize: 20, elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
         singleLine: true
     };
+
+    const TILE_PROVIDERS = {{ (tile_providers if tile_providers else {}) | tojson }};
 
     // Watermark constants - change these to tune watermark size (fraction of poster width)
     // and opacity. WATERMARK_SIZE_PCT: 0.10 means 10% of poster width.
@@ -528,7 +681,14 @@
     function loadSettings() {
         try {
             const saved = JSON.parse(localStorage.getItem(LS_KEY));
-            if (saved && typeof saved === 'object') return { ...DEFAULTS, ...saved };
+            if (saved && typeof saved === 'object') {
+                return {
+                    ...DEFAULTS,
+                    ...saved,
+                    boxVisible: { ...DEFAULTS.boxVisible, ...(saved.boxVisible || {}) },
+                    boxCollapsed: { ...DEFAULTS.boxCollapsed, ...(saved.boxCollapsed || {}) }
+                };
+            }
         } catch(e) {}
         return { ...DEFAULTS };
     }
@@ -538,6 +698,24 @@
     }
 
     let settings = loadSettings();
+
+    function applyBoxCollapsedStates(s) {
+        const collapsed = (s && s.boxCollapsed) ? s.boxCollapsed : DEFAULTS.boxCollapsed;
+        document.querySelectorAll('.control-box-header[data-box-id]').forEach(header => {
+            const boxId = header.getAttribute('data-box-id');
+            const isCollapsed = !!collapsed[boxId];
+            const boxContainer = header.closest('.control-box');
+            if (!boxContainer) return;
+            const body = boxContainer.querySelector('.control-box-body');
+            if (isCollapsed) {
+                header.classList.add('collapsed');
+                if (body) body.classList.add('collapsed');
+            } else {
+                header.classList.remove('collapsed');
+                if (body) body.classList.remove('collapsed');
+            }
+        });
+    }
 
     // Apply settings to controls
     function applyToControls(s) {
@@ -582,6 +760,36 @@
         document.getElementById('elevOpacityVal').textContent = s.elevOpacity + '%';
         document.getElementById('singleLineCheckbox').checked = s.singleLine !== false;
         document.getElementById('titleAlign').value = s.titleAlign || 'left';
+        if (document.getElementById('bgColor')) document.getElementById('bgColor').value = s.bgColor || '#333333';
+        if (document.getElementById('bgTypeSelect')) document.getElementById('bgTypeSelect').value = s.bgType || 'image';
+        if (document.getElementById('mapProviderSelect')) document.getElementById('mapProviderSelect').value = s.mapProvider || 'openstreetmap';
+        if (document.getElementById('mapOpacity')) {
+            document.getElementById('mapOpacity').value = s.mapOpacity !== undefined ? s.mapOpacity : 100;
+            document.getElementById('mapOpacityVal').textContent = (s.mapOpacity !== undefined ? s.mapOpacity : 100) + '%';
+        }
+        if (document.getElementById('mapLineColor')) document.getElementById('mapLineColor').value = s.mapLineColor || '#38bdf8';
+        if (document.getElementById('mapLineOpacity')) {
+            document.getElementById('mapLineOpacity').value = s.mapLineOpacity !== undefined ? s.mapLineOpacity : 100;
+            document.getElementById('mapLineOpacityVal').textContent = (s.mapLineOpacity !== undefined ? s.mapLineOpacity : 100) + '%';
+        }
+        if (document.getElementById('mapLineWidth')) {
+            document.getElementById('mapLineWidth').value = s.mapLineWidth !== undefined ? s.mapLineWidth : 4;
+            document.getElementById('mapLineWidthVal').textContent = (s.mapLineWidth !== undefined ? s.mapLineWidth : 4) + 'px';
+        }
+        // Toggle Image vs Map controls container
+        const imgControls = document.getElementById('imageControlsContainer');
+        const mapControls = document.getElementById('mapControlsContainer');
+        if (imgControls) imgControls.style.display = (s.bgType === 'map') ? 'none' : 'block';
+        if (mapControls) mapControls.style.display = (s.bgType === 'map') ? 'block' : 'none';
+        // Apply box visibility checkboxes
+        const titleVis = document.getElementById('boxVisible_title');
+        if (titleVis) titleVis.checked = s.boxVisible ? s.boxVisible.boxTitle !== false : true;
+        const statsVis = document.getElementById('boxVisible_stats');
+        if (statsVis) statsVis.checked = s.boxVisible ? s.boxVisible.boxStats !== false : true;
+        const elevVis = document.getElementById('boxVisible_elevation');
+        if (elevVis) elevVis.checked = s.boxVisible ? s.boxVisible.boxElevation !== false : true;
+        // Apply collapsed section states
+        try { applyBoxCollapsedStates(s); } catch (e) { /* ignore */ }
         // Apply stats visibility checkbox states (if present)
         try { applyStatsVisibilityControls(s); } catch (e) { /* ignore */ }
     }
@@ -606,9 +814,39 @@
          container.style.height = posterHeight + 'px';
          container.style.maxWidth = 'none';
          container.style.maxHeight = 'none';
-         container.style.aspectRatio = settings.ratio;
          // Update dimensions display
          updateDimensionsDisplay(settings.posterSize, posterHeight);
+
+         // Toggle Image vs Map control panels in sidebar
+         const imgControls = document.getElementById('imageControlsContainer');
+         const mapControls = document.getElementById('mapControlsContainer');
+         if (imgControls) imgControls.style.display = (settings.bgType === 'map') ? 'none' : 'block';
+         if (mapControls) mapControls.style.display = (settings.bgType === 'map') ? 'block' : 'none';
+
+         // Background color & background content mode (Image vs Map)
+         if (container) {
+             container.style.backgroundColor = settings.bgColor || '#333333';
+         }
+         const bgImgEl = document.getElementById('posterBg');
+         const bgMapEl = document.getElementById('posterMap');
+         if (settings.bgType === 'map') {
+             if (bgImgEl) bgImgEl.style.display = 'none';
+             if (bgMapEl) bgMapEl.style.display = 'block';
+             try { renderPosterMap(); } catch (e) { console.warn('renderPosterMap failed', e); }
+         } else {
+             if (bgMapEl) bgMapEl.style.display = 'none';
+             if (bgImgEl) {
+                 bgImgEl.style.display = (bgImgEl.src && bgImgEl.src.length > 0 && !bgImgEl.src.endsWith('/')) ? 'block' : 'none';
+             }
+         }
+
+         // Main box visibility toggles on canvas (Activity Name, Stats, Elevation Chart)
+         const boxTitleEl = document.getElementById('boxTitle');
+         if (boxTitleEl) boxTitleEl.style.display = (settings.boxVisible && settings.boxVisible.boxTitle === false) ? 'none' : '';
+         const boxStatsEl = document.getElementById('boxStats');
+         if (boxStatsEl) boxStatsEl.style.display = (settings.boxVisible && settings.boxVisible.boxStats === false) ? 'none' : '';
+         const boxElevEl = document.getElementById('boxElevation');
+         if (boxElevEl) boxElevEl.style.display = (settings.boxVisible && settings.boxVisible.boxElevation === false) ? 'none' : '';
          // Title — use -webkit-text-stroke for proper outline
          const titleEl = document.getElementById('posterTitle');
          titleEl.style.fontFamily = `'${settings.titleFont}', sans-serif`;
@@ -742,6 +980,92 @@
            // Update watermark size/visibility after layout changes
            try { updateWatermark(); } catch (e) { console.debug('updateWatermark failed', e); }
      }
+
+    // Leaflet Poster Map logic
+    let posterLeafletMap = null;
+    let posterMapPolyline = null;
+    let posterMapTileLayer = null;
+
+    function drawPosterMapPolyline(coords, bounds) {
+        if (!posterLeafletMap || !coords || coords.length < 2) return;
+
+        if (posterMapPolyline) {
+            posterLeafletMap.removeLayer(posterMapPolyline);
+        }
+
+        const opacityFloat = (settings.mapLineOpacity !== undefined ? settings.mapLineOpacity : 100) / 100.0;
+        const widthPx = settings.mapLineWidth !== undefined ? settings.mapLineWidth : 4;
+        const lineColor = settings.mapLineColor || '#38bdf8';
+
+        posterMapPolyline = L.polyline(coords, {
+            color: lineColor,
+            weight: widthPx,
+            opacity: opacityFloat,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(posterLeafletMap);
+
+        if (bounds && bounds.length === 4) {
+            posterLeafletMap.fitBounds([
+                [bounds[0], bounds[1]],
+                [bounds[2], bounds[3]]
+            ], { padding: [30, 30], animate: false });
+        } else {
+            posterLeafletMap.fitBounds(posterMapPolyline.getBounds(), { padding: [30, 30], animate: false });
+        }
+        posterLeafletMap.invalidateSize();
+    }
+
+    function renderPosterMap() {
+        const mapEl = document.getElementById('posterMap');
+        if (!mapEl || typeof L === 'undefined') return;
+
+        if (!posterLeafletMap) {
+            posterLeafletMap = L.map('posterMap', {
+                zoomControl: false,
+                attributionControl: false,
+                preferCanvas: true
+            });
+        }
+
+        const providerKey = settings.mapProvider || 'openstreetmap';
+        const provider = TILE_PROVIDERS[providerKey] || { url: '/tiles/osm/{z}/{x}/{y}.png', maxZoom: 19 };
+
+        if (posterMapTileLayer) {
+            posterLeafletMap.removeLayer(posterMapTileLayer);
+        }
+        const mapOpacityFloat = (settings.mapOpacity !== undefined ? settings.mapOpacity : 100) / 100.0;
+        const tileOpts = { maxZoom: provider.maxZoom || 19, opacity: mapOpacityFloat };
+        if (provider.subdomains) tileOpts.subdomains = provider.subdomains;
+        posterMapTileLayer = L.tileLayer(provider.url, tileOpts).addTo(posterLeafletMap);
+        if (posterMapTileLayer && typeof posterMapTileLayer.setOpacity === 'function') {
+            posterMapTileLayer.setOpacity(mapOpacityFloat);
+        }
+
+        posterLeafletMap.invalidateSize();
+
+        if (!mapEl._fetchedActivityId || mapEl._fetchedActivityId !== ACTIVITY_ID) {
+            fetch('/api/map/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ activity_ids: [ACTIVITY_ID] })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.activities && data.activities[ACTIVITY_ID]) {
+                    const act = data.activities[ACTIVITY_ID];
+                    const coords = act.coords;
+                    mapEl._fetchedCoords = coords;
+                    mapEl._fetchedBounds = data.bounds;
+                    mapEl._fetchedActivityId = ACTIVITY_ID;
+                    drawPosterMapPolyline(coords, data.bounds);
+                }
+            })
+            .catch(err => { console.warn('Failed to load poster map data:', err); });
+        } else if (mapEl._fetchedCoords) {
+            drawPosterMapPolyline(mapEl._fetchedCoords, mapEl._fetchedBounds);
+        }
+    }
 
     // Elevation chart
     let elevChart = null;
@@ -990,11 +1314,67 @@
     bindControl('elevFontSize', 'elevFontSize', true, 'elevFontSizeVal', 'px');
     bindControl('elevColor', 'elevColor', false);
     bindControl('elevFillColor', 'elevFillColor', false);
+    // Clear Image
+    const clearBtn = document.getElementById('clearImageBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            const img = document.getElementById('posterBg');
+            if (img) {
+                img.src = '';
+                img.style.display = 'none';
+            }
+        });
+    }
+
     bindControl('elevOpacity', 'elevOpacity', true, 'elevOpacityVal', '%');
+    bindControl('bgTypeSelect', 'bgType', false);
+    bindControl('bgColor', 'bgColor', false);
+    bindControl('mapProviderSelect', 'mapProvider', false);
+    bindControl('mapOpacity', 'mapOpacity', true, 'mapOpacityVal', '%');
+    bindControl('mapLineColor', 'mapLineColor', false);
+    bindControl('mapLineOpacity', 'mapLineOpacity', true, 'mapLineOpacityVal', '%');
+    bindControl('mapLineWidth', 'mapLineWidth', true, 'mapLineWidthVal', 'px');
+
+    // Box header events: visibility checkboxes & collapsible sections
+    function setupBoxHeaderEvents() {
+        const visMap = [
+            { id: 'boxVisible_title', key: 'boxTitle' },
+            { id: 'boxVisible_stats', key: 'boxStats' },
+            { id: 'boxVisible_elevation', key: 'boxElevation' }
+        ];
+        visMap.forEach(({ id, key }) => {
+            const el = document.getElementById(id);
+            if (!el || el._bound) return;
+            el._bound = true;
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+            el.addEventListener('change', function() {
+                settings.boxVisible = settings.boxVisible || {};
+                settings.boxVisible[key] = !!this.checked;
+                saveSettings(settings);
+                renderPoster();
+            });
+        });
+
+        document.querySelectorAll('.control-box-header[data-box-id]').forEach(header => {
+            if (header._bound) return;
+            header._bound = true;
+            header.addEventListener('click', function(e) {
+                if (e.target && e.target.tagName === 'INPUT') return;
+                const boxId = this.getAttribute('data-box-id');
+                settings.boxCollapsed = settings.boxCollapsed || {};
+                settings.boxCollapsed[boxId] = !settings.boxCollapsed[boxId];
+                saveSettings(settings);
+                applyBoxCollapsedStates(settings);
+            });
+        });
+    }
 
     // Stats visibility checkboxes: wire up, persist, and reflect rendering
     const STAT_KEYS = ['distance','elevation','speed','cadence','heartrate','time','avg_power','max_power'];
     function applyStatsVisibilityControls(s) {
+        setupBoxHeaderEvents();
         STAT_KEYS.forEach(k => {
             const el = document.getElementById('statsVisible_' + k);
             if (!el) return;
@@ -1436,8 +1816,12 @@
          // Clear saved settings and restore defaults. Ensure single-line
          // mode is explicitly enabled by the reset action.
          localStorage.removeItem(LS_KEY);
-         settings = { ...DEFAULTS };
-         settings.singleLine = true;
+         settings = {
+             ...DEFAULTS,
+             boxVisible: { boxTitle: true, boxStats: true, boxElevation: true },
+             boxCollapsed: { posterSize: false, background: false, boxTitle: false, boxStats: false, boxElevation: false },
+             singleLine: true
+         };
          // Persist the fresh defaults so subsequent loads pick them up
          saveSettings(settings);
          applyToControls(settings);
