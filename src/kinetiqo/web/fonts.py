@@ -1,4 +1,4 @@
-﻿"""Shared Google Fonts catalog and URL helpers for the web UI."""
+"""Shared Google Fonts catalog and URL helpers for the web UI."""
 
 from __future__ import annotations
 

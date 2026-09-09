@@ -294,8 +294,8 @@
 <script src="{{ url_for('static', filename='vendor/html2canvas/html2canvas-1.4.1.min.js', v=app_version) }}"></script>
 <script>
     // --- Configuration from server ---
-    const activityIds = {{ activity_ids | tojson | safe }};
-    const tileProviders = {{ tile_providers | tojson | safe }};
+    const activityIds = {{ activity_ids | tojson }};
+    const tileProviders = {{ tile_providers | tojson }};
 
     // Server-side defaults (used when localStorage has no saved value)
     const DEFAULTS = {

@@ -92,7 +92,7 @@
 
 <script>
 (function() {
-    const powerData = {{ power_data_json | safe }};
+    const powerData = {{ power_data | tojson }};
     const canvas = document.getElementById('powerSpiderCanvas');
     const ctx = canvas.getContext('2d');
     const W = canvas.width;
