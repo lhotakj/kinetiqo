@@ -659,13 +659,25 @@
             if (tiles.length > 0) {
                 ctx.save();
                 ctx.globalAlpha = currentMapOpacity / 100.0;
+                // Leaflet positions tiles on fractional CSS pixels. Rounding
+                // each tile independently can leave a 1px canvas gap between
+                // adjacent tiles, which is especially visible on Mapy.cz.
+                // Disable interpolation and overlap neighbouring tiles by a
+                // physical pixel so the export has the same continuous surface
+                // as the browser preview.
+                ctx.imageSmoothingEnabled = false;
+                const tileOverlap = 1;
                 tiles.forEach(function(tile) {
                     if (!tile.complete || tile.naturalWidth === 0) return;
                     const r = tile.getBoundingClientRect();
-                    const dx = Math.round((r.left - mapRect.left) * scale);
-                    const dy = Math.round((r.top - mapRect.top) * scale);
-                    const dw = Math.round(r.width * scale);
-                    const dh = Math.round(r.height * scale);
+                    const left = (r.left - mapRect.left) * scale;
+                    const top = (r.top - mapRect.top) * scale;
+                    const right = (r.right - mapRect.left) * scale;
+                    const bottom = (r.bottom - mapRect.top) * scale;
+                    const dx = Math.floor(left) - tileOverlap;
+                    const dy = Math.floor(top) - tileOverlap;
+                    const dw = Math.ceil(right) + tileOverlap - dx;
+                    const dh = Math.ceil(bottom) + tileOverlap - dy;
                     // Skip off-screen tiles
                     if (dx + dw <= 0 || dx >= finalCanvas.width || dy + dh <= 0 || dy >= finalCanvas.height) return;
                     try {
