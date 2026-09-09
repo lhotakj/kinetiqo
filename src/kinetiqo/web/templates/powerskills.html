@@ -90,9 +90,10 @@
     </div>
 </div>
 
+<script id="power-data-json" type="application/json">{{ power_data | tojson }}</script>
 <script>
 (function() {
-    const powerData = {{ power_data_json | safe }};
+    const powerData = JSON.parse(document.getElementById('power-data-json')?.textContent || '[]');
     const canvas = document.getElementById('powerSpiderCanvas');
     const ctx = canvas.getContext('2d');
     const W = canvas.width;
@@ -144,7 +145,7 @@
     const gridStep = maxWatts <= 200 ? 50 :
                      maxWatts <= 500 ? 100 :
                      maxWatts <= 1000 ? 200 :
-                     maxWatts <= 2000 ? 500 : 500;
+                     maxWatts <= 2000 ? 500 : 1000;
     const gridLevels = [];
     for (let w = gridStep; w < maxWatts; w += gridStep) {
         gridLevels.push(w);

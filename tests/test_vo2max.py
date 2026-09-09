@@ -170,7 +170,12 @@ def _setup_app(cfg):
     # Clear the power cache so results from a previous test don't leak.
     _power_cache.invalidate()
     client = app.test_client()
-    client.post('/login', data={'username': 'admin', 'password': 'admin123'})
+    # Log in by setting session directly to avoid CSRF token issues in tests.
+    from kinetiqo.web.auth import users
+    username = next(iter(users))
+    with client.session_transaction() as sess:
+        sess['_user_id'] = username
+        sess['_fresh'] = True
     return client
 
 
@@ -423,7 +428,14 @@ class TestProfileAPI(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(data['first_name'], 'Jane')
         self.assertEqual(data['weight'], 65.5)
-        mock_repo.upsert_profile.assert_called_once_with(123, 'Jane', 'User', 65.5)
+        mock_repo.upsert_profile.assert_called_once_with(
+            123, 'Jane', 'User', 65.5,
+            refresh_token='',
+            ftp=None,
+            gps_simplification=0,
+            update_strava_cycling_indoor='', update_strava_cycling_outdoor='',
+            update_strava_running_indoor='', update_strava_running_outdoor='',
+            update_strava_walking='', update_strava_swimming='')
 
     @patch('kinetiqo.web.app.create_repository')
     def test_update_profile_invalid_weight(self, mock_create_repo):
@@ -454,6 +466,83 @@ class TestProfileAPI(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 422)
         mock_repo.upsert_profile.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Strava reconnect flow tests
+# ---------------------------------------------------------------------------
+
+class TestStravaReconnectFlow(unittest.TestCase):
+    """Mocked tests for the Strava reconnect flow."""
+
+    def test_reconnect_redirects_with_force_and_profile_scope(self):
+        """The reconnect button should start a forced OAuth flow with profile scope."""
+        client = _setup_app(_make_config(
+            strava_client_id='123',
+            strava_client_secret='secret',
+            strava_refresh_token='refresh-token',
+        ))
+
+        resp = client.get('/strava/reconnect')
+        self.assertEqual(resp.status_code, 302)
+
+        from urllib.parse import urlparse, parse_qs
+
+        parsed = urlparse(resp.headers['Location'])
+        params = parse_qs(parsed.query)
+
+        self.assertEqual(parsed.scheme, 'https')
+        self.assertEqual(parsed.netloc, 'www.strava.com')
+        self.assertEqual(parsed.path, '/oauth/authorize')
+        self.assertEqual(params['client_id'][0], '123')
+        self.assertEqual(params['response_type'][0], 'code')
+        self.assertEqual(params['approval_prompt'][0], 'force')
+        self.assertIn('read', params['scope'][0])
+        self.assertIn('activity:read_all', params['scope'][0])
+        self.assertIn('activity:write', params['scope'][0])
+        self.assertIn('profile:read_all', params['scope'][0])
+
+    @patch('kinetiqo.web.app.seed_profile_from_strava')
+    @patch('kinetiqo.web.app.StravaClient')
+    @patch('kinetiqo.web.app.create_repository')
+    def test_callback_updates_refresh_token_and_seeds_profile(self, mock_create_repo, mock_strava_client, mock_seed_profile):
+        """The callback should exchange the code and surface the new refresh token."""
+        mock_repo = MagicMock()
+        mock_create_repo.return_value = mock_repo
+
+        mock_client = MagicMock()
+        mock_client.exchange_authorization_code.return_value = {
+            'refresh_token': 'new-refresh-token',
+            'scope': 'read activity:read_all profile:read_all',
+            'athlete': {
+                'firstname': 'Jaroslav',
+                'lastname': 'Lhotak',
+            },
+        }
+        mock_strava_client.return_value = mock_client
+        mock_seed_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jaroslav',
+            'last_name': 'Lhotak',
+            'weight': 81.2,
+        }
+
+        client = _setup_app(_make_config(
+            strava_client_id='123',
+            strava_client_secret='secret',
+            strava_refresh_token='refresh-token',
+        ))
+        with client.session_transaction() as sess:
+            sess['strava_oauth_state'] = 'state-123'
+
+        resp = client.get('/strava/callback?code=code-123&state=state-123')
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'new-refresh-token', resp.data)
+        self.assertIn(b'81.2 kg', resp.data)
+        self.assertIn(b'profile:read_all', resp.data)
+        mock_client.exchange_authorization_code.assert_called_once_with('code-123')
+        mock_seed_profile.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +591,41 @@ class TestStravaClientGetAthlete(unittest.TestCase):
 
     @patch('kinetiqo.strava.requests.get')
     @patch('kinetiqo.strava.requests.post')
+    def test_get_athlete_includes_weight_field(self, mock_post, mock_get):
+        """get_athlete() should preserve Strava's weight field when present."""
+        from kinetiqo.strava import StravaClient
+
+        cfg = _make_config(
+            strava_client_id='test_id',
+            strava_client_secret='test_secret',
+            strava_refresh_token='test_token',
+        )
+
+        mock_token_resp = MagicMock()
+        mock_token_resp.status_code = 200
+        mock_token_resp.json.return_value = {
+            'access_token': 'mock_access_token',
+            'refresh_token': 'test_token',
+        }
+        mock_post.return_value = mock_token_resp
+
+        mock_athlete_resp = MagicMock()
+        mock_athlete_resp.json.return_value = {
+            'id': 12345,
+            'firstname': 'John',
+            'lastname': 'Doe',
+            'weight': 81.2,
+        }
+        mock_athlete_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_athlete_resp
+
+        client = StravaClient(cfg)
+        athlete = client.get_athlete()
+
+        self.assertEqual(athlete['weight'], 81.2)
+
+    @patch('kinetiqo.strava.requests.get')
+    @patch('kinetiqo.strava.requests.post')
     def test_get_athlete_uses_cache(self, mock_post, mock_get):
         """get_athlete() should return cached data on the second call."""
         from kinetiqo.strava import StravaClient
@@ -547,4 +671,3 @@ class TestStravaClientGetAthlete(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

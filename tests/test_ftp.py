@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch, MagicMock
 
-from kinetiqo.web.app import app, _compute_best_average_power, FTP_DURATION_SECONDS, FTP_FACTOR, CYCLING_SPORT_TYPES
+from kinetiqo.web.app import app, _compute_best_average_power
 from kinetiqo.web.app import _power_cache
 from kinetiqo.db.repository import compute_best_power_per_activity
 
@@ -251,7 +251,7 @@ class TestFTPHistoryAPI(unittest.TestCase):
         response = self.client.get('/api/ftp_history?period=30')
         self.assertEqual(response.status_code, 200)
 
-        data = json.loads(response.data)
+        json.loads(response.data)
         # Only the recent ride should produce an FTP value
         called_ids = mock_repo.get_best_power_per_activity.call_args[0][0]
         self.assertNotIn('4001', called_ids)

@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 
 from kinetiqo.cli import cli
+from kinetiqo.strava import StravaFetchError
 
 # --- Mock Data ---
 MOCK_ACTIVITIES_PAGE_1 = [
@@ -20,6 +21,18 @@ class TestSyncMatrix(unittest.TestCase):
 
     def setUp(self):
         self.runner = CliRunner()
+        self.validate_patcher = patch('kinetiqo.cli.validate_config')
+        self.validate_patcher.start()
+        self.env_patcher = patch.dict('os.environ', {
+            'STRAVA_CLIENT_ID': '12345',
+            'STRAVA_CLIENT_SECRET': 'secret',
+            'STRAVA_REFRESH_TOKEN': 'token',
+        })
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+        self.validate_patcher.stop()
 
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')
@@ -126,6 +139,38 @@ class TestSyncMatrix(unittest.TestCase):
                 # 1 existing (901 metadata update) + 2 new (1001, 1002 full sync) = 3 writes
                 self.assertEqual(mock_repo.write_activity.call_count, 3)
                 mock_repo.delete_activities.assert_not_called() # Should not delete the old activity 901
+
+    @patch('kinetiqo.sync.StravaClient')
+    @patch('kinetiqo.cli.create_repository')
+    @patch('kinetiqo.sync.create_repository')
+    def test_sync_skips_deletion_when_strava_fetch_fails(self, mock_sync_repo, mock_cli_repo, mock_strava_client):
+        """If Strava is unreachable / returns 401, sync must NOT delete any local
+        activities — the fetched (empty/partial) list must never be treated as the
+        authoritative current state on Strava.
+        """
+        def _failing_get_activities(*args, **kwargs):
+            yield "Warning: Strava API request failed (attempt 1): 401 Client Error: Unauthorized"
+            yield "Error: Failed to fetch activities from Strava after 3 attempts: 401 Client Error: Unauthorized"
+            raise StravaFetchError("401 Client Error: Unauthorized")
+
+        for db_type in DB_TYPES:
+            with self.subTest(db_type=db_type):
+                # Arrange: DB has activities that would look "stale" if the (failed)
+                # fetch's empty result were trusted.
+                mock_repo = MagicMock()
+                mock_repo.get_synced_activity_ids.return_value = {'1001', '1002'}
+                mock_cli_repo.return_value = mock_sync_repo.return_value = mock_repo
+
+                mock_strava_instance = mock_strava_client.return_value
+                mock_strava_instance.get_activities.side_effect = _failing_get_activities
+
+                # Act
+                result = self.runner.invoke(cli, ['--database', db_type, 'sync', '--full-sync'], catch_exceptions=False)
+
+                # Assert
+                self.assertEqual(result.exit_code, 0)
+                mock_repo.delete_activities.assert_not_called()
+                mock_repo.write_activity.assert_not_called()
 
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')

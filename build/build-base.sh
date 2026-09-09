@@ -1,11 +1,11 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # build-base.sh — Local helper to build and (optionally) push the
 # lhotakj/firebird-python base image.
 #
 # Usage:
 #   ./build-base.sh                  # build locally for linux/amd64 only
 #   ./build-base.sh --push           # build for amd64+arm64 and push to DockerHub
-#   ./build-base.sh --push --python 3.13 --firebird 5.0.3
+#   ./build-base.sh --push --python 3.14 --firebird 5.0.4
 
 # Logging functions
 info() {
@@ -26,12 +26,12 @@ warn() {
 
 # Defaults
 PUSH_FLAG=""
-PYTHON_VERSION="3.13"
-FIREBIRD_VERSION="5.0.3"
+PYTHON_VERSION="3.14"
+FIREBIRD_VERSION="5.0.4"
 DOCKER_USERNAME="lhotakj"
 
 # Parse arguments
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --push)
             PUSH_FLAG="--push"
@@ -63,7 +63,7 @@ info "  Firebird version: ${FIREBIRD_VERSION}"
 # Move to repo root so Docker context is correct
 cd "$(dirname "$0")/.." || exit 1
 
-if [ -n "$PUSH_FLAG" ]; then
+if [[ -n "$PUSH_FLAG" ]]; then
     info "Building for linux/amd64 and linux/arm64, then pushing ..."
     docker buildx build \
         --platform linux/amd64,linux/arm64 \
@@ -91,4 +91,3 @@ else
     info "Built image size:"
     docker image ls "${IMAGE}:${TAG_VERSION}"
 fi
-

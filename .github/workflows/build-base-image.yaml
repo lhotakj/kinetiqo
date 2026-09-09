@@ -16,13 +16,13 @@ on:
   workflow_dispatch:
     inputs:
       python_version:
-        description: 'Python version tag used as the base image (e.g. 3.13)'
+        description: 'Python version tag used as the base image (e.g. 3.14)'
         required: true
-        default: '3.13'
+        default: '3.14'
       firebird_version:
-        description: 'Firebird version to compile from source (e.g. 5.0.3)'
+        description: 'Firebird version to compile from source (e.g. 5.0.4)'
         required: true
-        default: '5.0.3'
+        default: '5.0.4'
       platforms:
         description: 'Target platforms (comma-separated)'
         required: true

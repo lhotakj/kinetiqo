@@ -7,14 +7,17 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 ## Features
 
 - 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
+- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics with activity calendar heatmaps for any year or period. Export as PNG or PDF.
+- 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts from the shared Google Fonts catalog, colors, and sizes (800–2048px). Live WYSIWYG preview with Playwright-powered PNG export.
 - 🔄 **Smart Sync**:
   - **Full Sync**: Complete library audit—fetches everything, fills gaps, and prunes deleted activities.
   - **Fast Sync**: Lightning-fast updates for your latest workouts.
 - 🐳 **Docker Native**: Drop it into your stack and forget it.
 - ⏱️ **Set & Forget**: Built-in cron scheduler keeps your data fresh automatically.
 - 💾 **Database Agnostic**:
-  - **PostgreSQL** (version 18+)
-  - **MySQL 8 / MariaDB 12**
+  - **PostgreSQL** (version 12+)
+  - **MySQL 8 / MariaDB 10+**
+  - **Firebird** (3.0, 4.0, 5.0)
 - 🚀 **Optimized**: Intelligent caching minimizes API usage and maximizes speed.
 - 🔒 **Secure**: OAuth 2.0 authentication keeps your Strava account safe.
 
@@ -33,7 +36,8 @@ docker run -d \
   -e POSTGRESQL_PORT="5432" \
   -e POSTGRESQL_USER="postgres" \
   -e POSTGRESQL_PASSWORD="password" \
-  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e LOG_LEVEL="INFO" \
+  -e GPS_SIMPLIFICATION="0" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   lhotakj/kinetiqo:latest
@@ -53,12 +57,12 @@ Kinetiqo is configured entirely via environment variables.
 |----------|-------------|----------|
 | `STRAVA_CLIENT_ID` | Your Strava Application Client ID | ✅ |
 | `STRAVA_CLIENT_SECRET` | Your Strava Application Client Secret | ✅ |
-| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` scope | ✅ |
+| `STRAVA_REFRESH_TOKEN` | A valid Refresh Token with `activity:read_all` and `profile:read_all` scopes (also `activity:write` if using `UPDATE_STRAVA_*`) | ✅ |
 
 ### Database (PostgreSQL Default)
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_TYPE` | `postgresql` or `mysql` | `postgresql` |
+| `DATABASE_TYPE` | `postgresql`, `mysql`, or `firebird` | `postgresql` |
 | `POSTGRESQL_HOST` | Hostname of the PostgreSQL server | - |
 | `POSTGRESQL_PORT` | PostgreSQL port | `5432` |
 | `POSTGRESQL_USER` | Database username | `postgres` |
@@ -71,11 +75,27 @@ Kinetiqo is configured entirely via environment variables.
 | `FULL_SYNC` | Cron schedule for a full sync | `0 3 * * *` (Daily at 3 AM) |
 | `FAST_SYNC` | Cron schedule for a fast sync | `*/15 * * * *` (Every 15 mins) |
 
-### Web UI
+### Web UI & Security
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `WEB_LOGIN` | Username for the web interface | `admin` |
 | `WEB_PASSWORD` | Password for the web interface | `admin123` |
+| `SECRET_KEY` | Secret key used by Flask for signing session cookies and CSRF tokens | Auto-generated in dev; required in prod |
+| `KINETIQO_PRODUCTION` | Set to `1` in production to enforce persistent `SECRET_KEY` | _(empty)_ |
+
+### Logging
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOG_LEVEL` | Log level for CLI, web server, and Gunicorn (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `INFO` |
+
+### Map Configuration & Optimization
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GPS_SIMPLIFICATION` | Coordinate decimation level (0-10, where 0=disabled, 1-10=3m-100m thresholds) | `0` |
+| `MAPY_API_KEY` | API key for Mapy.cz tile layers | _(empty)_ |
+| `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers | _(empty)_ |
+| `MAPTILER_API_KEY` | API key for MapTiler tile layers | _(empty)_ |
+| `GEOAPIFY_API_KEY` | API key for Geoapify tile layers | _(empty)_ |
 
 ## Links
 

@@ -1,0 +1,16 @@
+<div class="flex items-center gap-1.5">
+    <label for="{{ control_id }}" class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ label }}</label>
+    <input type="color"
+           id="{{ control_id }}"
+           value="{{ value }}"
+           class="h-8 w-12 p-1 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800">
+    {% if clear_button_id %}
+    <button type="button"
+            id="{{ clear_button_id }}"
+            class="h-8 px-2.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            title="Clear this color and restore the default behavior">{{ clear_button_label }}</button>
+    {% endif %}
+    {% if value_text_id %}
+    <span id="{{ value_text_id }}" class="text-sm text-gray-500 dark:text-gray-400 min-w-10">{{ value_text }}</span>
+    {% endif %}
+</div>

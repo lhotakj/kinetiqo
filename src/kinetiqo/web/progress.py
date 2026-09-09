@@ -8,6 +8,11 @@ bp = Blueprint('progress', __name__)
 @bp.route('/progress', methods=['GET'])
 @login_required
 def progress_page():
+    """Render the Progress page shell.
+
+    The page itself fetches aggregated progress data via the
+    ``/api/progress_data`` endpoint using AJAX.
+    """
     # Render the template initially. Data will be fetched via AJAX.
     return render_template('progress.html', title="Progress")
 
@@ -35,8 +40,16 @@ def _aggregate_activity(activity, day_map):
 @bp.route('/api/progress_data', methods=['GET'])
 @login_required
 def progress_data_api():
+    """Return aggregated progress data (distance & elevation) for week/month/year.
+
+    Query params:
+        types[]: optional list of activity sport types to filter.
+
+    Response JSON structure contains 'week', 'month', and 'year' keys each
+    mapping to {'dates': [...], 'distance': [...], 'elevation': [...]}.
+    """
     from kinetiqo.web.app import get_db
-    
+
     repo = get_db()
     today = datetime.now()
 
