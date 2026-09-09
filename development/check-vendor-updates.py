@@ -18,7 +18,6 @@ mapping = {
   'moment': [('npm','moment')],
   'jszip': [('npm','jszip')],
   'sortable': [('npm','sortablejs')],
-  'html2canvas': [('npm','html2canvas')],
   'htmx-ext-sse': [('npm','htmx-ext-sse')],
   'chartjs': [('npm','chart.js')],
   'chartjs-adapter-date-fns': [('npm','chartjs-adapter-date-fns')],

@@ -150,13 +150,6 @@ libraries:
       - filename: "sortable-{version}.min.js"
         url: "https://cdn.jsdelivr.net/npm/sortablejs@{version}/Sortable.min.js"
 
-  - id: "html2canvas"
-    name: "html2canvas"
-    target_dir: "html2canvas"
-    version: "1.4.1"
-    files:
-      - filename: "html2canvas-{version}.min.js"
-        url: "https://cdn.jsdelivr.net/npm/html2canvas@{version}/dist/html2canvas.min.js"
 
   - id: "htmx-ext-sse"
     name: "HTMX Ext SSE"
