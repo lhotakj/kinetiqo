@@ -662,11 +662,9 @@
                 // Leaflet positions tiles on fractional CSS pixels. Rounding
                 // each tile independently can leave a 1px canvas gap between
                 // adjacent tiles, which is especially visible on Mapy.cz.
-                // Disable interpolation and overlap neighbouring tiles by a
-                // physical pixel so every raster basemap has the same
-                // continuous surface as the browser preview.
+                // Disable interpolation and snap all tile edges with the same
+                // rounding rule so seams stay closed without overlap.
                 ctx.imageSmoothingEnabled = false;
-                const tileOverlap = 1;
                 tiles.forEach(function(tile) {
                     if (!tile.complete || tile.naturalWidth === 0) return;
                     const r = tile.getBoundingClientRect();
@@ -674,12 +672,13 @@
                     const top = (r.top - mapRect.top) * scale;
                     const right = (r.right - mapRect.left) * scale;
                     const bottom = (r.bottom - mapRect.top) * scale;
-                    // Keep the first row/column aligned to the map bounds;
-                    // extend only the far edge to cover each shared seam.
                     const dx = Math.floor(left);
                     const dy = Math.floor(top);
-                    const dw = Math.ceil(right) - dx + tileOverlap;
-                    const dh = Math.ceil(bottom) - dy + tileOverlap;
+                    const ex = Math.floor(right);
+                    const ey = Math.floor(bottom);
+                    const dw = ex - dx;
+                    const dh = ey - dy;
+                    if (dw <= 0 || dh <= 0) return;
                     // Skip off-screen tiles
                     if (dx + dw <= 0 || dx >= finalCanvas.width || dy + dh <= 0 || dy >= finalCanvas.height) return;
                     try {
