@@ -163,7 +163,7 @@ class StravaClient:
         """
         return {"Authorization": f"Bearer {self._get_access_token()}"}
 
-    def get_activities(self, result_container: list, after: int = None):
+    def get_activities(self, result_container: list, after: int | None = None):
         """
         Fetch activities, optionally after a given Unix timestamp.
         Yields progress messages.

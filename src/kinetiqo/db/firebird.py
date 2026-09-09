@@ -122,14 +122,14 @@ class FirebirdRepository(DatabaseRepository):
             for mod_name in ('firebird.base', 'firebird.driver', 'firebird'):
                 try:
                     m = importlib.import_module(mod_name)
-                except Exception:
+                except (ImportError, ModuleNotFoundError):
                     continue
                 if tpb is None and hasattr(m, 'tpb'):
-                    tpb = getattr(m, 'tpb')
+                    tpb = m.tpb
                 if isolation is None and hasattr(m, 'Isolation'):
-                    isolation = getattr(m, 'Isolation')
+                    isolation = m.Isolation
                 if tra_access_mode is None and hasattr(m, 'TraAccessMode'):
-                    tra_access_mode = getattr(m, 'TraAccessMode')
+                    tra_access_mode = m.TraAccessMode
 
             if tpb and isolation and tra_access_mode:
                 try:
@@ -156,10 +156,9 @@ class FirebirdRepository(DatabaseRepository):
         check runs.
         """
         now = time.monotonic()
-        if (now - self._last_verified) < self._VERIFY_INTERVAL:
+        if (now - self._last_verified) < self._VERIFY_INTERVAL and not self.conn.is_closed():
             # Connection was recently verified — skip the expensive probe.
-            if not self.conn.is_closed():
-                return
+            return
         try:
             if self.conn.is_closed():
                 raise ConnectionError("Connection is closed")
@@ -765,17 +764,27 @@ class FirebirdRepository(DatabaseRepository):
             cur.execute('DELETE FROM "streams" WHERE "activity_id" = ?', (int(activity["id"]),))
             start_date = self._validate_timestamp(datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00")))
 
-            rows = []
-            for i, t in enumerate(streams.get("time", {}).get("data", [])):
-                lat, lng = streams.get("latlng", {}).get("data", [])[i] if i < len(
-                    streams.get("latlng", {}).get("data", [])) else (None, None)
+            time_stream = streams.get("time", {}).get("data", [])
+            latlng_stream = streams.get("latlng", {}).get("data", [])
+            altitude_stream = streams.get("altitude", {}).get("data", [])
+            hr_stream = streams.get("heartrate", {}).get("data", [])
+            cadence_stream = streams.get("cadence", {}).get("data", [])
+            speed_stream = streams.get("velocity_smooth", {}).get("data", [])
+            distance_stream = streams.get("distance", {}).get("data", [])
+            watts_stream = streams.get("watts", {}).get("data", [])
+            temp_stream = streams.get("temp", {}).get("data", [])
+            grade_stream = streams.get("grade_smooth", {}).get("data", [])
+            moving_stream = streams.get("moving", {}).get("data", [])
 
-                def get_val(key, type_func=lambda x: x):
-                    data = streams.get(key, {}).get("data", [])
-                    if i < len(data):
-                        val = data[i]
-                        return type_func(val) if val is not None else None
-                    return None
+            def _val(stream, idx, cast_fn):
+                if idx < len(stream):
+                    val = stream[idx]
+                    return cast_fn(val) if val is not None else None
+                return None
+
+            rows = []
+            for i, t in enumerate(time_stream):
+                lat, lng = latlng_stream[i] if i < len(latlng_stream) else (None, None)
 
                 rows.append((
                     start_date + timedelta(seconds=t),
@@ -784,15 +793,15 @@ class FirebirdRepository(DatabaseRepository):
                     int(activity["athlete"]["id"]),
                     float(lat) if lat is not None else None,
                     float(lng) if lng is not None else None,
-                    get_val("altitude", float),
-                    get_val("heartrate", int),
-                    get_val("cadence", int),
-                    get_val("velocity_smooth", float),
-                    get_val("distance", float),
-                    get_val("watts", float),
-                    get_val("temp", float),
-                    get_val("grade_smooth", float),
-                    get_val("moving", lambda v: 1 if v else 0)
+                    _val(altitude_stream, i, float),
+                    _val(hr_stream, i, int),
+                    _val(cadence_stream, i, int),
+                    _val(speed_stream, i, float),
+                    _val(distance_stream, i, float),
+                    _val(watts_stream, i, float),
+                    _val(temp_stream, i, float),
+                    _val(grade_stream, i, float),
+                    _val(moving_stream, i, lambda v: 1 if v else 0)
                 ))
 
             cur.executemany(

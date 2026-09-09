@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .config import Config
 
@@ -32,7 +32,7 @@ class CacheManager:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Cache enabled: TTL={config.cache_ttl}min, dir={self.cache_dir}")
 
-    def _get_cache_key(self, endpoint: str, params: dict = None) -> str:
+    def _get_cache_key(self, endpoint: str, params: Optional[dict] = None) -> str:
         """Generate a cache key from endpoint and parameters."""
         param_str = json.dumps(params or {}, sort_keys=True)
         key_str = f"{endpoint}:{param_str}"
@@ -42,7 +42,7 @@ class CacheManager:
         """Get the file path for a cache key."""
         return self.cache_dir / f"{cache_key}.json"
 
-    def get(self, endpoint: str, params: dict = None) -> Optional[dict]:
+    def get(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
         """Get cached data if valid, otherwise return None."""
         if not self.config.enable_strava_cache:
             return None
@@ -73,7 +73,7 @@ class CacheManager:
             logger.warning(f"Cache read error: {e}")
             return None
 
-    def set(self, endpoint: str, data: any, params: dict = None):
+    def set(self, endpoint: str, data: Any, params: Optional[dict] = None):
         """Cache the data with current timestamp."""
         if not self.config.enable_strava_cache:
             return

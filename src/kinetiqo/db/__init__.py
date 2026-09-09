@@ -10,5 +10,5 @@ package import time; use :func:`kinetiqo.db.factory.create_repository`
 instead to obtain a repository instance.
 """
 
-__all__ = ["factory", "repository", "postgresql", "mysql", "firebird"]
+__all__ = ["factory", "firebird", "mysql", "postgresql", "repository"]
 

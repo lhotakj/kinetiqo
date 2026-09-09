@@ -11,7 +11,6 @@ threshold) are highlighted as best moments, e.g.
 "Endurance | 90min @ 180W + 3x surges 1-2min @360-400W".
 """
 
-import math
 from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------

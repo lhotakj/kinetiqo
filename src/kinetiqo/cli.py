@@ -15,9 +15,6 @@ from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
 from kinetiqo.profile_sync import (
     seed_profile_from_strava,
     sync_all_profile_env_vars,
-    sync_update_strava_from_env,
-    sync_gps_simplification_from_env,
-    sync_athlete_weight_from_env,
     resolve_refresh_token_from_db,
     wire_refresh_token_persistence,
 )

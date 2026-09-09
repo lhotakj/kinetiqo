@@ -130,8 +130,7 @@ def compute_max_streak(active_dates: set) -> int:
     for i in range(1, len(sorted_dates)):
         if (sorted_dates[i] - sorted_dates[i - 1]).days == 1:
             current += 1
-            if current > max_streak:
-                max_streak = current
+            max_streak = max(max_streak, current)
         else:
             current = 1
     return max_streak
@@ -188,8 +187,7 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
 
     # Clamp end date to today when in the future
     today = date.today()
-    if end_date > today:
-        end_date = today
+    end_date = min(end_date, today)
 
     # Filter activities within the date range
     filtered: List[Tuple[Dict[str, Any], date]] = []
@@ -248,8 +246,7 @@ def compute_mega_stats(activities: List[Dict[str, Any]],
         mx_raw = a.get('max_watts')
         if mx_raw is not None:
             mx = float(mx_raw)
-            if mx > max_power_w:
-                max_power_w = mx
+            max_power_w = max(max_power_w, mx)
 
     avg_weighted_power_w = (
         round(total_power_joules / total_power_time_s)

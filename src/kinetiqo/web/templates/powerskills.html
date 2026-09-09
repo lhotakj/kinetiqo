@@ -145,7 +145,7 @@
     const gridStep = maxWatts <= 200 ? 50 :
                      maxWatts <= 500 ? 100 :
                      maxWatts <= 1000 ? 200 :
-                     maxWatts <= 2000 ? 500 : 500;
+                     maxWatts <= 2000 ? 500 : 1000;
     const gridLevels = [];
     for (let w = gridStep; w < maxWatts; w += gridStep) {
         gridLevels.push(w);

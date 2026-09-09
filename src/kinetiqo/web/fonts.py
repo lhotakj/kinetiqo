@@ -249,20 +249,20 @@ def parse_font_blocks(css_text: str) -> list[dict]:
         r"/\*\s*([^*]+?)\s*\*/\s*@font-face\s*\{([^}]+)\}",
         re.DOTALL,
     )
+    def _prop(body_text: str, name: str, default: str = "") -> str:
+        mo = re.search(rf"{name}:\s*([^;]+)", body_text)
+        return mo.group(1).strip() if mo else default
+
     blocks: list[dict] = []
     for m in block_re.finditer(css_text):
         script = m.group(1).strip()
         body = m.group(2)
 
-        def _prop(name: str, default: str = "") -> str:
-            mo = re.search(rf"{name}:\s*([^;]+)", body)
-            return mo.group(1).strip() if mo else default
-
-        family = _prop("font-family").strip("'\"")
-        style = _prop("font-style", "normal")
-        weight = _prop("font-weight", "400")
-        display = _prop("font-display", "swap")
-        unicode_range = _prop("unicode-range")
+        family = _prop(body, "font-family").strip("'\"")
+        style = _prop(body, "font-style", "normal")
+        weight = _prop(body, "font-weight", "400")
+        display = _prop(body, "font-display", "swap")
+        unicode_range = _prop(body, "unicode-range")
 
         url_match = re.search(r"url\(([^)]+\.woff2[^)]*)\)", body)
         if not url_match:

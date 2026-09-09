@@ -50,9 +50,6 @@ from kinetiqo.web.fonts import (
 from kinetiqo.profile_sync import (
     seed_profile_from_strava,
     sync_all_profile_env_vars,
-    sync_update_strava_from_env,
-    sync_gps_simplification_from_env,
-    sync_athlete_weight_from_env,
 )
 from kinetiqo.strava import StravaClient
 from kinetiqo.sync import SyncService, STOP_SIGNAL_FILE
@@ -1590,7 +1587,7 @@ def ftp():
                         dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
                         if dt >= since_cutoff:
                             filtered.append(a)
-                    except Exception:
+                    except (ValueError, TypeError, KeyError):
                         continue
                 cycling_activities = filtered
 
@@ -1702,7 +1699,7 @@ def ftp_history():
                         dt = datetime.fromisoformat(a['start_date'].replace('Z', UTC_OFFSET_SUFFIX))
                         if dt >= since_cutoff:
                             filtered.append(a)
-                    except Exception:
+                    except (ValueError, TypeError, KeyError):
                         continue
                 cycling_activities = filtered
 
@@ -2753,9 +2750,8 @@ def _has_strava_description_templates() -> bool:
     try:
         repo = get_db()
         profile = repo.get_profile()
-        if profile:
-            if any(bool((profile.get(field) or "").strip()) for field in UPDATE_STRAVA_FIELDS):
-                return True
+        if profile and any(bool((profile.get(field) or "").strip()) for field in UPDATE_STRAVA_FIELDS):
+            return True
     except Exception as e:
         logger.warning(f"Could not check Strava description templates in DB: {e}")
 
@@ -2936,7 +2932,6 @@ def poster_photo_get(activity_id):
         Response: PNG bytes on success, or an empty
         404 response on failure.
     """
-    import pathlib
     cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
     cache_dir.mkdir(exist_ok=True)
     cached = cache_dir / f"{activity_id}.png"
@@ -2966,7 +2961,6 @@ def poster_photo_reload(activity_id):
     Returns:
         Response: PNG bytes on success or a JSON error payload on failure.
     """
-    import pathlib
     cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
     cache_dir.mkdir(exist_ok=True)
     cached = cache_dir / f"{activity_id}.png"
@@ -2998,10 +2992,6 @@ def poster_photo_upload(activity_id):
         Response: PNG bytes of the converted image or a JSON error payload on
         failure.
     """
-    import pathlib
-    from PIL import Image
-    import io
-
     cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
     cache_dir.mkdir(exist_ok=True)
 
@@ -3593,8 +3583,6 @@ def _fetch_strava_activity_photo(activity_id: str) -> str | None:
 
 def _download_and_convert_to_png(url: str) -> bytes | None:
     """Download an image URL and convert to PNG bytes."""
-    from PIL import Image
-    import io
     r = requests.get(url, timeout=15)
     r.raise_for_status()
     img = Image.open(io.BytesIO(r.content))

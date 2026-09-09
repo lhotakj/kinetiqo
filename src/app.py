@@ -1,18 +1,18 @@
+import logging
 import os
-
 from datetime import datetime
 
 from auth import User, users
-from flask import Flask, request, redirect, url_for, flash
-from flask import render_template
+from flask import Flask, flash, redirect, render_template, request, url_for
+
 # Import CSRF protection if available. Production must have Flask-WTF so the
 # app never runs with CSRF protection silently disabled.
 try:
     from flask_wtf import CSRFProtect
-except Exception:
+except (ImportError, ModuleNotFoundError):
     try:
         from flask_wtf.csrf import CSRFProtect
-    except Exception as exc:
+    except (ImportError, ModuleNotFoundError) as exc:
         if os.environ.get("FLASK_ENV") == "production" or os.environ.get("KINETIQO_PRODUCTION") == "1":
             raise RuntimeError("Flask-WTF is required in production to enable CSRF protection.") from exc
         logging.getLogger(__name__).warning(
@@ -20,7 +20,7 @@ except Exception:
         )
         CSRFProtect = None
 
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from mock_data import get_mock_activities
 
 
@@ -28,12 +28,11 @@ from mock_data import get_mock_activities
 app = Flask(__name__)
 csrf = CSRFProtect() if CSRFProtect is not None else None
 if csrf is not None:
-    csrf.init_app(app) # Compliant
+    csrf.init_app(app)  # Compliant
 
 # Enforce SECRET_KEY in production
 secret = os.environ.get("SECRET_KEY")
 if not secret:
-    import logging
     logging.getLogger(__name__).warning(
         "SECRET_KEY environment variable not set - using a generated key. "
         "This is fine for development but MUST be set in production."
