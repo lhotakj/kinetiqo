@@ -5,9 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} - Kinetiqo</title>
 
-    <!-- Theme initialization: set background colour immediately to prevent flash on dark theme -->
+    <!-- Theme initialization & extension noise suppression: runs immediately at document start -->
     <script>
         (function() {
+            // Suppress benign browser extension background channel closure errors
+            function isExtensionChannelError(msg) {
+                return typeof msg === 'string' && (
+                    msg.indexOf('message channel closed') !== -1 ||
+                    msg.indexOf('A listener indicated an asynchronous response') !== -1
+                );
+            }
+            window.addEventListener('unhandledrejection', function(event) {
+                var reason = event && event.reason;
+                var msg = (reason && (reason.message || reason.stack || String(reason))) || '';
+                if (isExtensionChannelError(msg)) {
+                    try { event.preventDefault(); } catch(e) {}
+                }
+            });
+            window.addEventListener('error', function(event) {
+                var msg = (event && (event.message || String(event))) || '';
+                if (isExtensionChannelError(msg)) {
+                    try { event.preventDefault(); } catch(e) {}
+                }
+            });
+            if (window.console && typeof window.console.error === 'function') {
+                var _origConsoleError = window.console.error;
+                window.console.error = function() {
+                    var args = Array.prototype.slice.call(arguments);
+                    var full = args.map(function(a) {
+                        return (a && (a.message || a.stack || String(a))) || '';
+                    }).join(' ');
+                    if (isExtensionChannelError(full)) return;
+                    _origConsoleError.apply(window.console, arguments);
+                };
+            }
+
             function getTheme() {
                 var cookies = document.cookie.split(';').map(function(c) { return c.trim().split('='); });
                 var themeCookie = cookies.find(function(c) { return c[0] === 'theme'; });

@@ -90,9 +90,10 @@
     </div>
 </div>
 
+<script id="power-data-json" type="application/json">{{ power_data | tojson }}</script>
 <script>
 (function() {
-    const powerData = {{ power_data | tojson }};
+    const powerData = JSON.parse(document.getElementById('power-data-json')?.textContent || '[]');
     const canvas = document.getElementById('powerSpiderCanvas');
     const ctx = canvas.getContext('2d');
     const W = canvas.width;

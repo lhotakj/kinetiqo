@@ -12,6 +12,18 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <script>
 (function(){
+    // Suppress benign unhandled rejections caused by browser extension message channels closing
+    window.addEventListener('unhandledrejection', function(event) {
+        var reason = event && event.reason;
+        var msg = (reason && (reason.message || reason.stack || String(reason))) || '';
+        if (typeof msg === 'string' && (
+            msg.indexOf('message channel closed') !== -1 ||
+            msg.indexOf('A listener indicated an asynchronous response') !== -1
+        )) {
+            try { event.preventDefault(); } catch(e) {}
+        }
+    });
+
     if (window._kinetiqo_csrf_patched) return;
     window._kinetiqo_csrf_patched = true;
 

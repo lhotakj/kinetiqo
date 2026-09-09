@@ -7,7 +7,7 @@
         <option value="{{ key }}"
                 {{ 'selected' if key == current_basemap else '' }}
                 {{ 'disabled' if is_disabled else '' }}
-                style="{{ 'color:#9ca3af;' if is_disabled else '' }}">{{ provider.name }}{{ ' (API key required)' if is_disabled else '' }}</option>
+                {% if is_disabled %}style="color:#9ca3af;"{% endif %}>{{ provider.name }}{{ ' (API key required)' if is_disabled else '' }}</option>
         {% endfor %}
     </select>
 </div>

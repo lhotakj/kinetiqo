@@ -365,8 +365,8 @@
         <div class="control-box">
             <div class="control-box-header" data-box-id="boxTitle">
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="boxVisible_title" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Activity Name on poster">
-                    <h4 class="text-gray-900 dark:text-gray-100">Activity Name</h4>
+                    <input type="checkbox" id="boxVisible_title" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Activity Name on poster" aria-label="Toggle Activity Name on poster">
+                    <label for="boxVisible_title" class="cursor-pointer select-none"><h4 class="text-gray-900 dark:text-gray-100">Activity Name</h4></label>
                 </div>
                 <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Activity Name section">
                     <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,8 +437,8 @@
         <div class="control-box">
             <div class="control-box-header" data-box-id="boxStats">
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="boxVisible_stats" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Stats on poster">
-                    <h4 class="text-gray-900 dark:text-gray-100">Stats</h4>
+                    <input type="checkbox" id="boxVisible_stats" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Stats on poster" aria-label="Toggle Stats on poster">
+                    <label for="boxVisible_stats" class="cursor-pointer select-none"><h4 class="text-gray-900 dark:text-gray-100">Stats</h4></label>
                 </div>
                 <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Stats section">
                     <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -518,8 +518,8 @@
         <div class="control-box">
             <div class="control-box-header" data-box-id="boxElevation">
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="boxVisible_elevation" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Elevation Chart on poster">
-                    <h4 class="text-gray-900 dark:text-gray-100">Elevation Chart</h4>
+                    <input type="checkbox" id="boxVisible_elevation" class="box-visible-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" checked title="Toggle Elevation Chart on poster" aria-label="Toggle Elevation Chart on poster">
+                    <label for="boxVisible_elevation" class="cursor-pointer select-none"><h4 class="text-gray-900 dark:text-gray-100">Elevation Chart</h4></label>
                 </div>
                 <button type="button" class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none" aria-label="Toggle Elevation Chart section">
                     <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -624,6 +624,7 @@
     </div>
 </div>
 
+<script id="tile-providers-data" type="application/json">{{ (tile_providers if tile_providers else {}) | tojson }}</script>
 <script>
     (function() {
         // Global diagnostics: capture uncaught errors and unhandled promise rejections
@@ -670,7 +671,7 @@
         singleLine: true
     };
 
-    const TILE_PROVIDERS = {{ (tile_providers if tile_providers else {}) | tojson }};
+    const TILE_PROVIDERS = JSON.parse(document.getElementById('tile-providers-data')?.textContent || '{}');
 
     // Watermark constants - change these to tune watermark size (fraction of poster width)
     // and opacity. WATERMARK_SIZE_PCT: 0.10 means 10% of poster width.

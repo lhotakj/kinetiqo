@@ -1,9 +1,12 @@
 import hashlib
 import html
+import importlib
+import io
 import json as json_module
 import logging
 import mimetypes
 import os
+import pathlib
 import secrets
 import shutil
 import threading
@@ -11,6 +14,8 @@ import time as _time
 from datetime import datetime
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
+
+from PIL import Image
 
 import httpx
 import requests
@@ -998,7 +1003,7 @@ def map_data_api():
 
         # Step 4: Build compact response with O(N) Haversine simplification
         profile = repo.get_profile()
-        if profile and isinstance(profile, dict) and profile.get('gps_simplification') is not None and not isinstance(profile.get('gps_simplification'), MagicMock if 'MagicMock' in globals() else type(None)):
+        if profile and isinstance(profile, dict) and profile.get('gps_simplification') is not None:
             try:
                 level = int(profile['gps_simplification'])
             except (ValueError, TypeError):
@@ -3014,9 +3019,9 @@ def poster_photo_upload(activity_id):
         # Convert to PNG
         if filename.endswith(('.heic', '.heif')):
             try:
-                import pillow_heif
+                pillow_heif = importlib.import_module('pillow_heif')
                 pillow_heif.register_heif_opener()
-            except ImportError:
+            except (ImportError, ModuleNotFoundError):
                 return jsonify({'error': 'HEIC support not available (pillow-heif not installed)'}), 500
         img = Image.open(io.BytesIO(raw))
         img = img.convert('RGB')

@@ -291,11 +291,12 @@
         </div>
     </div>
 </div>
-<script src="{{ url_for('static', filename='vendor/html2canvas/html2canvas-1.4.1.min.js', v=app_version) }}"></script>
+<script id="map-activity-ids-data" type="application/json">{{ activity_ids | tojson }}</script>
+<script id="map-tile-providers-data" type="application/json">{{ tile_providers | tojson }}</script>
 <script>
     // --- Configuration from server ---
-    const activityIds = {{ activity_ids | tojson }};
-    const tileProviders = {{ tile_providers | tojson }};
+    const activityIds = JSON.parse(document.getElementById('map-activity-ids-data')?.textContent || '[]');
+    const tileProviders = JSON.parse(document.getElementById('map-tile-providers-data')?.textContent || '{}');
 
     // Server-side defaults (used when localStorage has no saved value)
     const DEFAULTS = {
@@ -520,7 +521,7 @@
                     btn.setAttribute('aria-label', 'Export PNG');
                     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>';
                     L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', function(e) {
-                        exportMapToPNG();
+                        exportMapToPNG().catch(function(err) { console.error('Export error:', err); });
                     });
                     return container;
                 }
@@ -626,8 +627,8 @@
     async function exportMapToPNG(filename = 'kinetiqo-map.png') {
         if (!leafletMap) return;
         const mapEl = leafletMap.getContainer();
-        const rect = mapEl.getBoundingClientRect();
-        // Use actual devicePixelRatio for high-DPI screens, but cap to avoid huge canvases
+        const mapRect = mapEl.getBoundingClientRect();
+        // Use devicePixelRatio for high-DPI screens, capped at 4
         const dpr = (window.devicePixelRatio && Number(window.devicePixelRatio)) || 1;
         const scale = Math.max(1, Math.min(4, dpr));
 
@@ -641,104 +642,94 @@
             exportBtn.textContent = 'Exporting…';
         }
 
-        // Ensure Leaflet has recalculated sizes and finished loading tiles
-        try { leafletMap.invalidateSize(); } catch(e) {}
-        await waitForMapStable(1200);
+        // Unhighlight any active route before capturing
+        try { unhighlightRoute(); } catch (_) {}
+        try { leafletMap.invalidateSize(); } catch (_) {}
+        await waitForMapStable(300);
 
         try {
-            // Ask html2canvas to render at the requested scale. Also pass explicit width/height
-            const canvas = await html2canvas(mapEl, {
-                useCORS: true,
-                allowTaint: true,
-                scale: scale,
-                width: Math.round(rect.width),
-                height: Math.round(rect.height),
-                onclone: function(clonedDoc) {
-                    try {
-                        // reset clone document layout so positions match
-                        clonedDoc.documentElement.style.margin = '0';
-                        clonedDoc.body.style.margin = '0';
-                        clonedDoc.body.style.overflow = 'hidden';
-
-                        // sync scroll positions so cloned layout aligns with original
-                        try { clonedDoc.documentElement.scrollTop = document.documentElement.scrollTop; } catch(e) {}
-                        try { clonedDoc.documentElement.scrollLeft = document.documentElement.scrollLeft; } catch(e) {}
-                        try { clonedDoc.body.scrollTop = document.body.scrollTop; } catch(e) {}
-                        try { clonedDoc.body.scrollLeft = document.body.scrollLeft; } catch(e) {}
-                        try { if (clonedDoc.defaultView && clonedDoc.defaultView.scrollTo) clonedDoc.defaultView.scrollTo(window.scrollX || window.pageXOffset, window.scrollY || window.pageYOffset); } catch(e) {}
-                    } catch(e) {}
-
-                    var clonedContainer = clonedDoc.getElementById('map-container');
-                    var originalContainer = document.getElementById('map-container');
-                    if (clonedContainer && originalContainer) {
-                        clonedContainer.classList.add('png-export');
-
-                        // Force exact pixel size for the cloned container
-                        clonedContainer.style.width = Math.round(rect.width) + 'px';
-                        clonedContainer.style.height = Math.round(rect.height) + 'px';
-                        clonedContainer.style.margin = '0';
-                        clonedContainer.style.padding = '0';
-                        clonedContainer.style.boxSizing = 'border-box';
-
-                        // Position the cloned container so its internal panes line up with the original render
-                        var origRect = originalContainer.getBoundingClientRect();
-                        var left = Math.round(origRect.left - (window.scrollX || window.pageXOffset));
-                        var top = Math.round(origRect.top - (window.scrollY || window.pageYOffset));
-                        clonedContainer.style.position = 'absolute';
-                        clonedContainer.style.left = left + 'px';
-                        clonedContainer.style.top = top + 'px';
-
-                        // Copy computed transform and positioning from original map panes to preserve tile offsets
-                        try {
-                            var origMapPane = originalContainer.querySelector('.leaflet-map-pane');
-                            var clonedMapPane = clonedContainer.querySelector('.leaflet-map-pane');
-                            if (origMapPane && clonedMapPane) {
-                                var paneCS = window.getComputedStyle(origMapPane);
-                                clonedMapPane.style.transform = paneCS.transform || '';
-                                clonedMapPane.style.left = paneCS.left || '';
-                                clonedMapPane.style.top = paneCS.top || '';
-                            }
-
-                            var origTilePane = originalContainer.querySelector('.leaflet-tile-pane');
-                            var clonedTilePane = clonedContainer.querySelector('.leaflet-tile-pane');
-                            if (origTilePane && clonedTilePane) {
-                                var tileCS = window.getComputedStyle(origTilePane);
-                                clonedTilePane.style.transform = tileCS.transform || '';
-                            }
-                        } catch(e) {}
-
-                        // Ensure tile images are not constrained in the clone
-                        var imgs = clonedContainer.querySelectorAll('img');
-                        imgs.forEach(function(i){
-                            i.style.maxWidth = 'none';
-                            i.style.maxHeight = 'none';
-                            i.style.width = 'auto';
-                            i.style.height = 'auto';
-                        });
-
-                        // Remove any scroll offset in the clone
-                        try { clonedContainer.scrollTop = 0; clonedContainer.scrollLeft = 0; } catch(e) {}
-                    }
-                }
-            });
-
-            // Create final canvas at device pixels so PNG matches screen pixel size (fullscreen on 4k)
+            // Create target canvas matching exact map viewport at requested scale
             const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = Math.round(rect.width * scale);
-            finalCanvas.height = Math.round(rect.height * scale);
+            finalCanvas.width = Math.round(mapRect.width * scale);
+            finalCanvas.height = Math.round(mapRect.height * scale);
             const ctx = finalCanvas.getContext('2d');
 
-            // Draw the captured canvas into the final canvas (should already be at the same scale)
-            ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, finalCanvas.width, finalCanvas.height);
+            // 1. Draw basemap tiles
+            const tiles = mapEl.querySelectorAll('.leaflet-tile-pane img');
+            if (tiles.length > 0) {
+                ctx.save();
+                ctx.globalAlpha = currentMapOpacity / 100.0;
+                tiles.forEach(function(tile) {
+                    if (!tile.complete || tile.naturalWidth === 0) return;
+                    const r = tile.getBoundingClientRect();
+                    const dx = Math.round((r.left - mapRect.left) * scale);
+                    const dy = Math.round((r.top - mapRect.top) * scale);
+                    const dw = Math.round(r.width * scale);
+                    const dh = Math.round(r.height * scale);
+                    // Skip off-screen tiles
+                    if (dx + dw <= 0 || dx >= finalCanvas.width || dy + dh <= 0 || dy >= finalCanvas.height) return;
+                    try {
+                        ctx.drawImage(tile, dx, dy, dw, dh);
+                    } catch (_) {}
+                });
+                ctx.restore();
+            }
+
+            // 2. Draw map tone color overlay (if active)
+            if (currentMapToneColor && currentToneOpacity > 0) {
+                ctx.save();
+                ctx.fillStyle = currentMapToneColor;
+                ctx.globalAlpha = (currentMapOpacity === 0 ? 1 : (currentToneOpacity / 100.0));
+                ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+                ctx.restore();
+            }
+
+            // 3. Draw route polylines from Leaflet overlay canvas
+            const routeCanvases = mapEl.querySelectorAll('.leaflet-overlay-pane canvas');
+            routeCanvases.forEach(function(rc) {
+                const r = rc.getBoundingClientRect();
+                const dx = Math.round((r.left - mapRect.left) * scale);
+                const dy = Math.round((r.top - mapRect.top) * scale);
+                const dw = Math.round(r.width * scale);
+                const dh = Math.round(r.height * scale);
+                try {
+                    ctx.drawImage(rc, dx, dy, dw, dh);
+                } catch (_) {}
+            });
+
+            // 4. Draw brand watermark
             await drawMapWatermark(ctx, finalCanvas);
 
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = finalCanvas.toDataURL('image/png');
-            link.click();
+            // 5. Trigger download
+            function downloadCanvas(url) {
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.download = filename;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(function() {
+                    try { link.remove(); } catch (_) {}
+                    if (url && url.startsWith('blob:')) {
+                        try { URL.revokeObjectURL(url); } catch (_) {}
+                    }
+                }, 10000);
+            }
 
-            // Show a short confirmation modal
-            try { showExportCompleteModal(filename); } catch(e) { /* ignore */ }
+            if (typeof finalCanvas.toBlob === 'function') {
+                finalCanvas.toBlob(function(blob) {
+                    if (blob) {
+                        downloadCanvas(URL.createObjectURL(blob));
+                    } else {
+                        downloadCanvas(finalCanvas.toDataURL('image/png'));
+                    }
+                }, 'image/png');
+            } else {
+                downloadCanvas(finalCanvas.toDataURL('image/png'));
+            }
+
+            // Show confirmation modal
+            try { showExportCompleteModal(filename); } catch (_) {}
         } catch (err) {
             console.error('Export failed:', err);
             alert('Could not export map to image. Try taking a screenshot instead.');
@@ -912,7 +903,8 @@
         // or crossOrigin option needed here.
         const opts = {
             attribution: provider.attr,
-            maxZoom: provider.maxZoom || 19
+            maxZoom: provider.maxZoom || 19,
+            crossOrigin: true
         };
         if (provider.subdomains) {
             opts.subdomains = provider.subdomains;
@@ -1242,7 +1234,7 @@
         if (exportBtn) {
             exportBtn.addEventListener('click', function() {
                 if (exportBtn.disabled) return;
-                exportMapToPNG();
+                exportMapToPNG().catch(function(err) { console.error('Export error:', err); });
             });
         }
     });
