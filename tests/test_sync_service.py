@@ -1,6 +1,5 @@
-import types
 import requests
-import pytest
+import types
 
 from kinetiqo.sync import SyncService, DESC_NOT_CONFIGURED, DESC_SKIPPED, DESC_UNCHANGED, DESC_UPDATED, DESC_FAILED
 

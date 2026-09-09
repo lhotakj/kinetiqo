@@ -89,12 +89,14 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 - **Never use `|safe`** unless rendering sanitized HTML that has been strictly validated. Document any use of `|safe`.
 - **DOM Injection**: Avoid constructing HTML via string concatenation in client-side JS using untrusted data. Prefer setting `textContent`, `setAttribute()`, or using template cloning. Do not use `innerHTML` or `document.write()`.
 
-### 4.4 Form Accessibility & Control Association (Sonar Web:S6853)
-- Every `<label>` element must be associated with a valid form input element.
-  - Use `<label for="element_id">` with a matching `id="element_id"` on the input/select/textarea.
-  - Alternatively, nest the input inside the `<label>`.
+### 4.4 Form Accessibility & Control Association (Sonar Web:S6853 / Web:InputWithoutLabelCheck)
+- **Mandatory Form Labeling**: Every form control (`<input>`, `<select>`, `<textarea>`, including checkboxes, radio buttons, file uploads, range sliders, and color pickers) MUST have an associated accessible label.
+  - Use `<label for="element_id">` with a matching `id="element_id"` on the control.
+  - Or nest the control inside a `<label>` element.
+  - Always provide an explicit `aria-label` or `aria-labelledby` on inputs (e.g. `aria-label="Toggle Activity Name on poster"`).
+  - Checkboxes and toggles (e.g. `.box-visible-checkbox`, toggle switches, and header controls) must always have an associated `<label for="...">` or wrap the text description in a `<label>`.
 - Do not use `<label>` tags for non-form labels or section headers; use `<div>` or `<span>`.
-- Provide `aria-label` or `aria-labelledby` for custom controls.
+- Provide `aria-label` or `aria-labelledby` for custom controls and collapse buttons.
 
 ### 4.5 Supply Chain Security, CDN Guidelines & Self-Hosting
 - **Base UI & Vendor Assets**: All frontend vendor assets (Tailwind CSS, HTMX, jQuery, Leaflet, Chart.js, Moment.js, DataTables, Select2, DateRangePicker, JSZip, SortableJS, html2canvas) must be **100% self-hosted** (`static/fonts/`, `static/css/tailwind.css`, `static/vendor/`) to guarantee offline availability and eliminate external supply chain dependencies.
@@ -186,12 +188,13 @@ IMPORTANT: Any new feature, endpoint, CLI command, or public API change MUST inc
 
 ## 6. AI Agent Guidelines (Gemini & Copilot)
 
+- **Line Endings Standard (LF / Linux format)**: ALWAYS generate, edit, and save files with Unix/Linux line endings (**LF / `\n`**), NEVER Windows CRLF (`\r\n`). All text, python, template, shell, markdown, and config files must use standard UTF-8 without Byte Order Marks (no UTF-8 BOM `\xef\xbb\xbf`).
 - **Multi-File Edits**: Update multiple files in a single response turn when a change spans repositories, web endpoints, templates, test files, or promo docs (`promo-web/`).
 - **Promo Site Synchronization & SEO Compliance**: Always update `promo-web/` (`installation.html`, `cli.html`, `index.html`) whenever changing CLI commands, environment variables, or platform features, and **always enforce strict SEO standards & regenerate `sitemap.xml`** whenever modifying HTML files.
 - **Mocked Unit Tests**: Always default to creating fast, mocked unit tests in `tests/`. Do not require live external services or live databases.
 - **Complete, Production-Ready Code**: Provide complete code snippets without placeholders or missing imports.
 - **No ORMs**: Use parameterized raw SQL queries exclusively across PostgreSQL, MySQL, and Firebird.
-- **Strict Compliance**: Follow SonarQube rules for label association (`Web:S6853`), XSS output encoding (`Web:S5725`), SRI hashes, and same-tab internal link navigation.
+- **Strict Compliance**: Follow SonarQube rules for label association (`Web:S6853` / `Web:InputWithoutLabelCheck`), XSS output encoding (`Web:S5725`), SRI hashes, and same-tab internal link navigation.
 
 ---
 

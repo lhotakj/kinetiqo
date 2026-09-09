@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from kinetiqo.config import Config
-from kinetiqo.profile_sync import sync_gps_simplification_from_env
+from kinetiqo.profile_sync import (
+    sync_athlete_weight_from_env,
+    sync_gps_simplification_from_env,
+    sync_update_strava_from_env,
+)
 from kinetiqo.web.app import app
 
 
@@ -141,12 +145,6 @@ class TestGpsSimplificationWebAPI(unittest.TestCase):
         data = resp.get_json()
         self.assertIn('error', data)
 
-
-from kinetiqo.profile_sync import (
-    sync_gps_simplification_from_env,
-    sync_update_strava_from_env,
-    sync_athlete_weight_from_env,
-)
 
 
 class TestUnifiedProfileSync(unittest.TestCase):

@@ -51,7 +51,6 @@ class TestDownloadVendorLibraries(unittest.TestCase):
             "moment",
             "jszip",
             "sortable",
-            "html2canvas",
         }
         self.assertTrue(expected_ids.issubset(lib_ids))
 

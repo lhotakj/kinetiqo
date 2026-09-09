@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Verify vendor asset references in HTML and PY files.
 
 Search patterns supported:
@@ -79,13 +78,13 @@ for glob in SCAN_GLOBS:
             continue
         try:
             relf = f.relative_to(REPO_ROOT)
-        except Exception:
+        except ValueError:
             relf = f
         if not QUIET:
             print(f'Scanning {relf} ...', end=' ', flush=True)
         try:
             text = f.read_text(encoding='utf-8')
-        except Exception:
+        except (UnicodeDecodeError, OSError):
             if not QUIET:
                 print('skipped (binary/encoding)', flush=True)
             continue
@@ -95,19 +94,15 @@ for glob in SCAN_GLOBS:
                 filename = m.group(1) or m.group(2)
                 if not filename:
                     continue
-                resolved = filename
-                if resolved.startswith('/static/'):
-                    resolved = resolved[len('/static/'):]
+                resolved = filename.removeprefix('/static/')
                 local_path = STATIC_BASE / resolved
                 found.append((str(relf), i, m.group(0), str(local_path)))
                 match_count += 1
             for m in STATIC_PATH_RE.finditer(line):
-                path_value = m.group(1)
-                if path_value.startswith('/'):
-                    path_value = path_value[1:]
+                path_value = m.group(1).removeprefix('/')
                 local_path = REPO_ROOT / path_value
                 if path_value.startswith('static/'):
-                    rel = path_value[len('static/'):]
+                    rel = path_value.removeprefix('static/')
                     local_path = STATIC_BASE / rel
                 found.append((str(relf), i, m.group(0), str(local_path)))
                 match_count += 1

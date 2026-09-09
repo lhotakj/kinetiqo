@@ -1,9 +1,3 @@
-import json
-import types
-from unittest import mock
-
-import pytest
-
 from kinetiqo.web.app import app
 
 

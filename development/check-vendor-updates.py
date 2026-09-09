@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-import yaml, json, urllib.request, sys
+import json
+import urllib.request
 from pathlib import Path
+
+import yaml
 repo_root = Path('.').resolve().parent.parent
 cfg_path = repo_root / 'development' / 'vendor-libraries.yaml'
 with open(cfg_path,'r',encoding='utf-8') as f:
@@ -42,9 +45,7 @@ for lib in libs:
     lib_id_l = lib_id.lower()
     version = lib.get('version') or lib.get('versions')
     reported = None
-    if isinstance(version, str):
-        reported = version
-    elif isinstance(version, dict):
+    if isinstance(version, (str, dict)):
         reported = version
     if lib_id_l == 'chart':
         versions = lib.get('versions',{})

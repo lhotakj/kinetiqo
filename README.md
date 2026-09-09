@@ -177,7 +177,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
 
 5.  **Refresh local frontend vendors (Optional):**
-    The `development` directory contains a unified Python script and YAML config to download all offline frontend vendor assets (HTMX, Leaflet, jQuery, Chart.js, Moment, DataTables, Select2, Date Range Picker, JSZip, SheetJS, SortableJS, html2canvas, Tailwind CSS CLI) into `src/kinetiqo/web/static/vendor/`.
+    The `development` directory contains a unified Python script and YAML config to download all offline frontend vendor assets (HTMX, Leaflet, jQuery, Chart.js, Moment, DataTables, Select2, Date Range Picker, JSZip, SheetJS, SortableJS, Tailwind CSS CLI) into `src/kinetiqo/web/static/vendor/`.
     ```bash
     python development/download-vendor-libraries.py
     ```

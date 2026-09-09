@@ -1,5 +1,4 @@
 import types
-import pytest
 
 from kinetiqo.db.postgresql import PostgresqlRepository
 

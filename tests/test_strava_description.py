@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from kinetiqo.config import UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END, UPDATE_STRAVA_PREFIX
-from kinetiqo.db.repository import GOAL_TYPE_CYCLING, GOAL_TYPE_WALKING
+from kinetiqo.db.repository import GOAL_TYPE_CYCLING
 from kinetiqo.strava_description import (
     DescriptionContext,
     ParsedPlaceholder,
