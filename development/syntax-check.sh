@@ -11,7 +11,7 @@ SRC_DIR="$REPO_ROOT/src"
 declare -a files=()
 
 # If src exists, scan it (preferred). Otherwise fallback to a repo-wide find.
-if [ -d "$SRC_DIR" ]; then
+if [[ -d "$SRC_DIR" ]]; then
   echo "Scanning all Python files under src/"
   pushd "$SRC_DIR" >/dev/null
   # read NUL-separated file list into array
@@ -26,7 +26,7 @@ else
   mapfile -d '' -t files < <(find "$REPO_ROOT" -type f -name "*.py" -not -path "./.venv/*" -not -path "./.git/*" -print0)
 fi
 
-if [ ${#files[@]} -eq 0 ]; then
+if [[ ${#files[@]} -eq 0 ]]; then
   echo "No Python files found"
   exit 0
 fi
