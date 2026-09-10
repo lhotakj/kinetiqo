@@ -121,6 +121,7 @@ class TestConfigEnvironmentParsing(unittest.TestCase):
         "THUNDERFOREST_API_KEY": "tf_key",
         "MAPTILER_API_KEY": "mt_key",
         "GEOAPIFY_API_KEY": "geo_key",
+        "CARTO_API_KEY": "carto_key",
         "DATE_FORMAT": "%d/%m/%Y",
     }, clear=True)
     def test_map_and_misc_env_vars_parsed(self):
@@ -130,6 +131,7 @@ class TestConfigEnvironmentParsing(unittest.TestCase):
         self.assertEqual(config.thunderforest_api_key, "tf_key")
         self.assertEqual(config.maptiler_api_key, "mt_key")
         self.assertEqual(config.geoapify_api_key, "geo_key")
+        self.assertEqual(config.carto_api_key, "carto_key")
         self.assertEqual(config.date_format, "%d/%m/%Y")
 
 

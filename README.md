@@ -3,7 +3,7 @@
 <!-- Badges: SonarCloud (main branch), Docker Hub pulls, Python version -->
 [![SonarCloud Quality Gate (main)](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&branch=main&metric=alert_status)](https://sonarcloud.io/project/overview?id=lhotakj_kinetiqo)
 [![Docker Pulls](https://img.shields.io/docker/pulls/lhotakj/kinetiqo?style=flat-square&logo=docker)](https://hub.docker.com/r/lhotakj/kinetiqo)
-[![Python Version](https://img.shields.io/badge/python-3.13%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.14%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
 <img src="https://img.shields.io/github/v/release/lhotakj/kinetiqo.svg" alt="Releases"></img>
 ![Dependabot Alerts](https://img.shields.io/github/dependabot/alerts/lhotakj/kinetiqo)
 ![Dependabot Status](https://img.shields.io/badge/Dependabot-enabled-brightgreen?logo=dependabot)
@@ -65,11 +65,11 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 📸 **Activity Poster Generator**: Create professional activity posters with customizable fonts, colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation chart, background photo support with clear image option, interactive Leaflet activity track map background mode (with tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element visibility toggles, and Playwright-powered PNG export at exact pixel dimensions.
 - ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s to 1h) with a spider chart, selectable per-activity or aggregated.
 - 🏋️ **FTP Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data, with a per-ride history chart.
-- 🫁 **VO₂max Estimation**: Estimates your VO₂max from your best 5-minute MAP power using the Townsend method, including a smoothed history trend and classification band.
+- 🫁 **VO₂max Estimation**: Provides both the Townsend/Storer-Davis best 5-minute MAP estimate and the Coggan FTP-based estimate, with a smoothed history trend and classification band.
 - 🏃 **Fitness & Freshness**: CTL / ATL / TSB chart calculated from suffer score, with configurable time constants.
 - 🎯 **Activity Goals**: Set weekly, monthly, and yearly distance and elevation goals per activity type (Cycling, Running, Hiking, etc.) with progress tracking on the Settings page.
-- ✍️ **Strava Description Auto-Update**: Optionally render a custom template of 150+ placeholders (distance, elevation, activity count, ordinal, goal, percent-of-goal, and ahead/behind-plan deviation, per activity type and per week/month/year) into every synced activity's Strava description (appended at the end by default, or prepended — configurable via `UPDATE_STRAVA_PLACEMENT`), controlled per activity-type/scope via six independent environment variables (`UPDATE_STRAVA_CYCLING_INDOOR`/`_OUTDOOR`, `UPDATE_STRAVA_RUNNING_INDOOR`/`_OUTDOOR`, `UPDATE_STRAVA_WALKING`, `UPDATE_STRAVA_SWIMMING`). See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
-- 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with multiple tile providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, Esri). Tiles are served through a server-side proxy that satisfies the OSM usage policy. Canvas renderer for performance with large datasets, plus persisted route styling, map opacity, and an optional color tone overlay.
+- ✍️ **Strava Description Auto-Update**: Optionally render a custom template of 150+ placeholders, including the `{{workout-summary}}` power-zone/workout analysis token, into synced activity descriptions. Six independent activity buckets, begin/end placement, milestone handling, validation, OAuth reauthorization, and a 30-activity-per-sync safety cap are supported. See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
+- 🗺️ **Interactive Maps**: View activities on an interactive Leaflet map with 16 layers from OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, and Esri. Tiles are served through an OSM-compliant server-side proxy where required. Canvas rendering, persistent route/map styling, tone controls, fullscreen mode, viewport PNG export, and export watermarking are supported.
 - 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
 - 📝 **Audit Logging**: Records all synchronization operations and data modifications, viewable in the Web UI.
 - 🔄 **Intelligent Synchronization**:
@@ -85,6 +85,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🚀 **Response Compression**: All HTTP responses (HTML, JSON, static assets) are automatically compressed via `flask-compress` (gzip/brotli), reducing transfer sizes by 74–99%.
 - 🔒 **Security**: OAuth 2.0 for Strava, `flask-login` session auth for the web UI.
 - 🔔 **Version Check**: Asynchronous, cached check for new releases against GitHub.
+- 🧮 **Workout Summaries**: Generates RestOrTrain-style summaries from power, heart-rate, duration, FTP, and normalized-power data, including sustained blocks, surges, Coggan zones, and configurable high-watt peak highlights.
 
 ---
 
@@ -93,14 +94,14 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | Route | Page | Description |
 |---|---|---|
 | `/` | Dashboard | Redirects to Activities |
-| `/activities` | Activities | Searchable, filterable activity list (DataTables 2.x) with bulk selection, delete, map, Power Skills, and CSV export actions |
-| `/map` | Map | Interactive Leaflet map displaying selected activity GPS tracks with multiple tile layers plus saved route styling and map tone controls |
+| `/activities` | Activities | Searchable, filterable activity list (DataTables 2.x) with bulk selection, delete, map, Power Skills, CSV export, and XLSX export actions |
+| `/map` | Map | Interactive Leaflet map displaying selected activity GPS tracks with multiple tile layers, persistent styling/tone controls, fullscreen mode, and PNG export |
 | `/powerskills` | Power Skills | Spider chart of best average power over 5s, 30s, 1min, 5min, 10min, 20min, 1h durations |
 | `/ftp` | FTP | FTP estimation history chart (95% of best 20-min power) |
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
-| `/vo2max` | VO₂max | VO₂max estimation from 5-min MAP power with trend and classification |
-| `/stats` | MEGA Stats | Veloviewer-style infographic of year/period stats with activity calendar heatmap, configurable stats column width, and date formatting via `DATE_FORMAT` |
-| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), collapsible control sections, background image (with Strava reload, upload, clear) or interactive Leaflet map mode (tile provider, map opacity, line styling), elevation chart, and Playwright PNG export |
+| `/vo2max` | VO₂max | Townsend/Storer-Davis 5-minute MAP and Coggan FTP-based VO₂max estimates with trend and classification |
+| `/stats` | MEGA Stats | Veloviewer-style infographic of year, half-year, quarter, custom-period, and activity-group statistics with calendar heatmap, configurable visible metrics, persisted layout controls, and PNG/PDF export |
+| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), draggable persistent layout, background image (Strava reload, upload, clear) or interactive Leaflet map mode, persistent map center/zoom, elevation chart, and Playwright PNG export |
 | `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
 | `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |
@@ -124,6 +125,12 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/poster/upload/<activity_id>` | POST | Upload custom poster background image |
 | `/api/poster/elevation/<activity_id>` | GET | Activity elevation profile data for poster chart |
 | `/api/poster/export/<activity_id>` | POST | Generate pixel-perfect PNG via Playwright (respects posterSize, ratio settings) |
+| `/api/stats/export` | POST | Generate a MEGA Stats PNG or PDF export via Playwright |
+| `/tiles/osm/<z>/<x>/<y>.png` | GET | Server-side OpenStreetMap tile proxy |
+| `/strava/reconnect` | GET | Start Strava OAuth reconnection, including `activity:write` when required |
+| `/strava/callback` | GET | Complete Strava OAuth callback |
+| `/api/sync/stream/<type>` | GET | Stream sync progress through SSE |
+| `/api/sync/stop` | POST | Request cancellation of the active sync |
 | `/api/settings` | GET | Application settings |
 | `/api/profile` | GET/PUT | Athlete profile (weight, name) |
 | `/api/goals` | GET/PUT | Activity goals per type |
@@ -145,6 +152,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     3. Playwright full chromium: `playwright install chromium` or bundled download
   - Docker images ship with Playwright headless-shell pre-installed (minimal, ~150 MB).
   - To use system chromium instead, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` (or `/usr/bin/chromium-headless`).
+
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` takes precedence when set and must point to an installed Chromium-compatible executable.
 
 ### Local Setup
 
@@ -223,7 +232,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     THUNDERFOREST_API_KEY=thunderforest-api-key
     MAPTILER_API_KEY=maptiler-api-key
     GEOAPIFY_API_KEY=geoapify-api-key
-
+    CARTO_API_KEY=carto-api-key
     ```
     - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
     - Only the relevant database section is required for your selected type.
@@ -421,7 +430,7 @@ Kinetiqo implements a **unified synchronization architecture** across all config
 
 #### 9. Map Configuration
 
-Kinetiqo ships with **16 map tile layers** from 7 providers. Four providers (Mapy.cz, Thunderforest, MapTiler, and Geoapify) require a free API key; the rest work out of the box.
+Kinetiqo ships with **16 map tile layers** from 7 providers. Mapy.cz, Thunderforest, MapTiler, and Geoapify require API keys. CARTO supports `CARTO_API_KEY` for authenticated basemap access and watermark removal; layers are unavailable when the key is required but missing.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -430,6 +439,8 @@ Kinetiqo ships with **16 map tile layers** from 7 providers. Four providers (Map
 | `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers (OpenCycleMap & Outdoors). | _(empty)_ |
 | `MAPTILER_API_KEY` | API key for MapTiler tile layers (Bright, Outdoor, Topo, Satellite, Aquarelle). | _(empty)_ |
 | `GEOAPIFY_API_KEY` | API key for Geoapify tile layers (OSM Bright, OSM Carto, Dark Matter). | _(empty)_ |
+| `CARTO_API_KEY` | API key for CARTO basemaps (Positron and Dark Matter). | _(empty)_ |
+| `GPS_SIMPLIFICATION_LEVEL` | Legacy alias for `GPS_SIMPLIFICATION`. | _(empty)_ |
 
 **GPS Simplification Levels & Persistence Rules:**
 
@@ -469,8 +480,8 @@ The setting is stored in the database (`profile.gps_simplification`) and can be 
 | 11 | **Geoapify (OSM Bright)** | Geoapify | `GEOAPIFY_API_KEY` | 20 | Clean OSM-derived basemap |
 | 12 | **Geoapify (OSM Carto)** | Geoapify | `GEOAPIFY_API_KEY` | 20 | Familiar OpenStreetMap-style cartography |
 | 13 | **Geoapify (Dark Matter)** | Geoapify | `GEOAPIFY_API_KEY` | 20 | Dark basemap with strong route contrast |
-| 14 | **CartoDB (Positron)** | CARTO | No | 20 | Minimalist light basemap |
-| 15 | **CartoDB (Dark)** | CARTO | No | 20 | Dark theme basemap |
+| 14 | **CARTO (Positron)** | CARTO | `CARTO_API_KEY` | 20 | Minimalist light basemap |
+| 15 | **CARTO (Dark Matter)** | CARTO | `CARTO_API_KEY` | 20 | Dark theme basemap |
 | 16 | **Esri World Imagery** | Esri | No | 18 | Satellite imagery |
 
 > Layers that require a missing API key appear **greyed-out** in the map selector with a hint. They are not removed — just disabled until the key is configured.
@@ -485,10 +496,13 @@ The setting is stored in the database (`profile.gps_simplification`) and can be 
 | **Thunderforest** | Up to 150,000 tiles/month for hobby / personal projects | 1. Go to [manage.thunderforest.com/signup](https://manage.thunderforest.com/signup) → 2. Register for a free "Hobby Project" account → 3. Copy the API key from the dashboard → 4. Set `THUNDERFOREST_API_KEY` env var |
 | **MapTiler** | Up to 100,000 requests/month for development & personal use | 1. Go to [cloud.maptiler.com](https://cloud.maptiler.com) → 2. Register for a free account → 3. Go to [Account → Keys](https://cloud.maptiler.com/account/keys/) → 4. Copy your API key → 5. Set `MAPTILER_API_KEY` env var |
 | **Geoapify** | Credit/quota based. In general, one map tile request costs one credit; daily quota and rate limits depend on your plan. Limits are described as soft, but repeated overuse may require an upgrade or be restricted. | 1. Go to [myprojects.geoapify.com](https://myprojects.geoapify.com) → 2. Register or sign in → 3. Create/select a project → 4. Copy the API key (choose Map Tiles API) → 5. Set `GEOAPIFY_API_KEY` env var. See [Geoapify pricing](https://www.geoapify.com/pricing/) and [pricing details](https://www.geoapify.com/pricing-details/). |
+| **CARTO** | Up to 5,000,000 tile requests/month; key required for current raster basemap access and watermark removal | 1. Create a key at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) → 2. Copy the key → 3. Set `CARTO_API_KEY` env var |
 
 > **OSM tile proxy:** OpenStreetMap tiles are served through a built-in server-side proxy (`/tiles/osm/...`) so the browser never contacts `tile.openstreetmap.org` directly. This satisfies the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) by attaching a proper `User-Agent` and `Referer` header from the server.
 
 > **Map controls:** The map page remembers route color, width, and route opacity together with base-map opacity (default `100%`), tone opacity (default `50%`), and an optional color tone overlay in `localStorage`. When base-map opacity is set to `0%`, the selected tone fills the map exactly.
+
+> **Map export:** The map export control renders the current map viewport as a PNG, including the visible route and attribution. Fullscreen mode can be used before export; export-only controls are removed from the image and a Kinetiqo watermark is added. Tile positioning is normalized to prevent visible seams, including on Mapy.cz layers.
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
@@ -503,6 +517,7 @@ The setting is stored in the database (`profile.gps_simplification`) and can be 
 | `UPDATE_STRAVA_WALKING` | Template for walks/hikes (`Walk`, `Hike` — no indoor/outdoor split in Strava's taxonomy). | _(empty — disabled)_ |
 | `UPDATE_STRAVA_SWIMMING` | Template for swims (`Swim` — no indoor/outdoor split in Strava's taxonomy). | _(empty — disabled)_ |
 | `UPDATE_STRAVA_PLACEMENT` | Where a brand-new stats block is inserted: `begin` or `end`. Invalid values fall back to `end` with a warning. | `end` |
+| `WORKOUT_SUMMARY_PEAK_THRESHOLD_W` | Absolute watt floor for sustained high-power peak highlights in `{{workout-summary}}`; the effective threshold is the higher of this value and 110% of FTP. | `300` |
 
 Each variable is a text template containing `{{placeholder}}` tokens
 (distance, elevation, count, ordinal, goal, percent, deviation stats — see
@@ -577,6 +592,8 @@ The CLI tool is located in the `src` directory.
     -   `--host`: Specifies the bind address (default: 0.0.0.0).
 -   `flightcheck`: Validates database connectivity and schema integrity.
 -   `version`: Outputs the current version information.
+-   `benchmark`: Profiles database operations for the configured backend.
+    -   `--scope` / `-s`: Lookback period in days (default: `365`).
 
 ### Manual Sync
 
@@ -597,6 +614,9 @@ python kinetiqo.py --log-level DEBUG sync --fast-sync
 
 # Execute incremental synchronization
 python kinetiqo.py sync --fast-sync
+
+# Run the database benchmark for the last 90 days
+python kinetiqo.py benchmark --scope 90
 ```
 
 ### Web Interface
@@ -640,12 +660,18 @@ src/
         ├── auth.py              # flask-login User model & auth helpers
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
         ├── fonts.py             # Single source of truth for all Google Fonts
-        ├── vo2max.py            # VO₂max estimation (Townsend method)
+        ├── vo2max.py            # VO₂max estimation (Townsend/Storer-Davis and Coggan methods)
+        ├── workout_summary.py   # Power/heart-rate workout summary generation
+        ├── strava_description.py# Description template rendering and validation
+        ├── profile_sync.py      # Environment/profile synchronization and token persistence
+        ├── gps_simplify.py      # Distance-based GPS track simplification
+        ├── logging_utils.py     # Shared logging configuration
         ├── progress.py          # SSE sync progress stream
         ├── stats.py             # MEGA Stats infographic data aggregation
         ├── static/
         │   ├── css/
-        │   │   └── google_fonts_local.css   # Generated @font-face CSS (self-hosted)
+        │           │   ├── google_fonts_local.css   # Generated base @font-face CSS (self-hosted)
+        │   └── google_fonts_poster_local.css # Self-hosted poster font catalog
         │   └── fonts/           # Self-hosted woff2 files (baked into Docker image)
         └── templates/           # Jinja2 templates
             ├── base.html            # Base layout (sidebar, dark mode, shared assets)
@@ -827,10 +853,23 @@ docker run -d \
   -e POSTGRESQL_USER="postgres" \
   -e POSTGRESQL_PASSWORD="password" \
   -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e POSTGRESQL_SSL_MODE="disable" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
   -e GEOAPIFY_API_KEY="your_geoapify_api_token" \
+  -e CARTO_API_KEY="your_carto_api_key" \
+  -e ATHLETE_WEIGHT="75" \
+  -e DATE_FORMAT="%b %d, %Y" \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="" \
+  -e UPDATE_STRAVA_RUNNING_INDOOR="" \
+  -e UPDATE_STRAVA_RUNNING_OUTDOOR="" \
+  -e UPDATE_STRAVA_WALKING="" \
+  -e UPDATE_STRAVA_SWIMMING="" \
+  -e UPDATE_STRAVA_PLACEMENT="end" \
+  -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
+  -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
   -e GPS_SIMPLIFICATION="0" \
   -e LOG_LEVEL="INFO" \
   -e FAST_SYNC="*/15 * * * *" \
@@ -882,6 +921,18 @@ services:
       - THUNDERFOREST_API_KEY="${THUNDERFOREST_API_KEY}"
       - MAPTILER_API_KEY="${MAPTILER_API_KEY}"
       - GEOAPIFY_API_KEY="${GEOAPIFY_API_KEY}"
+      - CARTO_API_KEY="${CARTO_API_KEY}"
+      - ATHLETE_WEIGHT="${ATHLETE_WEIGHT:-0}"
+      - DATE_FORMAT="${DATE_FORMAT:-%b %d, %Y}"
+      - UPDATE_STRAVA_CYCLING_INDOOR="${UPDATE_STRAVA_CYCLING_INDOOR:-}"
+      - UPDATE_STRAVA_CYCLING_OUTDOOR="${UPDATE_STRAVA_CYCLING_OUTDOOR:-}"
+      - UPDATE_STRAVA_RUNNING_INDOOR="${UPDATE_STRAVA_RUNNING_INDOOR:-}"
+      - UPDATE_STRAVA_RUNNING_OUTDOOR="${UPDATE_STRAVA_RUNNING_OUTDOOR:-}"
+      - UPDATE_STRAVA_WALKING="${UPDATE_STRAVA_WALKING:-}"
+      - UPDATE_STRAVA_SWIMMING="${UPDATE_STRAVA_SWIMMING:-}"
+      - UPDATE_STRAVA_PLACEMENT="${UPDATE_STRAVA_PLACEMENT:-end}"
+      - WORKOUT_SUMMARY_PEAK_THRESHOLD_W="${WORKOUT_SUMMARY_PEAK_THRESHOLD_W:-300}"
+      - PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-}"
       - GPS_SIMPLIFICATION="${GPS_SIMPLIFICATION:-0}"
       - LOG_LEVEL="${LOG_LEVEL:-INFO}"
       - FAST_SYNC="*/15 * * * *"
@@ -936,6 +987,18 @@ MAPY_API_KEY=your_mapy_com_api_token
 THUNDERFOREST_API_KEY=your_thunderforest_api_token
 MAPTILER_API_KEY=your_maptiler_api_token
 GEOAPIFY_API_KEY=your_geoapify_api_token
+CARTO_API_KEY=your_carto_api_key
+ATHLETE_WEIGHT=75
+DATE_FORMAT="%b %d, %Y"
+UPDATE_STRAVA_CYCLING_INDOOR=""
+UPDATE_STRAVA_CYCLING_OUTDOOR=""
+UPDATE_STRAVA_RUNNING_INDOOR=""
+UPDATE_STRAVA_RUNNING_OUTDOOR=""
+UPDATE_STRAVA_WALKING=""
+UPDATE_STRAVA_SWIMMING=""
+UPDATE_STRAVA_PLACEMENT=end
+WORKOUT_SUMMARY_PEAK_THRESHOLD_W=300
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=""
 LOG_LEVEL=INFO
 GPS_SIMPLIFICATION=0
 KINETIQO_WEB_PASSWORD=your_password_for_web_interface
@@ -954,19 +1017,19 @@ docker-compose up -d
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-### Map Tile Attributions
+### Map providers (links, terms, free usage & env vars)
 
-Kinetiqo displays map tiles from the following third-party providers. Their respective licenses and required attributions are listed below.
+Consolidated provider table: links to official terms, free monthly usage where available, required attribution, and the environment variable to set when applicable.
 
-| Provider | License / Terms | Required Attribution |
-|----------|----------------|----------------------|
-| [OpenStreetMap](https://www.openstreetmap.org) | Data: [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) · Tiles: [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) · [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) | © OpenStreetMap contributors |
-| [Mapy.cz](https://mapy.com) (Seznam.cz, a.s.) | [Mapy.cz Developer Terms & Conditions](https://developer.mapy.com/terms-and-conditions/) — free tier for non-commercial / personal use; map data may not be used for competing map services | © Seznam.cz, a.s. · © OpenStreetMap |
-| [Thunderforest](https://www.thunderforest.com/) | [Thunderforest Terms](https://www.thunderforest.com/terms/) — free tier available for low-traffic / personal use | Maps © Thunderforest · Data © OpenStreetMap contributors |
-| [MapTiler](https://www.maptiler.com/) | [MapTiler Terms & Conditions](https://www.maptiler.com/terms/) — free tier available for development and low-traffic personal use | © MapTiler · © OpenStreetMap contributors |
-| [Geoapify](https://www.geoapify.com/) | [Geoapify Terms](https://www.geoapify.com/terms-and-conditions/) · [Pricing](https://www.geoapify.com/pricing/) · [Pricing details](https://www.geoapify.com/pricing-details/) — credit/quota based; in general one map tile request costs one credit; API key available from [myprojects.geoapify.com](https://myprojects.geoapify.com) | Powered by Geoapify · © OpenStreetMap contributors |
-| [CARTO](https://carto.com/) (Positron & Dark Matter) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | © OpenStreetMap contributors · © CARTO |
-| [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | © Esri, Maxar, Earthstar Geographics |
+| Provider | Terms | Free usage limit (per month) | Required attribution | Env var |
+|---|---|---:|---|---|
+| [OpenStreetMap](https://www.openstreetmap.org) | Data: [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) · Tiles: [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) · [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) | N/A (served via server-side proxy) | © OpenStreetMap contributors | — |
+| [Mapy.cz](https://mapy.com) (Seznam.cz) | [Developer Terms & Conditions](https://developer.mapy.com/terms-and-conditions/) | Free tier for non-commercial / personal use — up to 250,000 credits/month (API key required) | © Seznam.cz, a.s. · © OpenStreetMap | `MAPY_API_KEY` |
+| [Thunderforest](https://www.thunderforest.com/) | [Terms of Service](https://www.thunderforest.com/terms/) | Hobby tier — up to 150,000 tiles/month (API key required) | Maps © Thunderforest · Data © OpenStreetMap contributors | `THUNDERFOREST_API_KEY` |
+| [MapTiler](https://www.maptiler.com/) | [Terms & Conditions](https://www.maptiler.com/terms/) | Free tier — up to 100,000 requests/month (API key required) | © MapTiler · © OpenStreetMap contributors | `MAPTILER_API_KEY` |
+| [Geoapify](https://www.geoapify.com/) | [Terms & Conditions](https://www.geoapify.com/terms-and-conditions/) · [Pricing](https://www.geoapify.com/pricing/) · [Pricing details](https://www.geoapify.com/pricing-details/) | ~90,000 credits/month (≈360,000 map tiles/month) (API key required) | Powered by Geoapify · © OpenStreetMap contributors | `GEOAPIFY_API_KEY` |
+| [CARTO](https://carto.com/) | [Basemaps API & Key Info](https://carto.com/basemaps/apikey) | Free up to 5,000,000 tile requests/month (API key required to remove watermark) | © OpenStreetMap contributors · © CARTO | `CARTO_API_KEY` |
+| [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | N/A (subject to Esri licensing) | © Esri, Maxar, Earthstar Geographics | — |
 
 For API key setup instructions, see [Map Configuration](#9-map-configuration) above.
 
@@ -1027,4 +1090,3 @@ $ ./kinetiqo.py benchmark --database mysql && ./kinetiqo.py benchmark --database
 ```
 
 > 📖 **Deep Dive**: For a full technical analysis of database engine differences, driver bottlenecks, and production tuning guidelines, refer to [docs/DATABASE.md](docs/DATABASE.md).
-

@@ -103,6 +103,7 @@ class Config:
     thunderforest_api_key: str | None = os.getenv("THUNDERFOREST_API_KEY", "")
     maptiler_api_key: str | None = os.getenv("MAPTILER_API_KEY", "")
     geoapify_api_key: str | None = os.getenv("GEOAPIFY_API_KEY", "")
+    carto_api_key: str | None = os.getenv("CARTO_API_KEY", "")
 
     # GPS Track Simplification
     gps_simplification: int = 0  # 0 (off, default) to 10 (max decimation)
@@ -195,6 +196,7 @@ class Config:
         self.thunderforest_api_key = os.getenv("THUNDERFOREST_API_KEY", "")
         self.maptiler_api_key = os.getenv("MAPTILER_API_KEY", "")
         self.geoapify_api_key = os.getenv("GEOAPIFY_API_KEY", "")
+        self.carto_api_key = os.getenv("CARTO_API_KEY", "")
         self.date_format = os.getenv("DATE_FORMAT", "%b %d, %Y")
 
         self.update_strava_cycling_indoor = os.getenv("UPDATE_STRAVA_CYCLING_INDOOR", "") or ""

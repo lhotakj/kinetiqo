@@ -816,26 +816,44 @@ def _build_tile_providers() -> dict:
                 'maxZoom': provider['maxZoom'],
             }
 
-    providers.update({
-        'cartodbpositron': {
+    # CARTO – raster basemaps require an API key appended as ?key=<key>
+    carto_key = config.carto_api_key
+    carto_attr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+    if carto_key:
+        providers['cartodbpositron'] = {
             'name': 'CartoDB (Positron)',
-            'url': 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            'url': f'https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png?key={carto_key}',
+            'attr': carto_attr,
             'maxZoom': 20
-        },
-        'cartodbdark': {
-            'name': 'CartoDB (Dark)',
-            'url': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-            'attr': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-            'maxZoom': 20
-        },
-        'esriworldimagery': {
-            'name': 'Esri World Imagery',
-            'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            'attr': '&copy; Esri, Maxar, Earthstar Geographics',
-            'maxZoom': 18
         }
-    })
+        providers['cartodbdark'] = {
+            'name': 'CartoDB (Dark)',
+            'url': f'https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png?key={carto_key}',
+            'attr': carto_attr,
+            'maxZoom': 20
+        }
+    else:
+        providers['cartodbpositron'] = {
+            'name': 'CartoDB (Positron)',
+            'disabled': True,
+            'url': '',
+            'attr': carto_attr,
+            'maxZoom': 20
+        }
+        providers['cartodbdark'] = {
+            'name': 'CartoDB (Dark)',
+            'disabled': True,
+            'url': '',
+            'attr': carto_attr,
+            'maxZoom': 20
+        }
+
+    providers['esriworldimagery'] = {
+        'name': 'Esri World Imagery',
+        'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'attr': '&copy; Esri, Maxar, Earthstar Geographics',
+        'maxZoom': 18
+    }
 
     return providers
 
@@ -3194,6 +3212,17 @@ def poster_export(activity_id):
                             'posterPositions_{activity_id}',
                             JSON.stringify({_json.dumps(settings_payload.get('positions', {}))})
                         );
+                        const posterSettings = {_json.dumps(settings_payload.get('settings', {}))};
+                        if (posterSettings.mapCenter && posterSettings.mapZoom !== undefined) {{
+                            window.localStorage.setItem(
+                                'posterMapView_{activity_id}',
+                                JSON.stringify({{
+                                    lat: posterSettings.mapCenter.lat,
+                                    lng: posterSettings.mapCenter.lng,
+                                    zoom: posterSettings.mapZoom
+                                }})
+                            );
+                        }}
                     }} catch(e) {{}}
                 }})();
             """)

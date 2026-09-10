@@ -121,6 +121,14 @@ def _load_api_keys(config):
     else:
         logger.warning("No Geoapify key provided, Geoapify map layers won't be available")
 
+    carto_key = os.getenv("CARTO_API_KEY", "")
+    if carto_key:
+        config.carto_api_key = carto_key
+    if config.carto_api_key:
+        logger.info("API key for CARTO provided")
+    else:
+        logger.warning("No CARTO key provided, CARTO basemap layers won't be available")
+
 
 database_option = click.option(
     '--database-type', '--database', '-d', 'database',

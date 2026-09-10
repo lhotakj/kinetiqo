@@ -640,6 +640,7 @@
         });
     const ACTIVITY_ID = '{{ activity.get("id", "") }}';
     const LS_KEY = 'poster_settings_v2';
+    const MAP_VIEW_KEY = `posterMapView_${ACTIVITY_ID}`;
 
     // Defaults
     const DEFAULTS = {
@@ -699,6 +700,23 @@
     }
 
     let settings = loadSettings();
+
+    function loadPosterMapViewSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(MAP_VIEW_KEY));
+            if (saved && Number.isFinite(saved.lat) && Number.isFinite(saved.lng) && Number.isFinite(saved.zoom)) {
+                settings.mapCenter = { lat: saved.lat, lng: saved.lng };
+                settings.mapZoom = saved.zoom;
+                return;
+            }
+        } catch (e) {
+            console.warn('Failed to load poster map view', e);
+        }
+        delete settings.mapCenter;
+        delete settings.mapZoom;
+    }
+
+    loadPosterMapViewSettings();
 
     function applyBoxCollapsedStates(s) {
         const collapsed = (s && s.boxCollapsed) ? s.boxCollapsed : DEFAULTS.boxCollapsed;
@@ -1006,15 +1024,55 @@
             lineJoin: 'round'
         }).addTo(posterLeafletMap);
 
-        if (bounds && bounds.length === 4) {
-            posterLeafletMap.fitBounds([
-                [bounds[0], bounds[1]],
-                [bounds[2], bounds[3]]
-            ], { padding: [30, 30], animate: false });
-        } else {
-            posterLeafletMap.fitBounds(posterMapPolyline.getBounds(), { padding: [30, 30], animate: false });
+        if (!hasValidPosterMapView()) {
+            if (bounds && bounds.length === 4) {
+                posterLeafletMap.fitBounds([
+                    [bounds[0], bounds[1]],
+                    [bounds[2], bounds[3]]
+                ], { padding: [30, 30], animate: false });
+            } else {
+                posterLeafletMap.fitBounds(posterMapPolyline.getBounds(), { padding: [30, 30], animate: false });
+            }
+            savePosterMapView();
         }
         posterLeafletMap.invalidateSize();
+    }
+
+    function savePosterMapView() {
+        if (!posterLeafletMap) return;
+        const center = posterLeafletMap.getCenter();
+        const zoom = posterLeafletMap.getZoom();
+        if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng) || !Number.isFinite(zoom)) return;
+        settings.mapCenter = { lat: center.lat, lng: center.lng };
+        settings.mapZoom = zoom;
+        try {
+            localStorage.setItem(MAP_VIEW_KEY, JSON.stringify({
+                lat: center.lat,
+                lng: center.lng,
+                zoom: zoom
+            }));
+        } catch (e) {
+            console.warn('Failed to save poster map view', e);
+        }
+        saveSettings(settings);
+    }
+
+    function hasValidPosterMapView() {
+        const center = settings.mapCenter;
+        return Boolean(
+            center &&
+            Number.isFinite(center.lat) &&
+            Number.isFinite(center.lng) &&
+            Number.isFinite(settings.mapZoom)
+        );
+    }
+
+    function restorePosterMapView() {
+        const center = settings.mapCenter;
+        const zoom = settings.mapZoom;
+        if (!hasValidPosterMapView()) return false;
+        posterLeafletMap.setView([center.lat, center.lng], zoom, { animate: false });
+        return true;
     }
 
     function renderPosterMap() {
@@ -1027,6 +1085,7 @@
                 attributionControl: false,
                 preferCanvas: true
             });
+            posterLeafletMap.on('moveend zoomend', savePosterMapView);
         }
 
         const providerKey = settings.mapProvider || 'openstreetmap';
@@ -1044,6 +1103,7 @@
         }
 
         posterLeafletMap.invalidateSize();
+        restorePosterMapView();
 
         if (!mapEl._fetchedActivityId || mapEl._fetchedActivityId !== ACTIVITY_ID) {
             fetch('/api/map/data', {
@@ -1817,6 +1877,7 @@
          // Clear saved settings and restore defaults. Ensure single-line
          // mode is explicitly enabled by the reset action.
          localStorage.removeItem(LS_KEY);
+         localStorage.removeItem(MAP_VIEW_KEY);
          settings = {
              ...DEFAULTS,
              boxVisible: { boxTitle: true, boxStats: true, boxElevation: true },

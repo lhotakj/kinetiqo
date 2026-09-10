@@ -86,6 +86,37 @@ class TestMapPage(unittest.TestCase):
                 self.assertIn("Powered by", providers[key]["attr"])
                 self.assertIn("Geoapify", providers[key]["attr"])
 
+    def test_carto_layers_are_disabled_without_api_key(self):
+        original_key = config.carto_api_key
+        try:
+            config.carto_api_key = ""
+            providers = _build_tile_providers()
+        finally:
+            config.carto_api_key = original_key
+
+        for key in ("cartodbpositron", "cartodbdark"):
+            with self.subTest(provider=key):
+                self.assertIn(key, providers)
+                self.assertTrue(providers[key]["disabled"])
+                self.assertEqual(providers[key]["url"], "")
+                self.assertIn("CartoDB", providers[key]["name"])
+
+    def test_carto_layers_use_configured_api_key(self):
+        original_key = config.carto_api_key
+        try:
+            config.carto_api_key = "test-carto-key"
+            providers = _build_tile_providers()
+        finally:
+            config.carto_api_key = original_key
+
+        for key in ("cartodbpositron", "cartodbdark"):
+            with self.subTest(provider=key):
+                self.assertNotIn("disabled", providers[key])
+                self.assertEqual(providers[key]["maxZoom"], 20)
+                self.assertIn("basemaps.cartocdn.com", providers[key]["url"])
+                self.assertIn("key=test-carto-key", providers[key]["url"])
+                self.assertIn("CARTO", providers[key]["attr"])
+
     @patch('flask_login.utils._get_user')
     def test_map_page_lists_geoapify_layers(self, mock_get_user):
         mock_user = MagicMock()
@@ -93,12 +124,15 @@ class TestMapPage(unittest.TestCase):
         mock_user.id = 'admin'
         mock_get_user.return_value = mock_user
 
-        original_key = config.geoapify_api_key
+        original_geo_key = config.geoapify_api_key
+        original_carto_key = config.carto_api_key
         try:
             config.geoapify_api_key = ""
+            config.carto_api_key = ""
             response = self.client.post('/map', data={'activity_ids[]': ['123']})
         finally:
-            config.geoapify_api_key = original_key
+            config.geoapify_api_key = original_geo_key
+            config.carto_api_key = original_carto_key
 
         self.assertEqual(response.status_code, 200)
         html = response.data.decode()
@@ -108,3 +142,9 @@ class TestMapPage(unittest.TestCase):
         self.assertIn('Geoapify (OSM Carto) (API key required)', html)
         self.assertIn('value="geoapify_dark_matter"', html)
         self.assertIn('Geoapify (Dark Matter) (API key required)', html)
+
+        # CARTO should also be listed but greyed out when no key is configured
+        self.assertIn('value="cartodbpositron"', html)
+        self.assertIn('CartoDB (Positron) (API key required)', html)
+        self.assertIn('value="cartodbdark"', html)
+        self.assertIn('CartoDB (Dark) (API key required)', html)
