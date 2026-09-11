@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from auth import User, users
 from flask import Flask, flash, redirect, render_template, request, url_for
@@ -44,9 +44,13 @@ app.secret_key = secret
 # Secure session cookie settings (adjust as needed for your deployment)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # Consider "Strict" for extra protection
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
 # Only set SESSION_COOKIE_SECURE if running behind HTTPS
 if os.environ.get("FLASK_ENV") == "production" or os.environ.get("KINETIQO_PRODUCTION") == "1":
     app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["REMEMBER_COOKIE_SECURE"] = True
     if not os.environ.get("SECRET_KEY"):
         raise RuntimeError("SECRET_KEY must be set in production!")
 
@@ -115,12 +119,13 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        remember = request.form.get('remember') in ('1', 'true', 'True', 'on', 'yes')
 
         # WARNING: Plaintext password check for mock/demo only!
         # Replace with password hash check in production.
         if username in users and users[username]['password'] == password:
             user = User(username)
-            login_user(user)
+            login_user(user, remember=remember)
             return redirect(url_for('activities'))
         else:
             flash('Invalid username or password')

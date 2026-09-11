@@ -11,7 +11,7 @@ import secrets
 import shutil
 import threading
 import time as _time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
 
@@ -105,6 +105,17 @@ if not secret:
         raise RuntimeError('SECRET_KEY must be set in production!')
     secret = secrets.token_hex(32)
 app.secret_key = secret
+
+# Session & Remember Cookie Security
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+if os.environ.get("KINETIQO_PRODUCTION") == "1":
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["REMEMBER_COOKIE_SECURE"] = True
 # Initialize CSRF if Flask-WTF is present.
 if CSRFProtect is not None:
     csrf = CSRFProtect()
@@ -544,6 +555,7 @@ def login():
 
     POST behaviour
     - Expects ``username`` and ``password`` form fields in the request form.
+    - Optional ``remember`` checkbox to persist login across sessions.
     - On successful authentication the user is logged in via
       :func:`flask_login.login_user` and redirected to the activities page.
     - On failure the login template is rendered again and a flash message is
@@ -553,13 +565,17 @@ def login():
         Response: The rendered login template on GET or on failed login, or a
         redirect to the activities page on successful authentication.
     """
+    if current_user.is_authenticated:
+        return redirect(url_for('activities'))
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        remember = request.form.get('remember') in ('1', 'true', 'True', 'on', 'yes')
 
         if username in users and users[username]['password'] == password:
             user = User(username)
-            login_user(user)
+            login_user(user, remember=remember)
             return redirect(url_for('activities'))
         else:
             flash('Invalid username or password')
