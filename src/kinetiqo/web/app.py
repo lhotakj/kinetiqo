@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import html
 import importlib
 import io
@@ -146,6 +146,34 @@ mimetypes.add_type('font/ttf', '.ttf')
 # --- Startup Profile Synchronization (Runs EXACTLY ONCE on App Boot) ---
 _startup_sync_done = False
 _startup_sync_lock = threading.Lock()
+
+# --- Poster export defaults and helpers ---
+POSTER_DEFAULT_SETTINGS = {
+    'posterSize': 1280,
+    'ratio': '4/3',
+    'boxVisible': {'boxTitle': True, 'boxStats': True, 'boxElevation': True},
+    'statsVisible': { 'distance': True, 'elevation': True, 'speed': True, 'cadence': True, 'heartrate': True, 'time': True, 'avg_power': True, 'max_power': True },
+    'bgType': 'image'
+}
+
+def merge_poster_settings(raw: dict) -> dict:
+    """Merge user-provided poster settings with server-side defaults.
+
+    Ensures the export code and Playwright init script always see a predictable
+    minimal shape in localStorage so short-circuit checks (e.g. skipping the
+    elevation chart wait) work reliably even when the client omits keys.
+    """
+    merged = {}
+    # Start with defaults
+    merged.update(POSTER_DEFAULT_SETTINGS)
+    # Overlay user values
+    for k, v in (raw or {}).items():
+        # If it's a nested dict, merge shallowly
+        if isinstance(v, dict) and isinstance(merged.get(k), dict):
+            merged[k] = {**merged.get(k, {}), **v}
+        else:
+            merged[k] = v
+    return merged
 
 
 def ensure_startup_profile_sync() -> None:
@@ -3126,8 +3154,11 @@ def poster_export(activity_id):
     settings_payload = request.get_json(silent=True) or {}
     # Support both legacy payload (settings directly) and new payload
     # { settings: {...}, positions: {...} }
-    settings_obj = settings_payload.get('settings', settings_payload)
+    raw_settings = settings_payload.get('settings', settings_payload)
     positions_payload = settings_payload.get('positions', {}) if isinstance(settings_payload, dict) else {}
+    # Merge with server-side defaults to ensure Playwright init script always has
+    # the minimal keys the export logic expects (boxVisible, statsVisible, bgType)
+    settings_obj = merge_poster_settings(raw_settings if isinstance(raw_settings, dict) else {})
     logger.info(
         f"Poster export request: activity={activity_id}, settings_keys={list(settings_obj.keys()) if isinstance(settings_obj, dict) else 'N/A'}, positions_provided={len(positions_payload) if isinstance(positions_payload, dict) else 0}")
 
@@ -3217,27 +3248,21 @@ def poster_export(activity_id):
             # on the very first renderPoster() call — no need for a second
             # reload or manual injection. Both `settings` and `positions` are
             # optional in the payload; fall back to empty objects when missing.
+            # Inject merged settings (server defaults merged with provided settings)
+            merged_settings_json = _json.dumps(settings_obj)
+            merged_positions_json = _json.dumps(positions_payload if isinstance(positions_payload, dict) else {})
             context.add_init_script(f"""
                 (function() {{
                     try {{
-                        window.localStorage.setItem(
-                            'poster_settings_v2',
-                            JSON.stringify({_json.dumps(settings_payload.get('settings', {}))})
-                        );
-                        window.localStorage.setItem(
-                            'posterPositions_{activity_id}',
-                            JSON.stringify({_json.dumps(settings_payload.get('positions', {}))})
-                        );
-                        const posterSettings = {_json.dumps(settings_payload.get('settings', {}))};
+                        window.localStorage.setItem('poster_settings_v2', JSON.stringify({merged_settings_json}));
+                        window.localStorage.setItem('posterPositions_{activity_id}', JSON.stringify({merged_positions_json}));
+                        const posterSettings = {merged_settings_json};
                         if (posterSettings.mapCenter && posterSettings.mapZoom !== undefined) {{
-                            window.localStorage.setItem(
-                                'posterMapView_{activity_id}',
-                                JSON.stringify({{
-                                    lat: posterSettings.mapCenter.lat,
-                                    lng: posterSettings.mapCenter.lng,
-                                    zoom: posterSettings.mapZoom
-                                }})
-                            );
+                            window.localStorage.setItem('posterMapView_{activity_id}', JSON.stringify({{
+                                lat: posterSettings.mapCenter.lat,
+                                lng: posterSettings.mapCenter.lng,
+                                zoom: posterSettings.mapZoom
+                            }}));
                         }}
                     }} catch(e) {{}}
                 }})();
@@ -3262,7 +3287,13 @@ def poster_export(activity_id):
             # <svg> children inlined (distance, elevation, speed, time, cadence).
             # Require >=5 so the poster export waits for the cadence crank icon too.
             page.wait_for_function(
-                "document.querySelectorAll('.stat-icon svg').length >= 5",
+                "(function() {"
+                "  var s = JSON.parse(localStorage.getItem('poster_settings_v2') || '{}');"
+                "  var vis = s.statsVisible || { distance: true, elevation: true, speed: true, cadence: true, heartrate: true, time: true, avg_power: true, max_power: true };"
+                "  var required = Object.keys(vis).filter(function(k){ return !!vis[k]; }).length || 1;"
+                "  var found = document.querySelectorAll('.stat-icon svg').length;"
+                "  return found >= required;"
+                "})()",
                 timeout=10_000
             )
 
@@ -3270,11 +3301,21 @@ def poster_export(activity_id):
             # Chart.js renders synchronously once data arrives, but the canvas
             # element gets a non-zero width only after the first paint cycle.
             page.wait_for_function(
-                "(function() {"
-                "  var c = document.getElementById('elevationChart');"
-                "  return c && c.width > 0;"
-                "})()",
-                timeout=15_000
+                """
+(function() {
+  var s = JSON.parse(localStorage.getItem('poster_settings_v2') || '{}');
+  // If elevation chart disabled, skip waiting.
+  // there's nothing to wait for — consider the chart-ready condition satisfied.
+  if (s.boxVisible && s.boxVisible.boxElevation === false) return true;
+  if (s.statsVisible && s.statsVisible.elevation === false) return true;
+  var c = document.getElementById('elevationChart');
+  if (!c) return true;
+  if (c.width > 0) return true;
+  if (typeof Chart !== 'undefined' && Chart.instances && Object.keys(Chart.instances).length > 0) return true;
+  try { return (c.getContext && c.getContext('2d')) ? true : false; } catch(e) { return false; }
+})()
+""",
+                timeout=30_000
             )
 
             # ── Wait for the background photo ─────────────────────────────────
