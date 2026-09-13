@@ -83,10 +83,11 @@ class TestCSRFMeta(unittest.TestCase):
         self.assertIn('const MAP_WATERMARK_OPACITY = 0.8;', page)
         self.assertIn('kinetiqo_logo.png', page)
         self.assertIn('await drawMapWatermark(ctx, finalCanvas);', page)
-        self.assertIn('ctx.imageSmoothingEnabled = false;', page)
+        self.assertIn('tileCtx.imageSmoothingEnabled = true;', page)
+        self.assertIn('const tileOverlap = 1;', page)
         self.assertIn('const dx = Math.floor(left);', page)
-        self.assertIn('const ex = Math.floor(right);', page)
-        self.assertIn('const dw = ex - dx;', page)
+        self.assertIn('const ex = Math.ceil(right);', page)
+        self.assertIn('const dw = (ex - dx) + tileOverlap;', page)
 
     def test_stop_sync_creates_stop_signal(self):
         get = self.client.get('/login')

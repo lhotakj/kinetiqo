@@ -18,9 +18,12 @@ class TestMapPage(unittest.TestCase):
         app.config['LOGIN_DISABLED'] = True
         self._csrf_enabled = app.config.get('WTF_CSRF_ENABLED', True)
         app.config['WTF_CSRF_ENABLED'] = False
+        self._patcher_sync = patch('kinetiqo.web.app.ensure_startup_profile_sync')
+        self._patcher_sync.start()
         self.client = app.test_client()
 
     def tearDown(self):
+        self._patcher_sync.stop()
         app.config['WTF_CSRF_ENABLED'] = self._csrf_enabled
 
     @patch('flask_login.utils._get_user')
@@ -148,3 +151,24 @@ class TestMapPage(unittest.TestCase):
         self.assertIn('CartoDB (Positron) (API key required)', html)
         self.assertIn('value="cartodbdark"', html)
         self.assertIn('CartoDB (Dark) (API key required)', html)
+
+    @patch('flask_login.utils._get_user')
+    def test_map_export_tile_rendering_seam_and_scaling_rules(self, mock_get_user):
+        """Map export script must use 1:1 scale, high-quality smoothing, and tile overlap without grid seams."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_user.id = 'admin'
+        mock_get_user.return_value = mock_user
+
+        response = self.client.post('/map', data={'activity_ids[]': ['123']})
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode()
+
+        self.assertIn('const scale = 1;', html)
+        self.assertIn('tileCtx.imageSmoothingEnabled = true;', html)
+        self.assertIn("tileCtx.imageSmoothingQuality = 'high';", html)
+        self.assertIn('const tileOverlap = 1;', html)
+        self.assertIn('const dw = (ex - dx) + tileOverlap;', html)
+        self.assertIn('const dh = (ey - dy) + tileOverlap;', html)
+        self.assertNotIn('ctx.imageSmoothingEnabled = false;', html)
+

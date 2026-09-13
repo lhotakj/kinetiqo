@@ -628,9 +628,8 @@
         if (!leafletMap) return;
         const mapEl = leafletMap.getContainer();
         const mapRect = mapEl.getBoundingClientRect();
-        // Use devicePixelRatio for high-DPI screens, capped at 4
-        const dpr = (window.devicePixelRatio && Number(window.devicePixelRatio)) || 1;
-        const scale = Math.max(1, Math.min(4, dpr));
+        // Use 1:1 pixel scale so map tiles and labels are rendered at exact native resolution without zooming or distortion
+        const scale = 1;
 
         // Give clear UI feedback while export runs
         const exportBtn = document.getElementById('exportBtn');
@@ -653,18 +652,23 @@
             finalCanvas.width = Math.round(mapRect.width * scale);
             finalCanvas.height = Math.round(mapRect.height * scale);
             const ctx = finalCanvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
 
             // 1. Draw basemap tiles
             const tiles = mapEl.querySelectorAll('.leaflet-tile-pane img');
             if (tiles.length > 0) {
-                ctx.save();
-                ctx.globalAlpha = currentMapOpacity / 100.0;
-                // Leaflet positions tiles on fractional CSS pixels. Rounding
-                // each tile independently can leave a 1px canvas gap between
-                // adjacent tiles, which is especially visible on Mapy.cz.
-                // Disable interpolation and snap all tile edges with the same
-                // rounding rule so seams stay closed without overlap.
-                ctx.imageSmoothingEnabled = false;
+                // Render tiles at full opacity onto an offscreen canvas first, then composite with currentMapOpacity.
+                // This allows 1px tile overlap to eliminate seams and edge-filter falloff completely
+                // without creating double-alpha seam artifacts at reduced map opacities.
+                const tileCanvas = document.createElement('canvas');
+                tileCanvas.width = finalCanvas.width;
+                tileCanvas.height = finalCanvas.height;
+                const tileCtx = tileCanvas.getContext('2d');
+                tileCtx.imageSmoothingEnabled = true;
+                tileCtx.imageSmoothingQuality = 'high';
+
+                const tileOverlap = 1;
                 tiles.forEach(function(tile) {
                     if (!tile.complete || tile.naturalWidth === 0) return;
                     const r = tile.getBoundingClientRect();
@@ -674,17 +678,21 @@
                     const bottom = (r.bottom - mapRect.top) * scale;
                     const dx = Math.floor(left);
                     const dy = Math.floor(top);
-                    const ex = Math.floor(right);
-                    const ey = Math.floor(bottom);
-                    const dw = ex - dx;
-                    const dh = ey - dy;
+                    const ex = Math.ceil(right);
+                    const ey = Math.ceil(bottom);
+                    const dw = (ex - dx) + tileOverlap;
+                    const dh = (ey - dy) + tileOverlap;
                     if (dw <= 0 || dh <= 0) return;
                     // Skip off-screen tiles
-                    if (dx + dw <= 0 || dx >= finalCanvas.width || dy + dh <= 0 || dy >= finalCanvas.height) return;
+                    if (dx + dw <= 0 || dx >= tileCanvas.width || dy + dh <= 0 || dy >= tileCanvas.height) return;
                     try {
-                        ctx.drawImage(tile, dx, dy, dw, dh);
+                        tileCtx.drawImage(tile, dx, dy, dw, dh);
                     } catch (_) {}
                 });
+
+                ctx.save();
+                ctx.globalAlpha = currentMapOpacity / 100.0;
+                ctx.drawImage(tileCanvas, 0, 0);
                 ctx.restore();
             }
 
