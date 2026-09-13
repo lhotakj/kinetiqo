@@ -77,7 +77,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - **Incremental Synchronization**: Efficiently retrieves only the most recent activities.
   - **Real-time progress**: SSE-powered progress bar during sync operations via HTMX.
 - 🐳 **Container-Native**: Dockerised on `python:3.14-slim` with a two-phase build (Firebird base + app).
-- ⏱️ **Automated Scheduling**: Built-in `dcron` scheduler for unattended sync.
+- ⏱️ **Automated Scheduling**: Built-in `cron` daemon for unattended sync.
 - 💾 **Database Compatibility**: (See [docs/DATABASE.md](docs/DATABASE.md) for architecture, benchmarks, and production recommendations)
   - **PostgreSQL** (version 12+)
   - **MySQL 8 / MariaDB 10+**
@@ -107,6 +107,10 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |
 | `/license` | License | Open-source licenses, map tile attributions, and third-party credits |
 | `/login` | Login | Session-based authentication |
+| `/logout` | Logout | Session logout (POST) |
+| `/fullsync` | Full Sync Trigger | Initiates full synchronization audit from web UI |
+| `/fastsync` | Fast Sync Trigger | Initiates incremental fast sync from web UI |
+| `/sync/start/<type>` | Progress View | Interactive real-time SSE sync progress bar page |
 
 ### JSON API Endpoints
 
@@ -132,8 +136,9 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/sync/stream/<type>` | GET | Stream sync progress through SSE |
 | `/api/sync/stop` | POST | Request cancellation of the active sync |
 | `/api/settings` | GET | Application settings |
-| `/api/profile` | GET/PUT | Athlete profile (weight, name) |
+| `/api/profile` | GET/PUT/POST | Athlete profile (weight, name) |
 | `/api/goals` | GET/PUT | Activity goals per type |
+| `/latest-version` | GET | Asynchronous GitHub release update check |
 
 ---
 
@@ -332,7 +337,7 @@ Database selection is unified across the entire application according to the fol
 See [Benchmark of databases](#benchmark-of-databases) for basic comparison of all databases
 
 #### 3. Scheduling (Cron)
-The Docker image includes a built-in cron scheduler powered by `dcron`. When the container starts, the entrypoint script registers cron jobs for any sync schedules you define via environment variables. If neither variable is set, no automatic synchronization occurs.
+The Docker image includes a built-in cron scheduler powered by Debian `cron`. When the container starts, the entrypoint script registers cron jobs for any sync schedules you define via environment variables. If neither variable is set, no automatic synchronization occurs.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -643,11 +648,16 @@ src/
     ├── __init__.py
     ├── __main__.py
     ├── cache.py                 # Strava API response cache
-    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version)
+    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version, benchmark)
     ├── config.py                # Config dataclass (reads env vars)
+    ├── gps_simplify.py          # Distance-based GPS track simplification
+    ├── logging_utils.py         # Shared logging configuration
+    ├── profile_sync.py          # Environment/profile synchronization and token persistence
     ├── strava.py                # Strava API client (OAuth2, activity streams)
+    ├── strava_description.py    # Description template rendering and validation
     ├── sync.py                  # SyncService (core sync logic, SSE progress)
     ├── version_check.py         # Async GitHub release version check
+    ├── workout_summary.py       # Power/heart-rate workout summary generation
     ├── db/
     │   ├── repository.py        # DatabaseRepository ABC (contract for all backends)
     │   ├── factory.py           # create_repository() factory
@@ -660,18 +670,13 @@ src/
         ├── auth.py              # flask-login User model & auth helpers
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
         ├── fonts.py             # Single source of truth for all Google Fonts
-        ├── vo2max.py            # VO₂max estimation (Townsend/Storer-Davis and Coggan methods)
-        ├── workout_summary.py   # Power/heart-rate workout summary generation
-        ├── strava_description.py# Description template rendering and validation
-        ├── profile_sync.py      # Environment/profile synchronization and token persistence
-        ├── gps_simplify.py      # Distance-based GPS track simplification
-        ├── logging_utils.py     # Shared logging configuration
         ├── progress.py          # SSE sync progress stream
         ├── stats.py             # MEGA Stats infographic data aggregation
+        ├── vo2max.py            # VO₂max estimation (Townsend/Storer-Davis and Coggan methods)
         ├── static/
         │   ├── css/
-        │           │   ├── google_fonts_local.css   # Generated base @font-face CSS (self-hosted)
-        │   └── google_fonts_poster_local.css # Self-hosted poster font catalog
+        │   │   ├── google_fonts_local.css   # Generated base @font-face CSS (self-hosted)
+        │   │   └── google_fonts_poster_local.css # Self-hosted poster font catalog
         │   └── fonts/           # Self-hosted woff2 files (baked into Docker image)
         └── templates/           # Jinja2 templates
             ├── base.html            # Base layout (sidebar, dark mode, shared assets)
@@ -697,7 +702,6 @@ tests/
 ├── test_vo2max.py               # VO₂max estimation tests
 ├── test_stats.py                # MEGA Stats infographic tests
 ├── test-docker-postgresql.sh    # Docker integration test (PostgreSQL)
-├── test-docker-mysql.sh         # Docker integration test (MySQL)
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
 development/
 ├── download-fonts.py            # Refresh self-hosted Google Fonts from CDN
@@ -708,9 +712,11 @@ development/
 build/
 ├── Dockerfile                   # Application image (Phase 2)
 ├── Dockerfile.firebird-base     # Firebird base image (Phase 1)
+├── Dockerfile.local             # Local development Dockerfile
 ├── build.sh                     # Local app image build script
 ├── build-base.sh                # Local base image build script
 ├── entrypoint.sh                # Container entrypoint (cron setup, Gunicorn)
+├── test-local.sh                # Local test script
 └── docker-overview.md           # Docker build documentation
 ```
 
@@ -744,7 +750,9 @@ build/
 | Leaflet.js | 1.9.4 (local vendor files in `src/kinetiqo/web/static/vendor/leaflet/`). Refresh with `python development/download-vendor-libraries.py --library leaflet`. | BSD 2-Clause |
 | jQuery | 3.7.1 (local vendor file in `src/kinetiqo/web/static/vendor/jquery/`). Refresh with `python development/download-vendor-libraries.py --library jquery`. | — |
 | Container base | python:3.14-slim | — |
-| Scheduler | dcron | Linux package |
+| Scheduler | cron | Debian package |
+| HTTP client | httpx / requests | 0.28.1 / 2.34.2 |
+| YAML parser | PyYAML | 6.0.3 |
 | Testing | unittest + unittest.mock | stdlib |
 
 ## Building Docker Images
@@ -815,7 +823,7 @@ Triggered **manually only** from the GitHub Actions UI. Inputs:
 
 | Input | Default | Description |
 |---|---|---|
-| `python_version` | `3.14` | Python version for the base Alpine image |
+| `python_version` | `3.14` | Python version for the base Debian-slim image |
 | `firebird_version` | `5.0.4` | Firebird version to compile from source |
 | `platforms` | `linux/amd64,linux/arm64` | Target architectures |
 
@@ -1049,9 +1057,9 @@ python src/kinetiqo.py benchmark --scope 90 --database postgresql
 - `-s`, `--scope INTEGER`: Lookback scope in days from today (default: `365`).
 - `-d`, `--database`, `--database-type [mysql|postgresql|firebird]`: Database backend to benchmark. Overrides `.env` config.
 
-**Metrics benchmark example on three database types using default default dockerized setup:**
+**Metrics benchmark example on three database types using default dockerized setup:**
 ```text
-$ ./kinetiqo.py benchmark --database mysql && ./kinetiqo.py benchmark --database postgresql && ./kinetiqo.py benchmarkeb --database firebird
+$ ./kinetiqo.py benchmark --database mysql && ./kinetiqo.py benchmark --database postgresql && ./kinetiqo.py benchmark --database firebird
 2026-08-30 23:58:38 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
 
 ==========================================================================
