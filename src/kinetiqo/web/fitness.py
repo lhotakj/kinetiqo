@@ -1,5 +1,5 @@
 import pandas as pd
-import random
+import secrets
 
 def generate_ai_insight(fitness, fatigue, form, trend_fitness):
     """
@@ -39,7 +39,7 @@ def generate_ai_insight(fitness, fatigue, form, trend_fitness):
         "My analysis suggests that"
     ]
     
-    return f"{random.choice(prefixes)} { ' '.join(insight) }"
+    return f"{secrets.choice(prefixes)} { ' '.join(insight) }"
 
 def calculate_fitness_freshness(repo, period="14"):
     """
