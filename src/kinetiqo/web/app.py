@@ -175,6 +175,16 @@ POSTER_DEFAULT_SETTINGS = {
     'statsVisible': { 'distance': True, 'elevation': True, 'speed': True, 'cadence': True, 'heartrate': True, 'time': True, 'avg_power': True, 'max_power': True },
     'bgType': 'image',
     'photoFilters': DEFAULT_PHOTO_FILTERS,
+    'mapProvider': 'openstreetmap',
+    'mapOpacity': 100,
+    'mapToneColor': '',
+    'toneOpacity': 50,
+    'routeColor': '#38bdf8',
+    'mapLineColor': '#38bdf8',
+    'routeWidth': 4,
+    'mapLineWidth': 4,
+    'routeOpacity': 100,
+    'mapLineOpacity': 100,
 }
 
 def merge_poster_settings(raw: dict) -> dict:

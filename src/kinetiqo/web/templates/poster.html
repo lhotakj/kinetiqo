@@ -24,6 +24,18 @@
         max-height: none !important;
     }
 
+    .leaflet-map-tone-pane {
+        pointer-events: none !important;
+    }
+
+    .leaflet-map-tone-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none !important;
+        opacity: 0;
+    }
+
     .poster-container * {
         margin: 0;
         padding: 0;
@@ -505,6 +517,87 @@
         display: inline-block;
         flex-shrink: 0;
     }
+
+    /* Segmented Tab Controls for Control Rows */
+    .segmented-control {
+        display: flex;
+        flex: 1;
+        padding: 3px;
+        background-color: #e5e7eb;
+        border-radius: 0.375rem;
+        user-select: none;
+        gap: 3px;
+        min-width: 0;
+        height: 32px;
+        box-sizing: border-box;
+    }
+
+    :is(.dark) .segmented-control {
+        background-color: #27272a;
+    }
+
+    .segmented-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.3rem;
+        padding: 0 0.5rem;
+        height: 100%;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 0.25rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        color: #6b7280;
+        background-color: transparent;
+        line-height: 1;
+        min-width: 0;
+    }
+
+    :is(.dark) .segmented-btn {
+        color: #a1a1aa;
+    }
+
+    .segmented-btn:hover {
+        color: #111827;
+        background-color: rgba(255, 255, 255, 0.4);
+    }
+
+    :is(.dark) .segmented-btn:hover {
+        color: #f4f4f5;
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .segmented-btn.active {
+        background-color: #ffffff;
+        color: #111827;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+    }
+
+    :is(.dark) .segmented-btn.active {
+        background-color: #3f3f46;
+        color: #ffffff;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .editor-tab-btn svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+    }
+
+    .segmented-btn svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+    }
+
+    .segmented-btn svg.content-icon {
+        width: 13px;
+        height: 13px;
+    }
 </style>
 {% endblock %}
 
@@ -531,7 +624,7 @@
         <div class="editor-tab-nav" role="tablist" aria-label="Poster editor modes">
             <button type="button" id="tabBtnPoster" role="tab" class="editor-tab-btn active" aria-selected="true"
                 aria-controls="tabContentPoster">
-                <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                <svg width="15" height="15" class="w-4 h-4 opacity-70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
@@ -541,7 +634,7 @@
             </button>
             <button type="button" id="tabBtnAdjustments" role="tab" class="editor-tab-btn" aria-selected="false"
                 aria-controls="tabContentAdjustments">
-                <svg class="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                <svg width="15" height="15" class="w-4 h-4 opacity-70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4">
@@ -613,11 +706,25 @@
                 <div class="control-box-body collapsed">
                     <div class="control-row">
                         <label for="bgTypeSelect">Poster content</label>
-                        <select id="bgTypeSelect"
-                            class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            <option value="image">Image</option>
-                            <option value="map">Map</option>
-                        </select>
+                        <input type="hidden" id="bgTypeSelect" value="image">
+                        <div class="segmented-control" role="group" aria-label="Poster content" id="bgTypeGroup">
+                            <button type="button" class="segmented-btn active" data-value="image" title="Image background" aria-label="Image background">
+                                <svg width="13" height="13" class="content-icon opacity-80 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                <span>Image</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="map" title="Interactive map background" aria-label="Interactive map background">
+                                <svg width="13" height="13" class="content-icon opacity-80 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                                    <line x1="8" y1="2" x2="8" y2="18"></line>
+                                    <line x1="16" y1="6" x2="16" y2="22"></line>
+                                </svg>
+                                <span>Map</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="control-row">
                         <label for="bgColor">Background Color</label>
@@ -664,21 +771,38 @@
                             <span id="mapOpacityVal" class="text-xs w-8">100%</span>
                         </div>
                         <div class="control-row">
-                            <label for="mapLineColor">Line Color</label>
+                            <label for="mapToneColor">Map Color Tone</label>
+                            <div class="flex items-center gap-1.5 flex-1">
+                                <input type="color" id="mapToneColor" value="#ffffff"
+                                    class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
+                                <button type="button" id="mapToneClearBtn"
+                                    class="h-8 px-2.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 text-xs text-gray-600 dark:text-gray-300 transition"
+                                    title="Clear map color tone and restore default behavior">None</button>
+                                <span id="mapToneValue" class="text-xs text-gray-500 dark:text-gray-400">None</span>
+                            </div>
+                        </div>
+                        <div class="control-row">
+                            <label for="toneOpacity">Tone Opacity</label>
+                            <input type="range" id="toneOpacity" min="0" max="100" value="50"
+                                class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <span id="toneOpacityVal" class="text-xs w-8">50%</span>
+                        </div>
+                        <div class="control-row">
+                            <label for="mapLineColor">Route Color</label>
                             <input type="color" id="mapLineColor" value="#38bdf8"
                                 class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
                         </div>
                         <div class="control-row">
-                            <label for="mapLineOpacity">Line Opacity</label>
-                            <input type="range" id="mapLineOpacity" min="0" max="100" value="100"
-                                class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                            <span id="mapLineOpacityVal" class="text-xs w-8">100%</span>
-                        </div>
-                        <div class="control-row">
-                            <label for="mapLineWidth">Line Width</label>
+                            <label for="mapLineWidth">Route Width</label>
                             <input type="range" id="mapLineWidth" min="1" max="20" value="4"
                                 class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                             <span id="mapLineWidthVal" class="text-xs w-8">4px</span>
+                        </div>
+                        <div class="control-row">
+                            <label for="mapLineOpacity">Route Opacity</label>
+                            <input type="range" id="mapLineOpacity" min="0" max="100" value="100"
+                                class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <span id="mapLineOpacityVal" class="text-xs w-8">100%</span>
                         </div>
                     </div>
                 </div>
@@ -713,20 +837,51 @@
                     </div>
                     <div class="control-row">
                         <label for="titleAlign">Text Align</label>
-                        <select id="titleAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            <option value="left">Left</option>
-                            <option value="center">Center</option>
-                            <option value="right">Right</option>
-                        </select>
+                        <input type="hidden" id="titleAlign" value="left">
+                        <div class="segmented-control" role="group" aria-label="Text Align" id="titleAlignGroup">
+                            <button type="button" class="segmented-btn active" data-value="left" title="Align Left" aria-label="Align Left">
+                                <svg width="14" height="14" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="17" y1="10" x2="3" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="17" y1="18" x2="3" y2="18"></line>
+                                </svg>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="center" title="Align Center" aria-label="Align Center">
+                                <svg width="14" height="14" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="10" x2="6" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="18" y1="18" x2="6" y2="18"></line>
+                                </svg>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="right" title="Align Right" aria-label="Align Right">
+                                <svg width="14" height="14" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="21" y1="10" x2="7" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="21" y1="18" x2="7" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="control-row">
                         <label for="titleStyle">Font Style</label>
-                        <select id="titleStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            <option value="normal">Normal</option>
-                            <option value="italic">Italic</option>
-                            <option value="bold">Bold</option>
-                            <option value="bolditalic">Bold Italic</option>
-                        </select>
+                        <input type="hidden" id="titleStyle" value="normal">
+                        <div class="segmented-control" role="group" aria-label="Font Style" id="titleStyleGroup">
+                            <button type="button" class="segmented-btn active" data-value="normal" title="Normal font" aria-label="Normal font">
+                                <span class="font-sans font-normal not-italic text-sm">N</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="bold" title="Bold font" aria-label="Bold font">
+                                <span class="font-sans font-bold not-italic text-sm">B</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="italic" title="Italic font" aria-label="Italic font">
+                                <span class="font-serif italic font-semibold text-sm">I</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="bolditalic" title="Bold Italic font" aria-label="Bold Italic font">
+                                <span class="font-serif italic font-bold text-xs">BI</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="control-row">
                         <label for="titleLineHeight">Line Height</label>
@@ -798,20 +953,51 @@
                     </div>
                     <div class="control-row">
                         <label for="statsStyle">Font Style</label>
-                        <select id="statsStyle" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            <option value="normal">Normal</option>
-                            <option value="italic">Italic</option>
-                            <option value="bold">Bold</option>
-                            <option value="bolditalic">Bold Italic</option>
-                        </select>
+                        <input type="hidden" id="statsStyle" value="normal">
+                        <div class="segmented-control" role="group" aria-label="Font Style" id="statsStyleGroup">
+                            <button type="button" class="segmented-btn active" data-value="normal" title="Normal font" aria-label="Normal font">
+                                <span class="font-sans font-normal not-italic text-sm">N</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="bold" title="Bold font" aria-label="Bold font">
+                                <span class="font-sans font-bold not-italic text-sm">B</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="italic" title="Italic font" aria-label="Italic font">
+                                <span class="font-serif italic font-semibold text-sm">I</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="bolditalic" title="Bold Italic font" aria-label="Bold Italic font">
+                                <span class="font-serif italic font-bold text-xs">BI</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="control-row">
                         <label for="statsAlign">Text Align</label>
-                        <select id="statsAlign" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            <option value="left">Left</option>
-                            <option value="center">Center</option>
-                            <option value="right">Right</option>
-                        </select>
+                        <input type="hidden" id="statsAlign" value="left">
+                        <div class="segmented-control" role="group" aria-label="Text Align" id="statsAlignGroup">
+                            <button type="button" class="segmented-btn active" data-value="left" title="Align Left" aria-label="Align Left">
+                                <svg width="14" height="14" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="17" y1="10" x2="3" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="17" y1="18" x2="3" y2="18"></line>
+                                </svg>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="center" title="Align Center" aria-label="Align Center">
+                                <svg width="14" height="14" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="10" x2="6" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="18" y1="18" x2="6" y2="18"></line>
+                                </svg>
+                            </button>
+                            <button type="button" class="segmented-btn" data-value="right" title="Align Right" aria-label="Align Right">
+                                <svg width="14" height="14" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="21" y1="10" x2="7" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="21" y1="18" x2="7" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="control-row">
                         <label for="statsFontSize">Font Size</label>
@@ -1198,6 +1384,8 @@
             <img id="posterBg" class="poster-bg" alt="" style="display:none;">
             <div id="posterMap" class="poster-map"
                 style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; display:none;"></div>
+            <div id="posterMapToneOverlay" class="leaflet-map-tone-overlay"
+                style="position:absolute; inset:0; z-index:2; display:none; pointer-events:none;"></div>
             <!-- NOSONAR: static asset intentionally referenced; runtime JS will manage visibility -->
             <!-- Watermark image (static) - created/managed by JS -->
             <img id="posterWatermark" class="poster-watermark" src="/static/img/kinetiqo_logo.png" alt="Kinetiqo logo"
@@ -1323,14 +1511,95 @@
             bgType: 'image',             // options: 'image', 'map'
             mapProvider: 'openstreetmap',
             mapOpacity: 100,
+            mapToneColor: '',
+            toneOpacity: 50,
+            routeColor: '#38bdf8',
             mapLineColor: '#38bdf8',
+            routeOpacity: 100,
             mapLineOpacity: 100,
+            routeWidth: 4,
             mapLineWidth: 4,
             elevFontSize: 20, elevFontColor: '#ffffff', elevColor: '#ffffff', elevFillColor: '#ffffff', elevOpacity: 70,
             singleLine: true
         };
 
         const TILE_PROVIDERS = JSON.parse(document.getElementById('tile-providers-data')?.textContent || '{}');
+        const MAP_STORAGE_KEY = 'kinetiqo_map_settings';
+
+        function getMapStorageDefaults() {
+            try {
+                const raw = localStorage.getItem(MAP_STORAGE_KEY);
+                if (!raw) return {};
+                const saved = JSON.parse(raw);
+                if (!saved || typeof saved !== 'object') return {};
+                const res = {};
+                const rColor = saved.routeColor || saved.color;
+                if (typeof rColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(rColor)) {
+                    res.routeColor = rColor;
+                    res.mapLineColor = rColor;
+                }
+                const rWidth = saved.routeWidth !== undefined ? saved.routeWidth : saved.width;
+                if (Number.isFinite(Number(rWidth))) {
+                    res.routeWidth = Math.max(1, Math.min(20, parseInt(rWidth, 10)));
+                    res.mapLineWidth = res.routeWidth;
+                }
+                const rOpacity = saved.routeOpacity !== undefined ? saved.routeOpacity : saved.opacity;
+                if (Number.isFinite(Number(rOpacity))) {
+                    res.routeOpacity = Math.max(0, Math.min(100, parseInt(rOpacity, 10)));
+                    res.mapLineOpacity = res.routeOpacity;
+                }
+                if (Number.isFinite(Number(saved.mapOpacity))) {
+                    res.mapOpacity = Math.max(0, Math.min(100, parseInt(saved.mapOpacity, 10)));
+                }
+                if (Number.isFinite(Number(saved.toneOpacity))) {
+                    res.toneOpacity = Math.max(0, Math.min(100, parseInt(saved.toneOpacity, 10)));
+                }
+                const toneCol = saved.mapToneColor || saved.toneColor;
+                if (typeof toneCol === 'string') {
+                    res.mapToneColor = /^#[0-9a-fA-F]{6}$/.test(toneCol) ? toneCol : '';
+                }
+                if (typeof saved.basemap === 'string' && saved.basemap && TILE_PROVIDERS[saved.basemap]) {
+                    res.mapProvider = saved.basemap;
+                }
+                return res;
+            } catch (_) {
+                return {};
+            }
+        }
+
+        function syncToMapStorage(s) {
+            try {
+                let mapSaved = {};
+                try {
+                    const raw = localStorage.getItem(MAP_STORAGE_KEY);
+                    if (raw) mapSaved = JSON.parse(raw) || {};
+                } catch (_) {}
+
+                const rColor = s.routeColor || s.mapLineColor || mapSaved.routeColor || mapSaved.color;
+                const rWidth = s.routeWidth !== undefined ? s.routeWidth : (s.mapLineWidth !== undefined ? s.mapLineWidth : (mapSaved.routeWidth !== undefined ? mapSaved.routeWidth : mapSaved.width));
+                const rOpacity = s.routeOpacity !== undefined ? s.routeOpacity : (s.mapLineOpacity !== undefined ? s.mapLineOpacity : (mapSaved.routeOpacity !== undefined ? mapSaved.routeOpacity : mapSaved.opacity));
+                const mapOp = s.mapOpacity !== undefined ? s.mapOpacity : mapSaved.mapOpacity;
+                const toneOp = s.toneOpacity !== undefined ? s.toneOpacity : mapSaved.toneOpacity;
+                const toneCol = s.mapToneColor !== undefined ? s.mapToneColor : (mapSaved.mapToneColor !== undefined ? mapSaved.mapToneColor : mapSaved.toneColor);
+                const basemap = s.mapProvider || mapSaved.basemap;
+
+                const updated = {
+                    ...mapSaved,
+                    routeColor: rColor || '#38bdf8',
+                    color: rColor || '#38bdf8',
+                    routeWidth: Number.isFinite(Number(rWidth)) ? parseInt(rWidth, 10) : 4,
+                    width: Number.isFinite(Number(rWidth)) ? parseInt(rWidth, 10) : 4,
+                    routeOpacity: Number.isFinite(Number(rOpacity)) ? parseInt(rOpacity, 10) : 100,
+                    opacity: Number.isFinite(Number(rOpacity)) ? parseInt(rOpacity, 10) : 100,
+                    mapOpacity: Number.isFinite(Number(mapOp)) ? parseInt(mapOp, 10) : 100,
+                    toneOpacity: Number.isFinite(Number(toneOp)) ? parseInt(toneOp, 10) : 50,
+                    mapToneColor: toneCol || '',
+                    toneColor: toneCol || '',
+                    basemap: basemap || 'openstreetmap'
+                };
+                localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(updated));
+            } catch (_) {}
+        }
 
         // Watermark constants - change these to tune watermark size (fraction of poster width)
         // and opacity. WATERMARK_SIZE_PCT: 0.10 means 10% of poster width.
@@ -1339,11 +1608,20 @@
 
 
         function loadSettings() {
+            const mapDefaults = getMapStorageDefaults();
+            const effectiveDefaults = { ...DEFAULTS, ...mapDefaults };
             try {
                 const saved = JSON.parse(localStorage.getItem(LS_KEY));
                 if (saved && typeof saved === 'object') {
+                    if (saved.routeColor && !saved.mapLineColor) saved.mapLineColor = saved.routeColor;
+                    if (saved.mapLineColor && !saved.routeColor) saved.routeColor = saved.mapLineColor;
+                    if (saved.routeWidth !== undefined && saved.mapLineWidth === undefined) saved.mapLineWidth = saved.routeWidth;
+                    if (saved.mapLineWidth !== undefined && saved.routeWidth === undefined) saved.routeWidth = saved.mapLineWidth;
+                    if (saved.routeOpacity !== undefined && saved.mapLineOpacity === undefined) saved.mapLineOpacity = saved.routeOpacity;
+                    if (saved.mapLineOpacity !== undefined && saved.routeOpacity === undefined) saved.routeOpacity = saved.mapLineOpacity;
+
                     return {
-                        ...DEFAULTS,
+                        ...effectiveDefaults,
                         ...saved,
                         boxVisible: { ...DEFAULTS.boxVisible, ...(saved.boxVisible || {}) },
                         boxCollapsed: { ...DEFAULTS.boxCollapsed },
@@ -1355,11 +1633,12 @@
                     };
                 }
             } catch (e) { }
-            return JSON.parse(JSON.stringify(DEFAULTS));
+            return JSON.parse(JSON.stringify(effectiveDefaults));
         }
 
         function saveSettings(settings) {
             localStorage.setItem(LS_KEY, JSON.stringify(settings));
+            syncToMapStorage(settings);
         }
 
         let settings = loadSettings();
@@ -1414,6 +1693,7 @@
             document.getElementById('titleOpacityVal').textContent = s.titleOpacity + '%';
             // Title style controls
             if (document.getElementById('titleStyle')) document.getElementById('titleStyle').value = s.titleStyle || 'normal';
+            syncSegmentedControl('titleStyleGroup', s.titleStyle || 'normal');
             if (document.getElementById('titleLineHeight')) {
                 document.getElementById('titleLineHeight').value = s.titleLineHeight || 0;
                 document.getElementById('titleLineHeightVal').textContent = (s.titleLineHeight || 0) + '%';
@@ -1429,11 +1709,13 @@
             document.getElementById('statsOpacityVal').textContent = s.statsOpacity + '%';
             // Stats style controls
             if (document.getElementById('statsStyle')) document.getElementById('statsStyle').value = s.statsStyle || 'normal';
+            syncSegmentedControl('statsStyleGroup', s.statsStyle || 'normal');
             if (document.getElementById('statsLineHeight')) {
                 document.getElementById('statsLineHeight').value = s.statsLineHeight || 0;
                 document.getElementById('statsLineHeightVal').textContent = (s.statsLineHeight || 0) + '%';
             }
             if (document.getElementById('statsAlign')) document.getElementById('statsAlign').value = s.statsAlign || 'left';
+            syncSegmentedControl('statsAlignGroup', s.statsAlign || 'left');
             document.getElementById('elevFontSize').value = s.elevFontSize;
             document.getElementById('elevFontSizeVal').textContent = s.elevFontSize + 'px';
             if (document.getElementById('elevFontColor')) document.getElementById('elevFontColor').value = s.elevFontColor || '#ffffff';
@@ -1443,21 +1725,39 @@
             document.getElementById('elevOpacityVal').textContent = s.elevOpacity + '%';
             document.getElementById('singleLineCheckbox').checked = s.singleLine !== false;
             document.getElementById('titleAlign').value = s.titleAlign || 'left';
+            syncSegmentedControl('titleAlignGroup', s.titleAlign || 'left');
             if (document.getElementById('bgColor')) document.getElementById('bgColor').value = s.bgColor || '#333333';
             if (document.getElementById('bgTypeSelect')) document.getElementById('bgTypeSelect').value = s.bgType || 'image';
+            syncSegmentedControl('bgTypeGroup', s.bgType || 'image');
             if (document.getElementById('mapProviderSelect')) document.getElementById('mapProviderSelect').value = s.mapProvider || 'openstreetmap';
             if (document.getElementById('mapOpacity')) {
-                document.getElementById('mapOpacity').value = s.mapOpacity !== undefined ? s.mapOpacity : 100;
-                document.getElementById('mapOpacityVal').textContent = (s.mapOpacity !== undefined ? s.mapOpacity : 100) + '%';
+                const mapOp = s.mapOpacity !== undefined ? s.mapOpacity : 100;
+                document.getElementById('mapOpacity').value = mapOp;
+                document.getElementById('mapOpacityVal').textContent = mapOp + '%';
             }
-            if (document.getElementById('mapLineColor')) document.getElementById('mapLineColor').value = s.mapLineColor || '#38bdf8';
-            if (document.getElementById('mapLineOpacity')) {
-                document.getElementById('mapLineOpacity').value = s.mapLineOpacity !== undefined ? s.mapLineOpacity : 100;
-                document.getElementById('mapLineOpacityVal').textContent = (s.mapLineOpacity !== undefined ? s.mapLineOpacity : 100) + '%';
+            if (document.getElementById('mapToneColor')) {
+                const toneCol = s.mapToneColor || '';
+                document.getElementById('mapToneColor').value = toneCol || '#ffffff';
+                if (document.getElementById('mapToneValue')) {
+                    document.getElementById('mapToneValue').textContent = toneCol || 'None';
+                }
             }
+            if (document.getElementById('toneOpacity')) {
+                const toneOp = s.toneOpacity !== undefined ? s.toneOpacity : 50;
+                document.getElementById('toneOpacity').value = toneOp;
+                document.getElementById('toneOpacityVal').textContent = toneOp + '%';
+            }
+            const rColor = s.routeColor || s.mapLineColor || '#38bdf8';
+            if (document.getElementById('mapLineColor')) document.getElementById('mapLineColor').value = rColor;
+            const rWidth = s.routeWidth !== undefined ? s.routeWidth : (s.mapLineWidth !== undefined ? s.mapLineWidth : 4);
             if (document.getElementById('mapLineWidth')) {
-                document.getElementById('mapLineWidth').value = s.mapLineWidth !== undefined ? s.mapLineWidth : 4;
-                document.getElementById('mapLineWidthVal').textContent = (s.mapLineWidth !== undefined ? s.mapLineWidth : 4) + 'px';
+                document.getElementById('mapLineWidth').value = rWidth;
+                document.getElementById('mapLineWidthVal').textContent = rWidth + 'px';
+            }
+            const rOpacity = s.routeOpacity !== undefined ? s.routeOpacity : (s.mapLineOpacity !== undefined ? s.mapLineOpacity : 100);
+            if (document.getElementById('mapLineOpacity')) {
+                document.getElementById('mapLineOpacity').value = rOpacity;
+                document.getElementById('mapLineOpacityVal').textContent = rOpacity + '%';
             }
             // Toggle Image vs Map controls container
             const imgControls = document.getElementById('imageControlsContainer');
@@ -1528,8 +1828,11 @@
                 if (bgImgEl) bgImgEl.style.display = 'none';
                 if (bgMapEl) bgMapEl.style.display = 'block';
                 try { renderPosterMap(); } catch (e) { console.warn('renderPosterMap failed', e); }
+                updatePosterMapTone();
             } else {
                 if (bgMapEl) bgMapEl.style.display = 'none';
+                const mapToneEl = document.getElementById('posterMapToneOverlay');
+                if (mapToneEl) mapToneEl.style.display = 'none';
                 if (bgImgEl) {
                     const hasValidImage = (photoLoaded || (bgImgEl.complete && bgImgEl.naturalWidth > 0)) && bgImgEl.naturalWidth > 0;
                     bgImgEl.style.display = hasValidImage ? 'block' : 'none';
@@ -1692,9 +1995,9 @@
                 posterLeafletMap.removeLayer(posterMapPolyline);
             }
 
-            const opacityFloat = (settings.mapLineOpacity !== undefined ? settings.mapLineOpacity : 100) / 100.0;
-            const widthPx = settings.mapLineWidth !== undefined ? settings.mapLineWidth : 4;
-            const lineColor = settings.mapLineColor || '#38bdf8';
+            const opacityFloat = (settings.routeOpacity !== undefined ? settings.routeOpacity : (settings.mapLineOpacity !== undefined ? settings.mapLineOpacity : 100)) / 100.0;
+            const widthPx = settings.routeWidth !== undefined ? settings.routeWidth : (settings.mapLineWidth !== undefined ? settings.mapLineWidth : 4);
+            const lineColor = settings.routeColor || settings.mapLineColor || '#38bdf8';
 
             posterMapPolyline = L.polyline(coords, {
                 color: lineColor,
@@ -1755,6 +2058,62 @@
             return true;
         }
 
+        function ensurePosterMapToneLayer() {
+            if (!posterLeafletMap) return;
+            let overlay = document.getElementById('posterMapToneOverlay');
+            if (!overlay) return;
+
+            let tonePane = posterLeafletMap.getPane('tonePane');
+            if (!tonePane) {
+                tonePane = posterLeafletMap.createPane('tonePane');
+                tonePane.style.zIndex = 250;
+                tonePane.style.pointerEvents = 'none';
+                posterLeafletMap.on('move zoom viewreset resize', syncPosterMapTonePosition);
+            }
+            if (overlay.parentNode !== tonePane) {
+                tonePane.appendChild(overlay);
+            }
+        }
+
+        function syncPosterMapTonePosition() {
+            if (!posterLeafletMap) return;
+            const overlay = document.getElementById('posterMapToneOverlay');
+            if (!overlay) return;
+            try {
+                const size = posterLeafletMap.getSize();
+                if (!size || size.x === 0 || size.y === 0) return;
+                const pad = 500;
+                const topLeft = posterLeafletMap.containerPointToLayerPoint([-pad, -pad]);
+                L.DomUtil.setPosition(overlay, topLeft);
+                overlay.style.width = (size.x + pad * 2) + 'px';
+                overlay.style.height = (size.y + pad * 2) + 'px';
+            } catch (e) {
+                /* map initializing */
+            }
+        }
+
+        function updatePosterMapTone() {
+            let overlay = document.getElementById('posterMapToneOverlay');
+            if (!overlay) return;
+
+            const isMap = settings.bgType === 'map';
+            const toneColor = settings.mapToneColor;
+            const toneOpacity = Number.isFinite(Number(settings.toneOpacity)) ? Number(settings.toneOpacity) : 50;
+            const mapOpacity = Number.isFinite(Number(settings.mapOpacity)) ? Number(settings.mapOpacity) : 100;
+
+            if (isMap && toneColor && toneOpacity > 0) {
+                ensurePosterMapToneLayer();
+                overlay.style.display = 'block';
+                overlay.style.backgroundColor = toneColor;
+                overlay.style.opacity = mapOpacity === 0 ? '1' : String(toneOpacity / 100.0);
+                syncPosterMapTonePosition();
+            } else {
+                overlay.style.display = 'none';
+                overlay.style.backgroundColor = 'transparent';
+                overlay.style.opacity = '0';
+            }
+        }
+
         function renderPosterMap() {
             const mapEl = document.getElementById('posterMap');
             if (!mapEl || typeof L === 'undefined') return;
@@ -1766,6 +2125,7 @@
                     preferCanvas: true
                 });
                 posterLeafletMap.on('moveend zoomend', savePosterMapView);
+                ensurePosterMapToneLayer();
             }
 
             const providerKey = settings.mapProvider || 'openstreetmap';
@@ -1785,6 +2145,8 @@
                 try { applyPhotoFilters(); } catch (e) { /* ignore */ }
             });
             try { applyPhotoFilters(); } catch (e) { /* ignore */ }
+
+            updatePosterMapTone();
 
             posterLeafletMap.invalidateSize();
             restorePosterMapView();
@@ -2049,6 +2411,33 @@
             });
         }
 
+        function bindSegmentedControl(groupId, settingKey, inputId) {
+            const group = document.getElementById(groupId);
+            if (!group) return;
+            const input = inputId ? document.getElementById(inputId) : null;
+            group.querySelectorAll('.segmented-btn').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const val = this.getAttribute('data-value');
+                    settings[settingKey] = val;
+                    if (input) input.value = val;
+                    syncSegmentedControl(groupId, val);
+                    saveSettings(settings);
+                    renderPoster();
+                });
+            });
+        }
+
+        function syncSegmentedControl(groupId, value) {
+            const group = document.getElementById(groupId);
+            if (!group) return;
+            group.querySelectorAll('.segmented-btn').forEach(btn => {
+                const isActive = btn.getAttribute('data-value') === value;
+                btn.classList.toggle('active', isActive);
+                btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        }
+
         bindControl('posterSize', 'posterSize', true);
         bindControl('ratioSelect', 'ratio', false);
         bindFontControl('titleFont', 'titleFont');
@@ -2057,12 +2446,12 @@
         bindControl('titleOutlineColor', 'titleOutlineColor', false);
         bindControl('titleOutlineWidth', 'titleOutlineWidth', true, 'titleOutlineWidthVal', '');
         bindControl('titleOpacity', 'titleOpacity', true, 'titleOpacityVal', '%');
-        bindControl('titleStyle', 'titleStyle', false);
-        bindControl('titleAlign', 'titleAlign', false);
+        bindSegmentedControl('titleStyleGroup', 'titleStyle', 'titleStyle');
+        bindSegmentedControl('titleAlignGroup', 'titleAlign', 'titleAlign');
         bindControl('titleLineHeight', 'titleLineHeight', true, 'titleLineHeightVal', '%');
         bindFontControl('statsFont', 'statsFont');
-        bindControl('statsStyle', 'statsStyle', false);
-        bindControl('statsAlign', 'statsAlign', false);
+        bindSegmentedControl('statsStyleGroup', 'statsStyle', 'statsStyle');
+        bindSegmentedControl('statsAlignGroup', 'statsAlign', 'statsAlign');
         bindControl('statsFontSize', 'statsFontSize', true, 'statsFontSizeVal', 'px');
         bindControl('statsLineHeight', 'statsLineHeight', true, 'statsLineHeightVal', '%');
         bindControl('statsColor', 'statsColor', false);
@@ -2087,13 +2476,123 @@
         }
 
         bindControl('elevOpacity', 'elevOpacity', true, 'elevOpacityVal', '%');
-        bindControl('bgTypeSelect', 'bgType', false);
+        bindSegmentedControl('bgTypeGroup', 'bgType', 'bgTypeSelect');
         bindControl('bgColor', 'bgColor', false);
         bindControl('mapProviderSelect', 'mapProvider', false);
-        bindControl('mapOpacity', 'mapOpacity', true, 'mapOpacityVal', '%');
-        bindControl('mapLineColor', 'mapLineColor', false);
-        bindControl('mapLineOpacity', 'mapLineOpacity', true, 'mapLineOpacityVal', '%');
-        bindControl('mapLineWidth', 'mapLineWidth', true, 'mapLineWidthVal', 'px');
+
+        // Map Opacity range slider
+        const mapOpacityEl = document.getElementById('mapOpacity');
+        if (mapOpacityEl) {
+            const handleMapOpacity = function () {
+                const val = parseInt(this.value, 10);
+                settings.mapOpacity = val;
+                const valSpan = document.getElementById('mapOpacityVal');
+                if (valSpan) valSpan.textContent = val + '%';
+                if (posterMapTileLayer && typeof posterMapTileLayer.setOpacity === 'function') {
+                    posterMapTileLayer.setOpacity(val / 100.0);
+                }
+                saveSettings(settings);
+                updatePosterMapTone();
+            };
+            mapOpacityEl.addEventListener('input', handleMapOpacity);
+            mapOpacityEl.addEventListener('change', handleMapOpacity);
+        }
+
+        // Map Color Tone (color picker with None clear button and live text indicator)
+        const mapToneColorEl = document.getElementById('mapToneColor');
+        if (mapToneColorEl) {
+            const handleToneColor = function () {
+                settings.mapToneColor = this.value;
+                const valEl = document.getElementById('mapToneValue');
+                if (valEl) valEl.textContent = this.value || 'None';
+                // If toneOpacity was 0 when user selects a tone color, restore default 50%
+                if (settings.toneOpacity === 0) {
+                    settings.toneOpacity = 50;
+                    const opEl = document.getElementById('toneOpacity');
+                    if (opEl) opEl.value = 50;
+                    const opVal = document.getElementById('toneOpacityVal');
+                    if (opVal) opVal.textContent = '50%';
+                }
+                saveSettings(settings);
+                updatePosterMapTone();
+            };
+            mapToneColorEl.addEventListener('input', handleToneColor);
+            mapToneColorEl.addEventListener('change', handleToneColor);
+        }
+        const mapToneClearBtn = document.getElementById('mapToneClearBtn');
+        if (mapToneClearBtn) {
+            mapToneClearBtn.addEventListener('click', function () {
+                settings.mapToneColor = '';
+                const picker = document.getElementById('mapToneColor');
+                if (picker) picker.value = '#ffffff';
+                const valEl = document.getElementById('mapToneValue');
+                if (valEl) valEl.textContent = 'None';
+                saveSettings(settings);
+                updatePosterMapTone();
+            });
+        }
+
+        // Tone Opacity range slider
+        const toneOpacityEl = document.getElementById('toneOpacity');
+        if (toneOpacityEl) {
+            const handleToneOpacity = function () {
+                const val = parseInt(this.value, 10);
+                settings.toneOpacity = val;
+                const valSpan = document.getElementById('toneOpacityVal');
+                if (valSpan) valSpan.textContent = val + '%';
+                // If user moves opacity slider above 0 and no tone color is active, activate current picker color
+                if (val > 0 && !settings.mapToneColor) {
+                    const picker = document.getElementById('mapToneColor');
+                    const chosenColor = (picker && picker.value) ? picker.value : '#ffffff';
+                    settings.mapToneColor = chosenColor;
+                    const valEl = document.getElementById('mapToneValue');
+                    if (valEl) valEl.textContent = chosenColor;
+                }
+                saveSettings(settings);
+                updatePosterMapTone();
+            };
+            toneOpacityEl.addEventListener('input', handleToneOpacity);
+            toneOpacityEl.addEventListener('change', handleToneOpacity);
+        }
+
+        // Route Color (mapLineColor / routeColor)
+        const mapLineColorEl = document.getElementById('mapLineColor');
+        if (mapLineColorEl) {
+            mapLineColorEl.addEventListener('input', function () {
+                settings.routeColor = this.value;
+                settings.mapLineColor = this.value;
+                saveSettings(settings);
+                renderPoster();
+            });
+        }
+
+        // Route Width (mapLineWidth / routeWidth)
+        const mapLineWidthEl = document.getElementById('mapLineWidth');
+        if (mapLineWidthEl) {
+            mapLineWidthEl.addEventListener('input', function () {
+                const val = parseInt(this.value, 10);
+                settings.routeWidth = val;
+                settings.mapLineWidth = val;
+                const valSpan = document.getElementById('mapLineWidthVal');
+                if (valSpan) valSpan.textContent = val + 'px';
+                saveSettings(settings);
+                renderPoster();
+            });
+        }
+
+        // Route Opacity (mapLineOpacity / routeOpacity)
+        const mapLineOpacityEl = document.getElementById('mapLineOpacity');
+        if (mapLineOpacityEl) {
+            mapLineOpacityEl.addEventListener('input', function () {
+                const val = parseInt(this.value, 10);
+                settings.routeOpacity = val;
+                settings.mapLineOpacity = val;
+                const valSpan = document.getElementById('mapLineOpacityVal');
+                if (valSpan) valSpan.textContent = val + '%';
+                saveSettings(settings);
+                renderPoster();
+            });
+        }
 
         // Box header events: visibility checkboxes & collapsible sections
         function setupBoxHeaderEvents() {
@@ -2905,7 +3404,8 @@
             // mode is explicitly enabled by the reset action.
             localStorage.removeItem(LS_KEY);
             localStorage.removeItem(MAP_VIEW_KEY);
-            settings = JSON.parse(JSON.stringify(DEFAULTS));
+            const mapDefaults = getMapStorageDefaults();
+            settings = JSON.parse(JSON.stringify({ ...DEFAULTS, ...mapDefaults }));
             settings.boxVisible = { boxTitle: true, boxStats: true, boxElevation: true };
             settings.boxCollapsed = {
                 posterSize: true,
