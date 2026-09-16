@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import html
 import importlib
 import io
@@ -147,13 +147,34 @@ mimetypes.add_type('font/ttf', '.ttf')
 _startup_sync_done = False
 _startup_sync_lock = threading.Lock()
 
+from kinetiqo.web.poster_filters import DEFAULT_PHOTO_FILTERS
+
+def _deep_merge_dict(base: dict, override: dict) -> dict:
+    """Recursively merge nested dictionaries without mutating input arguments.
+
+    Args:
+        base: Base dictionary containing default keys and structures.
+        override: Override dictionary with customized or user-supplied values.
+
+    Returns:
+        New dictionary containing the recursively merged contents.
+    """
+    res = dict(base)
+    for k, v in (override or {}).items():
+        if isinstance(v, dict) and isinstance(res.get(k), dict):
+            res[k] = _deep_merge_dict(res[k], v)
+        else:
+            res[k] = v
+    return res
+
 # --- Poster export defaults and helpers ---
 POSTER_DEFAULT_SETTINGS = {
     'posterSize': 1280,
     'ratio': '4/3',
     'boxVisible': {'boxTitle': True, 'boxStats': True, 'boxElevation': True},
     'statsVisible': { 'distance': True, 'elevation': True, 'speed': True, 'cadence': True, 'heartrate': True, 'time': True, 'avg_power': True, 'max_power': True },
-    'bgType': 'image'
+    'bgType': 'image',
+    'photoFilters': DEFAULT_PHOTO_FILTERS,
 }
 
 def merge_poster_settings(raw: dict) -> dict:
@@ -163,17 +184,7 @@ def merge_poster_settings(raw: dict) -> dict:
     minimal shape in localStorage so short-circuit checks (e.g. skipping the
     elevation chart wait) work reliably even when the client omits keys.
     """
-    merged = {}
-    # Start with defaults
-    merged.update(POSTER_DEFAULT_SETTINGS)
-    # Overlay user values
-    for k, v in (raw or {}).items():
-        # If it's a nested dict, merge shallowly
-        if isinstance(v, dict) and isinstance(merged.get(k), dict):
-            merged[k] = {**merged.get(k, {}), **v}
-        else:
-            merged[k] = v
-    return merged
+    return _deep_merge_dict(POSTER_DEFAULT_SETTINGS, raw if isinstance(raw, dict) else {})
 
 
 def ensure_startup_profile_sync() -> None:
