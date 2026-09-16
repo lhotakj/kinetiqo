@@ -31,7 +31,8 @@
     }
     .leaflet-map-tone-overlay {
         position: absolute;
-        inset: 0;
+        top: 0;
+        left: 0;
         pointer-events: none !important;
         opacity: 0;
     }
@@ -573,17 +574,49 @@
     }
 
     function ensureMapToneLayer() {
-        if (mapToneOverlay) return;
-        mapToneOverlay = document.getElementById('map-tone-overlay');
+        if (!leafletMap) return;
+        if (!mapToneOverlay) {
+            mapToneOverlay = document.getElementById('map-tone-overlay');
+        }
+        if (!mapToneOverlay) return;
+
+        let tonePane = leafletMap.getPane('tonePane');
+        if (!tonePane) {
+            tonePane = leafletMap.createPane('tonePane');
+            tonePane.style.zIndex = 250;
+            tonePane.style.pointerEvents = 'none';
+            leafletMap.on('move zoom viewreset resize', syncMapToneOverlayPosition);
+        }
+        if (mapToneOverlay.parentNode !== tonePane) {
+            tonePane.appendChild(mapToneOverlay);
+        }
+    }
+
+    function syncMapToneOverlayPosition() {
+        if (!leafletMap || !mapToneOverlay) return;
+        try {
+            const size = leafletMap.getSize();
+            if (!size || size.x === 0 || size.y === 0) return;
+            const pad = 500;
+            const topLeft = leafletMap.containerPointToLayerPoint([-pad, -pad]);
+            L.DomUtil.setPosition(mapToneOverlay, topLeft);
+            mapToneOverlay.style.width = (size.x + pad * 2) + 'px';
+            mapToneOverlay.style.height = (size.y + pad * 2) + 'px';
+        } catch (e) {
+            /* map initializing */
+        }
     }
 
     function updateMapToneLayer() {
+        if (!leafletMap) return;
+        ensureMapToneLayer();
         if (!mapToneOverlay) return;
 
-        if (currentMapToneColor) {
+        if (currentMapToneColor && currentToneOpacity > 0) {
             mapToneOverlay.style.display = 'block';
             mapToneOverlay.style.backgroundColor = currentMapToneColor;
             mapToneOverlay.style.opacity = currentMapOpacity === 0 ? '1' : String(currentToneOpacity / 100.0);
+            syncMapToneOverlayPosition();
         } else {
             mapToneOverlay.style.display = 'none';
             mapToneOverlay.style.backgroundColor = 'transparent';

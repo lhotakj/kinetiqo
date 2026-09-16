@@ -12,7 +12,7 @@ Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchron
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
-> Full project documentation is available at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net) 
+> Full project documentation is available at [kinetiqo.org](https://kinetiqo.org) 
 
 | [![Activity Sync & Data Grid](docs/grid-dark.webp)](docs/grid-dark.webp)<br/>**Activity Sync & Data Grid**<br/>Searchable DataTables 2.x grid with bulk selection, CSV/XLSX export, and local storage state persistence | [![Real-Time SSE Sync Progress](docs/activities-sync.webp)](docs/activities-sync.webp)<br/>**Real-Time Sync Engine**<br/>Live Server-Sent Events (SSE) progress bar streaming incremental sync and full history audit status | [![Column Reordering & Visibility](docs/activities-colums-dark.webp)](docs/activities-colums-dark.webp)<br/>**Column Visibility & Reorder**<br/>Drag-and-drop column reordering with persistent visibility toggles across sessions |
 |---|---|---|
@@ -64,7 +64,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s, 30s, 1min, 5min, 10min, 20min, 1h) with an interactive radar/spider chart, selectable per-activity or aggregated across all activities.
 - 🏋️ **FTP & VO₂max Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data with per-ride history chart, plus Townsend/Storer-Davis best 5-minute MAP and Coggan FTP-based VO₂max trends with fitness classifications.
 - 🏃 **Fitness & Freshness**: Banister impulse-response model for CTL (Fitness), ATL (Fatigue), and TSB (Form) curves calculated from suffer scores, with configurable time constants.
-- 📸 **WYSIWYG Activity Poster Generator**: Create professional activity posters with customizable fonts (Italiana, Inter, Outfit, JetBrains Mono), colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation profile chart, background photo mode (with clear image option) or interactive Leaflet canvas map background mode (tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element checkboxes, and Playwright-powered PNG export at exact pixel dimensions.
+- 📸 **WYSIWYG Activity Poster Generator**: Create professional activity posters with customizable fonts (Italiana, Inter, Outfit, JetBrains Mono, Fanwood Text), colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation profile chart, background photo mode (with clear image option and built-in photo editing tool for Color, Light, and Details adjustments) or interactive Leaflet canvas map background mode (tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element checkboxes, and Playwright-powered PNG export at exact pixel dimensions.
 - 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year, half-year, quarter, and custom-period statistics with 365-day activity calendar heatmaps. Includes metrics for Most Active Month by Distance and Most Active Month by Elevation, visible stat toggles with dynamic 1px hairline auto-cleanup, persisted layout controls, and vector PDF / PNG export.
 - ✍️ **Strava Description Auto-Update Engine**: Automatically render custom templates with 150+ dynamic placeholders into synced Strava activity descriptions. Includes the `{{workout-summary}}` engine (power zones, normalized power % FTP, sustained blocks, peak surges via `WORKOUT_SUMMARY_PEAK_THRESHOLD_W`), 6 independent activity buckets, begin/end placement, milestone handling (🎉), server-side validation, and a 30-activity-per-sync safety cap. See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
 - 🗺️ **Interactive Canvas Maps**: Multi-provider Leaflet map with Canvas renderer for thousands of GPS points, 16 basemaps across 7 providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, and Esri). Includes built-in server-side OSM tile proxy (`/tiles/osm/...`), distance-based GPS track simplification (`GPS_SIMPLIFICATION` levels 1–10) for 10–30× payload reduction, persistent route/map styling, tone controls, fullscreen mode, and viewport PNG export.
@@ -91,7 +91,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
 | `/vo2max` | VO₂max | Townsend/Storer-Davis 5-minute MAP and Coggan FTP-based VO₂max estimates with trend and classification |
 | `/stats` | MEGA Stats | Veloviewer-style infographic of year, half-year, quarter, custom-period, and activity-group statistics with calendar heatmap, configurable visible metrics, persisted layout controls, and PNG/PDF export |
-| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), draggable persistent layout, background image (Strava reload, upload, clear) or interactive Leaflet map mode, persistent map center/zoom, elevation chart, and Playwright PNG export |
+| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), draggable persistent layout, background image (Strava reload, upload, clear, and photo editing tool for Color, Light, Details) or interactive Leaflet map mode, persistent map center/zoom, elevation chart, and Playwright PNG export |
 | `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
 | `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |
@@ -1009,7 +1009,7 @@ Deploy the stack:
 docker-compose up -d
 ```
 
-- For more details and advanced configuration, see the project documentation at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net).
+- For more details and advanced configuration, see the project documentation at [kinetiqo.org](https://kinetiqo.org).
 
 ## License
 
