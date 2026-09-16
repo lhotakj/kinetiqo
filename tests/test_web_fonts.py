@@ -20,7 +20,7 @@ class TestGoogleFontsCatalog(unittest.TestCase):
     def test_catalog_includes_new_fonts(self):
         """The shared catalog should expose the added poster fonts."""
 
-        for font_name in ("Oswald", "Ubuntu", "Bebas Neue"):
+        for font_name in ("Oswald", "Ubuntu", "Bebas Neue", "Fanwood Text"):
             with self.subTest(font_name=font_name):
                 self.assertIn(font_name, GOOGLE_FONT_CATALOG)
 
@@ -29,7 +29,7 @@ class TestGoogleFontsCatalog(unittest.TestCase):
 
         self.assertEqual(BASE_GOOGLE_FONT_NAMES, ("Inter", "Italiana", "Merriweather"))
         self.assertEqual(LOGIN_GOOGLE_FONT_NAMES, ("Inter", "Italiana", "Merriweather"))
-        for font_name in ("Oswald", "Ubuntu", "Bebas Neue"):
+        for font_name in ("Oswald", "Ubuntu", "Bebas Neue", "Fanwood Text"):
             with self.subTest(font_name=font_name):
                 self.assertIn(font_name, POSTER_GOOGLE_FONT_NAMES)
 
@@ -64,3 +64,4 @@ class TestGoogleFontsCatalog(unittest.TestCase):
         self.assertIn("family=Oswald:wght@400;700", POSTER_GOOGLE_FONTS_URL)
         self.assertIn("family=Ubuntu:wght@400;700", POSTER_GOOGLE_FONTS_URL)
         self.assertIn("family=Bebas+Neue:wght@400", POSTER_GOOGLE_FONTS_URL)
+        self.assertIn("family=Fanwood+Text:ital@0;1", POSTER_GOOGLE_FONTS_URL)

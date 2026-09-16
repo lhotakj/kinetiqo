@@ -12,7 +12,7 @@ Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchron
 
 Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
 
-> Full project documentation is available at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net) 
+> Full project documentation is available at [kinetiqo.org](https://kinetiqo.org) 
 
 | [![Activity Sync & Data Grid](docs/grid-dark.webp)](docs/grid-dark.webp)<br/>**Activity Sync & Data Grid**<br/>Searchable DataTables 2.x grid with bulk selection, CSV/XLSX export, and local storage state persistence | [![Real-Time SSE Sync Progress](docs/activities-sync.webp)](docs/activities-sync.webp)<br/>**Real-Time Sync Engine**<br/>Live Server-Sent Events (SSE) progress bar streaming incremental sync and full history audit status | [![Column Reordering & Visibility](docs/activities-colums-dark.webp)](docs/activities-colums-dark.webp)<br/>**Column Visibility & Reorder**<br/>Drag-and-drop column reordering with persistent visibility toggles across sessions |
 |---|---|---|
@@ -1009,7 +1009,7 @@ Deploy the stack:
 docker-compose up -d
 ```
 
-- For more details and advanced configuration, see the project documentation at [kinetiqo.lhotak.net](https://kinetiqo.lhotak.net).
+- For more details and advanced configuration, see the project documentation at [kinetiqo.org](https://kinetiqo.org).
 
 ## License
 

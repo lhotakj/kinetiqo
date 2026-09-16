@@ -2316,6 +2316,17 @@ def strava_oauth_callback():
         )
 
 
+@app.route('/fonts', methods=['GET'])
+@login_required
+def fonts_specimen_page():
+    """Render the hidden Font Specimen page."""
+    return render_template(
+        "fonts.html",
+        title="Font Specimen",
+        fonts=GOOGLE_FONTS,
+    )
+
+
 @app.route('/license', methods=['GET'])
 @login_required
 def license_page():
@@ -3735,6 +3746,7 @@ def inject_version():
 
     return {
         'app_version': version,
+        'current_year': datetime.now().year,
         'google_fonts': GOOGLE_FONTS,
         'base_google_fonts_url': _versioned(_BASE_FONTS_URL),
         'login_google_fonts_url': _versioned(LOGIN_GOOGLE_FONTS_URL),

@@ -265,7 +265,7 @@
                 <span>GitHub</span>
             </a>
         </div>
-        &copy; 2026 Jaroslav Lhoták<br>
+        &copy; <span class="current-year">{{ current_year }}</span> Jaroslav Lhoták<br>
         <a href="mailto:jarda@lhotak.net">jarda@lhotak.net</a>
     </div>
     <br>
@@ -327,8 +327,12 @@
         setTheme(!document.documentElement.classList.contains('dark'));
     });
 
-    // Fetch latest version
+    // Fetch latest version and ensure dynamic copyright year
     document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.current-year').forEach(function (el) {
+            el.textContent = new Date().getFullYear();
+        });
+
         fetch('/latest-version')
             .then(response => response.json())
             .then(data => {

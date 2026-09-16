@@ -125,6 +125,8 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 ### 4.8 Navigation & User Experience
 - **Internal links**: Must stay in the same browser tab (`target="_self"` or no target attribute).
 - **External links**: Open in a new tab using `target="_blank"` and include `rel="noopener noreferrer"`.
+- **Dynamic Copyright Year**: All template footers (`base.html`, `login.html`, `license.html`) MUST render `&copy; {{ current_year }} Jaroslav Lhoták` via Flask context processor (`@app.context_processor`). Never hardcode fixed year numbers.
+- **Footer Links & Brand Icons**: Footer links (e.g. GitHub link and logo) must use matched, theme-adaptive text/icon colors, proper padding, and no underlines across light and dark modes.
 - **State Persistence**: Grid controls, column visibility, and page settings saved to `localStorage` must include schema version keys to support smooth UI migrations.
 
 ### 4.9 Web Input Validation & Error Highlighting Standards
@@ -135,7 +137,10 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 - **Theme-Aware Error Highlighting**: When validation fails, the input text box background must highlight in a light red tone (`bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-600` or direct inline style override) in both light and dark modes.
 - **Auto-Restoration**: When corrected to a valid value, the text box background restores to default (`bg-white dark:bg-zinc-700`), the green **`Saved ✓`** confirmation displays next to the label, and auto-fades after 3 seconds.
 
-### 4.10 Mega Stats Infographic Design, Metric Separator & Control Panel Standards
+### 4.10 Poster & Map Tone Opacity Isolation Standard
+- **Background Tone Opacity**: In both Poster and Map views, the "Tone Opacity" control strictly affects only the background fill tint / overlay layer. It must NEVER affect or dim other canvas elements (such as GPS route polyline, track points, text boxes, elevation profiles, or stats widgets).
+
+### 4.11 Mega Stats Infographic Design, Metric Separator & Control Panel Standards
 - **Metric Divider Standard**: Every metric block in `#ig-stats` MUST have a corresponding `<div class="ig-stat-divider" id="ig-<key>-divider"></div>` immediately following its container element in HTML templates. In JavaScript `STAT_DEFS`, every metric entry MUST declare its divider ID (`div: 'ig-<key>-divider'`). The `applyStatVisibility()` function dynamically hides the divider after whichever metric happens to be the last visible stat, guaranteeing tiny 1px separator lines (`border-top: 1px solid rgba(255,255,255,0.08)`) are displayed between all adjacent metrics without trailing divider lines at the bottom of the stats column.
 - **Control Panel Uniformity**: In Visible Stats control panels, every checkbox label MUST use uniform `text-xs` (12px) font size across light and dark modes. Checkbox `<input>` elements must enforce `flex-shrink-0 mr-1` and `style="margin-right: 3px;"` to maintain 3px spacing between the checkbox box and label text. Label text containers must enforce `min-w-0 overflow-hidden whitespace-nowrap <span class="truncate">` to prevent line wrapping or column overlap.
 - **Typography & Label Clipping**: Metric labels in `.ig-stat-label` MUST enforce `white-space: nowrap`, `overflow: hidden`, `text-overflow: ellipsis`, letter spacing `0.08em`, font weight 600, opacity 0.55, and scaled font size (`calc(var(--stats-font-size) * 0.38)`).
@@ -160,10 +165,39 @@ IMPORTANT: Any new feature, endpoint, CLI command, or public API change MUST inc
 3. Add unit tests asserting that repository methods are called with expected parameters.
 
 ### Add or Refresh Google Fonts
-1. Register font names in `GOOGLE_FONTS` inside `kinetiqo/web/fonts.py`.
-2. Run `python development/download-fonts.py --force` to download woff2 files and update `google_fonts_local.css`.
-3. Preload critical fonts in `base.html` using `<link rel="preload" as="font" crossorigin>`.
-4. Update font attributions in `license.html`.
+
+When adding a new Google Font to the offline font library, execute every step below in order. Skipping any step will leave the font partially integrated.
+
+#### Step 1: Identify the font on Google Fonts
+- Visit the Google Fonts specimen page (e.g. `https://fonts.google.com/specimen/Fanwood+Text`).
+- Note the **font family name** (exactly as shown on Google Fonts), the **designer/foundry**, the **specimen URL**, and the **stylesheet fragment** (e.g. `Fanwood+Text:ital@0;1` or `Roboto:wght@400;700`).
+- The stylesheet fragment encodes which axes, styles, and weights to download. Use `wght@400;700` for standard regular+bold, `ital@0;1` for normal+italic, or variable axis ranges as appropriate.
+
+#### Step 2: Register in `GOOGLE_FONTS` catalog (`src/kinetiqo/web/fonts.py`)
+- Add a new `GoogleFont(...)` entry to the `GOOGLE_FONTS` tuple (maintain alphabetical order within the "Added fonts" section).
+- Required fields: `name` (exact Google Fonts family name), `designer`, `specimen_url`, `stylesheet_fragment`.
+
+#### Step 3: Add to the appropriate font group (`src/kinetiqo/web/fonts.py`)
+- **Poster fonts**: Add the font name string to `POSTER_GOOGLE_FONT_NAMES` tuple. This makes it available in the poster font dropdown (`_font_options.html`) and triggers download via the poster fonts CSS.
+- **Base fonts**: Only add to `BASE_GOOGLE_FONT_NAMES` if the font should load on every page (rare — currently only Inter, Italiana, Merriweather).
+
+#### Step 4: Download woff2 files
+- Run `python development/download-fonts.py` (or `--force` to re-download all).
+- Verify new `.woff2` files appear in `src/kinetiqo/web/static/fonts/` (e.g. `fanwood-text_normal_latin.woff2`).
+- Verify the font's `@font-face` declarations appear in `src/kinetiqo/web/static/css/google_fonts_poster_local.css` (or `google_fonts_local.css` for base fonts).
+
+#### Step 5: Update `license.html` (`src/kinetiqo/web/templates/license.html`)
+- The dynamic Google Fonts license table (lines 34–45) auto-renders from the `google_fonts` context variable, so no change is needed there.
+- **However**, the static third-party credits table (further down in `license.html`) must have a new `<tr>` row added with: font name, designer, license (`OFL 1.1`), and specimen link.
+
+#### Step 6: Update unit tests (`tests/test_web_fonts.py`)
+- Add the new font name to the `test_catalog_includes_new_fonts` subtest tuple.
+- Add the new font name to the `test_font_groups_include_expected_fonts` subtest tuple.
+- Add the font's stylesheet fragment assertion to `test_stylesheet_url_contains_poster_fonts`.
+
+#### Step 7: Run the full test suite and verify
+- Run `python -m pytest -o pythonpath=src -v` and confirm all tests pass (including the updated font tests).
+- Optionally start the dev server (`python src/kinetiqo.py web`) and verify the new font appears in the poster font dropdown and renders correctly.
 
 ### Update Tailwind CSS
 1. Edit template Tailwind classes or `src/kinetiqo/web/static/css/tailwind.input.css`.

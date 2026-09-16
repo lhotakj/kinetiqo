@@ -161,6 +161,12 @@ GOOGLE_FONTS: tuple[GoogleFont, ...] = (
         specimen_url="https://fonts.google.com/specimen/Asap",
         stylesheet_fragment="Asap:wght@400;700",
     ),
+    GoogleFont(
+        name="Fanwood Text",
+        designer="Barry Schwartz",
+        specimen_url="https://fonts.google.com/specimen/Fanwood+Text",
+        stylesheet_fragment="Fanwood+Text:ital@0;1",
+    ),
 )
 
 GOOGLE_FONT_CATALOG: dict[str, GoogleFont] = {font.name: font for font in GOOGLE_FONTS}
@@ -196,6 +202,7 @@ POSTER_GOOGLE_FONT_NAMES: tuple[str, ...] = (
     "Quicksand",
     "Special Elite",
     "Asap",
+    "Fanwood Text",
 )
 
 

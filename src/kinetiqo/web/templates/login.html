@@ -120,7 +120,7 @@
                 <span>GitHub</span>
             </a>
         </div>
-        &copy; 2026 Jaroslav Lhoták<br>
+        &copy; <span class="current-year">{{ current_year }}</span> Jaroslav Lhoták<br>
         <a href="mailto:jarda@lhotak.net">jarda@lhotak.net</a>
     </div>
 </div>
@@ -172,6 +172,10 @@
                 setTheme(!isCurrentlyDark);
             });
         }
+
+        document.querySelectorAll('.current-year').forEach(function(el) {
+            el.textContent = new Date().getFullYear();
+        });
     })();
 </script>
 </body>

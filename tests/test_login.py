@@ -2,6 +2,7 @@
 
 import re
 import unittest
+from datetime import datetime
 
 from unittest.mock import MagicMock, patch
 
@@ -104,6 +105,27 @@ class TestLogin(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
         self.assertIn('Invalid username or password', html)
+
+    def test_login_footer_github_alignment(self):
+        """Verify login footer uses aligned classes for GitHub link and logo."""
+        resp = self.client.get('/login')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        self.assertIn('login-footer', html)
+        self.assertIn('github-footer-link', html)
+        self.assertIn('github-logo', html)
+        self.assertIn('https://github.com/lhotakj/kinetiqo', html)
+        self.assertIn('target="_blank"', html)
+        self.assertIn('rel="noopener noreferrer"', html)
+
+    def test_login_footer_dynamic_copyright(self):
+        """Verify login footer dynamically renders the current year without hardcoding."""
+        resp = self.client.get('/login')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        current_year = str(datetime.now().year)
+        self.assertIn(f'<span class="current-year">{current_year}</span>', html)
 
 
 if __name__ == '__main__':
