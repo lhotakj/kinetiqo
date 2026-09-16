@@ -366,7 +366,7 @@ def _apply_film_grain(img: Image.Image, grain_level: int) -> Image.Image:
     # Generate pseudo-random noise buffer for speed
     rng = random.Random(42)  # consistent seed per pass
     noise_data = bytes(
-        int(clamp(128 + (rng.random() - 0.5) * strength * 2, 0, 255))
+        int(clamp(128 + (rng.random() - 0.5) * strength * 2, 0, 255))  # NOSONAR
         for _ in range(w * h)
     )
     noise_img = Image.frombytes('L', (w, h), noise_data).convert('RGB')
