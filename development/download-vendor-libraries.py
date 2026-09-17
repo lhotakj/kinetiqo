@@ -290,6 +290,11 @@ def parse_args() -> argparse.Namespace:
         help="Print verbose download progress and URLs.",
     )
     parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clear the vendor directory before downloading.",
+    )
+    parser.add_argument(
         "--skip-cli",
         action="store_true",
         help="Skip downloading Tailwind CLI binary.",
@@ -310,6 +315,12 @@ def main() -> int:
     vendor_base_dir = _REPO_ROOT / settings.get("vendor_base_dir", "src/kinetiqo/web/static/vendor")
 
     target_lib_filter = args.library.lower().strip() if args.library else None
+
+    if args.clean and not target_lib_filter and vendor_base_dir.exists():
+        import shutil
+        shutil.rmtree(vendor_base_dir)
+        vendor_base_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\n  Cleared vendor directory: {vendor_base_dir.relative_to(_REPO_ROOT)}")
 
     print_table_header()
 

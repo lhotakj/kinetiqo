@@ -40,7 +40,6 @@ class TestDownloadVendorLibraries(unittest.TestCase):
         # Check expected library IDs
         lib_ids = {lib["id"] for lib in libraries}
         expected_ids = {
-            "tailwind",
             "htmx",
             "jquery",
             "leaflet",

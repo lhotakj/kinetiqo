@@ -34,13 +34,6 @@ prerequisites:
       minify: true
 
 libraries:
-  - id: "tailwind"
-    name: "Tailwind CSS Standalone JS"
-    target_dir: "tailwind"
-    version: "3.4.1"
-    files:
-      - filename: "tailwind.js"
-        url: "https://cdn.tailwindcss.com"
 
   - id: "htmx"
     name: "HTMX"
@@ -129,7 +122,7 @@ libraries:
   - id: "moment"
     name: "Moment.js"
     target_dir: "moment"
-    version: "2.30.1"
+    version: "2.31.0"
     files:
       - filename: "moment-{version}.min.js"
         url: "https://cdn.jsdelivr.net/npm/moment@{version}/min/moment.min.js"
@@ -137,7 +130,7 @@ libraries:
   - id: "jszip"
     name: "JSZip"
     target_dir: "jszip"
-    version: "3.10.1"
+    version: "3.10.2"
     files:
       - filename: "jszip-{version}.min.js"
         url: "https://cdn.jsdelivr.net/npm/jszip@{version}/dist/jszip.min.js"
