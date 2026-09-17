@@ -47,22 +47,22 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 |---|---|---|---|
 | Language | **Python** | 3.14 | Dockerized on `python:3.14-slim` |
 | Testing | **pytest** / **unittest** | stdlib + pytest | Mocked unit tests in `tests/` |
-| Web Framework | **Flask[async]** + **flask-login** | 3.1.3 / 0.6.3 | Jinja2 templates, Gunicorn 26.0.0 in production |
+| Web Framework | **Flask[async]** + **flask-login** | 3.1.3 / 0.6.3 | Jinja2 templates, Gunicorn 26.2.0 in production |
 | Session & CSRF | **Flask-WTF** / **flask-login** | 1.3.0 / 0.6.3 | CSRF tokens on all POST/PUT/DELETE routes |
-| Response Compression | **flask-compress** | 1.24 | Automatic gzip/brotli compression |
+| Response Compression | **flask-compress** | 1.25 | Automatic gzip/brotli compression |
 | Frontend CSS | **Tailwind CSS** | v4 CLI (4.3.3) | Compiled to `static/css/tailwind.css` via `download-tailwind.sh` |
 | Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.2 | SSE for sync progress bar |
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
-| CLI | **Click** | 8.4.1 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
-| Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.12 / 9.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
+| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
+| Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 9.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
-| Data Processing | **pandas** | 3.0.3 | CTL/ATL/TSB calculation |
-| Browser Automation | **Playwright** | ≥1.60.0 | PNG poster and infographic rendering |
-| Image Processing | **Pillow** | ≥12.2.0 | Poster and image processing |
-| Date Parsing | **python-dateutil** | ≥2.8.2 | Date parsing utilities |
-| Versioning | **packaging** | ≥26.2 | SemVer comparisons |
+| Data Processing | **pandas** | 3.0.5 | CTL/ATL/TSB calculation |
+| Browser Automation | **Playwright** | ≥1.63.0 | PNG poster and infographic rendering |
+| Image Processing | **Pillow** | ≥12.3.0 | Poster and image processing |
+| Date Parsing | **python-dateutil** | ≥2.9.0.post0 | Date parsing utilities |
+| Versioning | **packaging** | ≥26.3 | SemVer comparisons |
 
 ---
 
@@ -159,6 +159,21 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 
 IMPORTANT: Any new feature, endpoint, CLI command, or public API change MUST include corresponding unit tests. Pull requests that add or modify functionality without appropriate tests will be returned for coverage before merging.
 
+### Update 3rd Party Components
+
+When executing an 'update 3rd party components' workflow, follow these structured steps:
+
+1. **Check Latest Versions**: Review pip packages, JS vendor libraries, and CSS tools against their latest available versions.
+2. **Provide Component Matrix**: Present a matrix of all components showing current version, available version, and nature of the change (major/minor/patch).
+3. **Analyze & Suggest**: Based on release notes and semantic versioning, suggest which packages are safe to update (typically minor/patch) and which should be deferred or skipped.
+4. **User Decision**: Wait for the user to confirm the update plan.
+5. **Download & Clean**: Run the download tool with the --clean flag to ensure the endor/ directory is cleared of stale files before pulling the approved versions.
+6. **Update Code**: Update 
+equirements.txt and any corresponding endor-libraries.yaml configurations.
+7. **Update Documentation**: Synchronize versions in README.md, AGENTS.md (Key Technologies matrix), and src/kinetiqo/web/templates/license.html.
+8. **Run Tests**: Execute the test suite to ensure all tests still pass.
+9. **Final Report**: Provide a summary report of the updates, highlighting any significant items from the release notes.
+
 ### Update the Database Interface
 1. Add abstract methods to `DatabaseRepository` (`db/repository.py`).
 2. Implement parameterized raw SQL in `postgresql.py`, `mysql.py`, and `firebird.py`.
@@ -221,3 +236,5 @@ When running commands in developer environments (e.g., PyCharm SSH terminal vs. 
 - SSH / POSIX path: `~/WORKING/kinetiqo`
 
 Commands run inside an SSH session must use POSIX paths (`cd ~/WORKING/kinetiqo && python -m pytest -o pythonpath=src`).
+
+

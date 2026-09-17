@@ -716,25 +716,25 @@ build/
 |---|---|---|
 | Language | Python | 3.14 |
 | Web framework | Flask[async] + flask-login | 3.1.3 / 0.6.3 |
-| Response compression | flask-compress | 1.24 |
+| Response compression | flask-compress | 1.25 |
 | CSRF protection | Flask-WTF | 1.3.0 |
-| WSGI server | Gunicorn | 26.0.0 |
-| CLI | Click | 8.4.1 |
+| WSGI server | Gunicorn | 26.2.0 |
+| CLI | Click | 8.5.0 |
 | HTTP client | httpx | 0.28.1 |
-| Data processing | pandas | 3.0.3 |
-| Versioning | packaging | ≥26.2 |
-| PostgreSQL driver | psycopg2-binary | 2.9.12 |
+| Data processing | pandas | 3.0.5 |
+| Versioning | packaging | ≥26.3 |
+| PostgreSQL driver | psycopg2-binary | 2.9.13 |
 | MySQL driver | mysql-connector-python | 9.7.0 |
 | Firebird driver | firebird-driver | 2.0.3 |
-| Image processing | Pillow | ≥12.2.0 |
-| Browser automation | Playwright | ≥1.60.0 |
+| Image processing | Pillow | ≥12.3.0 |
+| Browser automation | Playwright | ≥1.63.0 |
 | Frontend CSS | Tailwind CSS | Local build (Tailwind CLI 4.3.3) |
 | Reactivity | HTMX + htmx-ext-sse | 2.0.10 (local vendor file) / 2.2.2 |
 | Data tables | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 |
 | Charting | Chart.js + chartjs-adapter-moment | 4.x / 1.0 |
 | Maps | Leaflet.js | 1.9.4 (local vendor files) |
 | Dropdowns | Select2 | 4.1 |
-| Date pickers | DateRangePicker + Moment.js | 3.1 / 2.30 |
+| Date pickers | DateRangePicker + Moment.js | 3.1 / 2.31 |
 | Drag & drop | SortableJS | 1.15 |
 | Fonts | Self-hosted Inter + Italiana (woff2, baked into Docker image). Catalog in `fonts.py`. Refresh with `python development/download-fonts.py`. | — |
 | Leaflet.js | 1.9.4 (local vendor files in `src/kinetiqo/web/static/vendor/leaflet/`). Refresh with `python development/download-vendor-libraries.py --library leaflet`. | BSD 2-Clause |
