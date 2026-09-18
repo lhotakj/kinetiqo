@@ -1,0 +1,7 @@
+<div class="control-row{% if stacked %} flex-col items-start gap-1{% endif %}">
+    <label for="{{ font_control_id|default('font-select') }}" class="{% if stacked %}text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5{% endif %}">{{ font_label|default('Font') }}</label>
+    <select id="{{ font_control_id|default('font-select') }}"
+        class="{{ font_select_class|default('h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white' ~ (' w-full' if stacked else ' flex-1')) }}">
+        {% include "_font_options.html" %}
+    </select>
+</div>

@@ -1,0 +1,10 @@
+<label
+    class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer flex-1 text-center"
+    for="{{ upload_input_id|default('uploadInput') }}">
+    {{ upload_label|default('Upload Image') }}
+    <input type="file" id="{{ upload_input_id|default('uploadInput') }}" accept="{{ upload_accept|default('.png,.jpg,.jpeg,.heic,.heif') }}" class="hidden" aria-label="{{ upload_label|default('Upload Image') }}">
+</label>
+<button type="button" id="{{ clear_button_id|default('clearImageBtn') }}"
+    class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition flex-1 text-center">
+    {{ clear_label|default('Clear Image') }}
+</button>

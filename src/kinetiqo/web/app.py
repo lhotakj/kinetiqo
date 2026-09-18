@@ -2083,6 +2083,9 @@ def stats():
     except Exception:
         pass
 
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    has_bg_image = (cache_dir / 'stats_bg.png').exists()
+
     return render_template(
         'stats.html',
         title="Mega Stats",
@@ -2090,6 +2093,7 @@ def stats():
         current_year=current_year,
         athlete_name=athlete_name,
         activity_groups=ACTIVITY_GROUPS,
+        has_bg_image=has_bg_image,
     )
 
 
@@ -3154,6 +3158,75 @@ def poster_elevation_data(activity_id):
         return jsonify({'distance': [], 'altitude': []})
 
 
+@app.route('/api/stats/upload', methods=['POST'])
+@login_required
+def stats_photo_upload():
+    """Upload and store a custom background image for Mega Stats.
+
+    The endpoint accepts common image formats and converts them to PNG.
+
+    Returns:
+        Response: PNG bytes of the converted image or a JSON error payload on failure.
+    """
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cache_dir.mkdir(exist_ok=True)
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    filename = file.filename.lower() if file.filename else ''
+    allowed = ('.png', '.jpg', '.jpeg', '.heic', '.heif')
+    if not any(filename.endswith(ext) for ext in allowed):
+        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, HEIC'}), 400
+
+    try:
+        raw = file.read()
+        if filename.endswith(('.heic', '.heif')):
+            try:
+                pillow_heif = importlib.import_module('pillow_heif')
+                pillow_heif.register_heif_opener()
+            except (ImportError, ModuleNotFoundError):
+                return jsonify({'error': 'HEIC support not available (pillow-heif not installed)'}), 500
+        img = Image.open(io.BytesIO(raw))
+        img = img.convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        png_data = buf.getvalue()
+        cached = cache_dir / "stats_bg.png"
+        cached.write_bytes(png_data)
+        return Response(png_data, mimetype=PNG_MIMETYPE)
+    except Exception as e:
+        logger.exception(f"Failed to process uploaded image for Mega Stats: {e}")
+        return jsonify({'error': f'Failed to process image: {e}'}), 500
+
+
+@app.route('/api/stats/image', methods=['GET'])
+@login_required
+def stats_photo_get():
+    """Serve the custom background image for Mega Stats if one exists."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cached = cache_dir / "stats_bg.png"
+    if cached.exists():
+        return Response(cached.read_bytes(), mimetype=PNG_MIMETYPE)
+    return jsonify({'error': 'No background image found'}), 404
+
+
+@app.route('/api/stats/image/reset', methods=['POST'])
+@app.route('/api/stats/image', methods=['DELETE'])
+@login_required
+def stats_photo_reset():
+    """Remove any stored custom background image for Mega Stats."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cached = cache_dir / "stats_bg.png"
+    if cached.exists():
+        try:
+            cached.unlink()
+        except Exception as e:
+            logger.warning(f"Could not delete cached stats image: {e}")
+    return jsonify({'status': 'cleared'})
+
+
 @app.route('/api/poster/export/<activity_id>', methods=['POST'])
 @login_required
 def poster_export(activity_id):
@@ -3480,6 +3553,10 @@ def stats_export():
     width = max(800, min(int(payload.get('width', 1280)), 2048))
     height = max(600, min(int(payload.get('height', 960)), 1600))
     font_size = str(payload.get('fontSize', '24'))
+    font_family = str(payload.get('fontFamily', 'Inter'))
+    has_image = bool(payload.get('hasImage', False))
+    tint = str(payload.get('tint', ''))
+    opacity = payload.get('opacity', 40)
     stats_column_width = str(payload.get('statsColumnWidth', '20'))
     export_format = str(payload.get('format', 'png')).lower()
 
@@ -3549,13 +3626,54 @@ def stats_export():
                     var statsWidthSlider = document.getElementById('stats-column-width');
                     if (statsWidthSlider) {{
                         statsWidthSlider.value = {_json.dumps(stats_column_width)};
-                        statsWidthSlider.dispatchEvent(new Event('input'));
+                        if (typeof window.applyStatsColumnWidth === 'function') {{
+                            window.applyStatsColumnWidth(statsWidthSlider.value);
+                        }} else {{
+                            statsWidthSlider.dispatchEvent(new Event('input'));
+                        }}
                     }}
                     // Set font size slider and update
                     var fontSlider = document.getElementById('stats-title-font-size');
                     if (fontSlider) {{
                         fontSlider.value = {_json.dumps(font_size)};
                         updateStatsFontSize({_json.dumps(font_size)});
+                    }}
+                    // Set font family
+                    var font = {_json.dumps(font_family)};
+                    if (font) {{
+                        var ig = document.getElementById('infographic');
+                        if (ig) ig.style.setProperty('--stats-font-family', '"' + font + '", sans-serif');
+                        var fontSel = document.getElementById('stats-font');
+                        if (fontSel) fontSel.value = font;
+                    }}
+                    // Set background image, tint and opacity
+                    var hasImage = {_json.dumps(has_image)};
+                    var igBg = document.getElementById('ig-bg-image');
+                    var igOv = document.getElementById('ig-bg-overlay');
+                    var tint = {_json.dumps(tint)};
+                    var opacity = {_json.dumps(opacity)};
+                    var opVal = Number(opacity);
+                    if (isNaN(opVal)) opVal = 40;
+
+                    if (hasImage && igBg) {{
+                        igBg.src = '/api/stats/image?t=' + Date.now();
+                        igBg.style.display = 'block';
+                    }} else if (igBg) {{
+                        igBg.style.display = 'none';
+                    }}
+
+                    if (igOv) {{
+                        if (tint && opVal > 0) {{
+                            igOv.style.display = 'block';
+                            igOv.style.backgroundColor = tint;
+                            igOv.style.opacity = String(opVal / 100.0);
+                        }} else if (hasImage && opVal > 0) {{
+                            igOv.style.display = 'block';
+                            igOv.style.backgroundColor = '#000000';
+                            igOv.style.opacity = String(opVal / 100.0);
+                        }} else {{
+                            igOv.style.display = 'none';
+                        }}
                     }}
                     var sel = document.getElementById('stats-year');
                     if (sel) sel.dispatchEvent(new Event('change'));
@@ -3572,6 +3690,17 @@ def stats_export():
             )
             # Give the calendar dots an extra tick to paint
             page.wait_for_timeout(600)
+
+            if has_image:
+                try:
+                    page.wait_for_function(
+                        "!document.getElementById('ig-bg-image') || "
+                        "document.getElementById('ig-bg-image').style.display === 'none' || "
+                        "document.getElementById('ig-bg-image').complete",
+                        timeout=5_000,
+                    )
+                except Exception:
+                    pass
 
             # ── Step 3: reset the infographic to exact export dimensions and
             #            detach it from the flex layout so it covers the full

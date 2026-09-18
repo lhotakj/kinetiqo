@@ -738,14 +738,7 @@
                             <button id="loadStravaBtn"
                                 class="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition flex-1 text-center">Load
                                 from Strava</button>
-                            <label
-                                class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer flex-1 text-center">
-                                Upload Image
-                                <input type="file" id="uploadInput" accept=".png,.jpg,.jpeg,.heic,.heif" class="hidden">
-                            </label>
-                            <button id="clearImageBtn"
-                                class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition flex-1 text-center">Clear
-                                Image</button>
+                            {% include "_image_upload_buttons.html" %}
                         </div>
                     </div>
 
@@ -764,29 +757,15 @@
                                 {% endif %}
                             </select>
                         </div>
-                        <div class="control-row">
-                            <label for="mapOpacity">Map Opacity</label>
-                            <input type="range" id="mapOpacity" min="0" max="100" value="100"
-                                class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                            <span id="mapOpacityVal" class="text-xs w-8">100%</span>
-                        </div>
-                        <div class="control-row">
-                            <label for="mapToneColor">Map Color Tone</label>
-                            <div class="flex items-center gap-1.5 flex-1">
-                                <input type="color" id="mapToneColor" value="#ffffff"
-                                    class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer">
-                                <button type="button" id="mapToneClearBtn"
-                                    class="h-8 px-2.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 text-xs text-gray-600 dark:text-gray-300 transition"
-                                    title="Clear map color tone and restore default behavior">None</button>
-                                <span id="mapToneValue" class="text-xs text-gray-500 dark:text-gray-400">None</span>
-                            </div>
-                        </div>
-                        <div class="control-row">
-                            <label for="toneOpacity">Tone Opacity</label>
-                            <input type="range" id="toneOpacity" min="0" max="100" value="50"
-                                class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                            <span id="toneOpacityVal" class="text-xs w-8">50%</span>
-                        </div>
+                        {% with control_id='mapOpacity', label='Map Opacity', min_val=0, max_val=100, value=100, value_id='mapOpacityVal' %}
+                        {% include "_control_range.html" %}
+                        {% endwith %}
+                        {% with control_id='mapToneColor', label='Map Color Tone', clear_btn_id='mapToneClearBtn', value_id='mapToneValue', value='#ffffff', value_text='None' %}
+                        {% include "_control_color_tint.html" %}
+                        {% endwith %}
+                        {% with control_id='toneOpacity', label='Tone Opacity', min_val=0, max_val=100, value=50, value_id='toneOpacityVal' %}
+                        {% include "_control_range.html" %}
+                        {% endwith %}
                         <div class="control-row">
                             <label for="mapLineColor">Route Color</label>
                             <input type="color" id="mapLineColor" value="#38bdf8"
@@ -829,12 +808,10 @@
                     </button>
                 </div>
                 <div class="control-box-body collapsed">
-                    <div class="control-row">
-                        <label for="titleFont">Font</label>
-                        <select id="titleFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            {% include "_font_options.html" %}
-                        </select>
-                    </div>
+                    {% set font_control_id = 'titleFont' %}
+                    {% set font_label = 'Font' %}
+                    {% set font_select_class = 'h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1' %}
+                    {% include "_font_select.html" %}
                     <div class="control-row">
                         <label for="titleAlign">Text Align</label>
                         <input type="hidden" id="titleAlign" value="left">
@@ -945,12 +922,10 @@
                     </button>
                 </div>
                 <div class="control-box-body collapsed">
-                    <div class="control-row">
-                        <label for="statsFont">Font</label>
-                        <select id="statsFont" class="h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1">
-                            {% include "_font_options.html" %}
-                        </select>
-                    </div>
+                    {% set font_control_id = 'statsFont' %}
+                    {% set font_label = 'Font' %}
+                    {% set font_select_class = 'h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1' %}
+                    {% include "_font_select.html" %}
                     <div class="control-row">
                         <label for="statsStyle">Font Style</label>
                         <input type="hidden" id="statsStyle" value="normal">

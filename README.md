@@ -65,7 +65,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🏋️ **FTP & VO₂max Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data with per-ride history chart, plus Townsend/Storer-Davis best 5-minute MAP and Coggan FTP-based VO₂max trends with fitness classifications.
 - 🏃 **Fitness & Freshness**: Banister impulse-response model for CTL (Fitness), ATL (Fatigue), and TSB (Form) curves calculated from suffer scores, with configurable time constants.
 - 📸 **WYSIWYG Activity Poster Generator**: Create professional activity posters with customizable fonts (Italiana, Inter, Outfit, JetBrains Mono, Fanwood Text), colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation profile chart, background photo mode (with clear image option and built-in photo editing tool for Color, Light, and Details adjustments) or interactive Leaflet canvas map background mode (tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element checkboxes, and Playwright-powered PNG export at exact pixel dimensions.
-- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year, half-year, quarter, and custom-period statistics with 365-day activity calendar heatmaps. Includes metrics for Most Active Month by Distance and Most Active Month by Elevation, visible stat toggles with dynamic 1px hairline auto-cleanup, persisted layout controls, and vector PDF / PNG export.
+- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year, half-year, quarter, and custom-period statistics with 365-day activity calendar heatmaps. Features custom background photo upload (with reset), configurable tint color overlay and opacity slider, typography font selector (Inter, Italiana, Outfit, etc.), unified collapsible control panels (Stats Options, Appearance, Size, Period), responsive column width layout with stacked default (20%) and expanded full-width row layout (>20% up to 50%), metrics for Most Active Month by Distance and Most Active Month by Elevation, visible stat toggles with dynamic 1px hairline auto-cleanup, complete `localStorage` state persistence, and vector PDF / PNG Playwright export.
 - ✍️ **Strava Description Auto-Update Engine**: Automatically render custom templates with 150+ dynamic placeholders into synced Strava activity descriptions. Includes the `{{workout-summary}}` engine (power zones, normalized power % FTP, sustained blocks, peak surges via `WORKOUT_SUMMARY_PEAK_THRESHOLD_W`), 6 independent activity buckets, begin/end placement, milestone handling (🎉), server-side validation, and a 30-activity-per-sync safety cap. See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
 - 🗺️ **Interactive Canvas Maps**: Multi-provider Leaflet map with Canvas renderer for thousands of GPS points, 16 basemaps across 7 providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, and Esri). Includes built-in server-side OSM tile proxy (`/tiles/osm/...`), distance-based GPS track simplification (`GPS_SIMPLIFICATION` levels 1–10) for 10–30× payload reduction, persistent route/map styling, tone controls, fullscreen mode, and viewport PNG export.
 - 💾 **Multi-DB Zero-ORM Warehouse**: Direct parameterized raw SQL execution with strict SQL injection immunity and zero ORM overhead across **PostgreSQL** (12+), **MySQL 8 / MariaDB 10+**, and **Firebird** (3.0, 4.0, 5.0). Includes automated built-in benchmark utility (`kinetiqo benchmark` with `-s, --scope` and `-d, --database-type`). See [docs/DATABASE.md](docs/DATABASE.md).
@@ -90,7 +90,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/ftp` | FTP | FTP estimation history chart (95% of best 20-min power) |
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
 | `/vo2max` | VO₂max | Townsend/Storer-Davis 5-minute MAP and Coggan FTP-based VO₂max estimates with trend and classification |
-| `/stats` | MEGA Stats | Veloviewer-style infographic of year, half-year, quarter, custom-period, and activity-group statistics with calendar heatmap, configurable visible metrics, persisted layout controls, and PNG/PDF export |
+| `/stats` | MEGA Stats | Veloviewer-style infographic of year, half-year, quarter, custom-period, and activity-group statistics with calendar heatmap, custom background photo upload/tint/opacity, font selection, collapsible control panels, responsive column width (stacked 20% default vs expanded full-width), configurable visible metrics, full state persistence, and PNG/PDF export |
 | `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), draggable persistent layout, background image (Strava reload, upload, clear, and photo editing tool for Color, Light, Details) or interactive Leaflet map mode, persistent map center/zoom, elevation chart, and Playwright PNG export |
 | `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
 | `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
@@ -120,6 +120,9 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/poster/elevation/<activity_id>` | GET | Activity elevation profile data for poster chart |
 | `/api/poster/export/<activity_id>` | POST | Generate pixel-perfect PNG via Playwright (respects posterSize, ratio settings) |
 | `/api/stats/export` | POST | Generate a MEGA Stats PNG or PDF export via Playwright |
+| `/api/stats/upload` | POST | Upload custom background image for MEGA Stats infographic |
+| `/api/stats/image` | GET | Retrieve cached custom background image for MEGA Stats infographic |
+| `/api/stats/image/reset` | POST/DELETE | Reset custom background image for MEGA Stats infographic |
 | `/tiles/osm/<z>/<x>/<y>.png` | GET | Server-side OpenStreetMap tile proxy |
 | `/strava/reconnect` | GET | Start Strava OAuth reconnection, including `activity:write` when required |
 | `/strava/callback` | GET | Complete Strava OAuth callback |
@@ -691,6 +694,7 @@ tests/
 ├── test_ftp.py                  # FTP estimation tests
 ├── test_vo2max.py               # VO₂max estimation tests
 ├── test_stats.py                # MEGA Stats infographic tests
+├── test_stats_image.py          # MEGA Stats image upload, reset, and UI tests
 ├── test-docker-postgresql.sh    # Docker integration test (PostgreSQL)
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
 development/

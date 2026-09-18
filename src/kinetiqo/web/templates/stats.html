@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
 <style>
     /* ---- Infographic container — dimensions managed by JS ---- */
     .infographic-wrapper {
@@ -18,15 +19,41 @@
         flex-direction: column;
         padding: 28px 36px 24px 36px;
         box-sizing: border-box;
-        font-family: 'Inter', sans-serif;
+        font-family: var(--stats-font-family, 'Inter', sans-serif);
         color: #fff;
         position: relative;
+        overflow: hidden;
         --stats-font-size: 1.5rem;
         --stats-column-width: 20%;
     }
 
+    .ig-bg-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        z-index: 0;
+        image-rendering: -webkit-optimize-contrast;
+    }
+
+    .ig-bg-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+        z-index: 0;
+    }
+
     /* ---- Header ---- */
     .ig-header {
+        position: relative;
+        z-index: 1;
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
@@ -70,6 +97,8 @@
 
     /* ---- Body ---- */
     .ig-body {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex: 1;
         gap: 28px;
@@ -79,7 +108,7 @@
     /* ---- Stats column ---- */
     .ig-stats {
         width: var(--stats-column-width, 20%);
-        flex-shrink: 0;
+        flex: 0 0 var(--stats-column-width, 20%);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -93,6 +122,22 @@
         justify-content: center;
         width: 100%;
         min-width: 0;
+    }
+
+    .ig-stat-row {
+        display: flex;
+        width: 100%;
+    }
+
+    .ig-stats[data-layout="stacked"] .ig-stat-row {
+        flex-direction: column;
+    }
+
+    .ig-stats[data-layout="expanded"] .ig-stat-row {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
     }
 
     .ig-stat-label {
@@ -109,6 +154,12 @@
         text-overflow: ellipsis;
     }
 
+    .ig-stats[data-layout="expanded"] .ig-stat-label {
+        margin-bottom: 0;
+        width: auto;
+        flex-shrink: 1;
+    }
+
     .ig-stat-value {
         font-size: calc(var(--stats-font-size, 1.5rem) * 1.03) !important;
         font-weight: 800;
@@ -118,6 +169,12 @@
         align-items: baseline;
         gap: 2px;
         flex-wrap: wrap;
+    }
+
+    .ig-stats[data-layout="expanded"] .ig-stat-value {
+        width: auto;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     .ig-stat-unit {
@@ -148,6 +205,11 @@
         font-weight: 900;
         line-height: 1;
         width: 100%;
+    }
+
+    .ig-stats[data-layout="expanded"] .ig-month-value {
+        width: auto;
+        flex-shrink: 0;
     }
 
     /* ---- Calendar heatmap ---- */
@@ -271,6 +333,8 @@
 
     /* ---- Footer ---- */
     .ig-footer {
+        position: relative;
+        z-index: 1;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -308,13 +372,40 @@
 
     .control-box h4 {
         font-weight: 600;
-        margin-bottom: 8px;
+        margin-bottom: 0;
         font-size: 0.875rem;
         color: #374151;
     }
 
     .dark .control-box h4 {
         color: #d1d5db;
+    }
+
+    .control-box-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+        margin-bottom: 8px;
+    }
+
+    .control-box-header.collapsed {
+        margin-bottom: 0;
+    }
+
+    .control-box-header .chevron-icon {
+        width: 16px;
+        height: 16px;
+        transition: transform 0.2s ease;
+    }
+
+    .control-box-header.collapsed .chevron-icon {
+        transform: rotate(-90deg);
+    }
+
+    .control-box-body.collapsed {
+        display: none !important;
     }
 
     .control-row {
@@ -427,156 +518,213 @@
 
         <!-- Mega Stats Size -->
         <div class="control-box">
-            <h4>Mega Stats Size</h4>
-            <div class="control-row">
-                <label for="stats-size">Width</label>
-                <select id="stats-size"
-                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                    <option value="M">M (width 1280px)</option>
-                    <option value="L">L (width 1440px)</option>
-                </select>
+            <div class="control-box-header" data-box-id="statsSize">
+                <h4 class="text-gray-900 dark:text-gray-100">Mega Stats Size</h4>
+                <button type="button"
+                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
+                    aria-label="Toggle Mega Stats Size section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                        </path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">Ratio</span>
-                <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">4:3 (fixed)</span>
-            </div>
-            <div class="control-row">
-                <span class="text-sm text-gray-600 dark:text-gray-400">Dimensions</span>
-                <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Mega stats
-                    dimension: — × —</span>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="stats-size">Width</label>
+                    <select id="stats-size"
+                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                        <option value="M">M (width 1280px)</option>
+                        <option value="L">L (width 1440px)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">Ratio</span>
+                    <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">4:3 (fixed)</span>
+                </div>
+                <div class="control-row">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Dimensions</span>
+                    <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Mega stats
+                        dimension: — × —</span>
+                </div>
             </div>
         </div>
 
         <!-- Period -->
         <div class="control-box">
-            <h4>Period</h4>
-            <div class="control-row">
-                <label for="stats-year">Year</label>
-                <select id="stats-year"
-                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                    {% for y in range(current_year, min_year - 1, -1) %}
-                    <option value="{{ y }}" {% if y==current_year %}selected{% endif %}>{{ y }}</option>
-                    {% endfor %}
-                </select>
+            <div class="control-box-header" data-box-id="statsPeriod">
+                <h4 class="text-gray-900 dark:text-gray-100">Period</h4>
+                <button type="button"
+                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
+                    aria-label="Toggle Period section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                        </path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <label for="stats-period">Period</label>
-                <select id="stats-period"
-                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                    <option value="year" selected>Entire Year</option>
-                    <option value="h1">H1 (Jan–Jun)</option>
-                    <option value="h2">H2 (Jul–Dec)</option>
-                    <option value="q1">Q1 (Jan–Mar)</option>
-                    <option value="q2">Q2 (Apr–Jun)</option>
-                    <option value="q3">Q3 (Jul–Sep)</option>
-                    <option value="q4">Q4 (Oct–Dec)</option>
-                </select>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="stats-year">Year</label>
+                    <select id="stats-year"
+                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                        {% for y in range(current_year, min_year - 1, -1) %}
+                        <option value="{{ y }}" {% if y==current_year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="stats-period">Period</label>
+                    <select id="stats-period"
+                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                        <option value="year" selected>Entire Year</option>
+                        <option value="h1">H1 (Jan–Jun)</option>
+                        <option value="h2">H2 (Jul–Dec)</option>
+                        <option value="q1">Q1 (Jan–Mar)</option>
+                        <option value="q2">Q2 (Apr–Jun)</option>
+                        <option value="q3">Q3 (Jul–Sep)</option>
+                        <option value="q4">Q4 (Oct–Dec)</option>
+                    </select>
+                </div>
             </div>
         </div>
 
         <!-- Appearance -->
         <div class="control-box">
-            <h4>Appearance</h4>
-            <div class="control-row">
-                <label for="stats-bg">Background</label>
-                <input type="color" id="stats-bg" value="#4a4a4a"
-                    class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
+            <div class="control-box-header" data-box-id="statsAppearance">
+                <h4 class="text-gray-900 dark:text-gray-100">Appearance</h4>
+                <button type="button"
+                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
+                    aria-label="Toggle Appearance section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                        </path>
+                    </svg>
+                </button>
             </div>
-            <div class="control-row">
-                <label for="stats-group">Activities</label>
-                <select id="stats-group"
-                    class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                    {% for key, grp in activity_groups.items() %}
-                    <option value="{{ key }}" {% if key=='cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
-        <!-- Visible Stats -->
-        <div class="control-box">
-            <h4>Visible Stats</h4>
-            <div class="grid grid-cols-2 gap-x-2 gap-y-1">
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="distance" checked> <span
-                        class="truncate">Distance</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="elevation" checked> <span
-                        class="truncate">Elevation</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="longest" checked> <span
-                        class="truncate">Longest</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="highest" checked> <span
-                        class="truncate">Max elev.</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="speed" checked> <span
-                        class="truncate">Top speed</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="hours" checked> <span
-                        class="truncate">Hours</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="streak" checked> <span
-                        class="truncate">Longest streak</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap"
-                    title="Most Active Month by Distance">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month" checked> <span
-                        class="truncate">Best month (dist)</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap"
-                    title="Most Active Month by Elevation">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month-elev" checked> <span
-                        class="truncate">Best month (elev)</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="avg-power" checked> <span
-                        class="truncate">Avg power</span>
-                </label>
-                <label
-                    class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap">
-                    <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="max-power" checked> <span
-                        class="truncate">Max power</span>
-                </label>
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="stats-bg">Background</label>
+                    <input type="color" id="stats-bg" value="#4a4a4a"
+                        class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
+                </div>
+                <div class="control-row">
+                    <label for="stats-group">Activities</label>
+                    <select id="stats-group"
+                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                        {% for key, grp in activity_groups.items() %}
+                        <option value="{{ key }}" {% if key=='cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% with control_id='stats-tint', label='Tint', clear_btn_id='stats-tint-clear-btn', value_id='stats-tint-val', value='#000000', value_text='None' %}
+                {% include "_control_color_tint.html" %}
+                {% endwith %}
+                {% with control_id='stats-opacity', label='Opacity', min_val=0, max_val=100, value=40, value_id='stats-opacity-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% set font_control_id = 'stats-font' %}
+                {% set font_label = 'Font' %}
+                {% set stacked = true %}
+                {% include "_font_select.html" %}
+                <div class="flex gap-2 mt-3 flex-wrap">
+                    {% set upload_input_id = 'stats-upload-input' %}
+                    {% set clear_button_id = 'stats-clear-image-btn' %}
+                    {% set clear_label = 'Reset' %}
+                    {% include "_image_upload_buttons.html" %}
+                </div>
             </div>
         </div>
 
-        <!-- Stats Title Font Size -->
+        <!-- Stats Options -->
         <div class="control-box">
-            <h4>Stats title</h4>
-            <div class="control-row">
-                <label for="stats-title-font-size">Font Size</label>
-                <input type="range" id="stats-title-font-size" min="16" max="64" value="24"
-                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="stats-title-font-size-val" class="text-xs w-8">24px</span>
+            <div class="control-box-header" data-box-id="statsOptions">
+                <h4 class="text-gray-900 dark:text-gray-100">Stats Options</h4>
+                <button type="button"
+                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
+                    aria-label="Toggle Stats Options section">
+                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                        </path>
+                    </svg>
+                </button>
             </div>
-        </div>
-
-        <!-- Stats Column Width -->
-        <div class="control-box">
-            <h4>Stats column</h4>
-            <div class="control-row">
-                <label for="stats-column-width">Width</label>
-                <input type="range" id="stats-column-width" min="20" max="50" value="20"
-                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span id="stats-column-width-val" class="text-xs w-10">20%</span>
+            <div class="control-box-body">
+                <div class="control-row mb-3">
+                    <label for="stats-title-font-size">Title Size</label>
+                    <input type="range" id="stats-title-font-size" min="16" max="64" value="24"
+                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="stats-title-font-size-val" class="text-xs w-8">24px</span>
+                </div>
+                <div class="control-row mb-3">
+                    <label for="stats-column-width">Col Width</label>
+                    <input type="range" id="stats-column-width" min="20" max="50" value="20"
+                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <span id="stats-column-width-val" class="text-xs w-10">20%</span>
+                </div>
+                <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2.5">Visible Stats</div>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="distance" checked> <span
+                                class="truncate">Distance</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="elevation" checked> <span
+                                class="truncate">Elevation</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="longest" checked> <span
+                                class="truncate">Longest</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="highest" checked> <span
+                                class="truncate">Max elev.</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="speed" checked> <span
+                                class="truncate">Top speed</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="hours" checked> <span
+                                class="truncate">Hours</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="streak" checked> <span
+                                class="truncate">Longest streak</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                            title="Most Active Month by Distance">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month" checked> <span
+                                class="truncate">Best month (dist)</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                            title="Most Active Month by Elevation">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month-elev" checked> <span
+                                class="truncate">Best month (elev)</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="avg-power" checked> <span
+                                class="truncate">Avg power</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="max-power" checked> <span
+                                class="truncate">Max power</span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -587,6 +735,8 @@
         <div class="stats-preview-scaler" id="stats-preview-scaler">
             <div class="infographic-wrapper" id="infographic-wrapper">
                 <div class="infographic" id="infographic" style="background: #4a4a4a;">
+                    <img id="ig-bg-image" class="ig-bg-image" alt="" style="{% if not has_bg_image %}display:none;{% endif %}" {% if has_bg_image %}src="/api/stats/image"{% endif %}>
+                    <div id="ig-bg-overlay" class="ig-bg-overlay" style="{% if not has_bg_image %}display:none;{% endif %}"></div>
 
                     <!-- Loading state -->
                     <div id="ig-loading" class="ig-no-data">Loading stats…</div>
@@ -608,72 +758,94 @@
                     <!-- Body -->
                     <div class="ig-body" id="ig-body" style="display:none;">
                         <!-- Left stats column -->
-                        <div class="ig-stats" id="ig-stats">
+                        <div class="ig-stats" id="ig-stats" data-layout="stacked">
                             <div class="ig-stat" id="ig-distance-stat">
-                                <div class="ig-stat-label">Total Distance</div>
-                                <div class="ig-stat-value"><span id="ig-distance">0</span><span
-                                        class="ig-stat-unit">km</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Total Distance</div>
+                                    <div class="ig-stat-value"><span id="ig-distance">0</span><span
+                                            class="ig-stat-unit">km</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-distance-divider"></div>
                             <div class="ig-stat" id="ig-elevation-stat">
-                                <div class="ig-stat-label">Total Elevation</div>
-                                <div class="ig-stat-value"><span id="ig-elevation">0</span><span
-                                        class="ig-stat-unit">m</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Total Elevation</div>
+                                    <div class="ig-stat-value"><span id="ig-elevation">0</span><span
+                                            class="ig-stat-unit">m</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-elevation-divider"></div>
                             <div class="ig-stat" id="ig-longest-stat">
-                                <div class="ig-stat-label" id="ig-longest-label">Longest Walk</div>
-                                <div class="ig-stat-value"><span id="ig-longest">0</span><span
-                                        class="ig-stat-unit">km</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label" id="ig-longest-label">Longest Walk</div>
+                                    <div class="ig-stat-value"><span id="ig-longest">0</span><span
+                                            class="ig-stat-unit">km</span></div>
+                                </div>
                                 <div class="ig-stat-detail" id="ig-longest-name"></div>
                             </div>
                             <div class="ig-stat-divider" id="ig-longest-divider"></div>
                             <div class="ig-stat" id="ig-highest-stat">
-                                <div class="ig-stat-label" id="ig-highest-label">Max Elevation Walk</div>
-                                <div class="ig-stat-value"><span id="ig-highest-elev">0</span><span
-                                        class="ig-stat-unit">m</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label" id="ig-highest-label">Max Elevation Walk</div>
+                                    <div class="ig-stat-value"><span id="ig-highest-elev">0</span><span
+                                            class="ig-stat-unit">m</span></div>
+                                </div>
                                 <div class="ig-stat-detail" id="ig-highest-name"></div>
                             </div>
                             <div class="ig-stat-divider" id="ig-highest-divider"></div>
                             <div class="ig-stat" id="ig-speed-stat">
-                                <div class="ig-stat-label">Top Speed</div>
-                                <div class="ig-stat-value"><span id="ig-speed">0</span><span
-                                        class="ig-stat-unit">km/h</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Top Speed</div>
+                                    <div class="ig-stat-value"><span id="ig-speed">0</span><span
+                                            class="ig-stat-unit">km/h</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-speed-divider"></div>
                             <div class="ig-stat" id="ig-avg-power-stat">
-                                <div class="ig-stat-label">⚡ Avg Weighted Power</div>
-                                <div class="ig-stat-value"><span id="ig-avg-power">0</span><span
-                                        class="ig-stat-unit">W</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">⚡ Avg Weighted Power</div>
+                                    <div class="ig-stat-value"><span id="ig-avg-power">0</span><span
+                                            class="ig-stat-unit">W</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-avg-power-divider"></div>
                             <div class="ig-stat" id="ig-max-power-stat">
-                                <div class="ig-stat-label">🔥 Max Power</div>
-                                <div class="ig-stat-value"><span id="ig-max-power">0</span><span
-                                        class="ig-stat-unit">W</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">🔥 Max Power</div>
+                                    <div class="ig-stat-value"><span id="ig-max-power">0</span><span
+                                            class="ig-stat-unit">W</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-max-power-divider"></div>
                             <div class="ig-stat" id="ig-hours-stat">
-                                <div class="ig-stat-label">Total Hours</div>
-                                <div class="ig-stat-value"><span id="ig-hours">0</span><span
-                                        class="ig-stat-unit">hrs</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Total Hours</div>
+                                    <div class="ig-stat-value"><span id="ig-hours">0</span><span
+                                            class="ig-stat-unit">hrs</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-hours-divider"></div>
                             <div class="ig-stat" id="ig-streak-stat">
-                                <div class="ig-stat-label">Max Streak</div>
-                                <div class="ig-stat-value"><span id="ig-streak">0</span><span
-                                        class="ig-stat-unit">days</span></div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Max Streak</div>
+                                    <div class="ig-stat-value"><span id="ig-streak">0</span><span
+                                            class="ig-stat-unit">days</span></div>
+                                </div>
                             </div>
                             <div class="ig-stat-divider" id="ig-streak-divider"></div>
                             <div class="ig-stat" id="ig-best-month-stat">
-                                <div class="ig-stat-label">Most Active Month by Distance</div>
-                                <div class="ig-month-value" id="ig-best-month" style="color:#2ECC40;">–</div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Most Active Month by Distance</div>
+                                    <div class="ig-month-value" id="ig-best-month" style="color:#2ECC40;">–</div>
+                                </div>
                                 <div class="ig-stat-detail" id="ig-best-month-detail"></div>
                             </div>
                             <div class="ig-stat-divider" id="ig-best-month-divider"></div>
                             <div class="ig-stat" id="ig-best-month-elev-stat">
-                                <div class="ig-stat-label">Most Active Month by Elevation</div>
-                                <div class="ig-month-value" id="ig-best-month-elev" style="color:#2ECC40;">–</div>
+                                <div class="ig-stat-row">
+                                    <div class="ig-stat-label">Most Active Month by Elevation</div>
+                                    <div class="ig-month-value" id="ig-best-month-elev" style="color:#2ECC40;">–</div>
+                                </div>
                                 <div class="ig-stat-detail" id="ig-best-month-elev-detail"></div>
                             </div>
                             <div class="ig-stat-divider" id="ig-best-month-elev-divider"></div>
@@ -725,6 +897,11 @@
         const elBg = document.getElementById('stats-bg');
         const elGroup = document.getElementById('stats-group');
         const elSize = document.getElementById('stats-size');
+        const elTint = document.getElementById('stats-tint');
+        const elTintClearBtn = document.getElementById('stats-tint-clear-btn');
+        const elTintVal = document.getElementById('stats-tint-val');
+        const elOpacity = document.getElementById('stats-opacity');
+        const elOpacityVal = document.getElementById('stats-opacity-val');
 
         // Infographic elements
         const igEl = document.getElementById('infographic');
@@ -749,16 +926,51 @@
             updateScaler(width, height);
         }
 
+        // Restore Size from localStorage
+        const storedSize = localStorage.getItem('statsSize');
+        if (storedSize && (storedSize === 'M' || storedSize === 'L')) {
+            elSize.value = storedSize;
+        }
+
+        // Restore Year from localStorage
+        const storedYear = localStorage.getItem('statsYear');
+        if (storedYear && Array.from(elYear.options).some(function (o) { return o.value === storedYear; })) {
+            elYear.value = storedYear;
+        }
+
+        // Restore Period from localStorage
+        const storedPeriod = localStorage.getItem('statsPeriod');
+        if (storedPeriod && Array.from(elPeriod.options).some(function (o) { return o.value === storedPeriod; })) {
+            elPeriod.value = storedPeriod;
+        }
+
+        // Restore Background Color from localStorage
+        const storedBg = localStorage.getItem('statsBgColor');
+        if (storedBg) {
+            elBg.value = storedBg;
+            igEl.style.backgroundColor = storedBg;
+        }
+
         // ---- Stats column width ----
         const statsColumnWidthSlider = document.getElementById('stats-column-width');
         const statsColumnWidthVal = document.getElementById('stats-column-width-val');
         const statsGroupStorageKey = 'statsActivityGroup';
 
-        function applyStatsColumnWidth(val) {
+        window.applyStatsColumnWidth = function applyStatsColumnWidth(val) {
             const width = Math.max(20, Math.min(50, parseInt(val, 10) || 20));
             statsColumnWidthSlider.value = width;
             statsColumnWidthVal.textContent = width + '%';
             igEl.style.setProperty('--stats-column-width', width + '%');
+            const igStats = document.getElementById('ig-stats');
+            if (igStats) {
+                igStats.style.width = width + '%';
+                igStats.style.flex = '0 0 ' + width + '%';
+                if (width > 20) {
+                    igStats.setAttribute('data-layout', 'expanded');
+                } else {
+                    igStats.setAttribute('data-layout', 'stacked');
+                }
+            }
             localStorage.setItem('statsColumnWidth', String(width));
 
             if (lastData && lastData.calendar) {
@@ -767,7 +979,7 @@
                     window.updateStatsFontSize(fontSizeSlider.value);
                 }
             }
-        }
+        };
 
         function applyStatsGroup(val) {
             var allowed = Array.from(elGroup.options).map(function (opt) { return opt.value; });
@@ -1057,13 +1269,23 @@
         // ---- Event handlers ----
         let lastData = null;
 
-        [elYear, elPeriod].forEach(function (el) { el.addEventListener('change', fetchStats); });
+        elYear.addEventListener('change', function () {
+            localStorage.setItem('statsYear', this.value);
+            fetchStats();
+        });
+
+        elPeriod.addEventListener('change', function () {
+            localStorage.setItem('statsPeriod', this.value);
+            fetchStats();
+        });
+
         elGroup.addEventListener('change', function () {
             applyStatsGroup(this.value);
             fetchStats();
         });
 
         elSize.addEventListener('change', function () {
+            localStorage.setItem('statsSize', this.value);
             applyInfographicSize();
             if (lastData && lastData.calendar) {
                 renderCalendar(lastData.calendar, lastData.month_colors);
@@ -1074,7 +1296,10 @@
             }
         });
 
-        elBg.addEventListener('input', function () { igEl.style.backgroundColor = this.value; });
+        elBg.addEventListener('input', function () {
+            igEl.style.backgroundColor = this.value;
+            localStorage.setItem('statsBgColor', this.value);
+        });
 
         let resizeTimer;
         window.addEventListener('resize', function () {
@@ -1107,7 +1332,11 @@
                     width: width,
                     height: height,
                     fontSize: fontSizeSlider.value,
-                    statsColumnWidth: statsColumnWidthSlider.value
+                    statsColumnWidth: statsColumnWidthSlider.value,
+                    fontFamily: elFont ? elFont.value : 'Inter',
+                    hasImage: hasCustomImage,
+                    tint: localStorage.getItem('statsTint') !== null ? localStorage.getItem('statsTint') : '#000000',
+                    opacity: localStorage.getItem('statsOpacity') !== null ? parseInt(localStorage.getItem('statsOpacity'), 10) : 40
                 };
                 const resp = await fetch('/api/stats/export', {
                     method: 'POST',
@@ -1157,6 +1386,10 @@
                     height: height,
                     fontSize: fontSizeSlider.value,
                     statsColumnWidth: statsColumnWidthSlider.value,
+                    fontFamily: elFont ? elFont.value : 'Inter',
+                    hasImage: hasCustomImage,
+                    tint: localStorage.getItem('statsTint') !== null ? localStorage.getItem('statsTint') : '#000000',
+                    opacity: localStorage.getItem('statsOpacity') !== null ? parseInt(localStorage.getItem('statsOpacity'), 10) : 40,
                     format: 'pdf'
                 };
                 const resp = await fetch('/api/stats/export', {
@@ -1281,9 +1514,190 @@
         statsColumnWidthSlider.addEventListener('input', function () { applyStatsColumnWidth(this.value); });
         statsColumnWidthSlider.addEventListener('change', function () { applyStatsColumnWidth(this.value); });
 
+        // ---- Font selection ----
+        const elFont = document.getElementById('stats-font');
+        function applyStatsFont(fontName) {
+            if (!fontName) return;
+            if (elFont) elFont.value = fontName;
+            igEl.style.setProperty('--stats-font-family', '"' + fontName + '", sans-serif');
+            localStorage.setItem('statsFontFamily', fontName);
+            if (document.fonts && document.fonts.load) {
+                document.fonts.load('bold 24px "' + fontName + '"').catch(function () {});
+            }
+        }
+        if (elFont) {
+            elFont.addEventListener('change', function () { applyStatsFont(this.value); });
+            elFont.addEventListener('input', function () { applyStatsFont(this.value); });
+        }
+        const storedFont = localStorage.getItem('statsFontFamily') || 'Inter';
+        applyStatsFont(storedFont);
+
+        // ---- Tint & Opacity Controls ----
+        function applyTintAndOpacity() {
+            const rawTint = localStorage.getItem('statsTint');
+            const tint = rawTint !== null ? rawTint : '#000000';
+            const rawOpacity = localStorage.getItem('statsOpacity');
+            const op = rawOpacity !== null ? parseInt(rawOpacity, 10) : 40;
+
+            if (elOpacity) {
+                elOpacity.value = op;
+                if (elOpacityVal) elOpacityVal.textContent = op + '%';
+            }
+            if (elTint) {
+                if (tint) {
+                    elTint.value = tint;
+                    if (elTintVal) elTintVal.textContent = tint;
+                } else {
+                    elTint.value = '#000000';
+                    if (elTintVal) elTintVal.textContent = 'None';
+                }
+            }
+
+            if (!igBgOverlay) return;
+            if (tint && op > 0) {
+                igBgOverlay.style.display = 'block';
+                igBgOverlay.style.backgroundColor = tint;
+                igBgOverlay.style.opacity = String(op / 100.0);
+            } else if (hasCustomImage && op > 0) {
+                igBgOverlay.style.display = 'block';
+                igBgOverlay.style.backgroundColor = '#000000';
+                igBgOverlay.style.opacity = String(op / 100.0);
+            } else {
+                igBgOverlay.style.display = 'none';
+                igBgOverlay.style.backgroundColor = 'transparent';
+                igBgOverlay.style.opacity = '0';
+            }
+        }
+
+        if (elTint) {
+            const handleTint = function () {
+                const val = this.value;
+                localStorage.setItem('statsTint', val);
+                const currentOp = localStorage.getItem('statsOpacity');
+                if (currentOp === null || parseInt(currentOp, 10) === 0) {
+                    localStorage.setItem('statsOpacity', '40');
+                }
+                applyTintAndOpacity();
+            };
+            elTint.addEventListener('input', handleTint);
+            elTint.addEventListener('change', handleTint);
+        }
+
+        if (elTintClearBtn) {
+            elTintClearBtn.addEventListener('click', function () {
+                localStorage.setItem('statsTint', '');
+                applyTintAndOpacity();
+            });
+        }
+
+        if (elOpacity) {
+            const handleOpacity = function () {
+                const op = parseInt(this.value, 10);
+                localStorage.setItem('statsOpacity', String(op));
+                const currentTint = localStorage.getItem('statsTint');
+                if (op > 0 && currentTint === '') {
+                    const picked = (elTint && elTint.value) ? elTint.value : '#000000';
+                    localStorage.setItem('statsTint', picked);
+                }
+                applyTintAndOpacity();
+            };
+            elOpacity.addEventListener('input', handleOpacity);
+            elOpacity.addEventListener('change', handleOpacity);
+        }
+
+        // ---- Collapsible Box Sections ----
+        function applyBoxCollapsedStates() {
+            let collapsed = {};
+            try {
+                const raw = localStorage.getItem('statsBoxCollapsed');
+                if (raw) collapsed = JSON.parse(raw) || {};
+            } catch (_) { }
+
+            document.querySelectorAll('.control-box-header[data-box-id]').forEach(function (header) {
+                const boxId = header.getAttribute('data-box-id');
+                const isCollapsed = !!collapsed[boxId];
+                const boxContainer = header.closest('.control-box');
+                if (!boxContainer) return;
+                const body = boxContainer.querySelector('.control-box-body');
+                if (isCollapsed) {
+                    header.classList.add('collapsed');
+                    if (body) body.classList.add('collapsed');
+                } else {
+                    header.classList.remove('collapsed');
+                    if (body) body.classList.remove('collapsed');
+                }
+            });
+        }
+
+        function setupBoxCollapsibleEvents() {
+            document.querySelectorAll('.control-box-header[data-box-id]').forEach(function (header) {
+                if (header._bound) return;
+                header._bound = true;
+                header.addEventListener('click', function (e) {
+                    if (e.target && (e.target.tagName === 'INPUT' || e.target.closest('button:not(.collapse-toggle-btn)'))) return;
+                    const boxId = this.getAttribute('data-box-id');
+                    let collapsed = {};
+                    try {
+                        const raw = localStorage.getItem('statsBoxCollapsed');
+                        if (raw) collapsed = JSON.parse(raw) || {};
+                    } catch (_) { }
+                    collapsed[boxId] = !collapsed[boxId];
+                    localStorage.setItem('statsBoxCollapsed', JSON.stringify(collapsed));
+                    applyBoxCollapsedStates();
+                });
+            });
+        }
+
+        // ---- Background Image upload & reset ----
+        const elUploadInput = document.getElementById('stats-upload-input');
+        const elClearImageBtn = document.getElementById('stats-clear-image-btn');
+        const igBgImage = document.getElementById('ig-bg-image');
+        const igBgOverlay = document.getElementById('ig-bg-overlay');
+        let hasCustomImage = {{ 'true' if has_bg_image else 'false' }};
+
+        if (elUploadInput) {
+            elUploadInput.addEventListener('change', function () {
+                const file = this.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('file', file);
+                fetch('/api/stats/upload', { method: 'POST', body: formData })
+                    .then(r => {
+                        if (r.ok) {
+                            hasCustomImage = true;
+                            igBgImage.src = '/api/stats/image?t=' + Date.now();
+                            igBgImage.style.display = 'block';
+                            applyTintAndOpacity();
+                        } else {
+                            r.json().then(d => alert(d.error || 'Upload failed'));
+                        }
+                    })
+                    .catch(err => alert('Upload error: ' + err));
+            });
+        }
+
+        if (elClearImageBtn) {
+            elClearImageBtn.addEventListener('click', function () {
+                fetch('/api/stats/image/reset', { method: 'POST' })
+                    .then(r => {
+                        if (r.ok) {
+                            hasCustomImage = false;
+                            igBgImage.removeAttribute('src');
+                            igBgImage.style.display = 'none';
+                            if (elUploadInput) elUploadInput.value = '';
+                            applyTintAndOpacity();
+                        }
+                    })
+                    .catch(err => console.warn('Failed to reset image:', err));
+            });
+        }
+
         // ---- Initial load ----
+        setupBoxCollapsibleEvents();
+        applyBoxCollapsedStates();
         applyInfographicSize();
         applyStatVisibility();
+        applyTintAndOpacity();
         fetchStats();
     });
 </script>
