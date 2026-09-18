@@ -1067,7 +1067,7 @@
 
         if (gpsSelect) {
             gpsSelect.addEventListener('change', function () {
-                const val = parseInt(this.value, 10);
+                const val = Number.parseInt(this.value, 10);
                 fetch('/api/profile', {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},

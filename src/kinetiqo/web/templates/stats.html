@@ -957,7 +957,7 @@
         const statsGroupStorageKey = 'statsActivityGroup';
 
         window.applyStatsColumnWidth = function applyStatsColumnWidth(val) {
-            const width = Math.max(20, Math.min(50, parseInt(val, 10) || 20));
+            const width = Math.max(20, Math.min(50, Number.parseInt(val, 10) || 20));
             statsColumnWidthSlider.value = width;
             statsColumnWidthVal.textContent = width + '%';
             igEl.style.setProperty('--stats-column-width', width + '%');
@@ -1336,7 +1336,7 @@
                     fontFamily: elFont ? elFont.value : 'Inter',
                     hasImage: hasCustomImage,
                     tint: localStorage.getItem('statsTint') !== null ? localStorage.getItem('statsTint') : '#000000',
-                    opacity: localStorage.getItem('statsOpacity') !== null ? parseInt(localStorage.getItem('statsOpacity'), 10) : 40
+                    opacity: localStorage.getItem('statsOpacity') !== null ? Number.parseInt(localStorage.getItem('statsOpacity'), 10) : 40
                 };
                 const resp = await fetch('/api/stats/export', {
                     method: 'POST',
@@ -1389,7 +1389,7 @@
                     fontFamily: elFont ? elFont.value : 'Inter',
                     hasImage: hasCustomImage,
                     tint: localStorage.getItem('statsTint') !== null ? localStorage.getItem('statsTint') : '#000000',
-                    opacity: localStorage.getItem('statsOpacity') !== null ? parseInt(localStorage.getItem('statsOpacity'), 10) : 40,
+                    opacity: localStorage.getItem('statsOpacity') !== null ? Number.parseInt(localStorage.getItem('statsOpacity'), 10) : 40,
                     format: 'pdf'
                 };
                 const resp = await fetch('/api/stats/export', {
@@ -1433,7 +1433,7 @@
         window.updateStatsFontSize = function updateStatsFontSize(val) {
             fontSizeVal.textContent = val + 'px';
             // Also update additional elements
-            const v = parseInt(val, 10);
+            const v = Number.parseInt(val, 10);
             const elAthlete = document.getElementById('ig-athlete');
             const elPeriodLabel = document.getElementById('ig-period-label');
             const elDateRange = document.getElementById('ig-date-range');
@@ -1537,7 +1537,7 @@
             const rawTint = localStorage.getItem('statsTint');
             const tint = rawTint !== null ? rawTint : '#000000';
             const rawOpacity = localStorage.getItem('statsOpacity');
-            const op = rawOpacity !== null ? parseInt(rawOpacity, 10) : 40;
+            const op = rawOpacity !== null ? Number.parseInt(rawOpacity, 10) : 40;
 
             if (elOpacity) {
                 elOpacity.value = op;
@@ -1574,7 +1574,7 @@
                 const val = this.value;
                 localStorage.setItem('statsTint', val);
                 const currentOp = localStorage.getItem('statsOpacity');
-                if (currentOp === null || parseInt(currentOp, 10) === 0) {
+                if (currentOp === null || Number.parseInt(currentOp, 10) === 0) {
                     localStorage.setItem('statsOpacity', '40');
                 }
                 applyTintAndOpacity();
@@ -1592,7 +1592,7 @@
 
         if (elOpacity) {
             const handleOpacity = function () {
-                const op = parseInt(this.value, 10);
+                const op = Number.parseInt(this.value, 10);
                 localStorage.setItem('statsOpacity', String(op));
                 const currentTint = localStorage.getItem('statsTint');
                 if (op > 0 && currentTint === '') {

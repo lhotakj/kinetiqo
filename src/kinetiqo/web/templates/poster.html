@@ -1515,19 +1515,19 @@
                 }
                 const rWidth = saved.routeWidth !== undefined ? saved.routeWidth : saved.width;
                 if (Number.isFinite(Number(rWidth))) {
-                    res.routeWidth = Math.max(1, Math.min(20, parseInt(rWidth, 10)));
+                    res.routeWidth = Math.max(1, Math.min(20, Number.parseInt(rWidth, 10)));
                     res.mapLineWidth = res.routeWidth;
                 }
                 const rOpacity = saved.routeOpacity !== undefined ? saved.routeOpacity : saved.opacity;
                 if (Number.isFinite(Number(rOpacity))) {
-                    res.routeOpacity = Math.max(0, Math.min(100, parseInt(rOpacity, 10)));
+                    res.routeOpacity = Math.max(0, Math.min(100, Number.parseInt(rOpacity, 10)));
                     res.mapLineOpacity = res.routeOpacity;
                 }
                 if (Number.isFinite(Number(saved.mapOpacity))) {
-                    res.mapOpacity = Math.max(0, Math.min(100, parseInt(saved.mapOpacity, 10)));
+                    res.mapOpacity = Math.max(0, Math.min(100, Number.parseInt(saved.mapOpacity, 10)));
                 }
                 if (Number.isFinite(Number(saved.toneOpacity))) {
-                    res.toneOpacity = Math.max(0, Math.min(100, parseInt(saved.toneOpacity, 10)));
+                    res.toneOpacity = Math.max(0, Math.min(100, Number.parseInt(saved.toneOpacity, 10)));
                 }
                 const toneCol = saved.mapToneColor || saved.toneColor;
                 if (typeof toneCol === 'string') {
@@ -1562,12 +1562,12 @@
                     ...mapSaved,
                     routeColor: rColor || '#38bdf8',
                     color: rColor || '#38bdf8',
-                    routeWidth: Number.isFinite(Number(rWidth)) ? parseInt(rWidth, 10) : 4,
-                    width: Number.isFinite(Number(rWidth)) ? parseInt(rWidth, 10) : 4,
-                    routeOpacity: Number.isFinite(Number(rOpacity)) ? parseInt(rOpacity, 10) : 100,
-                    opacity: Number.isFinite(Number(rOpacity)) ? parseInt(rOpacity, 10) : 100,
-                    mapOpacity: Number.isFinite(Number(mapOp)) ? parseInt(mapOp, 10) : 100,
-                    toneOpacity: Number.isFinite(Number(toneOp)) ? parseInt(toneOp, 10) : 50,
+                    routeWidth: Number.isFinite(Number(rWidth)) ? Number.parseInt(rWidth, 10) : 4,
+                    width: Number.isFinite(Number(rWidth)) ? Number.parseInt(rWidth, 10) : 4,
+                    routeOpacity: Number.isFinite(Number(rOpacity)) ? Number.parseInt(rOpacity, 10) : 100,
+                    opacity: Number.isFinite(Number(rOpacity)) ? Number.parseInt(rOpacity, 10) : 100,
+                    mapOpacity: Number.isFinite(Number(mapOp)) ? Number.parseInt(mapOp, 10) : 100,
+                    toneOpacity: Number.isFinite(Number(toneOp)) ? Number.parseInt(toneOp, 10) : 50,
                     mapToneColor: toneCol || '',
                     toneColor: toneCol || '',
                     basemap: basemap || 'openstreetmap'
@@ -2459,7 +2459,7 @@
         const mapOpacityEl = document.getElementById('mapOpacity');
         if (mapOpacityEl) {
             const handleMapOpacity = function () {
-                const val = parseInt(this.value, 10);
+                const val = Number.parseInt(this.value, 10);
                 settings.mapOpacity = val;
                 const valSpan = document.getElementById('mapOpacityVal');
                 if (valSpan) valSpan.textContent = val + '%';
@@ -2511,7 +2511,7 @@
         const toneOpacityEl = document.getElementById('toneOpacity');
         if (toneOpacityEl) {
             const handleToneOpacity = function () {
-                const val = parseInt(this.value, 10);
+                const val = Number.parseInt(this.value, 10);
                 settings.toneOpacity = val;
                 const valSpan = document.getElementById('toneOpacityVal');
                 if (valSpan) valSpan.textContent = val + '%';
@@ -2545,7 +2545,7 @@
         const mapLineWidthEl = document.getElementById('mapLineWidth');
         if (mapLineWidthEl) {
             mapLineWidthEl.addEventListener('input', function () {
-                const val = parseInt(this.value, 10);
+                const val = Number.parseInt(this.value, 10);
                 settings.routeWidth = val;
                 settings.mapLineWidth = val;
                 const valSpan = document.getElementById('mapLineWidthVal');
@@ -2559,7 +2559,7 @@
         const mapLineOpacityEl = document.getElementById('mapLineOpacity');
         if (mapLineOpacityEl) {
             mapLineOpacityEl.addEventListener('input', function () {
-                const val = parseInt(this.value, 10);
+                const val = Number.parseInt(this.value, 10);
                 settings.routeOpacity = val;
                 settings.mapLineOpacity = val;
                 const valSpan = document.getElementById('mapLineOpacityVal');
@@ -3027,7 +3027,7 @@
         try { enableDraggableBoxes(); } catch (e) { console.debug('enableDraggableBoxes failed', e); }
         try { applyBoxPositions(); } catch (e) { console.debug('applyBoxPositions failed on init', e); }
         function _isNumberBetweenZeroAndOne(v) {
-            return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1;
+            return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
         }
 
         function loadPositions() {
@@ -3134,7 +3134,7 @@
                         const topPct = Number.parseFloat(box.style.top) / 100;
                         current[boxId] = current[boxId] || {};
                         if (!Number.isNaN(leftPct)) current[boxId].left = leftPct;
-                        if (!isNaN(topPct)) current[boxId].top = topPct;
+                        if (!Number.isNaN(topPct)) current[boxId].top = topPct;
                         current[boxId].width = box.offsetWidth / container.offsetWidth;
                         if (box.offsetHeight) current[boxId].height = box.offsetHeight / container.offsetHeight;
                         savePositions(current);

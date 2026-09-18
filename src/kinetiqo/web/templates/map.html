@@ -303,19 +303,19 @@
     const DEFAULTS = {
         routeColor: "{{ current_color }}",
         routeWidth: (function() {
-            var parsed = parseInt("{{ current_width }}", 10);
+            var parsed = Number.parseInt("{{ current_width }}", 10);
             return Number.isNaN(parsed) ? 2 : parsed;
         })(),
         routeOpacity: (function() {
-            var parsed = parseInt("{{ current_opacity }}", 10);
+            var parsed = Number.parseInt("{{ current_opacity }}", 10);
             return Number.isNaN(parsed) ? 100 : parsed;
         })(),
         mapOpacity: (function() {
-            var parsed = parseInt("{{ current_map_opacity }}", 10);
+            var parsed = Number.parseInt("{{ current_map_opacity }}", 10);
             return Number.isNaN(parsed) ? 100 : parsed;
         })(),
         toneOpacity: (function() {
-            var parsed = parseInt("{{ current_tone_opacity }}", 10);
+            var parsed = Number.parseInt("{{ current_tone_opacity }}", 10);
             return Number.isNaN(parsed) ? 50 : parsed;
         })(),
         mapToneColor: "{{ current_map_tone_color }}",
@@ -849,9 +849,9 @@
     // Returns the opposite-hue color for any hex colour string (#RRGGBB).
     function complementaryColor(hex) {
         // Parse hex → RGB
-        var r = parseInt(hex.substring(1, 3), 16) / 255;
-        var g = parseInt(hex.substring(3, 5), 16) / 255;
-        var b = parseInt(hex.substring(5, 7), 16) / 255;
+        var r = Number.parseInt(hex.substring(1, 3), 16) / 255;
+        var g = Number.parseInt(hex.substring(3, 5), 16) / 255;
+        var b = Number.parseInt(hex.substring(5, 7), 16) / 255;
 
         // RGB → HSL
         var max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -1087,7 +1087,7 @@
             // X-Uncompressed-Length survives transparent gzip decompression;
             // Content-Length is often stripped by the browser in that case.
             var totalHeader = response.headers.get('X-Uncompressed-Length') || response.headers.get('Content-Length');
-            var total = totalHeader ? parseInt(totalHeader, 10) : 0;
+            var total = totalHeader ? Number.parseInt(totalHeader, 10) : 0;
 
             // If no Content-Length or no body stream, fall back to simple .json()
             if (!total || !response.body) {
@@ -1221,7 +1221,7 @@
                 widthValue.textContent = e.target.value;
             });
             widthPicker.addEventListener('change', function(e) {
-                currentWidth = parseInt(e.target.value, 10);
+                currentWidth = Number.parseInt(e.target.value, 10);
                 saveSettings();
                 updatePolylineStyles();
             });
@@ -1233,7 +1233,7 @@
                 opacityValue.textContent = e.target.value + '%';
             });
             opacityPicker.addEventListener('change', function(e) {
-                currentOpacity = parseInt(e.target.value, 10);
+                currentOpacity = Number.parseInt(e.target.value, 10);
                 saveSettings();
                 updatePolylineStyles();
             });
@@ -1245,7 +1245,7 @@
                 mapOpacityValue.textContent = e.target.value + '%';
             });
             mapOpacityPicker.addEventListener('change', function(e) {
-                currentMapOpacity = parseInt(e.target.value, 10);
+                currentMapOpacity = Number.parseInt(e.target.value, 10);
                 saveSettings();
                 applyMapVisualState();
             });
@@ -1257,7 +1257,7 @@
                 toneOpacityValue.textContent = e.target.value + '%';
             });
             toneOpacityPicker.addEventListener('change', function(e) {
-                currentToneOpacity = parseInt(e.target.value, 10);
+                currentToneOpacity = Number.parseInt(e.target.value, 10);
                 saveSettings();
                 applyMapVisualState();
             });

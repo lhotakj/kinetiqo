@@ -1186,13 +1186,13 @@ var table = null;
             // 1. Read the desired order from the modal's draggable list
             var orderedElems = document.querySelectorAll('#columnSelectForm .column-list .column-item');
             var modalOrder = Array.from(orderedElems).map(function (el) {
-                return parseInt(el.getAttribute('data-idx'));
+                return Number.parseInt(el.getAttribute('data-idx'), 10);
             });
 
             // 2. Read which columns are checked
             var checked = Array.from(document.querySelectorAll('#columnSelectForm input[type=checkbox]'))
                 .filter(function (cb) { return cb.checked; })
-                .map(function (cb) { return parseInt(cb.value); });
+                .map(function (cb) { return Number.parseInt(cb.value, 10); });
 
             // Always include mandatory columns
             columnDefs.forEach(function (col, idx) {
@@ -1748,30 +1748,33 @@ var table = null;
 
         // Helper to format seconds into HH:MM:SS
         function formatDuration(seconds) {
-            if (isNaN(seconds) || seconds < 0) {
+            const sec = Number(seconds);
+            if (Number.isNaN(sec) || sec < 0) {
                 return "00:00:00";
             }
-            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
-            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
-            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+            const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(sec % 60).toString().padStart(2, '0');
             return `${h}:${m}:${s}`;
         }
 
         // Helper to format distance
         function formatDistance(meters) {
-            if (isNaN(meters) || meters < 0) {
+            const m = Number(meters);
+            if (Number.isNaN(m) || m < 0) {
                 return "0.0";
             }
-            const km = meters / 1000;
+            const km = m / 1000;
             return km.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         // Helper to format elevation
         function formatElevation(meters) {
-            if (isNaN(meters) || meters < 0) {
+            const m = Number(meters);
+            if (Number.isNaN(m) || m < 0) {
                 return "0.00";
             }
-            return meters.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            return m.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         // Global delete function

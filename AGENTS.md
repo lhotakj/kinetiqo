@@ -151,6 +151,15 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 - **Typography & Label Clipping**: Metric labels in `.ig-stat-label` MUST enforce `white-space: nowrap`, `overflow: hidden`, `text-overflow: ellipsis`, letter spacing `0.08em`, font weight 600, opacity 0.55, and scaled font size (`calc(var(--stats-font-size) * 0.38)`).
 - **Extended State Persistence**: `statsSize`, `statsYear`, `statsPeriod`, `statsBgColor`, `statsActivityGroup`, `statsFontFamily`, `statsTint`, `statsOpacity`, `statsTitleFontSize`, `statsColumnWidth`, `statsVisibleStats`, and box collapse states MUST be persisted to `localStorage` and restored on `DOMContentLoaded`.
 
+### 4.12 Static Number Methods & Modern ECMAScript Standards (Sonar javascript:S7773)
+- **Prefer Static Number Methods over Global Equivalents**: Always prefer `Number.*` static methods and properties over legacy global functions across all JavaScript files (`.js`) and inline `<script>` blocks in HTML templates (`.html`):
+  - Use `Number.parseInt(str, radix)` instead of global `parseInt(str, radix)`. Always specify an explicit radix (typically `10` or `16`).
+  - Use `Number.parseFloat(str)` instead of global `parseFloat(str)`.
+  - Use `Number.isNaN(val)` instead of global `isNaN(val)`. Note that `Number.isNaN` does not coerce non-numeric values to `NaN`; when coercion is required, write `Number.isNaN(Number(val))`.
+  - Use `Number.isFinite(val)` instead of global `isFinite(val)`. Note that `Number.isFinite` does not coerce values; use `Number.isFinite(Number(val))` when type conversion is needed.
+  - Use `Number.NaN` instead of global `NaN`.
+- Global numerical parsing and checking functions pollute the global namespace and exhibit legacy type coercion quirks. Adhering to static `Number` methods guarantees strict compliance with modern ES2015+ standards and prevents SonarQube rule `javascript:S7773` findings.
+
 ---
 
 ## 5. Common Development Workflows
@@ -230,7 +239,7 @@ When adding a new Google Font to the offline font library, execute every step be
 - **Mocked Unit Tests**: Always default to creating fast, mocked unit tests in `tests/`. Do not require live external services or live databases.
 - **Complete, Production-Ready Code**: Provide complete code snippets without placeholders or missing imports.
 - **No ORMs**: Use parameterized raw SQL queries exclusively across PostgreSQL, MySQL, and Firebird.
-- **Strict Compliance**: Follow SonarQube rules for label association (`Web:S6853` / `Web:InputWithoutLabelCheck`), XSS output encoding (`Web:S5725`), SRI hashes, and same-tab internal link navigation.
+- **Strict Compliance**: Follow SonarQube rules for label association (`Web:S6853` / `Web:InputWithoutLabelCheck`), XSS output encoding (`Web:S5725`), static Number methods (`javascript:S7773`), SRI hashes, and same-tab internal link navigation.
 
 ---
 
