@@ -90,6 +90,26 @@ class TestPosterPhoto(unittest.TestCase):
         self.assertEqual(resp.mimetype, 'image/png')
         self.assertTrue(self.cached_file.exists())
 
+    def test_poster_photo_upload_valid_webp_image(self):
+        """POST /api/poster/upload/<activity_id> uploads and converts WebP image to cached PNG."""
+        img = Image.new('RGB', (50, 50), color='blue')
+        buf = io.BytesIO()
+        img.save(buf, format='WEBP')
+        webp_bytes = buf.getvalue()
+
+        data = {
+            'file': (io.BytesIO(webp_bytes), 'my_photo.webp')
+        }
+
+        resp = self.client.post(
+            f'/api/poster/upload/{self.test_activity_id}',
+            data=data,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.mimetype, 'image/png')
+        self.assertTrue(self.cached_file.exists())
+
     def test_poster_photo_upload_no_file(self):
         """POST /api/poster/upload/<activity_id> with no file returns 400 error."""
         resp = self.client.post(
@@ -114,6 +134,34 @@ class TestPosterPhoto(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
         self.assertIn('Invalid file type', data['error'])
+
+    def test_poster_photo_upload_empty_file(self):
+        """POST /api/poster/upload/<activity_id> with 0-byte file returns 400 error."""
+        data = {
+            'file': (io.BytesIO(b''), 'empty.jpg')
+        }
+        resp = self.client.post(
+            f'/api/poster/upload/{self.test_activity_id}',
+            data=data,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertIn('empty', data['error'].lower())
+
+    def test_poster_photo_upload_corrupt_file(self):
+        """POST /api/poster/upload/<activity_id> with corrupt file bytes returns 500 error with message."""
+        data = {
+            'file': (io.BytesIO(b'corrupted content not a valid image format'), 'bad.webp')
+        }
+        resp = self.client.post(
+            f'/api/poster/upload/{self.test_activity_id}',
+            data=data,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(resp.status_code, 500)
+        data = resp.get_json()
+        self.assertIn('Failed to process image', data['error'])
 
 
 if __name__ == '__main__':

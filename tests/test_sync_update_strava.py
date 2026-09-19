@@ -213,6 +213,12 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         self.assertIn('kinetiqoRequestSyncStop', stop_button_event)
         self.assertIn('background-color: #dc2626', stop_button_event)
         self.assertIn("Sync in progress...", first_log_event)
+        self.assertIn("/static/img/kinetiqo-loading-32x32.webp", first_log_event)
+        self.assertIn("sync-progress-text", first_log_event)
+        self.assertLess(
+            first_log_event.index("/static/img/kinetiqo-loading-32x32.webp"),
+            first_log_event.index("Sync in progress..."),
+        )
         self.assertIn("Sync completed successfully", final_event)
         self.assertIn('style="height: 500px;"', final_event)
         self.assertIn('<p class="block truncate">', final_event)

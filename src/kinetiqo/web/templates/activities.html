@@ -795,6 +795,10 @@ var table = null;
         // 4. Initialize DataTable
         table = $('#activitiesTable').DataTable({
             "processing": true,
+            "language": {
+                "processing": '<div class="flex justify-center items-center"><img src="{{ url_for("static", filename="img/kinetiqo-loading-32x32.webp") }}" alt="Loading..." class="h-8 w-8 inline-block" width="32" height="32"></div>',
+                "loadingRecords": '&nbsp;'
+            },
             "serverSide": false,
             "pageLength": 25,
             "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
@@ -1592,150 +1596,181 @@ var table = null;
         });
 
         // Export to CSV
-        $('#exportCsvBtn').on('click', function () {
+        $('#exportCsvBtn').on('click', async function () {
             if (selectedActivities.size === 0) return;
 
-            const allData = table.data().toArray();
-            const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
+            const btn = this;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+            await new Promise(resolve => setTimeout(resolve, 50));
 
-            if (selectedData.length === 0) return;
+            try {
+                const allData = table.data().toArray();
+                const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
 
-            // Define CSV headers and data mapping
-            const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg Watts (W)', 'Max Watts (W)', 'Avg HR (bpm)'];
+                if (selectedData.length === 0) return;
 
-            const csvContent = [
-                headers.join(','),
-                ...selectedData.map(row => {
-                    const dateStr = row.date && row.date.display ? row.date.display : row.date;
-                    const distanceKm = (row.distance / 1000).toFixed(2);
-                    const elevationM = row.elevation.toFixed(2); // Assuming elevation is in meters
-                    const movingTime = formatDuration(row.moving_time);
-                    const avgSpeed = (row.average_speed * 3.6).toFixed(1);
-                    const avgWatts = row.average_watts > 0 ? Math.round(row.average_watts) : '';
-                    const maxWatts = row.max_watts > 0 ? Math.round(row.max_watts) : '';
-                    const avgHr = row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '';
+                // Define CSV headers and data mapping
+                const headers = ['ID', 'Activity Name', 'Type', 'Date', 'Distance (km)', 'Elevation (m)', 'Moving Time', 'Avg Speed (km/h)', 'Avg Watts (W)', 'Max Watts (W)', 'Avg HR (bpm)'];
 
-                    // Escape quotes in name
-                    const name = `"${(row.name || '').replace(/"/g, '""')}"`;
+                const csvContent = [
+                    headers.join(','),
+                    ...selectedData.map(row => {
+                        const dateStr = row.date && row.date.display ? row.date.display : row.date;
+                        const distanceKm = (row.distance / 1000).toFixed(2);
+                        const elevationM = row.elevation.toFixed(2); // Assuming elevation is in meters
+                        const movingTime = formatDuration(row.moving_time);
+                        const avgSpeed = (row.average_speed * 3.6).toFixed(1);
+                        const avgWatts = row.average_watts > 0 ? Math.round(row.average_watts) : '';
+                        const maxWatts = row.max_watts > 0 ? Math.round(row.max_watts) : '';
+                        const avgHr = row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '';
 
-                    return [
-                        row.id,
-                        name,
-                        row.type,
-                        dateStr,
-                        distanceKm,
-                        elevationM,
-                        movingTime,
-                        avgSpeed,
-                        avgWatts,
-                        maxWatts,
-                        avgHr
-                    ].join(',');
-                })
-            ].join('\n');
+                        // Escape quotes in name
+                        const name = `"${(row.name || '').replace(/"/g, '""')}"`;
 
-            const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
-            const link = document.createElement("a");
-            if (link.download !== undefined) {
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", "selected_activities.csv");
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                        return [
+                            row.id,
+                            name,
+                            row.type,
+                            dateStr,
+                            distanceKm,
+                            elevationM,
+                            movingTime,
+                            avgSpeed,
+                            avgWatts,
+                            maxWatts,
+                            avgHr
+                        ].join(',');
+                    })
+                ].join('\n');
+
+                const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+                const link = document.createElement("a");
+                if (link.download !== undefined) {
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", "selected_activities.csv");
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                }
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60', 'cursor-wait');
+                    btn.innerHTML = origHtml;
+                }, 300);
             }
         });
 
         // Export as XLSX — respects currently visible columns in their visual order
-        $('#exportXlsxBtn').on('click', function () {
+        $('#exportXlsxBtn').on('click', async function () {
             if (selectedActivities.size === 0) return;
 
-            const allData = table.data().toArray();
-            const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
+            const btn = this;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+            await new Promise(resolve => setTimeout(resolve, 50));
 
-            if (selectedData.length === 0) return;
+            try {
+                const allData = table.data().toArray();
+                const selectedData = allData.filter(d => selectedActivities.has(String(d.id)));
 
-            // Columns whose content cannot be meaningfully exported (UI-only)
-            const SKIP_COLS = new Set([0, 25, 26]); // Select checkbox, Poster, Actions/Delete
+                if (selectedData.length === 0) return;
 
-            // Per-column data extractor: originalColIndex → function(row) → cell value
-            // Mirrors the render logic in the DataTables column definitions above.
-            const colExtractors = {
-                1:  row => row.name || '',
-                2:  row => row.type || '',
-                3:  row => {
-                        // timestamp is Unix seconds from Python; Date() needs ms
-                        const ts = row.date && row.date.timestamp;
-                        if (ts) return new Date(ts * 1000);
-                        const disp = (row.date && row.date.display) ? row.date.display : row.date;
-                        return disp ? new Date(disp) : '';
-                    },
-                4:  row => Number.parseFloat((row.distance / 1000).toFixed(2)),
-                5:  row => Number.parseFloat(Number(row.elevation).toFixed(2)),
-                6:  row => formatDuration(row.moving_time),
-                7:  row => Number.parseFloat((row.average_speed * 3.6).toFixed(1)),
-                8:  row => row.average_watts > 0 ? Math.round(row.average_watts) : '',
-                9:  row => row.max_watts > 0 ? Math.round(row.max_watts) : '',
-                10: row => row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '',
-                11: row => row.weighted_average_watts ? Math.round(row.weighted_average_watts) : '',
-                12: row => row.device_watts ? Math.round(row.device_watts) : '',
-                13: row => row.calories ? Math.round(row.calories) : '',
-                14: row => row.kilojoules ? Math.round(row.kilojoules) : '',
-                15: row => row.achievement_count || 0,
-                16: row => row.pr_count || 0,
-                17: row => row.suffer_score ? Math.round(row.suffer_score) : '',
-                18: row => (row.average_temp !== null && row.average_temp !== undefined)
-                              ? Number.parseFloat(Number(row.average_temp).toFixed(1)) : '',
-                19: row => row.elev_high ? Number.parseFloat(Number(row.elev_high).toFixed(2)) : '',
-                20: row => row.elev_low  ? Number.parseFloat(Number(row.elev_low).toFixed(2))  : '',
-                21: row => row.gear_id || '',
-                22: row => row.has_heartrate ? 'Yes' : 'No',
-                23: row => row.workout_type || '',
-                24: row => 'https://www.strava.com/activities/' + row.id
-            };
+                // Columns whose content cannot be meaningfully exported (UI-only)
+                const SKIP_COLS = new Set([0, 25, 26]); // Select checkbox, Poster, Actions/Delete
 
-            // Determine which columns to export: current visual order, visible, and exportable
-            const order = readColumnOrder(); // position → originalColIndex
-            const visibleCols = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
-            const exportCols = order.filter(origIdx =>
-                visibleCols.includes(origIdx) &&
-                !SKIP_COLS.has(origIdx) &&
-                colExtractors[origIdx] !== undefined
-            );
+                // Per-column data extractor: originalColIndex → function(row) → cell value
+                // Mirrors the render logic in the DataTables column definitions above.
+                const colExtractors = {
+                    1:  row => row.name || '',
+                    2:  row => row.type || '',
+                    3:  row => {
+                            // timestamp is Unix seconds from Python; Date() needs ms
+                            const ts = row.date && row.date.timestamp;
+                            if (ts) return new Date(ts * 1000);
+                            const disp = (row.date && row.date.display) ? row.date.display : row.date;
+                            return disp ? new Date(disp) : '';
+                        },
+                    4:  row => Number.parseFloat((row.distance / 1000).toFixed(2)),
+                    5:  row => Number.parseFloat(Number(row.elevation).toFixed(2)),
+                    6:  row => formatDuration(row.moving_time),
+                    7:  row => Number.parseFloat((row.average_speed * 3.6).toFixed(1)),
+                    8:  row => row.average_watts > 0 ? Math.round(row.average_watts) : '',
+                    9:  row => row.max_watts > 0 ? Math.round(row.max_watts) : '',
+                    10: row => row.average_heartrate > 0 ? Math.round(row.average_heartrate) : '',
+                    11: row => row.weighted_average_watts ? Math.round(row.weighted_average_watts) : '',
+                    12: row => row.device_watts ? Math.round(row.device_watts) : '',
+                    13: row => row.calories ? Math.round(row.calories) : '',
+                    14: row => row.kilojoules ? Math.round(row.kilojoules) : '',
+                    15: row => row.achievement_count || 0,
+                    16: row => row.pr_count || 0,
+                    17: row => row.suffer_score ? Math.round(row.suffer_score) : '',
+                    18: row => (row.average_temp !== null && row.average_temp !== undefined)
+                                  ? Number.parseFloat(Number(row.average_temp).toFixed(1)) : '',
+                    19: row => row.elev_high ? Number.parseFloat(Number(row.elev_high).toFixed(2)) : '',
+                    20: row => row.elev_low  ? Number.parseFloat(Number(row.elev_low).toFixed(2))  : '',
+                    21: row => row.gear_id || '',
+                    22: row => row.has_heartrate ? 'Yes' : 'No',
+                    23: row => row.workout_type || '',
+                    24: row => 'https://www.strava.com/activities/' + row.id
+                };
 
-            if (exportCols.length === 0) {
-                showFlash('No exportable columns are currently visible.', 'warning');
-                return;
-            }
+                // Determine which columns to export: current visual order, visible, and exportable
+                const order = readColumnOrder(); // position → originalColIndex
+                const visibleCols = _currentVisibleCols || getSavedColumns() || getDefaultVisibleColumns();
+                const exportCols = order.filter(origIdx =>
+                    visibleCols.includes(origIdx) &&
+                    !SKIP_COLS.has(origIdx) &&
+                    colExtractors[origIdx] !== undefined
+                );
 
-            // Build header row from columnDefs labels in visual order
-            const headers = exportCols.map(origIdx => columnDefs[origIdx].label);
+                if (exportCols.length === 0) {
+                    showFlash('No exportable columns are currently visible.', 'warning');
+                    return;
+                }
 
-            // Build data rows
-            const rows = selectedData.map(row =>
-                exportCols.map(origIdx => colExtractors[origIdx](row))
-            );
+                // Build header row from columnDefs labels in visual order
+                const headers = exportCols.map(origIdx => columnDefs[origIdx].label);
 
-            // Create worksheet and set auto column widths
-            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-            ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 12) }));
+                // Build data rows
+                const rows = selectedData.map(row =>
+                    exportCols.map(origIdx => colExtractors[origIdx](row))
+                );
 
-            // Apply Excel date format to the Date column cells
-            const dateExportPos = exportCols.indexOf(3);
-            if (dateExportPos >= 0) {
-                const dateColLetter = XLSX.utils.encode_col(dateExportPos);
-                for (let r = 0; r < rows.length; r++) {
-                    const cellRef = dateColLetter + (r + 2); // +1 header, +1 1-based
-                    if (ws[cellRef] && ws[cellRef].t === 'd') {
-                        ws[cellRef].z = 'yyyy-mm-dd';
+                // Create worksheet and set auto column widths
+                const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+                ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 12) }));
+
+                // Apply Excel date format to the Date column cells
+                const dateExportPos = exportCols.indexOf(3);
+                if (dateExportPos >= 0) {
+                    const dateColLetter = XLSX.utils.encode_col(dateExportPos);
+                    for (let r = 0; r < rows.length; r++) {
+                        const cellRef = dateColLetter + (r + 2); // +1 header, +1 1-based
+                        if (ws[cellRef] && ws[cellRef].t === 'd') {
+                            ws[cellRef].z = 'yyyy-mm-dd';
+                        }
                     }
                 }
-            }
 
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Activities');
-            XLSX.writeFile(wb, 'selected_activities.xlsx');
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Activities');
+                XLSX.writeFile(wb, 'selected_activities.xlsx');
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60', 'cursor-wait');
+                    btn.innerHTML = origHtml;
+                }, 300);
+            }
         });
 
 

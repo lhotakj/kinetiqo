@@ -206,7 +206,10 @@ class SyncService:
                 log_content += f'<p class="block truncate">{html.escape(line)}</p>'
             log_content += '</div>'
             status_html = """<div class="text-center pt-4 border-t border-gray-200">
-                <p class="text-sm text-blue-600 font-medium mb-3">Sync in progress...</p>
+                <p class="text-sm font-medium mb-3 inline-flex items-center justify-center gap-2 sync-progress-text">
+                    <img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16">
+                    <span>Sync in progress...</span>
+                </p>
             </div>"""
             if final:
                 status_color = "text-green-600"

@@ -52,8 +52,9 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
     <div id="chart-container" class="relative h-[500px] w-full">
         <canvas id="fitnessChart"></canvas>
-        <div id="chart-overlay" class="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75 z-10">
-            <p class="text-lg text-gray-600 dark:text-gray-400">Loading chart data...</p>
+        <div id="chart-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75 z-10 gap-3">
+            <img id="chart-overlay-spinner" src="{{ url_for('static', filename='img/kinetiqo-loading-32x32.webp') }}" alt="Loading..." class="h-8 w-8 inline-block" width="32" height="32">
+            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Loading chart data...</p>
         </div>
     </div>
 </div>
@@ -153,8 +154,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let fitnessChart = new Chart(ctx, chartConfig);
 
-    function showOverlay(message) {
+    const overlaySpinner = document.getElementById('chart-overlay-spinner');
+
+    function showOverlay(message, isError = false) {
         overlayText.textContent = message;
+        if (overlaySpinner) {
+            overlaySpinner.style.display = isError ? 'none' : 'block';
+        }
         chartOverlay.style.display = 'flex';
     }
 
@@ -178,14 +184,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.error) {
                     console.error('Error fetching fitness data:', data.error);
-                    showOverlay(`Error: ${data.error}`);
+                    showOverlay(`Error: ${data.error}`, true);
                     return;
                 }
 
                 document.getElementById('fitness-insight').textContent = data.insight || 'No insight available.';
 
                 if (!data.dates || data.dates.length === 0) {
-                    showOverlay('No fitness data available for the selected period.');
+                    showOverlay('No fitness data available for the selected period.', true);
                     updateChart({ dates: [], fitness: [], fatigue: [], form: [] }); // Clear chart
                 } else {
                     hideOverlay();

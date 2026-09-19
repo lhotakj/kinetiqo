@@ -1,10 +1,22 @@
+{% set _input_id = upload_input_id|default('uploadInput') %}
+{% set _btn_id = upload_button_id|default(_input_id ~ '-btn') %}
+{% set _spinner_id = upload_spinner_id|default(_input_id ~ '-spinner') %}
+{% set _text_id = upload_text_id|default(_input_id ~ '-text') %}
+{% set _status_id = upload_status_id|default(_input_id ~ '-status') %}
+{% set _clear_id = clear_button_id|default('clearImageBtn') %}
+
 <label
-    class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer flex-1 text-center"
-    for="{{ upload_input_id|default('uploadInput') }}">
-    {{ upload_label|default('Upload Image') }}
-    <input type="file" id="{{ upload_input_id|default('uploadInput') }}" accept="{{ upload_accept|default('.png,.jpg,.jpeg,.heic,.heif') }}" class="hidden" aria-label="{{ upload_label|default('Upload Image') }}">
+    id="{{ _btn_id }}"
+    class="upload-image-label px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition cursor-pointer flex-1 text-center inline-flex items-center justify-center gap-1.5 select-none"
+    for="{{ _input_id }}">
+    <img id="{{ _spinner_id }}" src="{{ url_for('static', filename='img/kinetiqo-loading-32x32.webp') }}" alt="Loading..." class="hidden h-5 w-5 flex-shrink-0" width="20" height="20" style="display: none;">
+    <span id="{{ _text_id }}">{{ upload_label|default('Upload Image') }}</span>
+    <input type="file" id="{{ _input_id }}" accept="{{ upload_accept|default('.png,.jpg,.jpeg,.webp,.heic,.heif') }}" class="hidden" aria-label="{{ upload_label|default('Upload Image') }}">
 </label>
-<button type="button" id="{{ clear_button_id|default('clearImageBtn') }}"
+<button type="button" id="{{ _clear_id }}"
     class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition flex-1 text-center">
     {{ clear_label|default('Clear Image') }}
 </button>
+<div id="{{ _status_id }}" class="w-full text-xs text-red-500 dark:text-red-400 text-center mt-1 hidden font-medium" role="alert"></div>
+<div class="w-full text-[11px] text-gray-500 dark:text-gray-400 text-center mt-1">Supports PNG, JPG, WEBP, HEIC</div>
+

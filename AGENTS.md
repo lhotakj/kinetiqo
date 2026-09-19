@@ -160,6 +160,20 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
   - Use `Number.NaN` instead of global `NaN`.
 - Global numerical parsing and checking functions pollute the global namespace and exhibit legacy type coercion quirks. Adhering to static `Number` methods guarantees strict compliance with modern ES2015+ standards and prevents SonarQube rule `javascript:S7773` findings.
 
+### 4.13 UI Loading & Action Button Waiting Standard
+- **Unified Animated Loading Asset**: All waiting indicators, progress spinners, export buttons, upload inputs, and data fetching overlays across the platform MUST use `static/img/kinetiqo-loading-32x32.webp` (`{{ url_for('static', filename='img/kinetiqo-loading-32x32.webp') }}` in Jinja2 templates or `/static/img/kinetiqo-loading-32x32.webp` in client JS).
+- **Native Animation**: The WebP image is natively animated with 60 frames; never apply CSS spin animations (`animate-spin` or CSS `@keyframes spin`) to it.
+- **Action Button Waiting State (No Accompanying Text)**: When a button initiates an asynchronous waiting operation (exports to PNG/PDF/CSV/XLSX, photo uploads, background sync, or data regeneration):
+  - Do NOT render text like `"Uploading..."`, `"Exporting..."`, or `"Syncing..."` on the button.
+  - The button content must replace exclusively with the rotating WebP icon (`kinetiqo-loading-32x32.webp`).
+  - The button must become disabled (`btn.disabled = true`) with waiting styling (`opacity-60 cursor-wait` or `pointer-events-none`).
+  - Always store `const origHtml = btn.innerHTML;` before initiating the action and restore original HTML and enabled state in a `finally` block or completion callback.
+- **Upload Labels**: In file upload controls (`_image_upload_buttons.html`), hide the text label span (`uploadText.classList.add('hidden')`) and show the spinner `<img>` while uploading; restore text and hide spinner when complete.
+- **Container / Chart Overlays**: For full-container fetching states (Map, Fitness, FTP History, VO₂max), center `<img src="..." alt="Loading..." width="32" height="32">` above the status text; on error, hide the spinner and display only the error text.
+- **Sync Progress Indicator**: During fast or full synchronization, the "Sync in progress..." status indicator MUST render the rotating loading icon immediately preceding the text (`<p class="text-sm font-medium mb-3 inline-flex items-center justify-center gap-2 sync-progress-text"><img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16"><span>Sync in progress...</span></p>`). The text color MUST be styled via `.sync-progress-text` in `common.css` to ensure black (`#000000`) in light mode and pure white (`#ffffff`) in dark mode.
+- **DataTables Activity Data Loading Standard**: For DataTables (such as the activities grid), DataTables 2.x's default 4-dot bouncing animation in `div.dt-processing > div:last-child` MUST be hidden via CSS (`display: none !important;`). The processing container `div.dt-processing` MUST render exclusively the centered `static/img/kinetiqo-loading-32x32.webp` icon in a styled translucent card (`language.processing`), with `language.loadingRecords` set to `'&nbsp;'` to prevent flash of raw text.
+
+
 ---
 
 ## 5. Common Development Workflows

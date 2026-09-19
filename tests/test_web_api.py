@@ -85,4 +85,18 @@ def test_poster_page_controls(monkeypatch):
     assert 'id="posterMap"' in html
 
 
+def test_sync_start_loading_indicator(monkeypatch):
+    app.config['LOGIN_DISABLED'] = True
+    client = app.test_client()
+    dummy_repo = DummyRepo()
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: dummy_repo)
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
 
+    for sync_type in ['fast', 'full']:
+        resp = client.get(f'/sync/start/{sync_type}')
+        assert resp.status_code == 200
+        html_text = resp.get_data(as_text=True)
+        assert 'Sync in progress...' in html_text
+        assert '/static/img/kinetiqo-loading-32x32.webp' in html_text
+        assert 'sync-progress-text' in html_text
+        assert html_text.index('/static/img/kinetiqo-loading-32x32.webp') < html_text.index('Sync in progress...')

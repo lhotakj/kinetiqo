@@ -255,7 +255,7 @@
         <!-- Loading State -->
         <div id="loading-state"
              class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 z-10">
-            <div class="loading-spinner mb-6"></div>
+            <img src="{{ url_for('static', filename='img/kinetiqo-loading-32x32.webp') }}" alt="Loading..." class="w-8 h-8 mb-6" width="32" height="32">
             <h3 id="loading-title" class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2">Loading map data...</h3>
             <p id="loading-detail" class="text-gray-500 dark:text-gray-400 text-center max-w-md mb-4">
                 Fetching activity coordinates from the server.
@@ -670,8 +670,15 @@
         if (exportBtn) {
             originalBtnHTML = exportBtn.innerHTML;
             exportBtn.disabled = true;
-            exportBtn.classList.add('opacity-60', 'cursor-not-allowed');
-            exportBtn.textContent = 'Exporting…';
+            exportBtn.classList.add('opacity-60', 'cursor-wait');
+            exportBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-5 w-5 inline-block mx-auto" width="20" height="20">';
+        }
+        const leafletExportBtn = document.querySelector('.leaflet-control-export a');
+        let origLeafletBtnHTML = null;
+        if (leafletExportBtn) {
+            origLeafletBtnHTML = leafletExportBtn.innerHTML;
+            leafletExportBtn.classList.add('pointer-events-none', 'opacity-60');
+            leafletExportBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." style="width:16px;height:16px;margin:auto;">';
         }
 
         // Unhighlight any active route before capturing
@@ -790,8 +797,12 @@
         } finally {
             if (exportBtn) {
                 exportBtn.disabled = false;
-                exportBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                exportBtn.classList.remove('opacity-60', 'cursor-wait');
                 if (originalBtnHTML) exportBtn.innerHTML = originalBtnHTML;
+            }
+            if (leafletExportBtn && origLeafletBtnHTML) {
+                leafletExportBtn.classList.remove('pointer-events-none', 'opacity-60');
+                leafletExportBtn.innerHTML = origLeafletBtnHTML;
             }
         }
     }

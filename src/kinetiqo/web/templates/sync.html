@@ -85,7 +85,7 @@
         }
         button.dataset.stopRequested = 'true';
         button.disabled = true;
-        button.textContent = 'Stopping sync...';
+        button.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
         button.style.backgroundColor = '#b91c1c';
 
         const headers = {};
@@ -103,7 +103,6 @@
             if (!response.ok) {
                 throw new Error('Stop request failed with status ' + response.status);
             }
-            button.textContent = 'Stopping...';
         }).catch(function() {
             button.disabled = false;
             button.dataset.stopRequested = 'false';

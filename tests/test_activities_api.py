@@ -145,6 +145,26 @@ class TestActivitiesAPI(unittest.TestCase):
         data = resp.get_json()
         self.assertFalse(data['success'])
 
+    @patch('kinetiqo.web.app.get_db')
+    def test_activities_page_loading_indicator(self, mock_get_db):
+        """Activities page renders DataTable with kinetiqo-loading-32x32.webp processing icon."""
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.get_distinct_activity_types.return_value = ['Ride', 'Run']
+
+        with self.client.session_transaction() as sess:
+            sess['_user_id'] = 'admin'
+
+        resp = self.client.get('/activities')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        # DataTable processing config must use the unified WebP loading asset
+        self.assertIn('/static/img/kinetiqo-loading-32x32.webp', html)
+        self.assertIn('"processing": true', html)
+        self.assertIn('"loadingRecords": \'&nbsp;\'', html)
+
 
 if __name__ == '__main__':
     unittest.main()
+

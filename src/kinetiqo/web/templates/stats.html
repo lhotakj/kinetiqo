@@ -1320,8 +1320,10 @@
         // Download PNG (server-side Playwright export)
         document.getElementById('btn-download-png').addEventListener('click', async function () {
             const btn = this;
+            const origHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.textContent = 'Exporting\u2026';
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
             try {
                 const { width, height } = getExportSize();
                 const payload = {
@@ -1360,21 +1362,17 @@
                 alert('Export failed: ' + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-                    + '<path d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M6.5 17V15.5M6.5 15.5V13L7.25 13C7.94036 13 8.5 13.5596 8.5 14.25V14.25C8.5 14.9404 7.94036 15.5 7.25 15.5H6.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M17 13H16C15.4477 13 15 13.4477 15 14V16C15 16.5523 15.4477 17 16 17H16.5C17.0523 17 17.5 16.5523 17.5 16V15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M17 15.5H17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M10.5 17V13L13 17V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '</svg><span>PNG</span>';
+                btn.classList.remove('opacity-60', 'cursor-wait');
+                btn.innerHTML = origHtml;
             }
         });
 
         document.getElementById('btn-download-pdf').addEventListener('click', async function () {
             const btn = this;
+            const origHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.textContent = 'Exporting…';
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
             try {
                 const { width, height } = getExportSize();
                 const payload = {
@@ -1414,14 +1412,8 @@
                 alert('Export failed: ' + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-                    + '<path d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M11.5 13H11V17H11.5C12.6046 17 13.5 16.1046 13.5 15C13.5 13.8954 12.6046 13 11.5 13Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M15.5 17V13L17.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M16 15H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '<path d="M7 17L7 15.5M7 15.5L7 13L7.75 13C8.44036 13 9 13.5596 9 14.25V14.25C9 14.9404 8.44036 15.5 7.75 15.5H7Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                    + '</svg><span>PDF</span>';
+                btn.classList.remove('opacity-60', 'cursor-wait');
+                btn.innerHTML = origHtml;
             }
         });
 
@@ -1650,29 +1642,110 @@
 
         // ---- Background Image upload & reset ----
         const elUploadInput = document.getElementById('stats-upload-input');
+        const elUploadBtn = document.getElementById('stats-upload-input-btn');
+        const elUploadSpinner = document.getElementById('stats-upload-input-spinner');
+        const elUploadText = document.getElementById('stats-upload-input-text');
+        const elUploadStatus = document.getElementById('stats-upload-input-status');
         const elClearImageBtn = document.getElementById('stats-clear-image-btn');
         const igBgImage = document.getElementById('ig-bg-image');
         const igBgOverlay = document.getElementById('ig-bg-overlay');
         let hasCustomImage = {{ 'true' if has_bg_image else 'false' }};
 
+        function setStatsUploadLoading(isLoading) {
+            if (elUploadBtn) {
+                if (isLoading) {
+                    elUploadBtn.classList.add('opacity-60', 'pointer-events-none', 'cursor-wait');
+                    elUploadBtn.classList.remove('cursor-pointer', 'hover:bg-green-700');
+                } else {
+                    elUploadBtn.classList.remove('opacity-60', 'pointer-events-none', 'cursor-wait');
+                    elUploadBtn.classList.add('cursor-pointer', 'hover:bg-green-700');
+                }
+            }
+            if (elUploadSpinner) {
+                if (isLoading) {
+                    elUploadSpinner.classList.remove('hidden');
+                    elUploadSpinner.style.display = 'inline-block';
+                } else {
+                    elUploadSpinner.classList.add('hidden');
+                    elUploadSpinner.style.display = 'none';
+                }
+            }
+            if (elUploadText) {
+                if (isLoading) {
+                    elUploadText.classList.add('hidden');
+                    elUploadText.style.display = 'none';
+                } else {
+                    elUploadText.classList.remove('hidden');
+                    elUploadText.style.display = '';
+                    elUploadText.textContent = 'Upload Image';
+                }
+            }
+            if (elUploadInput) elUploadInput.disabled = isLoading;
+            if (elClearImageBtn) elClearImageBtn.disabled = isLoading;
+            document.body.style.cursor = isLoading ? 'wait' : '';
+        }
+
+        function showStatsUploadError(msg) {
+            if (elUploadStatus) {
+                elUploadStatus.textContent = msg;
+                elUploadStatus.classList.remove('hidden');
+            }
+            alert(msg);
+        }
+
+        function clearStatsUploadError() {
+            if (elUploadStatus) {
+                elUploadStatus.textContent = '';
+                elUploadStatus.classList.add('hidden');
+            }
+        }
+
         if (elUploadInput) {
-            elUploadInput.addEventListener('change', function () {
+            elUploadInput.addEventListener('change', async function () {
                 const file = this.files[0];
                 if (!file) return;
+
+                clearStatsUploadError();
+                setStatsUploadLoading(true);
+
                 const formData = new FormData();
                 formData.append('file', file);
-                fetch('/api/stats/upload', { method: 'POST', body: formData })
-                    .then(r => {
-                        if (r.ok) {
-                            hasCustomImage = true;
-                            igBgImage.src = '/api/stats/image?t=' + Date.now();
-                            igBgImage.style.display = 'block';
-                            applyTintAndOpacity();
-                        } else {
-                            r.json().then(d => alert(d.error || 'Upload failed'));
+
+                try {
+                    const r = await fetch('/api/stats/upload', { method: 'POST', body: formData });
+                    if (!r.ok) {
+                        let errorMsg = `Upload failed (HTTP ${r.status})`;
+                        try {
+                            const d = await r.json();
+                            if (d && d.error) errorMsg = d.error;
+                        } catch (_) {
+                            try {
+                                const txt = await r.text();
+                                if (txt) errorMsg = `Upload failed: ${txt.slice(0, 150)}`;
+                            } catch (_) {}
                         }
-                    })
-                    .catch(err => alert('Upload error: ' + err));
+                        showStatsUploadError(errorMsg);
+                        return;
+                    }
+
+                    hasCustomImage = true;
+                    const blob = await r.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    igBgImage.onload = () => {
+                        igBgImage.style.display = 'block';
+                        applyTintAndOpacity();
+                    };
+                    igBgImage.onerror = () => {
+                        showStatsUploadError('Failed to display the uploaded image.');
+                    };
+                    igBgImage.src = objectUrl;
+                } catch (err) {
+                    console.error('Stats upload error:', err);
+                    showStatsUploadError(`Upload error: ${err.message || err}`);
+                } finally {
+                    setStatsUploadLoading(false);
+                    if (elUploadInput) elUploadInput.value = '';
+                }
             });
         }
 
@@ -1693,6 +1766,7 @@
         }
 
         // ---- Initial load ----
+        setStatsUploadLoading(false);
         setupBoxCollapsibleEvents();
         applyBoxCollapsedStates();
         applyInfographicSize();

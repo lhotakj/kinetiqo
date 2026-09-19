@@ -135,6 +135,27 @@ class TestStatsImageAndUI(unittest.TestCase):
         self.assertEqual(resp.mimetype, 'image/png')
         self.assertTrue(self.cached_file.exists())
 
+    def test_stats_photo_upload_valid_webp_image(self):
+        """POST /api/stats/upload uploads and converts WebP image to cached PNG."""
+        img = Image.new('RGB', (40, 40), color='cyan')
+        buf = io.BytesIO()
+        img.save(buf, format='WEBP')
+        webp_bytes = buf.getvalue()
+
+        data = {
+            'file': (io.BytesIO(webp_bytes), 'bg_photo.webp')
+        }
+
+        resp = self.client.post(
+            '/api/stats/upload',
+            data=data,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.mimetype, 'image/png')
+        self.assertTrue(self.cached_file.exists())
+
+
     def test_stats_photo_upload_no_file(self):
         """POST /api/stats/upload with no file returns 400 error."""
         resp = self.client.post(

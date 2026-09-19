@@ -2907,19 +2907,18 @@ def start_sync_ui(type):
                     </div>
                 </div>
                 <div class="text-center pt-4 border-t border-gray-200">
-                    <p class="text-sm text-blue-600 font-medium mb-3">Sync in progress...</p>
+                    <p class="text-sm font-medium mb-3 inline-flex items-center justify-center gap-2 sync-progress-text">
+                        <img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16">
+                        <span>Sync in progress...</span>
+                    </p>
                 </div>
             </div>
         </div>
     </div>
     
     <button id="start-sync-btn" hx-swap-oob="true" disabled
-            class="px-6 py-2.5 bg-gray-400 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center cursor-not-allowed">
-        <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Syncing...
+            class="px-6 py-2.5 bg-gray-400 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center justify-center cursor-not-allowed">
+        <img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-5 w-5 inline-block" width="20" height="20">
     </button>
     '''
 
@@ -3098,12 +3097,14 @@ def poster_photo_upload(activity_id):
 
     file = request.files['file']
     filename = file.filename.lower() if file.filename else ''
-    allowed = ('.png', '.jpg', '.jpeg', '.heic', '.heif')
+    allowed = ('.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif')
     if not any(filename.endswith(ext) for ext in allowed):
-        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, HEIC'}), 400
+        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, WEBP, HEIC'}), 400
 
     try:
         raw = file.read()
+        if not raw:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
         # Convert to PNG
         if filename.endswith(('.heic', '.heif')):
             try:
@@ -3111,10 +3112,22 @@ def poster_photo_upload(activity_id):
                 pillow_heif.register_heif_opener()
             except (ImportError, ModuleNotFoundError):
                 return jsonify({'error': 'HEIC support not available (pillow-heif not installed)'}), 500
+        from PIL import ImageOps
         img = Image.open(io.BytesIO(raw))
-        img = img.convert('RGB')
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        else:
+            img = img.convert('RGB')
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format='PNG', compress_level=1)
         png_data = buf.getvalue()
         cached = cache_dir / f"{activity_id}.png"
         cached.write_bytes(png_data)
@@ -3176,22 +3189,36 @@ def stats_photo_upload():
 
     file = request.files['file']
     filename = file.filename.lower() if file.filename else ''
-    allowed = ('.png', '.jpg', '.jpeg', '.heic', '.heif')
+    allowed = ('.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif')
     if not any(filename.endswith(ext) for ext in allowed):
-        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, HEIC'}), 400
+        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, WEBP, HEIC'}), 400
 
     try:
         raw = file.read()
+        if not raw:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
         if filename.endswith(('.heic', '.heif')):
             try:
                 pillow_heif = importlib.import_module('pillow_heif')
                 pillow_heif.register_heif_opener()
             except (ImportError, ModuleNotFoundError):
                 return jsonify({'error': 'HEIC support not available (pillow-heif not installed)'}), 500
+        from PIL import ImageOps
         img = Image.open(io.BytesIO(raw))
-        img = img.convert('RGB')
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        else:
+            img = img.convert('RGB')
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format='PNG', compress_level=1)
         png_data = buf.getvalue()
         cached = cache_dir / "stats_bg.png"
         cached.write_bytes(png_data)

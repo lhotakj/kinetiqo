@@ -445,6 +445,40 @@ body.dark .dt-buttons .dt-button:hover {
     background-color: #333333;
 }
 
+/* DataTables 2.x processing indicator */
+#activitiesTable_wrapper.dt-container {
+    min-height: 140px;
+}
+
+div.dt-processing {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0 !important;
+    padding: 0.75rem 1.25rem !important;
+    width: auto !important;
+    min-width: 80px;
+    border-radius: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+}
+
+body.dark div.dt-processing,
+html.dark div.dt-processing {
+    background-color: rgba(38, 38, 38, 0.95);
+    border-color: #404040;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Hide DataTables 2.x default bouncing dots animation */
+div.dt-processing > div:last-child,
+div.dt-processing > div:not(:first-child) {
+    display: none !important;
+}
+
 /* ---------------------------------------------------------------
    9. Animations
    --------------------------------------------------------------- */
@@ -988,6 +1022,15 @@ body.dark #exportBtn:not(:disabled):hover {
 /* ---------------------------------------------------------------
    18. Sync page — dark mode extras
    --------------------------------------------------------------- */
+.sync-progress-text {
+    color: #000000 !important;
+}
+
+body.dark .sync-progress-text,
+html.dark .sync-progress-text {
+    color: #ffffff !important;
+}
+
 body.dark .border-gray-100 {
     background-color: #333333;
 }
