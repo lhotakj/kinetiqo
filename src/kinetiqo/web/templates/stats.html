@@ -422,6 +422,15 @@
         flex-shrink: 0;
     }
 
+    .control-row.flex-col {
+        align-items: flex-start;
+    }
+
+    .control-row.flex-col>label {
+        min-width: auto;
+        text-align: left;
+    }
+
     /* ---- Preview scaler ---- */
     .stats-preview-scaler {
         overflow: hidden;
@@ -613,20 +622,22 @@
                     <select id="stats-group"
                         class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
                         {% for key, grp in activity_groups.items() %}
-                        <option value="{{ key }}" {% if key=='cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}
+                        <option value="{{ key }}" {% if key=='cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name
+                            }}
                         </option>
                         {% endfor %}
                     </select>
                 </div>
-                {% with control_id='stats-tint', label='Tint', clear_btn_id='stats-tint-clear-btn', value_id='stats-tint-val', value='#000000', value_text='None' %}
+                {% with control_id='stats-tint', label='Tint', clear_btn_id='stats-tint-clear-btn',
+                value_id='stats-tint-val', value='#000000', value_text='None' %}
                 {% include "_control_color_tint.html" %}
                 {% endwith %}
-                {% with control_id='stats-opacity', label='Opacity', min_val=0, max_val=100, value=40, value_id='stats-opacity-val' %}
+                {% with control_id='stats-opacity', label='Opacity', min_val=0, max_val=100, value=40,
+                value_id='stats-opacity-val' %}
                 {% include "_control_range.html" %}
                 {% endwith %}
                 {% set font_control_id = 'stats-font' %}
-                {% set font_label = 'Font' %}
-                {% set stacked = true %}
+                {% set font_label = 'Font:' %}
                 {% include "_font_select.html" %}
                 <div class="flex gap-2 mt-3 flex-wrap">
                     {% set upload_input_id = 'stats-upload-input' %}
@@ -658,7 +669,7 @@
                     <span id="stats-title-font-size-val" class="text-xs w-8">24px</span>
                 </div>
                 <div class="control-row mb-3">
-                    <label for="stats-column-width">Col Width</label>
+                    <label for="stats-column-width">Column Width</label>
                     <input type="range" id="stats-column-width" min="20" max="50" value="20"
                         class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
                     <span id="stats-column-width-val" class="text-xs w-10">20%</span>
@@ -668,60 +679,60 @@
                     <div class="grid grid-cols-2 gap-x-3 gap-y-2.5">
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="distance" checked> <span
-                                class="truncate">Distance</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="distance" checked> <span class="truncate">Distance</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="elevation" checked> <span
-                                class="truncate">Elevation</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="elevation" checked> <span class="truncate">Elevation</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="longest" checked> <span
-                                class="truncate">Longest</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="longest" checked> <span class="truncate">Longest</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="highest" checked> <span
-                                class="truncate">Max elev.</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="highest" checked> <span class="truncate">Max elev.</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="speed" checked> <span
-                                class="truncate">Top speed</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="speed" checked> <span class="truncate">Top speed</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="hours" checked> <span
-                                class="truncate">Hours</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="hours" checked> <span class="truncate">Hours</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="streak" checked> <span
-                                class="truncate">Longest streak</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="streak" checked> <span class="truncate">Longest streak</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
                             title="Most Active Month by Distance">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month" checked> <span
-                                class="truncate">Best month (dist)</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="best-month" checked> <span class="truncate">Best month (dist)</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
                             title="Most Active Month by Elevation">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="best-month-elev" checked> <span
-                                class="truncate">Best month (elev)</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="best-month-elev" checked> <span class="truncate">Best month (elev)</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="avg-power" checked> <span
-                                class="truncate">Avg power</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="avg-power" checked> <span class="truncate">Avg power</span>
                         </label>
                         <label
                             class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;" data-stat="max-power" checked> <span
-                                class="truncate">Max power</span>
+                            <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                                data-stat="max-power" checked> <span class="truncate">Max power</span>
                         </label>
                     </div>
                 </div>
@@ -735,8 +746,11 @@
         <div class="stats-preview-scaler" id="stats-preview-scaler">
             <div class="infographic-wrapper" id="infographic-wrapper">
                 <div class="infographic" id="infographic" style="background: #4a4a4a;">
-                    <img id="ig-bg-image" class="ig-bg-image" alt="" style="{% if not has_bg_image %}display:none;{% endif %}" {% if has_bg_image %}src="/api/stats/image"{% endif %}>
-                    <div id="ig-bg-overlay" class="ig-bg-overlay" style="{% if not has_bg_image %}display:none;{% endif %}"></div>
+                    <img id="ig-bg-image" class="ig-bg-image" alt=""
+                        style="{% if not has_bg_image %}display:none;{% endif %}" {% if has_bg_image
+                        %}src="/api/stats/image" {% endif %}>
+                    <div id="ig-bg-overlay" class="ig-bg-overlay"
+                        style="{% if not has_bg_image %}display:none;{% endif %}"></div>
 
                     <!-- Loading state -->
                     <div id="ig-loading" class="ig-no-data">Loading stats…</div>
@@ -1514,7 +1528,7 @@
             igEl.style.setProperty('--stats-font-family', '"' + fontName + '", sans-serif');
             localStorage.setItem('statsFontFamily', fontName);
             if (document.fonts && document.fonts.load) {
-                document.fonts.load('bold 24px "' + fontName + '"').catch(function () {});
+                document.fonts.load('bold 24px "' + fontName + '"').catch(function () { });
             }
         }
         if (elFont) {
@@ -1649,130 +1663,130 @@
         const elClearImageBtn = document.getElementById('stats-clear-image-btn');
         const igBgImage = document.getElementById('ig-bg-image');
         const igBgOverlay = document.getElementById('ig-bg-overlay');
-        let hasCustomImage = {{ 'true' if has_bg_image else 'false' }};
+        let hasCustomImage = {{ has_bg_image|default(false)|tojson }};
 
-        function setStatsUploadLoading(isLoading) {
-            if (elUploadBtn) {
-                if (isLoading) {
-                    elUploadBtn.classList.add('opacity-60', 'pointer-events-none', 'cursor-wait');
-                    elUploadBtn.classList.remove('cursor-pointer', 'hover:bg-green-700');
-                } else {
-                    elUploadBtn.classList.remove('opacity-60', 'pointer-events-none', 'cursor-wait');
-                    elUploadBtn.classList.add('cursor-pointer', 'hover:bg-green-700');
-                }
-            }
-            if (elUploadSpinner) {
-                if (isLoading) {
-                    elUploadSpinner.classList.remove('hidden');
-                    elUploadSpinner.style.display = 'inline-block';
-                } else {
-                    elUploadSpinner.classList.add('hidden');
-                    elUploadSpinner.style.display = 'none';
-                }
-            }
-            if (elUploadText) {
-                if (isLoading) {
-                    elUploadText.classList.add('hidden');
-                    elUploadText.style.display = 'none';
-                } else {
-                    elUploadText.classList.remove('hidden');
-                    elUploadText.style.display = '';
-                    elUploadText.textContent = 'Upload Image';
-                }
-            }
-            if (elUploadInput) elUploadInput.disabled = isLoading;
-            if (elClearImageBtn) elClearImageBtn.disabled = isLoading;
-            document.body.style.cursor = isLoading ? 'wait' : '';
-        }
-
-        function showStatsUploadError(msg) {
-            if (elUploadStatus) {
-                elUploadStatus.textContent = msg;
-                elUploadStatus.classList.remove('hidden');
-            }
-            alert(msg);
-        }
-
-        function clearStatsUploadError() {
-            if (elUploadStatus) {
-                elUploadStatus.textContent = '';
-                elUploadStatus.classList.add('hidden');
+    function setStatsUploadLoading(isLoading) {
+        if (elUploadBtn) {
+            if (isLoading) {
+                elUploadBtn.classList.add('opacity-60', 'pointer-events-none', 'cursor-wait');
+                elUploadBtn.classList.remove('cursor-pointer', 'hover:bg-green-700');
+            } else {
+                elUploadBtn.classList.remove('opacity-60', 'pointer-events-none', 'cursor-wait');
+                elUploadBtn.classList.add('cursor-pointer', 'hover:bg-green-700');
             }
         }
+        if (elUploadSpinner) {
+            if (isLoading) {
+                elUploadSpinner.classList.remove('hidden');
+                elUploadSpinner.style.display = 'inline-block';
+            } else {
+                elUploadSpinner.classList.add('hidden');
+                elUploadSpinner.style.display = 'none';
+            }
+        }
+        if (elUploadText) {
+            if (isLoading) {
+                elUploadText.classList.add('hidden');
+                elUploadText.style.display = 'none';
+            } else {
+                elUploadText.classList.remove('hidden');
+                elUploadText.style.display = '';
+                elUploadText.textContent = 'Upload Image';
+            }
+        }
+        if (elUploadInput) elUploadInput.disabled = isLoading;
+        if (elClearImageBtn) elClearImageBtn.disabled = isLoading;
+        document.body.style.cursor = isLoading ? 'wait' : '';
+    }
 
-        if (elUploadInput) {
-            elUploadInput.addEventListener('change', async function () {
-                const file = this.files[0];
-                if (!file) return;
+    function showStatsUploadError(msg) {
+        if (elUploadStatus) {
+            elUploadStatus.textContent = msg;
+            elUploadStatus.classList.remove('hidden');
+        }
+        alert(msg);
+    }
 
-                clearStatsUploadError();
-                setStatsUploadLoading(true);
+    function clearStatsUploadError() {
+        if (elUploadStatus) {
+            elUploadStatus.textContent = '';
+            elUploadStatus.classList.add('hidden');
+        }
+    }
 
-                const formData = new FormData();
-                formData.append('file', file);
+    if (elUploadInput) {
+        elUploadInput.addEventListener('change', async function () {
+            const file = this.files[0];
+            if (!file) return;
 
-                try {
-                    const r = await fetch('/api/stats/upload', { method: 'POST', body: formData });
-                    if (!r.ok) {
-                        let errorMsg = `Upload failed (HTTP ${r.status})`;
+            clearStatsUploadError();
+            setStatsUploadLoading(true);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const r = await fetch('/api/stats/upload', { method: 'POST', body: formData });
+                if (!r.ok) {
+                    let errorMsg = `Upload failed (HTTP ${r.status})`;
+                    try {
+                        const d = await r.json();
+                        if (d && d.error) errorMsg = d.error;
+                    } catch (_) {
                         try {
-                            const d = await r.json();
-                            if (d && d.error) errorMsg = d.error;
-                        } catch (_) {
-                            try {
-                                const txt = await r.text();
-                                if (txt) errorMsg = `Upload failed: ${txt.slice(0, 150)}`;
-                            } catch (_) {}
-                        }
-                        showStatsUploadError(errorMsg);
-                        return;
+                            const txt = await r.text();
+                            if (txt) errorMsg = `Upload failed: ${txt.slice(0, 150)}`;
+                        } catch (_) { }
                     }
-
-                    hasCustomImage = true;
-                    const blob = await r.blob();
-                    const objectUrl = URL.createObjectURL(blob);
-                    igBgImage.onload = () => {
-                        igBgImage.style.display = 'block';
-                        applyTintAndOpacity();
-                    };
-                    igBgImage.onerror = () => {
-                        showStatsUploadError('Failed to display the uploaded image.');
-                    };
-                    igBgImage.src = objectUrl;
-                } catch (err) {
-                    console.error('Stats upload error:', err);
-                    showStatsUploadError(`Upload error: ${err.message || err}`);
-                } finally {
-                    setStatsUploadLoading(false);
-                    if (elUploadInput) elUploadInput.value = '';
+                    showStatsUploadError(errorMsg);
+                    return;
                 }
-            });
-        }
 
-        if (elClearImageBtn) {
-            elClearImageBtn.addEventListener('click', function () {
-                fetch('/api/stats/image/reset', { method: 'POST' })
-                    .then(r => {
-                        if (r.ok) {
-                            hasCustomImage = false;
-                            igBgImage.removeAttribute('src');
-                            igBgImage.style.display = 'none';
-                            if (elUploadInput) elUploadInput.value = '';
-                            applyTintAndOpacity();
-                        }
-                    })
-                    .catch(err => console.warn('Failed to reset image:', err));
-            });
-        }
+                hasCustomImage = true;
+                const blob = await r.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                igBgImage.onload = () => {
+                    igBgImage.style.display = 'block';
+                    applyTintAndOpacity();
+                };
+                igBgImage.onerror = () => {
+                    showStatsUploadError('Failed to display the uploaded image.');
+                };
+                igBgImage.src = objectUrl;
+            } catch (err) {
+                console.error('Stats upload error:', err);
+                showStatsUploadError(`Upload error: ${err.message || err}`);
+            } finally {
+                setStatsUploadLoading(false);
+                if (elUploadInput) elUploadInput.value = '';
+            }
+        });
+    }
 
-        // ---- Initial load ----
-        setStatsUploadLoading(false);
-        setupBoxCollapsibleEvents();
-        applyBoxCollapsedStates();
-        applyInfographicSize();
-        applyStatVisibility();
-        applyTintAndOpacity();
-        fetchStats();
+    if (elClearImageBtn) {
+        elClearImageBtn.addEventListener('click', function () {
+            fetch('/api/stats/image/reset', { method: 'POST' })
+                .then(r => {
+                    if (r.ok) {
+                        hasCustomImage = false;
+                        igBgImage.removeAttribute('src');
+                        igBgImage.style.display = 'none';
+                        if (elUploadInput) elUploadInput.value = '';
+                        applyTintAndOpacity();
+                    }
+                })
+                .catch(err => console.warn('Failed to reset image:', err));
+        });
+    }
+
+    // ---- Initial load ----
+    setStatsUploadLoading(false);
+    setupBoxCollapsibleEvents();
+    applyBoxCollapsedStates();
+    applyInfographicSize();
+    applyStatVisibility();
+    applyTintAndOpacity();
+    fetchStats();
     });
 </script>
 {% endblock %}

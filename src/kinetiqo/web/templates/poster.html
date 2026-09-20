@@ -315,6 +315,15 @@
         color: #6b7280;
     }
 
+    .control-row.flex-col {
+        align-items: flex-start;
+    }
+
+    .control-row.flex-col label {
+        min-width: auto;
+        text-align: left;
+    }
+
     /* Photo & Map Editor Controls */
     .photo-control-row {
         display: flex;
@@ -809,8 +818,7 @@
                 </div>
                 <div class="control-box-body collapsed">
                     {% set font_control_id = 'titleFont' %}
-                    {% set font_label = 'Font' %}
-                    {% set font_select_class = 'h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1' %}
+                    {% set font_label = 'Font:' %}
                     {% include "_font_select.html" %}
                     <div class="control-row">
                         <label for="titleAlign">Text Align</label>
@@ -923,8 +931,7 @@
                 </div>
                 <div class="control-box-body collapsed">
                     {% set font_control_id = 'statsFont' %}
-                    {% set font_label = 'Font' %}
-                    {% set font_select_class = 'h-8 px-2 rounded border border-gray-300 text-sm bg-white flex-1' %}
+                    {% set font_label = 'Font:' %}
                     {% include "_font_select.html" %}
                     <div class="control-row">
                         <label for="statsStyle">Font Style</label>
