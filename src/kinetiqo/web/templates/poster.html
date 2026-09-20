@@ -693,8 +693,7 @@
                     </div>
                     <div class="control-row">
                         <label for="posterDimensions">Dimensions</label>
-                        <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Poster
-                            dimensions: — × —</div>
+                        <div id="posterDimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">— × —</div>
                     </div>
                 </div>
             </div>
@@ -1773,7 +1772,9 @@
 
         function updateDimensionsDisplay(width, height) {
             const dimensionsEl = document.getElementById('posterDimensions');
-            dimensionsEl.textContent = `Poster dimensions: ${width} × ${height}`;
+            if (dimensionsEl) {
+                dimensionsEl.textContent = `${width} × ${height}`;
+            }
         }
 
         function renderPoster() {

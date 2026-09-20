@@ -510,8 +510,9 @@ class TestStatsRoutes(unittest.TestCase):
         )
         mock_compute_mega_stats.assert_called_once_with(mock_repo.get_activities_web.return_value, 2025, 'q1')
 
+    @patch('kinetiqo.web.app.get_db')
     @patch('flask_login.utils._get_user')
-    def test_stats_api_rejects_unknown_group(self, mock_get_user):
+    def test_stats_api_rejects_unknown_group(self, mock_get_user, mock_get_db):
         """An unknown activity group should return a 400 error before touching the database."""
         mock_user = MagicMock()
         mock_user.is_authenticated = True

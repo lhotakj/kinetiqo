@@ -3645,7 +3645,7 @@ def stats_export():
                     setVal('stats-year',   {_json.dumps(year)});
                     setVal('stats-period', {_json.dumps(period)});
                     setVal('stats-group',  {_json.dumps(group)});
-                    setVal('stats-size',   'M');  // size only affects layout, handled below
+                    setVal('stats-size',   {_json.dumps(str(width))});  // size only affects layout, handled below
                     var bg = document.getElementById('stats-bg');
                     if (bg) bg.value = {_json.dumps(bg)};
                     var ig = document.getElementById('infographic');

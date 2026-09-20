@@ -543,8 +543,11 @@
                     <label for="stats-size">Width</label>
                     <select id="stats-size"
                         class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                        <option value="M">M (width 1280px)</option>
-                        <option value="L">L (width 1440px)</option>
+                        <option value="1280">M (width 1280px)</option>
+                        <option value="1440">L (width 1440px)</option>
+                        <option value="1600">XL (width 1600px)</option>
+                        <option value="1920">XXL (width 1920px)</option>
+                        <option value="2048">XXXL (width 2048px)</option>
                     </select>
                 </div>
                 <div class="control-row">
@@ -552,9 +555,8 @@
                     <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">4:3 (fixed)</span>
                 </div>
                 <div class="control-row">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">Dimensions</span>
-                    <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono">Mega stats
-                        dimension: — × —</span>
+                    <label for="stats-dimensions">Dimensions</label>
+                    <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">— × —</span>
                 </div>
             </div>
         </div>
@@ -903,7 +905,18 @@
     document.addEventListener('DOMContentLoaded', function () {
         const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-        const SIZE_WIDTHS = { M: 1280, L: 1440 };
+        const SIZE_WIDTHS = {
+            '1280': 1280,
+            '1440': 1440,
+            '1600': 1600,
+            '1920': 1920,
+            '2048': 2048,
+            M: 1280,
+            L: 1440,
+            XL: 1600,
+            XXL: 1920,
+            XXXL: 2048,
+        };
 
         // Controls
         const elYear = document.getElementById('stats-year');
@@ -926,7 +939,8 @@
 
         // ---- Size management ----
         function getExportSize() {
-            const w = SIZE_WIDTHS[elSize.value] || 1280;
+            const val = elSize.value;
+            const w = Number.parseInt(val, 10) || SIZE_WIDTHS[val] || 1280;
             return { width: w, height: Math.round(w * 3 / 4) };
         }
 
@@ -935,15 +949,29 @@
             const wrapper = document.getElementById('infographic-wrapper');
             wrapper.style.width = width + 'px';
             wrapper.style.height = height + 'px';
-            document.getElementById('stats-dimensions').textContent =
-                'Mega stats dimension: ' + width + ' \u00d7 ' + height;
+            const dimEl = document.getElementById('stats-dimensions');
+            if (dimEl) {
+                dimEl.textContent = width + ' \u00d7 ' + height;
+            }
             updateScaler(width, height);
         }
 
         // Restore Size from localStorage
         const storedSize = localStorage.getItem('statsSize');
-        if (storedSize && (storedSize === 'M' || storedSize === 'L')) {
-            elSize.value = storedSize;
+        if (storedSize) {
+            if (elSize.querySelector(`option[value="${storedSize}"]`)) {
+                elSize.value = storedSize;
+            } else if (storedSize === 'M') {
+                elSize.value = '1280';
+            } else if (storedSize === 'L') {
+                elSize.value = '1440';
+            } else if (storedSize === 'XL') {
+                elSize.value = '1600';
+            } else if (storedSize === 'XXL') {
+                elSize.value = '1920';
+            } else if (storedSize === 'XXXL') {
+                elSize.value = '2048';
+            }
         }
 
         // Restore Year from localStorage
