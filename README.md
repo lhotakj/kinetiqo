@@ -190,6 +190,21 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     ```
     Pass `--force` to re-download existing files, or `--library <id>` (e.g. `--library htmx`, `--library chart`, `--library tailwind`, `--library sheetjs`) to update a specific asset suite. Parameters are defined in `development/vendor-libraries.yaml`.
 
+    # Check & update Python requirements (PyPI)
+    A helper script is provided to check your Python `requirements.txt` files against the latest PyPI releases and optionally pin them to the newest versions.
+
+    - Script: `development/check-pypi-updates.py`
+    - Default behaviour: only checks and reports available updates for the common requirements files (`requirements.txt` and `../kinetiqo-web/requirements.txt` when present).
+    - To apply changes (pin to latest), run with `--apply`. Use `-f/--force` to skip the interactive confirmation. When writing files you can request a timestamped backup using `--backup` (default: no backup).
+
+    Example:
+    ```bash
+    python development/check-pypi-updates.py         # report available updates
+    python development/check-pypi-updates.py --apply # apply and pin to latest
+    ```
+
+    The project CI/automation can be triggered by the agent skill keywords `update pypi` or `update python` to request an automated update workflow; the skill name is registered in the repository agent configurations.
+
     Note: New vendor entries "htmx-ext-sse" and "sheetjs" have been added and are served locally. Templates reference these local copies with Subresource Integrity (SRI) attributes and `crossorigin="anonymous"`. To refresh or pin different versions, update `development/vendor-libraries.yaml` and run the downloader.
 
 6.  **Configure Environment Variables:**
