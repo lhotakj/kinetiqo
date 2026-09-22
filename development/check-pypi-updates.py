@@ -17,21 +17,34 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import json
+import logging
+import os
 import sys
+import tempfile
 import time
 from pathlib import Path
-from typing import List, Optional
+from shutil import copy2
+from typing import List, Optional, Tuple
+
+import requests
+from packaging.requirements import InvalidRequirement, Requirement
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def print_row(name: str, status: str, info: str):
+logger = logging.getLogger("check-pypi-updates")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+
+def print_row(name: str, status: str, info: str) -> None:
+    """Print a single status row to stdout (kept user-facing)."""
     name_col = name[:32].ljust(32)
     status_col = status[:12].ljust(12)
     print(f"  {name_col} {status_col} {info}")
 
 
-def print_table_header():
+def print_table_header() -> None:
     print(f"\n  {'File / Package'.ljust(32)} {'Status'.ljust(12)} Info")
     print(f"  {'─'*32} {'─'*12} {'─'*45}")
 
@@ -47,32 +60,35 @@ def parse_requirements(path: Path) -> List[str]:
 
 
 def get_latest_version(package: str) -> Optional[str]:
-    import requests
-
     url = f"https://pypi.org/pypi/{package}/json"
     try:
         r = requests.get(url, timeout=15)
         if r.status_code != 200:
+            logger.debug("PyPI returned status %s for %s", r.status_code, package)
             return None
         j = r.json()
+        # be defensive: ensure json structure exists
+        if not isinstance(j, dict):
+            return None
         return j.get("info", {}).get("version")
-    except Exception:
+    except requests.RequestException as exc:
+        logger.debug("Network error when contacting PyPI for %s: %s", package, exc)
         return None
 
 
-def analyze_line(line: str):
-    # preserve comments and editable tokens
-    from packaging.requirements import Requirement
+def analyze_line(line: str) -> Optional[dict]:
+    """Analyze a single line from a requirements file.
 
+    Returns None for comments/blank lines or a dict with keys: line, name, req, latest.
+    """
     s = line.strip()
     if not s or s.startswith("#"):
         return None
     try:
         req = Requirement(s)
-    except Exception:
-        # fallback: try to split on whitespace and take first token
+    except InvalidRequirement:
+        # fallback: try to extract bare package name from first token
         token = s.split()[0]
-        # strip common comparators and extras
         name = token.split("==")[0].split(">=")[0].split("~=")[0].split("<")[0].split(">")[0]
         latest = get_latest_version(name)
         return {"line": line, "name": name, "req": None, "latest": latest}
@@ -80,14 +96,11 @@ def analyze_line(line: str):
     return {"line": line, "name": req.name, "req": req, "latest": latest}
 
 
-def build_new_requirement(req_obj, latest: str) -> Optional[str]:
-    # req_obj may be a packaging.Requirement or None
-    if req_obj is None:
-        return None
+def build_new_requirement(req_obj: Requirement, latest: str) -> str:
     extras = ""
     if req_obj.extras:
         extras = "[" + ",".join(sorted(req_obj.extras)) + "]"
-    marker = f"; {req_obj.marker}" if getattr(req_obj, "marker", None) else ""
+    marker = f"; {str(req_obj.marker)}" if getattr(req_obj, "marker", None) else ""
     return f"{req_obj.name}{extras}=={latest}{marker}"
 
 
@@ -98,18 +111,131 @@ def confirm(prompt: str) -> bool:
         return False
 
 
+def write_atomic(path: Path, lines: List[str]) -> None:
+    """Write lines to file atomically by writing to a temporary file then replacing.
+
+    This reduces the risk of partial writes.
+    """
+    dirpath = path.parent
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=str(dirpath)) as tf:
+        tf.write("\n".join(lines) + "\n")
+        tmp = Path(tf.name)
+    os.replace(str(tmp), str(path))
+
+
+def make_backup(path: Path) -> Path:
+    ts = int(time.time())
+    bak = path.with_suffix(path.suffix + f".bak-{ts}")
+    # copy original file to backup path
+    copy2(str(path), str(bak))
+    return bak
+
+
 def update_file(path: Path, new_lines: List[str], backup: bool = False) -> None:
-    if backup:
-        bak = path.with_suffix(path.suffix + f".bak-{int(time.time())}")
-        # create a copy rather than move to keep original intact
-        path.replace(bak)
-        with path.open("w", encoding="utf-8") as fh:
-            fh.write("\n".join(new_lines) + "\n")
+    if backup and path.exists():
+        bak = make_backup(path)
+        write_atomic(path, new_lines)
         print_row(str(path), "UPDATED", f"backup={bak.name}")
     else:
-        with path.open("w", encoding="utf-8") as fh:
-            fh.write("\n".join(new_lines) + "\n")
+        write_atomic(path, new_lines)
         print_row(str(path), "UPDATED", "no-backup")
+
+
+def collect_targets(paths: List[str]) -> List[Path]:
+    if paths:
+        return [Path(p) for p in paths]
+    targets: List[Path] = []
+    for p in _REPO_ROOT.rglob("requirements.txt"):
+        targets.append(p)
+    # deduplicate while preserving order
+    seen = set()
+    dedup: List[Path] = []
+    for t in targets:
+        try:
+            tp = t.resolve()
+        except Exception:
+            tp = t
+        if tp not in seen:
+            dedup.append(t)
+            seen.add(tp)
+    return dedup
+
+
+def process_file(p: Path, args) -> Tuple[bool, bool]:
+    """Process a single requirements file.
+
+    Returns (any_updates_detected, file_written).
+    """
+    lines = parse_requirements(p)
+    if not lines:
+        print_row(str(p), "SKIPPED", "empty or missing")
+        return False, False
+    updates_for_file: List[Tuple[str, str]] = []
+    new_lines: List[str] = []
+    any_updates = False
+    for ln in lines:
+        info = analyze_line(ln)
+        if info is None:
+            new_lines.append(ln)
+            continue
+        name = info.get("name")
+        latest = info.get("latest")
+        req_obj = info.get("req")
+        if not latest:
+            print_row(f"{p.name}:{name}", "ERROR", "PyPI lookup failed")
+            new_lines.append(ln)
+            continue
+        old_spec = ""
+        try:
+            old_spec = str(req_obj.specifier) if req_obj else ""
+        except Exception:
+            old_spec = ""
+        if old_spec.startswith("=="):
+            pinned = old_spec.lstrip("==")
+            if pinned == latest:
+                print_row(f"{p.name}:{name}", "UP-TO-DATE", latest)
+                new_lines.append(ln)
+                continue
+            else:
+                print_row(f"{p.name}:{name}", "OUTDATED", f"{pinned} -> {latest}")
+                any_updates = True
+                new_req = build_new_requirement(req_obj, latest) if req_obj else ln
+                updates_for_file.append((ln, new_req))
+                new_lines.append(new_req)
+                continue
+        else:
+            print_row(f"{p.name}:{name}", "AVAILABLE", f"{old_spec or '(no spec)'} -> {latest}")
+            any_updates = True
+            if args.apply:
+                if req_obj is not None:
+                    new_req = build_new_requirement(req_obj, latest)
+                    updates_for_file.append((ln, new_req))
+                    new_lines.append(new_req)
+                else:
+                    new_lines.append(ln)
+            else:
+                new_lines.append(ln)
+
+    if args.apply and updates_for_file:
+        if not args.force:
+            print()
+            print(f"Proposed changes for {p}:")
+            for old, new in updates_for_file:
+                print(f"  - {old} --> {new}")
+            print()
+            if not confirm("Apply these changes? [y/N]: "):
+                print_row(str(p), "ABORTED", "user declined")
+                return any_updates, False
+        try:
+            update_file(p, new_lines, backup=args.backup)
+            return any_updates, True
+        except Exception as e:
+            print_row(str(p), "FAILED", str(e))
+            return any_updates, False
+    else:
+        if args.apply:
+            print_row(str(p), "NO-CHANGES", "No updates detected or nothing to apply")
+        return any_updates, False
 
 
 def parse_args() -> argparse.Namespace:
@@ -124,108 +250,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    targets: List[Path] = []
-    if args.paths:
-        for p in args.paths:
-            targets.append(Path(p))
-    else:
-        # discover all requirements.txt under the repo root
-        for p in _REPO_ROOT.rglob("requirements.txt"):
-            targets.append(p)
-        # deduplicate while preserving order
-        seen = set()
-        dedup: List[Path] = []
-        for t in targets:
-            try:
-                tp = t.resolve()
-            except Exception:
-                tp = t
-            if tp not in seen:
-                dedup.append(t)
-                seen.add(tp)
-        targets = dedup
-
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+    targets = collect_targets(args.paths)
     if not targets:
         print("No requirements files found or specified.")
         return 1
-
     print_table_header()
     any_updates = False
     for p in targets:
-        lines = parse_requirements(p)
-        if not lines:
-            print_row(str(p), "SKIPPED", "empty or missing")
-            continue
-        updates_for_file = []
-        new_lines: List[str] = []
-        for ln in lines:
-            info = analyze_line(ln)
-            if info is None:
-                new_lines.append(ln)
-                continue
-            name = info.get("name")
-            latest = info.get("latest")
-            req_obj = info.get("req")
-            if not latest:
-                print_row(f"{p.name}:{name}", "ERROR", "PyPI lookup failed")
-                new_lines.append(ln)
-                continue
-            # Decide whether update is needed
-            # If pinned == and matches, it's up-to-date
-            old_spec = ""
-            try:
-                old_spec = str(req_obj.specifier) if req_obj else ""
-            except Exception:
-                old_spec = ""
-
-            if old_spec.startswith("=="):
-                pinned = old_spec.lstrip("==")
-                if pinned == latest:
-                    print_row(f"{p.name}:{name}", "UP-TO-DATE", latest)
-                    new_lines.append(ln)
-                    continue
-                else:
-                    print_row(f"{p.name}:{name}", "OUTDATED", f"{pinned} -> {latest}")
-                    any_updates = True
-                    new_req = build_new_requirement(req_obj, latest) or ln
-                    updates_for_file.append((ln, new_req))
-                    new_lines.append(new_req)
-                    continue
-            else:
-                # any other specifier or no specifier -> report available and offer pin
-                print_row(f"{p.name}:{name}", "AVAILABLE", f"{old_spec or '(no spec)'} -> {latest}")
-                any_updates = True
-                if args.apply:
-                    # pin to latest
-                    if req_obj is not None:
-                        new_req = build_new_requirement(req_obj, latest) or ln
-                        updates_for_file.append((ln, new_req))
-                        new_lines.append(new_req)
-                    else:
-                        # fallback
-                        new_lines.append(ln)
-                else:
-                    new_lines.append(ln)
-
-        if args.apply and updates_for_file:
-            if not args.force:
-                print()
-                print(f"Proposed changes for {p}:")
-                for old, new in updates_for_file:
-                    print(f"  - {old} --> {new}")
-                print()
-                if not confirm("Apply these changes? [y/N]: "):
-                    print_row(str(p), "ABORTED", "user declined")
-                    continue
-            # write file with optional backup
-            try:
-                update_file(p, new_lines, backup=args.backup)
-            except Exception as e:
-                print_row(str(p), "FAILED", str(e))
-        else:
-            if args.apply:
-                print_row(str(p), "NO-CHANGES", "No updates detected or nothing to apply")
-
+        detected, written = process_file(p, args)
+        any_updates = any_updates or detected
     if not any_updates:
         print('\nNo updates detected for checked requirements.')
     else:
