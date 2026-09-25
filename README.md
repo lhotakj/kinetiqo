@@ -745,7 +745,7 @@ build/
 | PostgreSQL driver | psycopg2-binary | 2.9.13 |
 | MySQL driver | mysql-connector-python | 9.7.0 |
 | Firebird driver | firebird-driver | 2.0.3 |
-| Image processing | Pillow | ≥12.3.0 |
+| Image processing | Pillow / pillow-heif | ≥12.3.0 / ≥1.7.0 |
 | Browser automation | Playwright | ≥1.63.0 |
 | Frontend CSS | Tailwind CSS | Local build (Tailwind CLI 4.3.3) |
 | Reactivity | HTMX + htmx-ext-sse | 2.0.10 (local vendor file) / 2.2.2 |

@@ -11,6 +11,7 @@ threshold) are highlighted as best moments, e.g.
 "Endurance | 90min @ 180W + 3x surges 1-2min @360-400W".
 """
 
+import random
 from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
@@ -25,6 +26,24 @@ DEFAULT_PEAK_THRESHOLD_W = 300.0
 PEAK_MIN_DURATION_S = 60  # a peak must last at least 1 minute
 PEAK_MERGE_GAP_S = 20  # sub-threshold drops shorter than this don't split a peak
 PEAK_MAX_SHOWN = 3  # at most this many peaks are highlighted
+
+# ---------------------------------------------------------------------------
+# Sprint Peak Highlight Constants & Texts (>1000W)
+# ---------------------------------------------------------------------------
+# Highlights high-power sprint peaks (>= 1000W) as part of Strava description /
+# workout summary (e.g. "with an impressive 5 sec peak 1050W").
+# Configurable tiers, adjectives, and text template in one place.
+# ---------------------------------------------------------------------------
+SPRINT_PEAK_MIN_THRESHOLD_W = 1000.0
+
+SPRINT_PEAK_TEXT_CONFIG = [
+    # (watts_threshold, [adjectives])
+    (1700.0, ["monumental", "breathtaking", "jaw-dropping", "extraordinary"]),
+    (1500.0, ["remarkable", "mind-blowing", "extraordinary"]),
+    (1000.0, ["impressive", "striking", "respectable"]),
+]
+
+SPRINT_PEAK_TEMPLATE = "with {article} {adjective} {duration_s} sec peak {watts}W"
 
 
 def calculate_normalized_power(watts_stream: List[float]) -> float:
@@ -268,6 +287,112 @@ def format_peaks_highlight(peaks: List[Dict[str, Any]], max_shown: int = PEAK_MA
     return f" + {count_str} surges {dur_str} @{w_str}"
 
 
+def _detect_sprint_peak(
+    watts_stream: Optional[List[float]] = None,
+    activity: Optional[Dict[str, Any]] = None,
+    min_threshold_w: float = SPRINT_PEAK_MIN_THRESHOLD_W,
+) -> Optional[Dict[str, Any]]:
+    """Detect the top high-power sprint peak (>= min_threshold_w) from watts stream or activity metadata.
+
+    Returns a dict with 'duration_s', 'avg_w', 'max_w', 'tier_w' or None if no sprint
+    peak >= min_threshold_w is found.
+    """
+    if watts_stream and any((w or 0.0) >= min_threshold_w for w in watts_stream):
+        segments = []
+        i = 0
+        n = len(watts_stream)
+        while i < n:
+            if (watts_stream[i] or 0.0) >= min_threshold_w:
+                start_i = i
+                last_high_i = i
+                i += 1
+                while i < n:
+                    w = watts_stream[i] or 0.0
+                    if w >= min_threshold_w:
+                        last_high_i = i
+                        i += 1
+                    elif i + 1 < n and (watts_stream[i + 1] or 0.0) >= min_threshold_w:
+                        # 1s dropout inside sprint, skip 1 sample
+                        i += 1
+                    else:
+                        break
+                end_i = last_high_i + 1
+                if end_i > start_i:
+                    segments.append((start_i, end_i))
+            else:
+                i += 1
+
+        if segments:
+            sprint_peaks = []
+            for start_i, end_i in segments:
+                seg_watts = [watts_stream[j] or 0.0 for j in range(start_i, end_i)]
+                duration_s = max(1, len(seg_watts))
+                avg_w = sum(seg_watts) / duration_s
+                max_w = max(seg_watts)
+                sprint_peaks.append({
+                    "duration_s": duration_s,
+                    "avg_w": avg_w,
+                    "max_w": max_w,
+                    "tier_w": max(max_w, avg_w),
+                    "start_i": start_i,
+                    "end_i": end_i,
+                })
+            sprint_peaks.sort(key=lambda p: (p["max_w"], p["avg_w"]), reverse=True)
+            return sprint_peaks[0]
+
+    if activity:
+        max_w = float(activity.get("max_watts") or activity.get("max_power") or 0)
+        if max_w >= min_threshold_w:
+            return {
+                "duration_s": 1,
+                "avg_w": max_w,
+                "max_w": max_w,
+                "tier_w": max_w,
+            }
+
+    return None
+
+
+def format_sprint_peak_highlight(sprint_peak: Optional[Dict[str, Any]]) -> str:
+    """Format a sprint peak (>= 1000W) into a highlight string using SPRINT_PEAK_TEXT_CONFIG.
+
+    Chooses a random adjective based on the peak power tier (1700W+, 1500W+, 1000W+).
+    Uses proper article ("a" vs "an") based on the selected adjective.
+
+    Example:
+        "with an impressive 5 sec peak 1050W"
+        "with a mind-blowing 3 sec peak 1580W"
+        "with a jaw-dropping 5 sec peak 1720W"
+    """
+    if not sprint_peak:
+        return ""
+
+    power_w = sprint_peak.get("tier_w", sprint_peak.get("max_w", 0.0))
+    if power_w < SPRINT_PEAK_MIN_THRESHOLD_W:
+        return ""
+
+    selected_adjectives = None
+    for thresh, adjectives in SPRINT_PEAK_TEXT_CONFIG:
+        if power_w >= thresh:
+            selected_adjectives = adjectives
+            break
+
+    if not selected_adjectives:
+        return ""
+
+    adjective = random.choice(selected_adjectives)
+    article = "an" if adjective[0].lower() in "aeiou" else "a"
+    duration_s = sprint_peak["duration_s"]
+    watts = round(sprint_peak["avg_w"]) if sprint_peak["duration_s"] > 1 else round(sprint_peak["max_w"])
+
+    return SPRINT_PEAK_TEMPLATE.format(
+        article=article,
+        adjective=adjective,
+        duration_s=duration_s,
+        watts=watts,
+    )
+
+
 def generate_workout_summary(
     activity: Dict[str, Any],
     watts_stream: Optional[List[float]] = None,
@@ -284,7 +409,8 @@ def generate_workout_summary(
     "Endurance | 49min @ 150W + peak 2min @360-400W" (see
     :func:`format_peaks_highlight`); the effective peak threshold is the
     higher of *peak_threshold_w* (default :data:`DEFAULT_PEAK_THRESHOLD_W`)
-    and 110% of FTP.
+    and 110% of FTP. If peaks >= 1000W are present, appends a sprint peak
+    highlight (e.g. "with an impressive 5 sec peak 1050W").
 
     If power data is NOT available, falls back to HR & moving_time summary:
         "Endurance | About 2h30m aerobic riding @ 125bpm average HR"
@@ -330,6 +456,10 @@ def generate_workout_summary(
             )]
         peaks_part = format_peaks_highlight(peaks)
 
+        # Detect high-power sprint peaks (>= 1000W)
+        sprint_peak = _detect_sprint_peak(watts_stream=watts_stream, activity=activity)
+        sprint_part = format_sprint_peak_highlight(sprint_peak)
+
         # If short explosive surges (>120% FTP) dominate intervals, promote to
         # Anaerobic or VO2max. When high-watt peaks were detected they already
         # highlight the intensity as best moments, so the ride category is
@@ -366,15 +496,20 @@ def generate_workout_summary(
             pct_range_str = f"{min_pct}%" if min_pct == max_pct else f"{min_pct}-{max_pct}%"
 
             structure_part = f", with {dur_range_str} blocks @ {w_range_str} ({pct_range_str})"
-            return f"{category} | {base_part}{structure_part}{peaks_part}"
+            summary_str = f"{category} | {base_part}{structure_part}{peaks_part}"
         elif peaks:
-            return f"{category} | {base_part}{peaks_part}"
+            summary_str = f"{category} | {base_part}{peaks_part}"
         elif short_surges:
             surge = short_surges[0]
             surge_str = f" + {surge['duration_min']}min @ {surge['avg_w']}W"
-            return f"{category} | {base_part}{surge_str}"
+            summary_str = f"{category} | {base_part}{surge_str}"
         else:
-            return f"{category} | {base_part}"
+            summary_str = f"{category} | {base_part}"
+
+        if sprint_part:
+            summary_str = f"{summary_str} {sprint_part}"
+
+        return summary_str
 
     # 2. Heart Rate fallback (Garmin HR Zone & EPOC methodology)
     if avg_hr > 0 or moving_time > 0:

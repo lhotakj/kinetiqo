@@ -10,6 +10,7 @@ mysql-connector-python==26.7.0
 packaging==26.3
 pandas==3.0.6
 Pillow==12.3.0
+pillow-heif==1.7.0
 playwright==1.63.0
 psycopg2-binary==2.9.13
 python-dateutil==2.9.0.post0

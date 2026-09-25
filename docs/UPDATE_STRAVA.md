@@ -146,6 +146,15 @@ than 20 seconds don't split a peak, and peaks shorter than 1 minute are
 never highlighted. Peaks fully contained in an already-reported sustained
 block are not repeated.
 
+In addition, when an activity contains high-power sprint peaks (**≥1000W**),
+the summary appends a sprint highlight suffix (e.g. `with an impressive 5 sec peak 1050W`,
+`with a mind-blowing 3 sec peak 1580W`, or `with a jaw-dropping 5 sec peak 1720W`).
+Adjectives are randomly chosen from configurable power tiers defined in `kinetiqo.workout_summary`
+(`SPRINT_PEAK_TEXT_CONFIG`):
+- **1000W+**: *impressive*, *striking*, *respectable*
+- **1500W+**: *remarkable*, *mind-blowing*, *extraordinary*
+- **1700W+**: *monumental*, *breathtaking*, *jaw-dropping*, *extraordinary*
+
 ## Metric reference
 
 | Metric | Unit | Meaning |

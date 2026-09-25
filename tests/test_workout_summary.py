@@ -142,6 +142,60 @@ class TestWorkoutSummary(unittest.TestCase):
         self.assertNotIn("663", res)
         self.assertIn("@349-370W", res)
 
+    def test_sprint_peak_highlight_1000w_tier(self):
+        """A sprint peak over 1000W (e.g. 1050W) uses 1000W tier adjectives (impressive, striking, respectable)."""
+        activity = {"moving_time": 3600, "average_watts": 180.0}
+        watts_stream = [180.0] * 3600
+        for i in range(600, 605):
+            watts_stream[i] = 1050.0
+
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertIn("5 sec peak 1050W", res)
+        self.assertTrue(any(word in res for word in ["impressive", "striking", "respectable"]))
+
+    def test_sprint_peak_highlight_1500w_tier(self):
+        """A sprint peak over 1500W (e.g. 1580W) uses 1500W tier adjectives (remarkable, mind-blowing, extraordinary)."""
+        activity = {"moving_time": 3600, "average_watts": 180.0}
+        watts_stream = [180.0] * 3600
+        for i in range(600, 603):
+            watts_stream[i] = 1580.0
+
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertIn("3 sec peak 1580W", res)
+        self.assertTrue(any(word in res for word in ["remarkable", "mind-blowing", "extraordinary"]))
+
+    def test_sprint_peak_highlight_1700w_tier(self):
+        """A sprint peak over 1700W (e.g. 1750W) uses 1700W tier adjectives (monumental, breathtaking, jaw-dropping, extraordinary)."""
+        activity = {"moving_time": 3600, "average_watts": 180.0}
+        watts_stream = [180.0] * 3600
+        for i in range(600, 605):
+            watts_stream[i] = 1750.0
+
+        res = generate_workout_summary(activity, watts_stream=watts_stream, ftp=280.0)
+        self.assertIn("5 sec peak 1750W", res)
+        self.assertTrue(any(word in res for word in ["monumental", "breathtaking", "jaw-dropping", "extraordinary"]))
+
+    def test_sprint_peak_metadata_fallback(self):
+        """When watts_stream is not available, max_watts >= 1000 in activity metadata highlights 1 sec peak."""
+        activity = {"moving_time": 3600, "average_watts": 180.0, "max_watts": 1100.0}
+        res = generate_workout_summary(activity, watts_stream=None, ftp=280.0)
+        self.assertIn("1 sec peak 1100W", res)
+
+    def test_sprint_peak_grammar_article(self):
+        """Article selection matches vowel ('an') vs consonant ('a') initial adjectives."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        peak_extraordinary = {"duration_s": 5, "avg_w": 1550.0, "max_w": 1550.0, "tier_w": 1550.0}
+
+        # Test multiple random samples, checking that 'an extraordinary' or 'a mind-blowing' or 'a remarkable' is valid
+        for _ in range(30):
+            formatted = format_sprint_peak_highlight(peak_extraordinary)
+            if "extraordinary" in formatted:
+                self.assertIn("with an extraordinary", formatted)
+            elif "mind-blowing" in formatted:
+                self.assertIn("with a mind-blowing", formatted)
+            elif "remarkable" in formatted:
+                self.assertIn("with a remarkable", formatted)
+
 
 if __name__ == "__main__":
     unittest.main()

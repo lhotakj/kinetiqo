@@ -60,7 +60,7 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
 | Data Processing | **pandas** | 3.0.5 | CTL/ATL/TSB calculation |
 | Browser Automation | **Playwright** | ≥1.63.0 | PNG poster and infographic rendering |
-| Image Processing | **Pillow** | ≥12.3.0 | Poster and image processing |
+| Image Processing | **Pillow** / **pillow-heif** | ≥12.3.0 / ≥1.7.0 | Poster and image processing (HEIC/HEIF support) |
 | Date Parsing | **python-dateutil** | ≥2.9.0.post0 | Date parsing utilities |
 | Versioning | **packaging** | ≥26.3 | SemVer comparisons |
 
