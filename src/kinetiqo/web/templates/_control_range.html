@@ -1,6 +1,7 @@
-<div class="control-row">
+<div class="control-row {{ extra_class|default('') }}">
     <label for="{{ control_id }}">{{ label }}</label>
     <input type="range" id="{{ control_id }}" min="{{ min_val|default(0) }}" max="{{ max_val|default(100) }}" value="{{ value|default(100) }}"
-        class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer">
-    <span id="{{ value_id|default(control_id ~ '-val') }}" class="text-xs w-8 text-gray-600 dark:text-gray-400">{{ value|default(100) }}{{ suffix|default('%') }}</span>
+        class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
+        aria-label="{{ label }}">
+    <span id="{{ value_id|default(control_id ~ '-val') }}" class="text-xs {{ span_width|default('w-10') }} text-right text-gray-600 dark:text-gray-400">{{ value|default(100) }}{{ suffix|default('%') }}</span>
 </div>

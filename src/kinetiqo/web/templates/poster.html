@@ -266,25 +266,63 @@
     }
 
     .control-box {
+        background: #ffffff;
         border: 1px solid #e5e7eb;
         border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+
+    .dark .control-box {
+        background: #18181b;
+        border-color: #27272a;
     }
 
     .control-box h4 {
         font-weight: 600;
         margin-bottom: 0;
         font-size: 0.875rem;
+        color: #374151;
+    }
+
+    .dark .control-box h4 {
+        color: #d1d5db;
     }
 
     .control-box-header {
+        padding: 10px 14px;
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
         cursor: pointer;
         user-select: none;
-        margin-bottom: 8px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .dark .control-box-header {
+        background: #202023;
+        border-color: #27272a;
+    }
+
+    .control-box-header.collapsed {
+        border-bottom: none;
+    }
+
+    .control-box-body {
+        padding: 14px;
+    }
+
+    .control-box-body.collapsed {
+        display: none !important;
+    }
+
+    .collapse-toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px;
+        color: #71717a;
     }
 
     .control-box-header .chevron-icon {
@@ -295,10 +333,6 @@
 
     .control-box-header.collapsed .chevron-icon {
         transform: rotate(-90deg);
-    }
-
-    .control-box-body.collapsed {
-        display: none !important;
     }
 
     .control-row {

@@ -1,0 +1,57 @@
+{% set _box_id = box_id|default('statsAppearance') %}
+{% set _box_title = box_title|default('Appearance') %}
+{% set _prefix = prefix|default('stats') %}
+{% set _bg_id = bg_id|default(_prefix ~ '-bg') %}
+{% set _group_id = group_id|default(_prefix ~ '-group') %}
+{% set _tint_id = tint_id|default(_prefix ~ '-tint') %}
+{% set _tint_clear_id = tint_clear_id|default(_tint_id ~ '-clear-btn') %}
+{% set _tint_val_id = tint_val_id|default(_tint_id ~ '-val') %}
+{% set _opacity_id = opacity_id|default(_prefix ~ '-opacity') %}
+{% set _opacity_val_id = opacity_val_id|default(_opacity_id ~ '-val') %}
+{% set _font_id = font_id|default(_prefix ~ '-font') %}
+{% set _upload_id = upload_id|default(_prefix ~ '-upload-input') %}
+{% set _clear_id = clear_id|default(_prefix ~ '-clear-image-btn') %}
+
+<div class="control-box">
+    {% with box_id=_box_id, box_title=_box_title %}
+    {% include "_control_box_header.html" %}
+    {% endwith %}
+    <div class="control-box-body">
+        <div class="control-row">
+            <label for="{{ _bg_id }}">Background</label>
+            <div class="flex justify-end flex-1">
+                <input type="color" id="{{ _bg_id }}" value="{{ default_bg|default('#4a4a4a') }}"
+                    class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
+            </div>
+        </div>
+        <div class="control-row">
+            <label for="{{ _group_id }}">Activities</label>
+            <select id="{{ _group_id }}"
+                class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                {% for key, grp in activity_groups.items() %}
+                <option value="{{ key }}" {% if key == default_group|default('cycling') %}selected{% endif %}>{{ grp.icon }} {{ grp.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% with control_id=_tint_id, label='Tint', clear_btn_id=_tint_clear_id,
+        value_id=_tint_val_id, value='#000000', value_text='None' %}
+        {% include "_control_color_tint.html" %}
+        {% endwith %}
+        {% with control_id=_opacity_id, label='Opacity', min_val=0, max_val=100, value=default_opacity|default(40),
+        value_id=_opacity_val_id %}
+        {% include "_control_range.html" %}
+        {% endwith %}
+        {% set font_control_id = _font_id %}
+        {% set font_label = 'Font:' %}
+        {% include "_font_select.html" %}
+        <div class="flex gap-2 mt-3 flex-wrap">
+            {% set upload_input_id = _upload_id %}
+            {% set upload_button_id = _prefix ~ '-upload-btn' %}
+            {% set upload_spinner_id = _prefix ~ '-upload-spinner' %}
+            {% set upload_text_id = _prefix ~ '-upload-text' %}
+            {% set clear_button_id = _clear_id %}
+            {% set clear_label = 'Reset' %}
+            {% include "_image_upload_buttons.html" %}
+        </div>
+    </div>
+</div>

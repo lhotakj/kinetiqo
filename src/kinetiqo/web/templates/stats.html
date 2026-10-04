@@ -358,16 +358,18 @@
         pointer-events: none;
     }
 
-    /* ---- Control panel (matching poster.html style) ---- */
+    /* ---- Control panel (matching modern styled control box) ---- */
     .control-box {
+        background: #ffffff;
         border: 1px solid #e5e7eb;
         border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
+        overflow: hidden;
     }
 
     .dark .control-box {
-        border-color: #374151;
+        background: #18181b;
+        border-color: #27272a;
     }
 
     .control-box h4 {
@@ -382,16 +384,39 @@
     }
 
     .control-box-header {
+        padding: 10px 14px;
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
         cursor: pointer;
         user-select: none;
-        margin-bottom: 8px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .dark .control-box-header {
+        background: #202023;
+        border-color: #27272a;
     }
 
     .control-box-header.collapsed {
-        margin-bottom: 0;
+        border-bottom: none;
+    }
+
+    .control-box-body {
+        padding: 14px;
+    }
+
+    .control-box-body.collapsed {
+        display: none !important;
+    }
+
+    .collapse-toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px;
+        color: #71717a;
     }
 
     .control-box-header .chevron-icon {
@@ -404,22 +429,27 @@
         transform: rotate(-90deg);
     }
 
-    .control-box-body.collapsed {
-        display: none !important;
-    }
-
     .control-row {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 6px;
+        margin-bottom: 10px;
+    }
+
+    .control-row:last-child {
+        margin-bottom: 0;
     }
 
     .control-row>label {
         font-size: 0.75rem;
+        font-weight: 500;
         min-width: 72px;
         color: #6b7280;
         flex-shrink: 0;
+    }
+
+    .dark .control-row>label {
+        color: #9ca3af;
     }
 
     .control-row.flex-col {
@@ -429,6 +459,7 @@
     .control-row.flex-col>label {
         min-width: auto;
         text-align: left;
+        margin-bottom: 4px;
     }
 
     /* ---- Preview scaler ---- */
@@ -474,116 +505,22 @@
     <div class="w-full lg:w-72 flex-shrink-0">
 
         <!-- Action Buttons -->
-        <div class="flex gap-2 mb-4 flex-wrap">
-            <button id="btn-download-png"
-                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition inline-flex items-center"
-                title="Download as PNG image">
-                <!-- PNG icon (stroke-only, inherits currentColor) -->
-                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-                    aria-hidden="true">
-                    <path
-                        d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z"
-                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                    <path
-                        d="M6.5 17V15.5M6.5 15.5V13L7.25 13C7.94036 13 8.5 13.5596 8.5 14.25V14.25C8.5 14.9404 7.94036 15.5 7.25 15.5H6.5Z"
-                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    <path
-                        d="M17 13H16C15.4477 13 15 13.4477 15 14V16C15 16.5523 15.4477 17 16 17H16.5C17.0523 17 17.5 16.5523 17.5 16V15.5"
-                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M17 15.5H17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                    <path d="M10.5 17V13L13 17V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                </svg>
-                <span>PNG</span>
-            </button>
-
-            <button id="btn-download-pdf"
-                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition inline-flex items-center"
-                title="Download as PDF">
-                <!-- PDF icon (stroke-only, inherits currentColor) -->
-                <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-                    aria-hidden="true">
-                    <path
-                        d="M4 4C4 3.44772 4.44772 3 5 3H14H14.5858C14.851 3 15.1054 3.10536 15.2929 3.29289L19.7071 7.70711C19.8946 7.89464 20 8.149 20 8.41421V20C20 20.5523 19.5523 21 19 21H5C4.44772 21 4 20.5523 4 20V4Z"
-                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M20 8H15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                    <path d="M11.5 13H11V17H11.5C12.6046 17 13.5 16.1046 13.5 15C13.5 13.8954 12.6046 13 11.5 13Z"
-                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M15.5 17V13L17.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                    <path d="M16 15H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                    <path
-                        d="M7 17L7 15.5M7 15.5L7 13L7.75 13C8.44036 13 9 13.5596 9 14.25V14.25C9 14.9404 8.44036 15.5 7.75 15.5H7Z"
-                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <span>PDF</span>
-            </button>
-        </div>
+        {% include "_infographic_action_buttons.html" %}
 
         <!-- Mega Stats Size -->
-        <div class="control-box">
-            <div class="control-box-header" data-box-id="statsSize">
-                <h4 class="text-gray-900 dark:text-gray-100">Mega Stats Size</h4>
-                <button type="button"
-                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
-                    aria-label="Toggle Mega Stats Size section">
-                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
-                        </path>
-                    </svg>
-                </button>
-            </div>
-            <div class="control-box-body">
-                <div class="control-row">
-                    <label for="stats-size">Width</label>
-                    <select id="stats-size"
-                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                        <option value="1280">M (width 1280px)</option>
-                        <option value="1440">L (width 1440px)</option>
-                        <option value="1600">XL (width 1600px)</option>
-                        <option value="1920">XXL (width 1920px)</option>
-                        <option value="2048">XXXL (width 2048px)</option>
-                    </select>
-                </div>
-                <div class="control-row">
-                    <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">Ratio</span>
-                    <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">4:3 (fixed)</span>
-                </div>
-                <div class="control-row">
-                    <label for="stats-dimensions">Dimensions</label>
-                    <span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">— × —</span>
-                </div>
-            </div>
-        </div>
+        {% with box_id='statsSize', box_title='Mega Stats Size', size_control_id='stats-size', dimensions_id='stats-dimensions' %}
+        {% include "_infographic_size_box.html" %}
+        {% endwith %}
 
         <!-- Period -->
         <div class="control-box">
-            <div class="control-box-header" data-box-id="statsPeriod">
-                <h4 class="text-gray-900 dark:text-gray-100">Period</h4>
-                <button type="button"
-                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
-                    aria-label="Toggle Period section">
-                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
-                        </path>
-                    </svg>
-                </button>
-            </div>
+            {% with box_id='statsPeriod', box_title='Period' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
             <div class="control-box-body">
-                <div class="control-row">
-                    <label for="stats-year">Year</label>
-                    <select id="stats-year"
-                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                        {% for y in range(current_year, min_year - 1, -1) %}
-                        <option value="{{ y }}" {% if y==current_year %}selected{% endif %}>{{ y }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                {% with control_id='stats-year', label='Year' %}
+                {% include "_control_year_select.html" %}
+                {% endwith %}
                 <div class="control-row">
                     <label for="stats-period">Period</label>
                     <select id="stats-period"
@@ -601,81 +538,22 @@
         </div>
 
         <!-- Appearance -->
-        <div class="control-box">
-            <div class="control-box-header" data-box-id="statsAppearance">
-                <h4 class="text-gray-900 dark:text-gray-100">Appearance</h4>
-                <button type="button"
-                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
-                    aria-label="Toggle Appearance section">
-                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
-                        </path>
-                    </svg>
-                </button>
-            </div>
-            <div class="control-box-body">
-                <div class="control-row">
-                    <label for="stats-bg">Background</label>
-                    <input type="color" id="stats-bg" value="#4a4a4a"
-                        class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
-                </div>
-                <div class="control-row">
-                    <label for="stats-group">Activities</label>
-                    <select id="stats-group"
-                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
-                        {% for key, grp in activity_groups.items() %}
-                        <option value="{{ key }}" {% if key=='cycling' %}selected{% endif %}>{{ grp.icon }} {{ grp.name
-                            }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% with control_id='stats-tint', label='Tint', clear_btn_id='stats-tint-clear-btn',
-                value_id='stats-tint-val', value='#000000', value_text='None' %}
-                {% include "_control_color_tint.html" %}
-                {% endwith %}
-                {% with control_id='stats-opacity', label='Opacity', min_val=0, max_val=100, value=40,
-                value_id='stats-opacity-val' %}
-                {% include "_control_range.html" %}
-                {% endwith %}
-                {% set font_control_id = 'stats-font' %}
-                {% set font_label = 'Font:' %}
-                {% include "_font_select.html" %}
-                <div class="flex gap-2 mt-3 flex-wrap">
-                    {% set upload_input_id = 'stats-upload-input' %}
-                    {% set clear_button_id = 'stats-clear-image-btn' %}
-                    {% set clear_label = 'Reset' %}
-                    {% include "_image_upload_buttons.html" %}
-                </div>
-            </div>
-        </div>
+        {% with box_id='statsAppearance', prefix='stats' %}
+        {% include "_infographic_appearance_box.html" %}
+        {% endwith %}
 
         <!-- Stats Options -->
         <div class="control-box">
-            <div class="control-box-header" data-box-id="statsOptions">
-                <h4 class="text-gray-900 dark:text-gray-100">Stats Options</h4>
-                <button type="button"
-                    class="collapse-toggle-btn text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 p-0.5 focus:outline-none"
-                    aria-label="Toggle Stats Options section">
-                    <svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
-                        </path>
-                    </svg>
-                </button>
-            </div>
+            {% with box_id='statsOptions', box_title='Stats Options' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
             <div class="control-box-body">
-                <div class="control-row mb-3">
-                    <label for="stats-title-font-size">Title Size</label>
-                    <input type="range" id="stats-title-font-size" min="16" max="64" value="24"
-                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                    <span id="stats-title-font-size-val" class="text-xs w-8">24px</span>
-                </div>
-                <div class="control-row mb-3">
-                    <label for="stats-column-width">Column Width</label>
-                    <input type="range" id="stats-column-width" min="20" max="50" value="20"
-                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                    <span id="stats-column-width-val" class="text-xs w-10">20%</span>
-                </div>
+                {% with control_id='stats-title-font-size', label='Title Size', min_val=16, max_val=64, value=24, suffix='px', extra_class='mb-3' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='stats-column-width', label='Column Width', min_val=20, max_val=50, value=20, suffix='%', extra_class='mb-3', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
                 <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                     <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2.5">Visible Stats</div>
                     <div class="grid grid-cols-2 gap-x-3 gap-y-2.5">

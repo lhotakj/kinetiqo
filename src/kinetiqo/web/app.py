@@ -62,6 +62,9 @@ from kinetiqo.web.vo2max import (
 from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
+from kinetiqo.web.fondo_o_meter import compute_fondo_o_meter, compute_achievements
+
+
 
 """Web UI for the Kinetiqo application.
 
@@ -2170,6 +2173,108 @@ def stats_data_api():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/fondo-o-meter', methods=['GET'])
+@app.route('/fondoometer', methods=['GET'])
+@app.route('/achievements', methods=['GET'])
+@login_required
+def fondo_o_meter():
+    """Render the Fondo-o-meter infographic page.
+
+    Displays a dynamic showcase of Fondo distance tiers, KOMs, and PRs.
+    """
+    min_year = datetime.now().year
+    try:
+        repo = get_db()
+        oldest = repo.get_activities_web(limit=1, sort_by='start_date', sort_order='ASC')
+        if oldest:
+            from kinetiqo.web.stats import parse_activity_date
+            d = parse_activity_date(oldest[0].get('start_date'))
+            if d:
+                min_year = d.year
+    except Exception as e:
+        logger.warning(f"Could not determine earliest activity year for Fondo-o-meter: {e}")
+
+    current_year = datetime.now().year
+    athlete_name = ''
+    try:
+        profile = get_db().get_profile()
+        if profile:
+            first = profile.get('first_name', '') or ''
+            last = profile.get('last_name', '') or ''
+            athlete_name = f"{first} {last}".strip()
+    except Exception:
+        pass
+
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    has_bg_image = (cache_dir / 'fondo_o_meter_bg.png').exists() or (cache_dir / 'achievements_bg.png').exists()
+
+    return render_template(
+        'fondo-o-meter.html',
+        title="Fondo-o-meter",
+        min_year=min_year,
+        current_year=current_year,
+        athlete_name=athlete_name,
+        activity_groups=ACTIVITY_GROUPS,
+        has_bg_image=has_bg_image,
+    )
+
+
+# Backwards compatibility view function alias
+achievements = fondo_o_meter
+
+
+@app.route('/api/fondo_o_meter_data', methods=['GET'])
+@app.route('/api/fondo-o-meter-data', methods=['GET'])
+@app.route('/api/achievements_data', methods=['GET'])
+@login_required
+def fondo_o_meter_data_api():
+    """Return computed Fondo-o-meter data as JSON for the infographic."""
+    try:
+        year = request.args.get('year', default=datetime.now().year, type=int)
+        group = request.args.get('group', 'cycling')
+
+        group_info = ACTIVITY_GROUPS.get(group)
+        if not group_info:
+            return jsonify({'error': f'Unknown activity group: {group}'}), 400
+
+        types = group_info['types']
+        repo = get_db()
+
+        start_date_str = f'{year}-01-01'
+        end_date_str = f'{year}-12-31'
+
+        activities = repo.get_activities_web(
+            limit=100000,
+            sort_by='start_date',
+            sort_order='ASC',
+            types=types,
+            start_date=start_date_str,
+            end_date=end_date_str,
+        )
+
+        data = compute_fondo_o_meter(activities, year, group)
+
+        athlete_name = ''
+        try:
+            profile = repo.get_profile()
+            if profile:
+                first = profile.get('first_name', '') or ''
+                last = profile.get('last_name', '') or ''
+                athlete_name = f"{first} {last}".strip()
+        except Exception:
+            pass
+        data['athlete_name'] = athlete_name
+
+        return jsonify(data)
+    except Exception as e:
+        logger.exception(f"Error computing Fondo-o-meter data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# Backwards compatibility API function alias
+achievements_data_api = fondo_o_meter_data_api
+
+
 def _format_stats_date(date_value):
     """Format a stats date using the shared configured date format."""
     if not date_value:
@@ -3254,6 +3359,109 @@ def stats_photo_reset():
     return jsonify({'status': 'cleared'})
 
 
+@app.route('/api/fondo_o_meter/upload', methods=['POST'])
+@app.route('/api/fondo-o-meter/upload', methods=['POST'])
+@app.route('/api/achievements/upload', methods=['POST'])
+@login_required
+def fondo_o_meter_photo_upload():
+    """Upload and store a custom background image for Fondo-o-meter."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cache_dir.mkdir(exist_ok=True)
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    filename = file.filename.lower() if file.filename else ''
+    allowed = ('.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif')
+    if not any(filename.endswith(ext) for ext in allowed):
+        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, WEBP, HEIC'}), 400
+
+    try:
+        raw = file.read()
+        if not raw:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
+        if filename.endswith(('.heic', '.heif')):
+            try:
+                pillow_heif = importlib.import_module('pillow_heif')
+                pillow_heif.register_heif_opener()
+            except (ImportError, ModuleNotFoundError):
+                return jsonify({'error': 'HEIC support not available (pillow-heif not installed)'}), 500
+        from PIL import ImageOps
+        img = Image.open(io.BytesIO(raw))
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        else:
+            img = img.convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', compress_level=1)
+        png_data = buf.getvalue()
+        cached = cache_dir / "fondo_o_meter_bg.png"
+        cached.write_bytes(png_data)
+        # Also write legacy achievements_bg.png for backwards compat
+        (cache_dir / "achievements_bg.png").write_bytes(png_data)
+        return Response(png_data, mimetype=PNG_MIMETYPE)
+    except Exception as e:
+        logger.exception(f"Failed to process uploaded image for Fondo-o-meter: {e}")
+        return jsonify({'error': f'Failed to process image: {e}'}), 500
+
+
+# Backwards compatibility alias
+achievements_photo_upload = fondo_o_meter_photo_upload
+
+
+@app.route('/api/fondo_o_meter/image', methods=['GET'])
+@app.route('/api/fondo-o-meter/image', methods=['GET'])
+@app.route('/api/achievements/image', methods=['GET'])
+@login_required
+def fondo_o_meter_photo_get():
+    """Serve the custom background image for Fondo-o-meter if one exists."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    cached = cache_dir / "fondo_o_meter_bg.png"
+    if not cached.exists():
+        cached = cache_dir / "achievements_bg.png"
+    if cached.exists():
+        return Response(cached.read_bytes(), mimetype=PNG_MIMETYPE)
+    return jsonify({'error': 'No background image found'}), 404
+
+
+# Backwards compatibility alias
+achievements_photo_get = fondo_o_meter_photo_get
+
+
+@app.route('/api/fondo_o_meter/image/reset', methods=['POST'])
+@app.route('/api/fondo_o_meter/image', methods=['DELETE'])
+@app.route('/api/fondo-o-meter/image/reset', methods=['POST'])
+@app.route('/api/fondo-o-meter/image', methods=['DELETE'])
+@app.route('/api/achievements/image/reset', methods=['POST'])
+@app.route('/api/achievements/image', methods=['DELETE'])
+@login_required
+def fondo_o_meter_photo_reset():
+    """Remove any stored custom background image for Fondo-o-meter."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'posters-cache'
+    for name in ["fondo_o_meter_bg.png", "achievements_bg.png"]:
+        cached = cache_dir / name
+        if cached.exists():
+            try:
+                cached.unlink()
+            except Exception as e:
+                logger.warning(f"Could not delete cached {name}: {e}")
+    return jsonify({'status': 'cleared'})
+
+
+# Backwards compatibility alias
+achievements_photo_reset = fondo_o_meter_photo_reset
+
+
+
 @app.route('/api/poster/export/<activity_id>', methods=['POST'])
 @login_required
 def poster_export(activity_id):
@@ -3758,7 +3966,8 @@ def stats_export():
                             'border-radius:0',
                             'box-shadow:none',
                             'overflow:hidden',
-                            'z-index:99999'
+                            'z-index:99999',
+                            'background-color:' + {_json.dumps(bg)}
                         ].join(';') + ';';
                         // Ensure the infographic div inside fills completely
                         var ig = document.getElementById('infographic');
@@ -3811,6 +4020,270 @@ def stats_export():
     except Exception as e:
         logger.warning(f"Playwright stats export failed: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/fondo_o_meter/export', methods=['POST'])
+@app.route('/api/fondo-o-meter/export', methods=['POST'])
+@app.route('/api/achievements/export', methods=['POST'])
+@login_required
+def fondo_o_meter_export():
+    """Export the Fondo-o-meter infographic as a pixel-perfect PNG or PDF using Playwright."""
+    import json as _json
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.exception('playwright package is not installed')
+        return jsonify({'error': 'playwright is not installed on the server. '
+                                 'Run: pip install playwright && playwright install chromium'}), 500
+
+    payload = request.get_json(silent=True) or {}
+    year = str(payload.get('year', ''))
+    group = str(payload.get('group', 'cycling'))
+    bg = str(payload.get('bg', '#4a4a4a'))
+    width = max(800, min(int(payload.get('width', 1280)), 2048))
+    height = max(600, min(int(payload.get('height', 960)), 1600))
+    title_font_size = str(payload.get('titleFontSize', '24'))
+    font_size = str(payload.get('fontSize', '14'))
+    font_family = str(payload.get('fontFamily', 'Inter'))
+    has_image = bool(payload.get('hasImage', False))
+    tint = str(payload.get('tint', ''))
+    opacity = payload.get('opacity', 40)
+    arc_color = str(payload.get('arcColor', '#94C03B'))
+    arc_width = str(payload.get('arcWidth', '100'))
+    arch_size = str(payload.get('archSize', '100'))
+    visible_metrics = payload.get('visibleMetrics', payload.get('visibleAchievements', {'fondo': True, 'koms': True, 'prs': True}))
+    export_format = str(payload.get('format', 'png')).lower()
+
+    host_header = request.host
+    port = host_header.split(':')[1] if ':' in host_header else '4444'
+    internal_url = f"http://127.0.0.1:{port}/fondo-o-meter"
+
+    cookies_for_playwright = [
+        {'name': n, 'value': v, 'domain': '127.0.0.1', 'path': '/'}
+        for n, v in request.cookies.items()
+    ]
+    chromium_exe = _find_system_chromium()
+
+    try:
+        from flask import Response
+        with sync_playwright() as p:
+            launch_kwargs = {
+                'headless': True,
+                'args': [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--font-render-hinting=none',
+                ],
+            }
+            if chromium_exe:
+                launch_kwargs['executable_path'] = chromium_exe
+
+            browser = p.chromium.launch(**launch_kwargs)
+            context = browser.new_context(
+                viewport={'width': width, 'height': height},
+                device_scale_factor=1,
+                ignore_https_errors=True,
+            )
+            if cookies_for_playwright:
+                context.add_cookies(cookies_for_playwright)
+
+            page = context.new_page()
+            page.goto(internal_url, wait_until='networkidle', timeout=30_000)
+            page.wait_for_function('document.fonts.ready', timeout=10_000)
+            page.wait_for_selector('#infographic-wrapper', state='visible', timeout=10_000)
+
+            js_code = f"""
+                (function() {{
+                    function setVal(id, val) {{
+                        var el = document.getElementById(id);
+                        if (el) el.value = val;
+                    }}
+                    setVal('fondo-year',  {_json.dumps(year)});
+                    setVal('fondo-group', {_json.dumps(group)});
+                    setVal('fondo-size',  {_json.dumps(str(width))});
+                    var bgInput = document.getElementById('fondo-bg');
+                    if (bgInput) bgInput.value = {_json.dumps(bg)};
+                    var w = document.getElementById('infographic-wrapper');
+                    if (w) w.style.backgroundColor = {_json.dumps(bg)};
+                    var ig = document.getElementById('infographic');
+                    if (ig) ig.style.backgroundColor = 'transparent';
+
+                    var titleFontSlider = document.getElementById('fondo-title-font-size');
+                    if (titleFontSlider) {{
+                        titleFontSlider.value = {_json.dumps(title_font_size)};
+                        if (ig) ig.style.setProperty('--fondo-title-font-size', {_json.dumps(title_font_size)} + 'px');
+                        var titleFontVal = document.getElementById('fondo-title-font-size-val');
+                        if (titleFontVal) titleFontVal.textContent = {_json.dumps(title_font_size)} + 'px';
+                    }}
+                    var fontSlider = document.getElementById('fondo-font-size');
+                    if (fontSlider) {{
+                        fontSlider.value = {_json.dumps(font_size)};
+                        if (ig) ig.style.setProperty('--fondo-font-size', {_json.dumps(font_size)} + 'px');
+                        var fontVal = document.getElementById('fondo-font-size-val');
+                        if (fontVal) fontVal.textContent = {_json.dumps(font_size)} + 'px';
+                    }}
+                    var font = {_json.dumps(font_family)};
+                    if (font) {{
+                        if (ig) ig.style.setProperty('--fondo-font-family', '"' + font + '", sans-serif');
+                        var fontSel = document.getElementById('fondo-font');
+                        if (fontSel) fontSel.value = font;
+                    }}
+                    var hasImage = {_json.dumps(has_image)};
+                    var igBg = document.getElementById('ig-bg-image');
+                    var igOv = document.getElementById('ig-bg-overlay');
+                    var tint = {_json.dumps(tint)};
+                    var opacity = {_json.dumps(opacity)};
+                    var opVal = Number(opacity);
+                    if (Number.isNaN(opVal)) opVal = 40;
+
+                    var arcColor = {_json.dumps(arc_color)};
+                    var arcColorInput = document.getElementById('fondo-arc-color');
+                    if (arcColorInput && arcColor) arcColorInput.value = arcColor;
+
+                    var arcWidth = {_json.dumps(arc_width)};
+                    var arcWidthInput = document.getElementById('fondo-arc-width');
+                    if (arcWidthInput && arcWidth) {{
+                        arcWidthInput.value = arcWidth;
+                        var arcWidthVal = document.getElementById('fondo-arc-width-val');
+                        if (arcWidthVal) arcWidthVal.textContent = arcWidth + '%';
+                    }}
+
+                    var archSize = {_json.dumps(arch_size)};
+                    var archSizeInput = document.getElementById('fondo-arch-size');
+                    if (archSizeInput && archSize) {{
+                        archSizeInput.value = archSize;
+                        var archSizeVal = document.getElementById('fondo-arch-size-val');
+                        if (archSizeVal) archSizeVal.textContent = archSize + '%';
+                    }}
+
+                    var visMetrics = {_json.dumps(visible_metrics)};
+                    if (visMetrics) {{
+                        ['fondo', 'koms', 'prs'].forEach(function(key) {{
+                            var toggle = document.getElementById('toggle-' + key);
+                            var col = document.getElementById('col-' + key);
+                            if (toggle && visMetrics[key] !== undefined) {{
+                                toggle.checked = visMetrics[key];
+                                if (col) col.style.display = visMetrics[key] ? 'flex' : 'none';
+                            }}
+                        }});
+                    }}
+
+                    if (hasImage && igBg) {{
+                        igBg.src = '/api/fondo_o_meter/image?t=' + Date.now();
+                        igBg.style.display = 'block';
+                    }} else if (igBg) {{
+                        igBg.style.display = 'none';
+                    }}
+
+                    if (igOv) {{
+                        if (tint && opVal > 0) {{
+                            igOv.style.display = 'block';
+                            igOv.style.backgroundColor = tint;
+                            igOv.style.opacity = String(opVal / 100.0);
+                        }} else if (hasImage && opVal > 0) {{
+                            igOv.style.display = 'block';
+                            igOv.style.backgroundColor = '#000000';
+                            igOv.style.opacity = String(opVal / 100.0);
+                        }} else {{
+                            igOv.style.display = 'none';
+                        }}
+                    }}
+                    var sel = document.getElementById('fondo-year');
+                    if (sel) sel.dispatchEvent(new Event('change'));
+                }})();
+            """
+            page.evaluate(js_code)
+            page.wait_for_function(
+                "document.getElementById('ig-body') && "
+                "document.getElementById('ig-body').style.display !== 'none'",
+                timeout=20_000,
+            )
+            page.wait_for_timeout(600)
+
+            if has_image:
+                try:
+                    page.wait_for_function(
+                        "!document.getElementById('ig-bg-image') || "
+                        "document.getElementById('ig-bg-image').style.display === 'none' || "
+                        "(document.getElementById('ig-bg-image').complete && document.getElementById('ig-bg-image').naturalWidth > 0)",
+                        timeout=5_000,
+                    )
+                except Exception:
+                    pass
+
+            page.evaluate(f"""
+                (function() {{
+                    try {{
+                        var w = document.getElementById('infographic-wrapper');
+                        if (!w) return;
+                        document.body.appendChild(w);
+                        Array.from(document.body.children).forEach(function(el) {{
+                            if (el !== w) el.style.visibility = 'hidden';
+                        }});
+                        document.body.style.cssText = 'margin:0;padding:0;overflow:hidden;background:#000;';
+                        w.style.cssText = [
+                            'display:block',
+                            'position:fixed',
+                            'top:0', 'left:0',
+                            'width:{width}px',
+                            'height:{height}px',
+                            'transform:none',
+                            'transform-origin:top left',
+                            'border-radius:0',
+                            'box-shadow:none',
+                            'overflow:hidden',
+                            'margin:0',
+                            'box-sizing:border-box',
+                            'visibility:visible',
+                            'background-color:' + {_json.dumps(bg)}
+                        ].join(';') + ';';
+                    }} catch(e) {{}}
+                }})();
+            """)
+            page.wait_for_timeout(200)
+
+            if export_format == 'pdf':
+                pdf_bytes = page.pdf(
+                    width=f"{width}px",
+                    height=f"{height}px",
+                    print_background=True,
+                    margin={'top': '0', 'right': '0', 'bottom': '0', 'left': '0'},
+                )
+                context.close()
+                browser.close()
+                return Response(
+                    pdf_bytes,
+                    mimetype='application/pdf',
+                    headers={
+                        'Content-Disposition': 'attachment; filename="kinetiqo-fondo-o-meter.pdf"',
+                        'Content-Length': str(len(pdf_bytes)),
+                    }
+                )
+            else:
+                png_bytes = page.screenshot(
+                    clip={'x': 0, 'y': 0, 'width': width, 'height': height},
+                    type='png',
+                )
+                context.close()
+                browser.close()
+                return Response(
+                    png_bytes,
+                    mimetype=PNG_MIMETYPE,
+                    headers={
+                        'Content-Disposition': 'attachment; filename="kinetiqo-fondo-o-meter.png"',
+                        'Content-Length': str(len(png_bytes)),
+                    }
+                )
+    except Exception as e:
+        logger.warning(f"Playwright fondo-o-meter export failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# Backwards compatibility alias
+achievements_export = fondo_o_meter_export
+
 
 
 def _fetch_strava_activity_photo(activity_id: str) -> str | None:
