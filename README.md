@@ -18,7 +18,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 |---|---|---|
 | [![Interactive Canvas Maps](docs/map-dark.webp)](docs/map-dark.webp)<br/>**Interactive Canvas Maps**<br/>Leaflet Canvas rendering for GPS tracks with 16 basemaps across 7 tile providers and local OSM proxy | [![Multi-Stage Polyline Styling](docs/map2.webp)](docs/map2.webp)<br/>**Route Polyline Styling**<br/>Persistent route color, stroke weight, opacity, and tone controls for multi-stage activities | [![Multi-DB Zero-ORM Architecture](docs/database.webp)](docs/database.webp)<br/>**Multi-DB Zero-ORM Warehouse**<br/>Direct parameterized SQL architecture supporting PostgreSQL 12+, MySQL 8 / MariaDB, and Firebird |
 | [![Power Skills Spider Chart](docs/power-dark.webp)](docs/power-dark.webp)<br/>**Power Skills Analysis**<br/>Radar spider chart of peak average power efforts across intervals from 5 seconds to 1 hour | [![Fitness & Freshness](docs/chart-dark.webp)](docs/chart-dark.webp)<br/>**Fitness & Freshness (CTL/ATL/TSB)**<br/>Banister impulse-response model for Chronic Load (Fitness), Fatigue, and Form curves | [![FTP Estimation History](docs/ftp.webp)](docs/ftp.webp)<br/>**FTP Estimation Trends**<br/>Automated 95% 20-min threshold power tracking with per-ride historical trend |
-| [![WYSIWYG Poster Builder](docs/poster-example.webp)](docs/poster-example.webp)<br/>**WYSIWYG Poster Builder**<br/>Draggable layouts, build-in photo editor, custom typography, elevation profiles, and Playwright high-res PNG export | [![Poster Canvas Map Mode](docs/poster-map.webp)](docs/poster-map.webp)<br/>**Poster Canvas Map Mode**<br/>Leaflet map background with tile provider selection, opacity control, and custom route polylines | [![MEGA Stats Infographic](docs/mega-stats.webp)](docs/mega-stats.webp)<br/>**MEGA Stats Infographic**<br/>Veloviewer-style yearly infographic with 365-day calendar heatmaps & vector PDF/PNG export |
+| [![WYSIWYG Poster Builder](docs/poster-example.webp)](docs/poster-example.webp)<br/>**WYSIWYG Poster Builder**<br/>Draggable layouts, build-in photo editor, custom typography, elevation profiles, and Playwright high-res PNG export | [![MEGA Stats Infographic](docs/mega-stats.webp)](docs/mega-stats.webp)<br/>**MEGA Stats Infographic**<br/>Veloviewer-style yearly infographic with 365-day calendar heatmaps & vector PDF/PNG export | [![Fondo-o-meter Infographic](docs/fondo-o-meter.webp)](docs/fondo-o-meter.webp)<br/>**Fondo-o-meter Infographic**<br/>Concentric radial milestone rings with sport thresholds, Gran Fondo badges, verified KOMs, and vector PDF/PNG export |
 | [![Strava Auto-Description Engine](docs/strava-stats.webp)](docs/strava-stats.webp)<br/>**Strava Auto-Descriptions**<br/>150+ placeholders, workout summaries, power zones, and milestone triggers (🎉) | [![VO₂max Trends & Classification](docs/vo2.webp)](docs/vo2.webp)<br/>**VO₂max Trends**<br/>Townsend 5-min MAP and Coggan FTP-based VO₂max estimates with fitness classification bands | [![Athlete Profile & Target Goals](docs/settings.webp)](docs/settings.webp)<br/>**Athlete Goals & Settings**<br/>Weekly, monthly, and yearly distance/elevation goals with real-time description template validation |
 
 
@@ -97,6 +97,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
 | `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
 | `/logs` | Logs | Audit log viewer for sync operations and data changes |
+| `/fonts` | Fonts | Self-hosted typography showcase and font preview |
 | `/license` | License | Open-source licenses, map tile attributions, and third-party credits |
 | `/login` | Login | Session-based authentication |
 | `/logout` | Logout | Session logout (POST) |
@@ -692,6 +693,7 @@ src/
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
         ├── fondo_o_meter.py     # Fondo-o-meter infographic data aggregation
         ├── fonts.py             # Single source of truth for all Google Fonts
+        ├── poster_filters.py    # Photo editing filters and adjustments for posters
         ├── progress.py          # SSE sync progress stream
         ├── stats.py             # MEGA Stats infographic data aggregation
         ├── vo2max.py            # VO₂max estimation (Townsend/Storer-Davis and Coggan methods)
@@ -713,6 +715,7 @@ src/
             ├── poster.html          # Activity poster generator (customizable fonts, colors, sizes)
             ├── settings.html        # Settings page (profile, goals, config)
             ├── logs.html            # Audit log viewer
+            ├── fonts.html           # Self-hosted typography showcase & font preview
             ├── license.html         # License & attribution page
             ├── login.html           # Login form
             ├── sync.html            # Sync trigger page
@@ -725,6 +728,8 @@ tests/
 ├── test_vo2max.py               # VO₂max estimation tests
 ├── test_stats.py                # MEGA Stats infographic tests
 ├── test_stats_image.py          # MEGA Stats image upload, reset, and UI tests
+├── test_fondo_o_meter.py        # Fondo-o-meter concentric rings & milestone tests
+├── test_kom_verification_e2e.py # Verified KOMs & trophy extraction tests
 ├── test-docker-postgresql.sh    # Docker integration test (PostgreSQL)
 └── test-docker-firebird.sh      # Docker integration test (Firebird)
 development/
