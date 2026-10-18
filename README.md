@@ -614,6 +614,8 @@ The CLI tool is located in the `src` directory.
 -   `version`: Outputs the current version information.
 -   `benchmark`: Profiles database operations for the configured backend.
     -   `--scope` / `-s`: Lookback period in days (default: `365`).
+-   `scan-trophies`: Scans and backfills segment trophies (placements 1st–10th) from Strava.
+    -   `--limit` / `-l`: Maximum number of activities with achievements to scan (default: `50`).
 
 ### Manual Sync
 
@@ -634,6 +636,9 @@ python kinetiqo.py --log-level DEBUG sync --fast-sync
 
 # Execute incremental synchronization
 python kinetiqo.py sync --fast-sync
+
+# Scan and backfill segment trophies for historical activities
+python kinetiqo.py scan-trophies --limit 50
 
 # Run the database benchmark for the last 90 days
 python kinetiqo.py benchmark --scope 90
@@ -663,9 +668,10 @@ src/
     ├── __init__.py
     ├── __main__.py
     ├── cache.py                 # Strava API response cache
-    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version, benchmark)
+    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version, benchmark, scan-trophies)
     ├── config.py                # Config dataclass (reads env vars)
     ├── gps_simplify.py          # Distance-based GPS track simplification
+    ├── koms.py                  # KOMs and segment trophy extraction and persistence
     ├── logging_utils.py         # Shared logging configuration
     ├── profile_sync.py          # Environment/profile synchronization and token persistence
     ├── strava.py                # Strava API client (OAuth2, activity streams)
@@ -684,6 +690,7 @@ src/
         ├── app.py               # Flask app, all routes & API endpoints
         ├── auth.py              # flask-login User model & auth helpers
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
+        ├── fondo_o_meter.py     # Fondo-o-meter infographic data aggregation
         ├── fonts.py             # Single source of truth for all Google Fonts
         ├── progress.py          # SSE sync progress stream
         ├── stats.py             # MEGA Stats infographic data aggregation
@@ -702,6 +709,7 @@ src/
             ├── fitness.html         # Fitness & Freshness chart (CTL/ATL/TSB)
             ├── vo2max.html          # VO₂max estimation chart
             ├── stats.html           # MEGA Stats Veloviewer-style infographic
+            ├── fondo-o-meter.html   # Fondo-o-meter concentric milestone rings infographic
             ├── poster.html          # Activity poster generator (customizable fonts, colors, sizes)
             ├── settings.html        # Settings page (profile, goals, config)
             ├── logs.html            # Audit log viewer
