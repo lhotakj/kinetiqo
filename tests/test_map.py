@@ -172,3 +172,23 @@ class TestMapPage(unittest.TestCase):
         self.assertIn('const dh = (ey - dy) + tileOverlap;', html)
         self.assertNotIn('ctx.imageSmoothingEnabled = false;', html)
 
+    @patch('flask_login.utils._get_user')
+    def test_map_basemap_parameter_and_persistence_script(self, mock_get_user):
+        """Map view accepts basemap from request.values and script contains valid basemap persistence."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_user.id = 'admin'
+        mock_get_user.return_value = mock_user
+
+        # Test POST form with basemap
+        response = self.client.post('/map', data={'activity_ids[]': ['123'], 'basemap': 'esriworldimagery'})
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode()
+
+        self.assertIn('basemap: "esriworldimagery"', html)
+        self.assertIn('savedBasemap = saved.basemap;', html)
+        self.assertIn('savedBasemap = saved.mapProvider;', html)
+        self.assertIn('mapProvider: currentBasemap', html)
+        self.assertIn('basemap: savedBasemap || DEFAULTS.basemap', html)
+
+

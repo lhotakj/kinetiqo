@@ -365,5 +365,56 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
         sync_service.close()
 
 
+@cli.command(name="scan-trophies", help="Scan and backfill segment trophies (placements 1st-10th) from Strava")
+@click.option('--limit', '-l', type=int, default=50, show_default=True, help='Maximum number of activities to scan.')
+@database_option
+@click.pass_context
+def scan_trophies(ctx, limit, database):
+    """Scan and backfill segment trophies for activities in the database."""
+    import time
+    _prepare_db(ctx.obj.config, database)
+    config = ctx.obj.config
+    repo = create_repository(config)
+    try:
+        from kinetiqo.strava import StravaClient
+        from kinetiqo.koms import (
+            extract_trophies_from_segment_efforts,
+            record_activity_trophies,
+            load_verified_trophies,
+            save_verified_trophies,
+        )
+        strava = StravaClient(config)
+        logger.info(f"Scanning up to {limit} activities with achievements needing trophies...")
+        unscanned = repo.get_activities_needing_trophies(limit=limit)
+        if not unscanned:
+            logger.info("No unscanned activities found needing trophies.")
+            return
+        logger.info(f"Found {len(unscanned)} activities to scan.")
+        trophies_cache = load_verified_trophies()
+        scanned_count = 0
+        for act in unscanned:
+            act_id = str(act.get("id") or act.get("activity_id"))
+            name = act.get("name", "Activity")
+            try:
+                detail = strava.get_activity_detail(act_id)
+                efforts = (detail or {}).get("segment_efforts", [])
+                t_dict = extract_trophies_from_segment_efforts(efforts) if efforts else {r: 0 for r in range(1, 11)}
+                record_activity_trophies(act_id, t_dict)
+                repo.update_activity_trophies(act_id, t_dict)
+                trophies_cache[act_id] = {str(r): t_dict[r] for r in range(1, 11)}
+                trophies_cache[act_id]["scanned"] = 1
+                scanned_count += 1
+                podium = [f"{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
+                ranks_str = ", ".join(podium) if podium else "none"
+                logger.info(f"[{scanned_count}/{len(unscanned)}] {name} ({act_id}) -> trophies: {ranks_str}")
+                time.sleep(0.05)
+            except Exception as e:
+                logger.warning(f"Failed to scan trophies for {act_id}: {e}")
+        save_verified_trophies(trophies_cache)
+        logger.info(f"Successfully scanned trophies for {scanned_count} activities.")
+    finally:
+        repo.close()
+
+
 if __name__ == "__main__":
     cli()

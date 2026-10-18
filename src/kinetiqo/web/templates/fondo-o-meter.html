@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
 <style>
     /* ==========================================================================
        Fondo-o-meter Infographic Styles
@@ -43,6 +44,16 @@
     }
 
     .ig-bg-overlay {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        display: none;
+    }
+
+    .ig-bg-vignette {
         position: absolute;
         inset: 0;
         width: 100%;
@@ -121,7 +132,8 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
         padding: 20px 22px;
-        backdrop-filter: blur(8px);
+        backdrop-filter: blur(var(--fondo-section-blur, 8px));
+        -webkit-backdrop-filter: blur(var(--fondo-section-blur, 8px));
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         transition: all 0.3s ease;
     }
@@ -130,7 +142,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
+        margin-bottom: 0;
         padding-bottom: 10px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
@@ -170,6 +182,7 @@
         height: 100%;
         max-height: 400px;
         overflow: visible;
+        font-family: var(--fondo-font-family, "Inter", sans-serif);
     }
 
     .fondo-track {
@@ -179,20 +192,21 @@
 
     .fondo-arc {
         fill: none;
+        stroke-linecap: round;
         transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .fondo-label {
-        font-size: calc(var(--fondo-font-size, 14px) * 0.78);
+        font-size: calc(var(--fondo-font-size, 14px) * 0.78 * var(--fondo-arc-text-scale, 1.0));
         font-weight: 500;
         fill: rgba(255, 255, 255, 0.85);
         text-anchor: end;
         dominant-baseline: middle;
-        font-family: inherit;
+        font-family: var(--fondo-font-family, "Inter", sans-serif);
     }
 
     .fondo-label.longest {
-        font-weight: 700;
+        font-weight: 800;
         fill: #ffffff;
     }
 
@@ -202,16 +216,43 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         text-align: center;
-        padding: 20px 10px;
+        padding: 24px 10px 20px 10px;
+    }
+
+    /* Column 1: Top Hero Section above Arcs */
+    .fondo-stat-hero-top {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        text-align: center;
+        padding: 24px 10px 6px 10px;
+        margin-bottom: 6px;
+        flex-shrink: 0;
+    }
+
+    .fondo-stat-img {
+        height: calc(var(--fondo-font-size, 14px) * 22 * var(--fondo-logo-scale, 1.0));
+        max-height: calc(306px * var(--fondo-logo-scale, 1.0));
+        max-width: 100%;
+        width: auto;
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
+        display: inline-block;
+        vertical-align: middle;
+        opacity: var(--fondo-logo-opacity, 1.0);
+        filter: url(#logo-colorize) drop-shadow(0 8px 22px rgba(0, 0, 0, 0.45));
+        transition: opacity 0.15s ease;
     }
 
     .fondo-stat-icon {
-        font-size: calc(var(--fondo-font-size, 14px) * 2.8);
         line-height: 1;
-        margin-bottom: 12px;
-        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .fondo-stat-number {
@@ -232,6 +273,80 @@
         background: linear-gradient(135deg, #E0C3FC 0%, #8EC5FC 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+    }
+
+    .fondo-stat-number.green {
+        background: linear-gradient(135deg, #E2F19D 0%, #94C03B 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .fondo-stat-number.amber {
+        background: linear-gradient(135deg, #FDE68A 0%, #F59E0B 50%, #D97706 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    #col-thropies .fondo-stat-hero {
+        padding: 24px 10px 10px 10px;
+        margin-bottom: 0;
+        flex: 0 0 auto;
+    }
+
+    #col-thropies .fondo-stat-desc {
+        margin-top: 10px;
+    }
+
+    .thropies-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        margin-top: 10px;
+        width: 100%;
+    }
+
+    .trophy-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 2.5px 8px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        transition: all 0.2s ease;
+    }
+
+    .trophy-row:hover {
+        background: rgba(255, 255, 255, 0.075);
+        border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .trophy-rank-badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+    .trophy-medal-svg {
+        width: 17px;
+        height: 17px;
+        flex-shrink: 0;
+    }
+
+    .trophy-rank-name {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.8);
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+    }
+
+    .trophy-count {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.85);
+        font-weight: 700;
+        font-family: var(--font-mono, monospace);
+        color: rgba(255, 255, 255, 0.95);
     }
 
     .fondo-stat-label-large {
@@ -385,14 +500,14 @@
             {% include "_control_box_header.html" %}
             {% endwith %}
             <div class="control-box-body">
-                {% with control_id='fondo-year', label='Year' %}
+                {% with control_id='fondo-year', label='Year', include_all_time=True %}
                 {% include "_control_year_select.html" %}
                 {% endwith %}
             </div>
         </div>
 
         <!-- Appearance -->
-        {% with box_id='fondoOMeterAppearance', prefix='fondo' %}
+        {% with box_id='fondoOMeterAppearance', prefix='fondo', show_vignette=True %}
         {% include "_infographic_appearance_box.html" %}
         {% endwith %}
 
@@ -419,10 +534,39 @@
                             title="Reset to default light green">Reset</button>
                     </div>
                 </div>
-                {% with control_id='fondo-arc-width', label='Arc Width', min_val=80, max_val=130, value=100, suffix='%', span_width='w-10' %}
+                {% with control_id='fondo-arc-width', label='Arc Width', min_val=80, max_val=160, value=100, suffix='%', span_width='w-10' %}
                 {% include "_control_range.html" %}
                 {% endwith %}
-                {% with control_id='fondo-arch-size', label='Arch Size', min_val=70, max_val=140, value=100, suffix='%', span_width='w-10' %}
+                {% with control_id='fondo-arc-size', label='Arc Text Size', min_val=70, max_val=140, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                <div class="control-row">
+                    <label for="fondo-crown-type">Crown Badge</label>
+                    <div class="flex-1 flex justify-end">
+                        <select id="fondo-crown-type" class="text-xs rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-700 dark:text-gray-300 px-2 py-1" aria-label="Crown Badge Type">
+                            <option value="kom" selected>KOM (King)</option>
+                            <option value="qom">QOM (Queen)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="control-row">
+                    <label for="fondo-logo-color">Logo Color</label>
+                    <div class="flex items-center gap-2 flex-1 justify-end">
+                        <input type="color" id="fondo-logo-color" value="#FFFFFF"
+                            class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600"
+                            aria-label="Logo Color">
+                        <button type="button" id="fondo-logo-color-reset"
+                            class="h-8 px-2.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 text-xs text-gray-600 dark:text-gray-300 transition"
+                            title="Reset to default white">Reset</button>
+                    </div>
+                </div>
+                {% with control_id='fondo-logo-size', label='Logo Size', min_val=50, max_val=150, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='fondo-logo-opacity', label='Logo Opacity', min_val=10, max_val=100, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='fondo-section-blur', label='Section Blur', min_val=0, max_val=100, value=100, suffix='%', span_width='w-10' %}
                 {% include "_control_range.html" %}
                 {% endwith %}
                 <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -435,13 +579,18 @@
                         </label>
                         <label for="toggle-koms"
                             class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
-                            <input type="checkbox" id="toggle-koms" class="fondo-toggle flex-shrink-0" data-stat="koms" checked aria-label="Toggle KOMs and CRs">
+                            <input type="checkbox" id="toggle-koms" class="fondo-toggle flex-shrink-0" data-stat="koms" checked aria-label="Toggle KOMs">
                             <span class="truncate">Number of KOMs</span>
                         </label>
                         <label for="toggle-prs"
                             class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
                             <input type="checkbox" id="toggle-prs" class="fondo-toggle flex-shrink-0" data-stat="prs" checked aria-label="Toggle Personal Records">
                             <span class="truncate">Number of PRs</span>
+                        </label>
+                        <label for="toggle-thropies"
+                            class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" id="toggle-thropies" class="fondo-toggle flex-shrink-0" data-stat="thropies" checked aria-label="Toggle Thropies">
+                            <span class="truncate">Thropies</span>
                         </label>
                     </div>
                 </div>
@@ -456,8 +605,19 @@
             <div id="infographic-wrapper" class="infographic-wrapper">
                 <img id="ig-bg-image" class="ig-bg-image" alt="Background" {% if has_bg_image %}src="/api/fondo_o_meter/image"{% endif %} style="{% if has_bg_image %}display:block;{% endif %}" />
                 <div id="ig-bg-overlay" class="ig-bg-overlay"></div>
+                <div id="ig-bg-vignette" class="ig-bg-vignette"></div>
 
                 <div id="infographic" class="infographic">
+                    <!-- SVG Colorize Filter for Badges & Logos -->
+                    <svg width="0" height="0" style="position:absolute;left:-9999px;width:0;height:0;" aria-hidden="true">
+                        <defs>
+                            <filter id="logo-colorize" color-interpolation-filters="sRGB">
+                                <feFlood id="logo-flood" flood-color="#FFFFFF" result="flood" />
+                                <feComposite in="flood" in2="SourceAlpha" operator="in" />
+                            </filter>
+                        </defs>
+                    </svg>
+
                     <!-- Infographic Header -->
                     <div class="ig-header">
                         <div>
@@ -479,9 +639,17 @@
                         <div class="fondo-col" id="col-fondo">
                             <div class="fondo-col-header">
                                 <span class="fondo-col-title" id="fondo-col-title">
-                                    <span>⭕</span> <span id="fondo-title-text">FONDO ANALYSIS</span>
+                                    <span id="fondo-title-text">FONDO ANALYSIS</span>
                                 </span>
                                 <span class="fondo-badge" id="fondo-threshold-badge">≥ 100 km</span>
+                            </div>
+                            <div class="fondo-stat-hero-top">
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-gf.png') }}" id="fondo-hero-logo" class="fondo-stat-img" alt="Gran Fondo" width="306" height="306">
+                                    <span id="fondo-hero-emoji" style="display:none;">🚴</span>
+                                </div>
+                                <div class="fondo-stat-number green" id="fondos-count">0</div>
+                                <div class="fondo-stat-label-large" id="fondos-label">Fondos Completed</div>
                             </div>
                             <div class="fondo-chart-container" id="fondo-container">
                                 <svg class="fondo-svg" id="fondo-svg" viewBox="0 0 460 380">
@@ -494,16 +662,18 @@
                         <div class="fondo-col" id="col-koms">
                             <div class="fondo-col-header">
                                 <span class="fondo-col-title">
-                                    <span>👑</span> <span>KOMs & CRs</span>
+                                    <span id="koms-header-title">KOMs</span>
                                 </span>
                                 <span class="fondo-badge" id="koms-year-badge">{{ current_year }}</span>
                             </div>
                             <div class="fondo-stat-hero">
-                                <div class="fondo-stat-icon">👑</div>
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-kom.png') }}" id="koms-hero-img" class="fondo-stat-img" alt="KOMs" width="306" height="306">
+                                </div>
                                 <div class="fondo-stat-number gold" id="koms-count">0</div>
                                 <div class="fondo-stat-label-large">Segments Conquered</div>
-                                <div class="fondo-stat-desc">
-                                    King of the Mountains & Course Records recorded across all activities in <span id="koms-desc-year">{{ current_year }}</span>
+                                <div class="fondo-stat-desc" id="koms-desc-text">
+                                    King of the Mountains verified across cycling activities in <span id="koms-desc-year">{{ current_year }}</span>
                                 </div>
                             </div>
                         </div>
@@ -512,16 +682,114 @@
                         <div class="fondo-col" id="col-prs">
                             <div class="fondo-col-header">
                                 <span class="fondo-col-title">
-                                    <span>⚡</span> <span>Personal Records</span>
+                                    <span>Personal Records</span>
                                 </span>
                                 <span class="fondo-badge" id="prs-year-badge">{{ current_year }}</span>
                             </div>
                             <div class="fondo-stat-hero">
-                                <div class="fondo-stat-icon">⚡</div>
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-pr.png') }}" id="prs-hero-img" class="fondo-stat-img" alt="Personal Records" width="306" height="306">
+                                </div>
                                 <div class="fondo-stat-number purple" id="prs-count">0</div>
                                 <div class="fondo-stat-label-large">PRs Set</div>
                                 <div class="fondo-stat-desc">
                                     Personal records and top segment performances earned during <span id="prs-desc-year">{{ current_year }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Column 4: Thropies -->
+                        <div class="fondo-col" id="col-thropies">
+                            <div class="fondo-col-header">
+                                <span class="fondo-col-title">
+                                    <span>Thropies</span>
+                                </span>
+                                <span class="fondo-badge" id="thropies-year-badge">{{ current_year }}</span>
+                            </div>
+                            <div class="fondo-stat-hero">
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-thropies.png') }}" id="thropies-hero-img" class="fondo-stat-img" alt="Thropies" width="306" height="306">
+                                </div>
+                                <div class="fondo-stat-number amber" id="thropies-total-count">0</div>
+                                <div class="fondo-stat-label-large">Top 10 Placements</div>
+                                <div class="fondo-stat-desc">
+                                    All achievements placed 1st to 10th on segments in <span id="thropies-desc-year">{{ current_year }}</span>
+                                </div>
+                            </div>
+                            <div class="thropies-breakdown" id="thropies-breakdown">
+                                <!-- 1st Place (Gold) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFE259"/><stop offset="100%" stop-color="#FFA751"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#DC2626" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gold)" stroke="#F59E0B" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#78350F">1</text></svg>
+                                        <span class="trophy-rank-name">1st Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-1">0</span>
+                                </div>
+                                <!-- 2nd Place (Silver) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#94A3B8"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#2563EB" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-silver)" stroke="#CBD5E1" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#1E293B">2</text></svg>
+                                        <span class="trophy-rank-name">2nd Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-2">0</span>
+                                </div>
+                                <!-- 3rd Place (Bronze) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-bronze" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FED7AA"/><stop offset="100%" stop-color="#C2410C"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#059669" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-bronze)" stroke="#EA580C" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#451A03">3</text></svg>
+                                        <span class="trophy-rank-name">3rd Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-3">0</span>
+                                </div>
+                                <!-- 4th to 10th Place (Gray) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-gray" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#64748B"/><stop offset="100%" stop-color="#334155"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">4</text></svg>
+                                        <span class="trophy-rank-name">4th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-4">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">5</text></svg>
+                                        <span class="trophy-rank-name">5th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-5">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">6</text></svg>
+                                        <span class="trophy-rank-name">6th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-6">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">7</text></svg>
+                                        <span class="trophy-rank-name">7th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-7">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">8</text></svg>
+                                        <span class="trophy-rank-name">8th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-8">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">9</text></svg>
+                                        <span class="trophy-rank-name">9th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-9">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.2" text-anchor="middle" font-size="5.2" font-weight="900" fill="#F8FAFC">10</text></svg>
+                                        <span class="trophy-rank-name">10th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-10">0</span>
                                 </div>
                             </div>
                         </div>
@@ -549,6 +817,7 @@
         const ig = document.getElementById('infographic');
         const igBgImage = document.getElementById('ig-bg-image');
         const igBgOverlay = document.getElementById('ig-bg-overlay');
+        const igBgVignette = document.getElementById('ig-bg-vignette');
 
         const elSize = document.getElementById('fondo-size');
         const elDim = document.getElementById('fondo-dimensions');
@@ -559,6 +828,8 @@
         const elTintClearBtn = document.getElementById('fondo-tint-clear-btn');
         const elOpacity = document.getElementById('fondo-opacity');
         const elOpacityVal = document.getElementById('fondo-opacity-val');
+        const elVignette = document.getElementById('fondo-vignette');
+        const elVignetteVal = document.getElementById('fondo-vignette-val');
         const elFont = document.getElementById('fondo-font');
         const elUploadInput = document.getElementById('fondo-upload-input');
         const elUploadBtn = document.getElementById('fondo-upload-btn');
@@ -575,8 +846,17 @@
         const elArcColorReset = document.getElementById('fondo-arc-color-reset');
         const elArcWidth = document.getElementById('fondo-arc-width');
         const elArcWidthVal = document.getElementById('fondo-arc-width-val');
-        const elArchSize = document.getElementById('fondo-arch-size');
-        const elArchSizeVal = document.getElementById('fondo-arch-size-val');
+        const elArcSize = document.getElementById('fondo-arc-size') || document.getElementById('fondo-arch-size');
+        const elArcSizeVal = document.getElementById('fondo-arc-size-val') || document.getElementById('fondo-arch-size-val');
+        const elSectionBlur = document.getElementById('fondo-section-blur');
+        const elSectionBlurVal = document.getElementById('fondo-section-blur-val');
+
+        const elLogoColor = document.getElementById('fondo-logo-color');
+        const elLogoColorReset = document.getElementById('fondo-logo-color-reset');
+        const elLogoSize = document.getElementById('fondo-logo-size');
+        const elLogoSizeVal = document.getElementById('fondo-logo-size-val');
+        const elLogoOpacity = document.getElementById('fondo-logo-opacity');
+        const elLogoOpacityVal = document.getElementById('fondo-logo-opacity-val');
 
         // Target displays
         const elPeriodDisplay = document.getElementById('ig-period-display');
@@ -587,9 +867,16 @@
         const elPrsYearBadge = document.getElementById('prs-year-badge');
         const elKomsDescYear = document.getElementById('koms-desc-year');
         const elPrsDescYear = document.getElementById('prs-desc-year');
+        const elThropiesTotalCount = document.getElementById('thropies-total-count');
+        const elThropiesYearBadge = document.getElementById('thropies-year-badge');
+        const elThropiesDescYear = document.getElementById('thropies-desc-year');
         const elFondoThresholdBadge = document.getElementById('fondo-threshold-badge');
         const elFondoTitleText = document.getElementById('fondo-title-text');
         const elFondoSvg = document.getElementById('fondo-svg');
+        const elCrownType = document.getElementById('fondo-crown-type');
+        const elKomsHeroImg = document.getElementById('koms-hero-img');
+        const elKomsHeaderTitle = document.getElementById('koms-header-title');
+        const elKomsDescText = document.getElementById('koms-desc-text');
 
         let lastFondoData = null;
         let hasCustomImage = {{ 'true' if has_bg_image else 'false' }};
@@ -667,9 +954,21 @@
 
         function applyFontFamily(font) {
             if (!font) font = 'Inter';
-            ig.style.setProperty('--fondo-font-family', `"${font}", sans-serif`);
+            const fontVal = `"${font}", sans-serif`;
+            ig.style.setProperty('--fondo-font-family', fontVal);
+            ig.style.fontFamily = fontVal;
             if (elFont) elFont.value = font;
             localStorage.setItem('fondoOMeterFontFamily', font);
+            if (document.fonts && document.fonts.load) {
+                document.fonts.load('bold 24px "' + font + '"').then(function () {
+                    if (lastFondoData && lastFondoData.fondo) {
+                        renderFondoChart(lastFondoData.fondo);
+                    }
+                }).catch(function () { });
+            }
+            if (lastFondoData && lastFondoData.fondo) {
+                renderFondoChart(lastFondoData.fondo);
+            }
         }
 
         if (titleFontSizeSlider) {
@@ -682,6 +981,7 @@
         }
         if (elFont) {
             elFont.addEventListener('change', function () { applyFontFamily(this.value); });
+            elFont.addEventListener('input', function () { applyFontFamily(this.value); });
         }
 
         const savedTitleFontSize = localStorage.getItem('fondoOMeterTitleFontSize') || '24';
@@ -745,6 +1045,47 @@
                 applyTintAndOpacity();
             });
         }
+
+        // ---- Vignette Control ----
+        function applyVignette(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 0;
+            if (val < -50) val = -50;
+            if (val > 50) val = 50;
+
+            if (elVignette) elVignette.value = String(val);
+            if (elVignetteVal) {
+                elVignetteVal.textContent = (val > 0 ? '+' : '') + val + '%';
+            }
+            localStorage.setItem('fondoOMeterVignette', String(val));
+
+            if (!igBgVignette) return;
+            if (val > 0) {
+                const alpha = (val / 50) * 0.85;
+                const midAlpha = (val / 50) * 0.35;
+                igBgVignette.style.display = 'block';
+                igBgVignette.style.background = `radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, ${midAlpha.toFixed(3)}) 70%, rgba(0, 0, 0, ${alpha.toFixed(3)}) 100%)`;
+            } else if (val < 0) {
+                const absVal = Math.abs(val);
+                const alpha = (absVal / 50) * 0.8;
+                const midAlpha = (absVal / 50) * 0.3;
+                igBgVignette.style.display = 'block';
+                igBgVignette.style.background = `radial-gradient(ellipse at center, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, ${midAlpha.toFixed(3)}) 70%, rgba(255, 255, 255, ${alpha.toFixed(3)}) 100%)`;
+            } else {
+                igBgVignette.style.display = 'none';
+                igBgVignette.style.background = 'none';
+            }
+        }
+
+        if (elVignette) {
+            elVignette.addEventListener('input', function () { applyVignette(this.value); });
+            elVignette.addEventListener('change', function () { applyVignette(this.value); });
+        }
+
+        const savedVignette = localStorage.getItem('fondoOMeterVignette') !== null
+            ? localStorage.getItem('fondoOMeterVignette')
+            : '0';
+        applyVignette(savedVignette);
 
         // Background Color
         elBg.addEventListener('input', function () {
@@ -946,6 +1287,14 @@
             if (!color) color = '#94C03B';
             if (elArcColor) elArcColor.value = color;
             localStorage.setItem('fondoOMeterArcColor', color);
+            const elFondosCount = document.getElementById('fondos-count');
+            if (elFondosCount) {
+                const hsl = hexToHsl(color);
+                const lighter = 'hsl(' + hsl[0] + ', ' + Math.min(100, hsl[1] + 15) + '%, ' + Math.min(85, hsl[2] + 25) + '%)';
+                elFondosCount.style.background = `linear-gradient(135deg, ${lighter} 0%, ${color} 100%)`;
+                elFondosCount.style.webkitBackgroundClip = 'text';
+                elFondosCount.style.webkitTextFillColor = 'transparent';
+            }
             if (lastFondoData && lastFondoData.fondo) {
                 renderFondoChart(lastFondoData.fondo);
             }
@@ -984,28 +1333,139 @@
         const savedArcWidth = localStorage.getItem('fondoOMeterArcWidth') || '100';
         applyArcWidth(savedArcWidth);
 
-        // ---- Arch Size ----
-        function applyArchSize(val) {
+        // ---- Arc Text Size ----
+        function applyArcSize(val) {
             val = Number.parseInt(val, 10);
             if (Number.isNaN(val)) val = 100;
-            if (elArchSize) elArchSize.value = String(val);
-            if (elArchSizeVal) elArchSizeVal.textContent = val + '%';
-            localStorage.setItem('fondoOMeterArchSize', String(val));
-            if (lastFondoData && lastFondoData.fondo) {
-                renderFondoChart(lastFondoData.fondo);
+            if (elArcSize) elArcSize.value = String(val);
+            if (elArcSizeVal) elArcSizeVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterArcSize', String(val));
+            if (ig) {
+                const scale = val / 100.0;
+                ig.style.setProperty('--fondo-arc-text-scale', String(scale));
             }
         }
 
-        if (elArchSize) {
-            elArchSize.addEventListener('input', function () { applyArchSize(this.value); });
-            elArchSize.addEventListener('change', function () { applyArchSize(this.value); });
+        if (elArcSize) {
+            elArcSize.addEventListener('input', function () { applyArcSize(this.value); });
+            elArcSize.addEventListener('change', function () { applyArcSize(this.value); });
         }
 
-        const savedArchSize = localStorage.getItem('fondoOMeterArchSize') || '100';
-        if (elArchSize) {
-            elArchSize.value = savedArchSize;
-            if (elArchSizeVal) elArchSizeVal.textContent = savedArchSize + '%';
+        const savedArcSize = localStorage.getItem('fondoOMeterArcSize') || localStorage.getItem('fondoOMeterArchSize') || '100';
+        applyArcSize(savedArcSize);
+
+        // ---- Section Blur ----
+        function applySectionBlur(val) {
+            if (val === undefined || val === null || val === '') val = 100;
+            const numVal = Number.parseInt(val, 10);
+            const safeVal = Number.isNaN(numVal) ? 100 : Math.max(0, Math.min(100, numVal));
+            if (elSectionBlur) elSectionBlur.value = String(safeVal);
+            if (elSectionBlurVal) elSectionBlurVal.textContent = safeVal + '%';
+            localStorage.setItem('fondoOMeterSectionBlur', String(safeVal));
+            if (ig) {
+                const blurPx = (safeVal / 100.0) * 8.0;
+                ig.style.setProperty('--fondo-section-blur', blurPx.toFixed(1) + 'px');
+            }
         }
+
+        if (elSectionBlur) {
+            elSectionBlur.addEventListener('input', function () { applySectionBlur(this.value); });
+            elSectionBlur.addEventListener('change', function () { applySectionBlur(this.value); });
+        }
+
+        const savedSectionBlur = localStorage.getItem('fondoOMeterSectionBlur') || '100';
+        applySectionBlur(savedSectionBlur);
+
+        // ---- Crown Badge Type (KOM vs QOM) ----
+        function applyCrownType(type) {
+            if (!type) type = 'kom';
+            if (elCrownType) elCrownType.value = type;
+            localStorage.setItem('fondoOMeterCrownType', type);
+            const isQom = type === 'qom';
+            const iconPath = isQom ? '/static/icons/fondo-o-meter-qom.png' : '/static/icons/fondo-o-meter-kom.png';
+            if (elKomsHeroImg) elKomsHeroImg.src = iconPath;
+            if (elKomsHeaderTitle) elKomsHeaderTitle.textContent = isQom ? 'QOMs' : 'KOMs';
+            if (elKomsDescText) {
+                const titleStr = isQom ? 'Queen of the Mountains' : 'King of the Mountains';
+                const isAll = (elYear.value === 'all' || elYear.value === 'ALL');
+                const yearText = isAll ? 'all time' : elYear.value;
+                elKomsDescText.innerHTML = `${titleStr} verified across cycling activities in <span id="koms-desc-year">${yearText}</span>`;
+            }
+        }
+
+        if (elCrownType) {
+            elCrownType.addEventListener('change', function () {
+                applyCrownType(this.value);
+            });
+        }
+
+        const savedCrownType = localStorage.getItem('fondoOMeterCrownType') || 'kom';
+        applyCrownType(savedCrownType);
+
+        // ---- Logo Color, Size, & Opacity Handlers ----
+        function applyLogoColor(color) {
+            if (!color) color = '#FFFFFF';
+            if (elLogoColor) elLogoColor.value = color;
+            localStorage.setItem('fondoOMeterLogoColor', color);
+            const flood = document.getElementById('logo-flood');
+            if (flood) {
+                flood.setAttribute('flood-color', color);
+            }
+        }
+
+        if (elLogoColor) {
+            elLogoColor.addEventListener('input', function () { applyLogoColor(this.value); });
+            elLogoColor.addEventListener('change', function () { applyLogoColor(this.value); });
+        }
+
+        if (elLogoColorReset) {
+            elLogoColorReset.addEventListener('click', function () {
+                applyLogoColor('#FFFFFF');
+            });
+        }
+
+        function applyLogoSize(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 100;
+            val = Math.max(50, Math.min(150, val));
+            if (elLogoSize) elLogoSize.value = String(val);
+            if (elLogoSizeVal) elLogoSizeVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterLogoSize', String(val));
+            if (ig) {
+                ig.style.setProperty('--fondo-logo-scale', String(val / 100.0));
+            }
+        }
+
+        if (elLogoSize) {
+            elLogoSize.addEventListener('input', function () { applyLogoSize(this.value); });
+            elLogoSize.addEventListener('change', function () { applyLogoSize(this.value); });
+        }
+
+        function applyLogoOpacity(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 100;
+            val = Math.max(10, Math.min(100, val));
+            if (elLogoOpacity) elLogoOpacity.value = String(val);
+            if (elLogoOpacityVal) elLogoOpacityVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterLogoOpacity', String(val));
+            if (ig) {
+                ig.style.setProperty('--fondo-logo-opacity', String(val / 100.0));
+            }
+        }
+
+        if (elLogoOpacity) {
+            elLogoOpacity.addEventListener('input', function () { applyLogoOpacity(this.value); });
+            elLogoOpacity.addEventListener('change', function () { applyLogoOpacity(this.value); });
+        }
+
+        const savedLogoColor = localStorage.getItem('fondoOMeterLogoColor') || '#FFFFFF';
+        applyLogoColor(savedLogoColor);
+
+        const savedLogoSize = localStorage.getItem('fondoOMeterLogoSize') || '100';
+        applyLogoSize(savedLogoSize);
+
+        const savedLogoOpacity = localStorage.getItem('fondoOMeterLogoOpacity') || '100';
+        applyLogoOpacity(savedLogoOpacity);
 
         // ---- Render Fondo Concentric Radial Gauge ----
         function renderFondoChart(fondoData) {
@@ -1027,10 +1487,8 @@
             // Geometry configuration
             const cx = 230;
             const cy = 205;
-            const archSizePct = elArchSize ? Number.parseInt(elArchSize.value, 10) : 100;
-            const archScale = Number.isNaN(archSizePct) ? 1.0 : (archSizePct / 100.0);
-            const rMin = (count === 1 ? 140 : 45) * archScale;
-            const rMax = 165 * archScale;
+            const rMin = count === 1 ? 140 : 45;
+            const rMax = 165;
             const baseStrokeWidth = count <= 3 ? 14 : (count <= 5 ? 12 : 9.5);
             const widthPct = elArcWidth ? Number.parseInt(elArcWidth.value, 10) : 100;
             const widthMultiplier = Number.isNaN(widthPct) ? 1.0 : (widthPct / 100.0);
@@ -1072,6 +1530,7 @@
                     path.setAttribute('class', 'fondo-arc');
                     path.setAttribute('stroke', color);
                     path.setAttribute('stroke-width', String(strokeWidth));
+                    path.setAttribute('stroke-linecap', 'round');
                     gRoot.appendChild(path);
                 }
 
@@ -1082,7 +1541,13 @@
                 label.setAttribute('x', String(labelX));
                 label.setAttribute('y', String(labelY));
                 label.setAttribute('class', 'fondo-label' + (c.is_longest ? ' longest' : ''));
-                label.textContent = c.label;
+                if (c.is_longest) {
+                    label.setAttribute('font-weight', 'bold');
+                    // Format distance only (e.g. 213.2 km) in bold
+                    label.textContent = c.distance_km ? `${c.distance_km} km` : c.label;
+                } else {
+                    label.textContent = c.label;
+                }
                 gRoot.appendChild(label);
             });
 
@@ -1094,12 +1559,18 @@
             const year = elYear.value;
             const group = elGroup.value;
 
-            elPeriodDisplay.textContent = year;
+            const isAllTime = (year === 'all' || year === 'ALL');
+            const displayYear = isAllTime ? 'ALL TIME' : year;
+            const descYear = isAllTime ? 'all time' : year;
+
+            elPeriodDisplay.textContent = displayYear;
             elGroupDisplay.textContent = group.replace('_', ' ').toUpperCase();
-            elKomsYearBadge.textContent = year;
-            elPrsYearBadge.textContent = year;
-            elKomsDescYear.textContent = year;
-            elPrsDescYear.textContent = year;
+            elKomsYearBadge.textContent = displayYear;
+            elPrsYearBadge.textContent = displayYear;
+            elKomsDescYear.textContent = descYear;
+            elPrsDescYear.textContent = descYear;
+            if (elThropiesYearBadge) elThropiesYearBadge.textContent = displayYear;
+            if (elThropiesDescYear) elThropiesDescYear.textContent = descYear;
 
             try {
                 const resp = await fetch(`/api/fondo_o_meter_data?year=${year}&group=${group}`);
@@ -1117,6 +1588,64 @@
                 // Update KOMs & PRs counts
                 elKomsCount.textContent = data.koms_count.toLocaleString();
                 elPrsCount.textContent = data.prs_count.toLocaleString();
+
+                // Update Thropies total & rank counts (1st to 10th place)
+                const trophiesObj = data.trophies || {};
+                const trophiesTotal = (trophiesObj.total !== undefined)
+                    ? trophiesObj.total
+                    : (data.trophies_count || 0);
+                if (elThropiesTotalCount) {
+                    elThropiesTotalCount.textContent = trophiesTotal.toLocaleString();
+                }
+                const ranks = trophiesObj.ranks || {};
+                for (let r = 1; r <= 10; r++) {
+                    const elRank = document.getElementById('trophy-count-' + r);
+                    if (elRank) {
+                        const countVal = (ranks[String(r)] !== undefined)
+                            ? ranks[String(r)]
+                            : (ranks[r] !== undefined ? ranks[r] : 0);
+                        elRank.textContent = countVal.toLocaleString();
+                    }
+                }
+
+                // Update Fondos count & label
+                const fondosTotal = (data.fondo && data.fondo.total_qualifying !== undefined)
+                    ? data.fondo.total_qualifying
+                    : (data.fondos_count || 0);
+                const elFondosCount = document.getElementById('fondos-count');
+                if (elFondosCount) {
+                    elFondosCount.textContent = fondosTotal.toLocaleString();
+                }
+
+                const elFondosLabel = document.getElementById('fondos-label');
+                const elHeroLogo = document.getElementById('fondo-hero-logo');
+                const elHeroEmoji = document.getElementById('fondo-hero-emoji');
+                const isCycling = !group.includes('run') && !group.includes('swim') && !group.includes('ski');
+
+                if (elFondosLabel) {
+                    if (group.includes('run')) {
+                        elFondosLabel.textContent = 'Marathons Completed';
+                    } else if (group.includes('swim')) {
+                        elFondosLabel.textContent = 'Long Swims';
+                    } else {
+                        elFondosLabel.textContent = 'Fondos Completed';
+                    }
+                }
+
+                if (elHeroLogo && elHeroEmoji) {
+                    if (isCycling) {
+                        elHeroLogo.src = '/static/icons/fondo-o-meter-gf.png';
+                        elHeroLogo.style.display = 'inline-block';
+                        elHeroEmoji.style.display = 'none';
+                    } else {
+                        elHeroLogo.style.display = 'none';
+                        elHeroEmoji.style.display = 'inline-block';
+                        elHeroEmoji.textContent = data.group_icon || '🏅';
+                    }
+                }
+
+                // Update Crown description year
+                applyCrownType(elCrownType ? elCrownType.value : (localStorage.getItem('fondoOMeterCrownType') || 'kom'));
 
                 // Update Fondo headers
                 const threshold = data.fondo ? data.fondo.threshold_km : 100;
@@ -1175,7 +1704,13 @@
                     opacity: localStorage.getItem('fondoOMeterOpacity') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterOpacity'), 10) : 40,
                     arcColor: elArcColor ? elArcColor.value : '#94C03B',
                     arcWidth: elArcWidth ? elArcWidth.value : '100',
-                    archSize: elArchSize ? elArchSize.value : '100',
+                    arcSize: elArcSize ? elArcSize.value : '100',
+                    sectionBlur: elSectionBlur ? elSectionBlur.value : '100',
+                    vignette: localStorage.getItem('fondoOMeterVignette') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterVignette'), 10) : 0,
+                    crownType: elCrownType ? elCrownType.value : 'kom',
+                    logoColor: elLogoColor ? elLogoColor.value : '#FFFFFF',
+                    logoSize: elLogoSize ? elLogoSize.value : '100',
+                    logoOpacity: elLogoOpacity ? elLogoOpacity.value : '100',
                     visibleMetrics: visObj,
                     format: 'png'
                 };
@@ -1233,7 +1768,13 @@
                     opacity: localStorage.getItem('fondoOMeterOpacity') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterOpacity'), 10) : 40,
                     arcColor: elArcColor ? elArcColor.value : '#94C03B',
                     arcWidth: elArcWidth ? elArcWidth.value : '100',
-                    archSize: elArchSize ? elArchSize.value : '100',
+                    arcSize: elArcSize ? elArcSize.value : '100',
+                    sectionBlur: elSectionBlur ? elSectionBlur.value : '100',
+                    vignette: localStorage.getItem('fondoOMeterVignette') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterVignette'), 10) : 0,
+                    crownType: elCrownType ? elCrownType.value : 'kom',
+                    logoColor: elLogoColor ? elLogoColor.value : '#FFFFFF',
+                    logoSize: elLogoSize ? elLogoSize.value : '100',
+                    logoOpacity: elLogoOpacity ? elLogoOpacity.value : '100',
                     visibleMetrics: visObj,
                     format: 'pdf'
                 };

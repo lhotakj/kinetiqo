@@ -1,10 +1,15 @@
-"""Unit tests for reusable UI controls across Mega Stats, Poster, and Map.
+"""Unit tests for reusable UI controls across Mega Stats, Achievements, Poster, and Map.
 
 Verifies:
 - _font_select.html and _font_options.html
 - _control_range.html
 - _control_color_tint.html
 - _image_upload_buttons.html
+- _control_box_header.html
+- _infographic_action_buttons.html
+- _control_year_select.html
+- _infographic_size_box.html
+- _infographic_appearance_box.html
 - _map_control_basemap.html
 - _map_control_color.html
 - _map_control_range.html
@@ -278,6 +283,160 @@ class TestMapControlSeparator(BaseTemplateTestCase):
         self.assertIn('select-none', html)
 
 
+class TestControlBoxHeader(BaseTemplateTestCase):
+    """Unit tests for _control_box_header.html."""
+
+    def test_rendering_with_parameters(self):
+        html = self.render(
+            '_control_box_header.html',
+            box_id='fondoOMeterPeriod',
+            box_title='Period'
+        )
+        self.assertIn('data-box-id="fondoOMeterPeriod"', html)
+        self.assertIn('<h4 class="text-gray-900 dark:text-gray-100">Period</h4>', html)
+        self.assertIn('aria-label="Toggle Period section"', html)
+        self.assertIn('class="collapse-toggle-btn', html)
+        self.assertIn('class="chevron-icon"', html)
+        self.assertIn('d="M19 9l-7 7-7-7"', html)
+
+
+class TestInfographicActionButtons(BaseTemplateTestCase):
+    """Unit tests for _infographic_action_buttons.html."""
+
+    def test_default_rendering(self):
+        html = self.render('_infographic_action_buttons.html')
+        self.assertIn('id="btn-download-png"', html)
+        self.assertIn('id="btn-download-pdf"', html)
+        self.assertIn('title="Download as PNG image"', html)
+        self.assertIn('title="Download as PDF"', html)
+        self.assertIn('<span>PNG</span>', html)
+        self.assertIn('<span>PDF</span>', html)
+        self.assertIn('aria-hidden="true"', html)
+
+    def test_custom_ids_and_labels(self):
+        html = self.render(
+            '_infographic_action_buttons.html',
+            png_btn_id='custom-png-btn',
+            pdf_btn_id='custom-pdf-btn',
+            png_label='Export PNG',
+            pdf_label='Export PDF',
+            png_title='Custom PNG Title',
+            pdf_title='Custom PDF Title'
+        )
+        self.assertIn('id="custom-png-btn"', html)
+        self.assertIn('id="custom-pdf-btn"', html)
+        self.assertIn('<span>Export PNG</span>', html)
+        self.assertIn('<span>Export PDF</span>', html)
+        self.assertIn('title="Custom PNG Title"', html)
+        self.assertIn('title="Custom PDF Title"', html)
+
+
+class TestControlYearSelect(BaseTemplateTestCase):
+    """Unit tests for _control_year_select.html."""
+
+    def test_default_rendering(self):
+        html = self.render('_control_year_select.html', current_year=2026, min_year=2023)
+        self.assertIn('<label for="year-select">Year</label>', html)
+        self.assertIn('id="year-select"', html)
+        self.assertIn('<option value="2026" selected>2026</option>', html)
+        self.assertIn('value="2025"', html)
+        self.assertIn('value="2024"', html)
+        self.assertIn('value="2023"', html)
+        self.assertNotIn('value="2022"', html)
+
+    def test_custom_parameters_and_selected_year(self):
+        html = self.render(
+            '_control_year_select.html',
+            control_id='fondo-year',
+            label='Season',
+            current_year=2026,
+            min_year=2024,
+            selected_year=2025
+        )
+        self.assertIn('<label for="fondo-year">Season</label>', html)
+        self.assertIn('id="fondo-year"', html)
+        self.assertIn('<option value="2025" selected>2025</option>', html)
+        self.assertNotIn('selected>2026</option>', html)
+
+
+class TestInfographicSizeBox(BaseTemplateTestCase):
+    """Unit tests for _infographic_size_box.html."""
+
+    def test_default_stats_rendering(self):
+        html = self.render('_infographic_size_box.html')
+        self.assertIn('data-box-id="statsSize"', html)
+        self.assertIn('Mega Stats Size', html)
+        self.assertIn('<label for="stats-size">Width</label>', html)
+        self.assertIn('id="stats-size"', html)
+        self.assertIn('4:3 (fixed)', html)
+        self.assertIn('<label for="stats-dimensions">Dimensions</label>', html)
+        self.assertIn('id="stats-dimensions"', html)
+        self.assertIn('1280', html)
+        self.assertIn('2048', html)
+
+    def test_fondo_o_meter_parameters(self):
+        html = self.render(
+            '_infographic_size_box.html',
+            box_id='fondoOMeterSize',
+            box_title='Fondo-o-meter Size',
+            size_control_id='fondo-size',
+            dimensions_id='fondo-dimensions'
+        )
+        self.assertIn('data-box-id="fondoOMeterSize"', html)
+        self.assertIn('Fondo-o-meter Size', html)
+        self.assertIn('<label for="fondo-size">Width</label>', html)
+        self.assertIn('id="fondo-size"', html)
+        self.assertIn('<label for="fondo-dimensions">Dimensions</label>', html)
+        self.assertIn('id="fondo-dimensions"', html)
+
+
+class TestInfographicAppearanceBox(BaseTemplateTestCase):
+    """Unit tests for _infographic_appearance_box.html."""
+
+    def test_default_stats_rendering(self):
+        groups = {
+            'cycling': {'name': 'Cycling', 'icon': '🚴'},
+            'running': {'name': 'Running', 'icon': '🏃'},
+        }
+        html = self.render(
+            '_infographic_appearance_box.html',
+            activity_groups=groups,
+            poster_google_fonts=[]
+        )
+        self.assertIn('data-box-id="statsAppearance"', html)
+        self.assertIn('<label for="stats-bg">Background</label>', html)
+        self.assertIn('id="stats-bg"', html)
+        self.assertIn('<label for="stats-group">Activities</label>', html)
+        self.assertIn('id="stats-group"', html)
+        self.assertIn('🚴 Cycling', html)
+        self.assertIn('🏃 Running', html)
+        self.assertIn('id="stats-tint"', html)
+        self.assertIn('id="stats-tint-clear-btn"', html)
+        self.assertIn('id="stats-opacity"', html)
+        self.assertIn('id="stats-font"', html)
+        self.assertIn('id="stats-upload-input"', html)
+        self.assertIn('id="stats-clear-image-btn"', html)
+
+    def test_fondo_o_meter_prefix_and_box_id(self):
+        groups = {'cycling': {'name': 'Cycling', 'icon': '🚴'}}
+        html = self.render(
+            '_infographic_appearance_box.html',
+            box_id='fondoOMeterAppearance',
+            prefix='fondo',
+            activity_groups=groups,
+            poster_google_fonts=[]
+        )
+        self.assertIn('data-box-id="fondoOMeterAppearance"', html)
+        self.assertIn('id="fondo-bg"', html)
+        self.assertIn('id="fondo-group"', html)
+        self.assertIn('id="fondo-tint"', html)
+        self.assertIn('id="fondo-tint-clear-btn"', html)
+        self.assertIn('id="fondo-opacity"', html)
+        self.assertIn('id="fondo-font"', html)
+        self.assertIn('id="fondo-upload-input"', html)
+        self.assertIn('id="fondo-clear-image-btn"', html)
+
+
 class TestMegaStatsAndPosterUnifiedControls(BaseTemplateTestCase):
     """Verify size controls and dimensions display on Mega Stats and Poster."""
 
@@ -288,9 +447,13 @@ class TestMegaStatsAndPosterUnifiedControls(BaseTemplateTestCase):
             'src', 'kinetiqo', 'web', 'templates', 'stats.html'
         )
         with open(template_file, encoding='utf-8') as f:
-            content = f.read()
+            template_content = f.read()
 
-        # Check options in #stats-size select
+        # stats.html must include the unified _infographic_size_box.html partial
+        self.assertIn('{% include "_infographic_size_box.html" %}', template_content)
+
+        # Rendered size box must contain M through XXXL options and exclude XS and S
+        content = self.render('_infographic_size_box.html')
         self.assertIn('<option value="1280">M (width 1280px)</option>', content)
         self.assertIn('<option value="1440">L (width 1440px)</option>', content)
         self.assertIn('<option value="1600">XL (width 1600px)</option>', content)
@@ -306,13 +469,7 @@ class TestMegaStatsAndPosterUnifiedControls(BaseTemplateTestCase):
 
     def test_stats_dimensions_display_inline(self):
         """Mega stats Dimensions label and value must be accessible and inline."""
-        template_file = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'src', 'kinetiqo', 'web', 'templates', 'stats.html'
-        )
-        with open(template_file, encoding='utf-8') as f:
-            content = f.read()
-
+        content = self.render('_infographic_size_box.html')
         self.assertIn('<label for="stats-dimensions">Dimensions</label>', content)
         self.assertIn('<span id="stats-dimensions" class="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">— × —</span>', content)
 
@@ -333,3 +490,4 @@ class TestMegaStatsAndPosterUnifiedControls(BaseTemplateTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

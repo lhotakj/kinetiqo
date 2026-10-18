@@ -41,6 +41,11 @@
         value_id=_opacity_val_id %}
         {% include "_control_range.html" %}
         {% endwith %}
+        {% if show_vignette %}
+        {% with control_id=_prefix ~ '-vignette', label='Vignette', min_val=-50, max_val=50, value=0, suffix='%', span_width='w-10' %}
+        {% include "_control_range.html" %}
+        {% endwith %}
+        {% endif %}
         {% set font_control_id = _font_id %}
         {% set font_label = 'Font:' %}
         {% include "_font_select.html" %}

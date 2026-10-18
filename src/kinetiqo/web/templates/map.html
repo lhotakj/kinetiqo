@@ -374,6 +374,12 @@
             if (!raw) return Object.assign({}, DEFAULTS);
             var saved = JSON.parse(raw);
             var mapToneColor = isValidHexColor(saved.mapToneColor || saved.toneColor) ? (saved.mapToneColor || saved.toneColor) : DEFAULTS.mapToneColor;
+            var savedBasemap = null;
+            if (typeof saved.basemap === 'string' && tileProviders[saved.basemap] && !tileProviders[saved.basemap].disabled) {
+                savedBasemap = saved.basemap;
+            } else if (typeof saved.mapProvider === 'string' && tileProviders[saved.mapProvider] && !tileProviders[saved.mapProvider].disabled) {
+                savedBasemap = saved.mapProvider;
+            }
             return {
                 routeColor: isValidHexColor(saved.routeColor || saved.color) ? (saved.routeColor || saved.color) : DEFAULTS.routeColor,
                 routeWidth: normalizeInteger((saved.routeWidth !== undefined ? saved.routeWidth : saved.width), DEFAULTS.routeWidth, 1, 20),
@@ -381,7 +387,7 @@
                 mapOpacity: normalizeInteger(saved.mapOpacity, DEFAULTS.mapOpacity, 0, 100),
                 toneOpacity: normalizeInteger(saved.toneOpacity, DEFAULTS.toneOpacity, 0, 100),
                 mapToneColor: mapToneColor,
-                basemap: (typeof saved.basemap === 'string' && tileProviders[saved.basemap]) ? saved.basemap : DEFAULTS.basemap
+                basemap: savedBasemap || DEFAULTS.basemap
             };
         } catch (e) {
             return Object.assign({}, DEFAULTS);
@@ -401,7 +407,8 @@
                 toneOpacity: currentToneOpacity,
                 mapToneColor: currentMapToneColor,
                 toneColor: currentMapToneColor,
-                basemap: currentBasemap
+                basemap: currentBasemap,
+                mapProvider: currentBasemap
             }));
         } catch (e) { /* quota exceeded or private browsing — silently ignore */ }
     }
@@ -958,8 +965,11 @@
         if (!provider || provider.disabled) {
             key = 'openstreetmap';
             provider = tileProviders[key];
-            document.getElementById('basemapPicker').value = key;
+            const picker = document.getElementById('basemapPicker');
+            if (picker) picker.value = key;
         }
+        currentBasemap = key;
+        saveSettings();
         if (tileLayer) {
             leafletMap.removeLayer(tileLayer);
         }
@@ -1203,7 +1213,14 @@
         if (toneOpacityValue)  toneOpacityValue.textContent = currentToneOpacity + '%';
         if (mapTonePicker) mapTonePicker.value = currentMapToneColor || '#ffffff';
         if (mapToneValue) mapToneValue.textContent = currentMapToneColor || 'None';
-        if (basemapPicker) basemapPicker.value        = currentBasemap;
+        if (basemapPicker) {
+            basemapPicker.value = currentBasemap;
+            if (!basemapPicker.value) {
+                basemapPicker.value = 'openstreetmap';
+                currentBasemap = 'openstreetmap';
+                saveSettings();
+            }
+        }
 
         // Start loading map data
         loadMapData();

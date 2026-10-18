@@ -6,11 +6,18 @@ and summary metrics from activities filtered by year and activity group.
 
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
+import json
 import math
 
 from kinetiqo.web.stats import (
     ACTIVITY_GROUPS,
+    CYCLING_ACTIVITY_TYPES,
     parse_activity_date,
+)
+from kinetiqo.koms import (
+    load_verified_koms,
+    load_verified_trophies,
+    extract_trophies_from_segment_efforts,
 )
 
 # Baseline distance threshold in kilometers for Fondo Analysis by sport group
@@ -79,7 +86,7 @@ def compute_fondo_circles(
 
     if len(sorted_acts) == 1 or max_km <= threshold_km:
         # Only 1 qualifying ride
-        label = f"{longest.get('name', 'Longest ' + noun)} ({max_km:.1f} km)"
+        label = f"{max_km:.1f} km"
         return [{
             'ring_index': 0,
             'is_longest': True,
@@ -164,7 +171,7 @@ def compute_fondo_circles(
     # 2. Outermost ring for the longest activity (sweeps full 180 degrees = 50.0% arc)
     outer_idx = len(circles)
     longest_name = longest.get('name') or f"Longest {noun}"
-    outer_label = f"{longest_name} ({max_km:.1f} km)"
+    outer_label = f"{max_km:.1f} km"
     circles.append({
         'ring_index': outer_idx,
         'is_longest': True,
@@ -181,15 +188,18 @@ def compute_fondo_circles(
 
 def compute_fondo_o_meter(
     activities: List[Dict[str, Any]],
-    year: int,
-    group_key: str = 'cycling'
+    year: Any,
+    group_key: str = 'cycling',
+    verified_koms: Optional[Dict[str, int]] = None,
+    verified_trophies: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> Dict[str, Any]:
     """Compute summary statistics for the Fondo-o-meter Infographic.
 
-    Filters activities by year and sport group, then calculates:
+    Filters activities by year (or all time) and sport group, then calculates:
       - Total activities, total distance (km), total elevation (m)
-      - Number of KOMs/CRs (achievement_count - pr_count where > 0)
+      - Number of true verified KOMs (from verified_koms cache)
       - Number of PRs (pr_count)
+      - Number of Thropies (placements 1st through 10th place)
       - Longest activity details
       - Concentric radial chart circles for qualifying fondo activities
 
@@ -201,20 +211,45 @@ def compute_fondo_o_meter(
     noun = group_info.get('noun', 'ride')
     threshold_km = get_sport_threshold(group_key)
 
+    # Load verified KOMs cache if not explicitly provided
+    if verified_koms is None:
+        verified_koms_map = load_verified_koms()
+    else:
+        verified_koms_map = {str(k): int(v) for k, v in verified_koms.items()}
+
+    # Load verified trophies cache if not explicitly provided
+    if verified_trophies is None:
+        verified_trophies_map = load_verified_trophies()
+    else:
+        verified_trophies_map = {
+            str(k): {str(rk): int(rv) for rk, rv in v.items()}
+            for k, v in verified_trophies.items()
+        }
+
+    is_all_time = str(year).strip().lower() in ('all', 'all_time', '0')
+    target_year: Optional[int] = None
+    if not is_all_time:
+        try:
+            target_year = int(year)
+        except (ValueError, TypeError):
+            is_all_time = True
+
     filtered_activities = []
     koms_count = 0
     prs_count = 0
+    trophies_ranks: Dict[int, int] = {r: 0 for r in range(1, 11)}
     longest_act = None
     max_dist_m = 0.0
 
     for act in activities:
         # Date filter
-        d = parse_activity_date(act.get('start_date'))
-        if not d or d.year != year:
-            continue
+        if not is_all_time:
+            d = parse_activity_date(act.get('start_date'))
+            if not d or d.year != target_year:
+                continue
 
         # Sport type filter
-        act_type = act.get('type') or act.get('sport_type') or ''
+        act_type = act.get('type') or act.get('sport_type') or act.get('sport') or ''
         if allowed_types and act_type not in allowed_types:
             continue
 
@@ -226,13 +261,77 @@ def compute_fondo_o_meter(
             max_dist_m = dist_m
             longest_act = act
 
-        # KOMs & PRs Aggregation
-        ach_count = int(act.get('achievement_count') or 0)
+        # PRs Aggregation
         pr_c = int(act.get('pr_count') or 0)
+        if pr_c == 0 and act.get('segment_efforts'):
+            pr_c = sum(1 for eff in act['segment_efforts'] if isinstance(eff, dict) and eff.get('pr_rank') in (1, 2, 3, '1', '2', '3'))
         prs_count += pr_c
-        # KOMs/CRs are achievements beyond PRs
-        koms = max(0, ach_count - pr_c)
-        koms_count += koms
+
+        # KOMs Aggregation (strictly on cycling activities, using synced verified KOMs)
+        act_koms = 0
+        if act_type in CYCLING_ACTIVITY_TYPES:
+            explicit_koms = act.get('koms_count') if act.get('koms_count') is not None else act.get('koms')
+            if explicit_koms is not None:
+                act_koms = max(0, int(explicit_koms))
+            else:
+                act_id_str = str(act.get('id') or act.get('activity_id') or '')
+                if act_id_str and act_id_str in verified_koms_map:
+                    act_koms = max(0, verified_koms_map[act_id_str])
+
+        # Thropies Aggregation (placements 1st through 10th place)
+        act_id_str = str(act.get('id') or act.get('activity_id') or '')
+        explicit_trophies = act.get('trophies_ranks') or act.get('trophies')
+
+        if isinstance(explicit_trophies, str):
+            try:
+                explicit_trophies = json.loads(explicit_trophies)
+            except Exception:
+                explicit_trophies = None
+
+        act_ranks = {r: 0 for r in range(1, 11)}
+        has_act_trophies = False
+
+        if isinstance(explicit_trophies, dict):
+            for r in range(1, 11):
+                val = explicit_trophies.get(r, explicit_trophies.get(str(r), 0))
+                try:
+                    act_ranks[r] = max(act_ranks[r], int(val))
+                    if act_ranks[r] > 0:
+                        has_act_trophies = True
+                except (ValueError, TypeError):
+                    pass
+
+        if act.get('segment_efforts'):
+            eff_trophies = extract_trophies_from_segment_efforts(act['segment_efforts'])
+            for r in range(1, 11):
+                act_ranks[r] = max(act_ranks[r], eff_trophies[r])
+                if act_ranks[r] > 0:
+                    has_act_trophies = True
+
+        if act_id_str and act_id_str in verified_trophies_map:
+            act_tr = verified_trophies_map[act_id_str]
+            if isinstance(act_tr, dict):
+                for r in range(1, 11):
+                    val = act_tr.get(r, act_tr.get(str(r), 0))
+                    try:
+                        act_ranks[r] = max(act_ranks[r], int(val))
+                        if act_ranks[r] > 0:
+                            has_act_trophies = True
+                    except (ValueError, TypeError):
+                        pass
+
+        # Harmonize with verified KOM count on rank 1
+        if act_koms > 0:
+            act_ranks[1] = max(act_ranks[1], act_koms)
+            has_act_trophies = True
+        elif act_type in CYCLING_ACTIVITY_TYPES and act_ranks[1] > 0:
+            act_koms = act_ranks[1]
+
+        koms_count += act_koms
+
+        if has_act_trophies:
+            for r in range(1, 11):
+                trophies_ranks[r] += act_ranks[r]
 
     # Qualifying Fondo activities (distance >= threshold_km)
     qualifying_acts = [
@@ -252,8 +351,10 @@ def compute_fondo_o_meter(
             'start_date': str(longest_act.get('start_date', '')),
         }
 
+    total_trophies = sum(trophies_ranks.values())
+
     return {
-        'year': year,
+        'year': 'all' if is_all_time else target_year,
         'group': group_key,
         'group_name': group_info.get('name', 'Cycling'),
         'group_icon': group_info.get('icon', '🚴'),
@@ -262,6 +363,12 @@ def compute_fondo_o_meter(
         'total_activities': len(filtered_activities),
         'koms_count': koms_count,
         'prs_count': prs_count,
+        'fondos_count': len(qualifying_acts),
+        'trophies_count': total_trophies,
+        'trophies': {
+            'total': total_trophies,
+            'ranks': {str(r): trophies_ranks[r] for r in range(1, 11)},
+        },
         'longest_ride': longest_info,
         'fondo': {
             'threshold_km': threshold_km,

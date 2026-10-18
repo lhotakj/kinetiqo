@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from datetime import datetime, timezone, timedelta
@@ -251,7 +252,8 @@ class PostgresqlRepository(DatabaseRepository):
                                elev_low,
                                gear_id,
                                has_heartrate,
-                               workout_type
+                               workout_type,
+                               trophies
                         FROM activities
                         ORDER BY start_date DESC
                             LIMIT %s
@@ -262,6 +264,11 @@ class PostgresqlRepository(DatabaseRepository):
                 activity = dict(row)
                 if isinstance(activity['start_date'], datetime):
                     activity['start_date'] = activity['start_date'].isoformat()
+                if activity.get('trophies') and isinstance(activity['trophies'], str):
+                    try:
+                        activity['trophies'] = json.loads(activity['trophies'])
+                    except Exception:
+                        pass
                 activities.append(activity)
             return activities
 
@@ -325,7 +332,8 @@ class PostgresqlRepository(DatabaseRepository):
                 gear_id,
                 has_heartrate,
                 workout_type,
-                max_speed
+                max_speed,
+                trophies
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -342,6 +350,11 @@ class PostgresqlRepository(DatabaseRepository):
                 activity = dict(row)
                 if isinstance(activity['start_date'], datetime):
                     activity['start_date'] = activity['start_date'].isoformat()
+                if activity.get('trophies') and isinstance(activity['trophies'], str):
+                    try:
+                        activity['trophies'] = json.loads(activity['trophies'])
+                    except Exception:
+                        pass
                 activities.append(activity)
             return activities
 
@@ -379,7 +392,8 @@ class PostgresqlRepository(DatabaseRepository):
                                elev_low,
                                gear_id,
                                has_heartrate,
-                               workout_type
+                               workout_type,
+                               trophies
                         FROM activities
                         WHERE activity_id = ANY (%s)
                         ORDER BY start_date DESC
@@ -390,6 +404,11 @@ class PostgresqlRepository(DatabaseRepository):
                 activity = dict(row)
                 if isinstance(activity['start_date'], datetime):
                     activity['start_date'] = activity['start_date'].isoformat()
+                if activity.get('trophies') and isinstance(activity['trophies'], str):
+                    try:
+                        activity['trophies'] = json.loads(activity['trophies'])
+                    except Exception:
+                        pass
                 activities.append(activity)
             return activities
 
@@ -468,6 +487,12 @@ class PostgresqlRepository(DatabaseRepository):
         activity_id = activity["id"]
         start_date = datetime.fromisoformat(activity["start_date"].replace("Z", "+00:00"))
 
+        trophies_val = activity.get("trophies")
+        if isinstance(trophies_val, dict):
+            trophies_val = json.dumps(trophies_val)
+        elif not isinstance(trophies_val, str):
+            trophies_val = None
+
         row = (
             start_date,
             activity_id,
@@ -497,7 +522,8 @@ class PostgresqlRepository(DatabaseRepository):
             activity.get("pr_count"),
             activity.get("suffer_score"),
             activity.get("weighted_average_watts"),
-            activity.get("workout_type")
+            activity.get("workout_type"),
+            trophies_val
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to PostgreSQL...")
@@ -510,10 +536,10 @@ class PostgresqlRepository(DatabaseRepository):
                                                 average_watts, max_watts, achievement_count, average_temp,
                                                 calories, device_watts, elev_high, elev_low, gear_id,
                                                 has_heartrate, kilojoules, pr_count, suffer_score,
-                                                weighted_average_watts, workout_type)
+                                                weighted_average_watts, workout_type, trophies)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
+                                %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
                         UPDATE SET
                             start_date = EXCLUDED.start_date,
                             name = EXCLUDED.name,
@@ -542,8 +568,35 @@ class PostgresqlRepository(DatabaseRepository):
                             pr_count = EXCLUDED.pr_count,
                             suffer_score = EXCLUDED.suffer_score,
                             weighted_average_watts = EXCLUDED.weighted_average_watts,
-                            workout_type = EXCLUDED.workout_type
+                            workout_type = EXCLUDED.workout_type,
+                            trophies = COALESCE(EXCLUDED.trophies, activities.trophies)
                         """, row)
+
+    def update_activity_trophies(self, activity_id: Any, trophies: Any):
+        """Update placement achievements (trophies ranks 1-10) for an activity."""
+        self._ensure_connected()
+        val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
+
+    def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get activities with achievements that have not yet had their trophies breakdown extracted."""
+        self._ensure_connected()
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT activity_id as id, name, sport, start_date, achievement_count, pr_count, trophies
+                FROM activities
+                WHERE achievement_count > 0 AND (trophies IS NULL OR trophies = '')
+                ORDER BY start_date DESC
+                LIMIT %s
+            """, (limit,))
+            activities = []
+            for row in cur.fetchall():
+                act = dict(row)
+                if isinstance(act.get('start_date'), datetime):
+                    act['start_date'] = act['start_date'].isoformat()
+                activities.append(act)
+            return activities
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to PostgreSQL."""

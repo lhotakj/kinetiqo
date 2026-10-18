@@ -1006,13 +1006,13 @@ def map_view():
     activity_ids = request.form.getlist('activity_ids[]')
 
     # Map customization parameters
-    color = request.args.get('color', '#FC4C02')
-    width = request.args.get('width', '2')
-    opacity = request.args.get('opacity', '100')
-    map_opacity = request.args.get('map_opacity', '100')
-    tone_opacity = request.args.get('tone_opacity', '50')
-    map_tone_color = request.args.get('map_tone_color', '')
-    basemap = request.args.get('basemap', 'openstreetmap')
+    color = request.values.get('color', '#FC4C02')
+    width = request.values.get('width', '2')
+    opacity = request.values.get('opacity', '100')
+    map_opacity = request.values.get('map_opacity', '100')
+    tone_opacity = request.values.get('tone_opacity', '50')
+    map_tone_color = request.values.get('map_tone_color', '')
+    basemap = request.values.get('basemap', 'openstreetmap')
 
     # Just render the template with IDs, don't generate map yet
     return render_template('map.html',
@@ -2230,8 +2230,21 @@ achievements = fondo_o_meter
 def fondo_o_meter_data_api():
     """Return computed Fondo-o-meter data as JSON for the infographic."""
     try:
-        year = request.args.get('year', default=datetime.now().year, type=int)
+        raw_year = request.args.get('year', default=str(datetime.now().year))
         group = request.args.get('group', 'cycling')
+
+        is_all_time = str(raw_year).strip().lower() in ('all', 'all_time', '0')
+        if is_all_time:
+            year = 'all'
+            start_date_str = None
+            end_date_str = None
+        else:
+            try:
+                year = int(raw_year)
+            except (ValueError, TypeError):
+                year = datetime.now().year
+            start_date_str = f'{year}-01-01'
+            end_date_str = f'{year}-12-31'
 
         group_info = ACTIVITY_GROUPS.get(group)
         if not group_info:
@@ -2239,9 +2252,6 @@ def fondo_o_meter_data_api():
 
         types = group_info['types']
         repo = get_db()
-
-        start_date_str = f'{year}-01-01'
-        end_date_str = f'{year}-12-31'
 
         activities = repo.get_activities_web(
             limit=100000,
@@ -4050,8 +4060,14 @@ def fondo_o_meter_export():
     opacity = payload.get('opacity', 40)
     arc_color = str(payload.get('arcColor', '#94C03B'))
     arc_width = str(payload.get('arcWidth', '100'))
-    arch_size = str(payload.get('archSize', '100'))
-    visible_metrics = payload.get('visibleMetrics', payload.get('visibleAchievements', {'fondo': True, 'koms': True, 'prs': True}))
+    arc_size = str(payload.get('arcSize', payload.get('archSize', '100')))
+    section_blur = str(payload.get('sectionBlur', '100'))
+    vignette = payload.get('vignette', 0)
+    crown_type = str(payload.get('crownType', 'kom'))
+    logo_color = str(payload.get('logoColor', '#FFFFFF'))
+    logo_size = str(payload.get('logoSize', '100'))
+    logo_opacity = str(payload.get('logoOpacity', '100'))
+    visible_metrics = payload.get('visibleMetrics', payload.get('visibleAchievements', {'fondo': True, 'koms': True, 'prs': True, 'thropies': True}))
     export_format = str(payload.get('format', 'png')).lower()
 
     host_header = request.host
@@ -4126,7 +4142,10 @@ def fondo_o_meter_export():
                     }}
                     var font = {_json.dumps(font_family)};
                     if (font) {{
-                        if (ig) ig.style.setProperty('--fondo-font-family', '"' + font + '", sans-serif');
+                        if (ig) {{
+                            ig.style.setProperty('--fondo-font-family', '"' + font + '", sans-serif');
+                            ig.style.fontFamily = '"' + font + '", sans-serif';
+                        }}
                         var fontSel = document.getElementById('fondo-font');
                         if (fontSel) fontSel.value = font;
                     }}
@@ -4150,17 +4169,85 @@ def fondo_o_meter_export():
                         if (arcWidthVal) arcWidthVal.textContent = arcWidth + '%';
                     }}
 
-                    var archSize = {_json.dumps(arch_size)};
-                    var archSizeInput = document.getElementById('fondo-arch-size');
-                    if (archSizeInput && archSize) {{
-                        archSizeInput.value = archSize;
-                        var archSizeVal = document.getElementById('fondo-arch-size-val');
-                        if (archSizeVal) archSizeVal.textContent = archSize + '%';
+                    var arcSize = {_json.dumps(arc_size)};
+                    var arcSizeInput = document.getElementById('fondo-arc-size') || document.getElementById('fondo-arch-size');
+                    if (arcSizeInput && arcSize) {{
+                        arcSizeInput.value = arcSize;
+                        var arcSizeVal = document.getElementById('fondo-arc-size-val') || document.getElementById('fondo-arch-size-val');
+                        if (arcSizeVal) arcSizeVal.textContent = arcSize + '%';
+                        if (ig) {{
+                            var sc = Number(arcSize) / 100.0;
+                            if (!Number.isNaN(sc)) ig.style.setProperty('--fondo-arc-text-scale', String(sc));
+                        }}
+                    }}
+
+                    var sectionBlur = {_json.dumps(section_blur)};
+                    var secBlurInput = document.getElementById('fondo-section-blur');
+                    if (secBlurInput && sectionBlur) {{
+                        secBlurInput.value = sectionBlur;
+                        var secBlurVal = document.getElementById('fondo-section-blur-val');
+                        if (secBlurVal) secBlurVal.textContent = sectionBlur + '%';
+                        if (ig) {{
+                            var bPx = (Number(sectionBlur) / 100.0) * 8.0;
+                            if (!Number.isNaN(bPx)) ig.style.setProperty('--fondo-section-blur', bPx.toFixed(1) + 'px');
+                        }}
+                    }}
+
+                    var vig = {_json.dumps(vignette)};
+                    var vigVal = Number.parseInt(vig, 10);
+                    if (Number.isNaN(vigVal)) vigVal = 0;
+                    var vigSlider = document.getElementById('fondo-vignette');
+                    if (vigSlider) vigSlider.value = String(vigVal);
+                    var vigValSpan = document.getElementById('fondo-vignette-val');
+                    if (vigValSpan) vigValSpan.textContent = (vigVal > 0 ? '+' : '') + vigVal + '%';
+                    var vigEl = document.getElementById('ig-bg-vignette');
+                    if (vigEl) {{
+                        if (vigVal > 0) {{
+                            var a = (vigVal / 50.0) * 0.85;
+                            var ma = (vigVal / 50.0) * 0.35;
+                            vigEl.style.display = 'block';
+                            vigEl.style.background = 'radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, ' + ma.toFixed(3) + ') 70%, rgba(0, 0, 0, ' + a.toFixed(3) + ') 100%)';
+                        }} else if (vigVal < 0) {{
+                            var absVal = Math.abs(vigVal);
+                            var a = (absVal / 50.0) * 0.8;
+                            var ma = (absVal / 50.0) * 0.3;
+                            vigEl.style.display = 'block';
+                            vigEl.style.background = 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, ' + ma.toFixed(3) + ') 70%, rgba(255, 255, 255, ' + a.toFixed(3) + ') 100%)';
+                        }} else {{
+                            vigEl.style.display = 'none';
+                            vigEl.style.background = 'none';
+                        }}
+                    }}
+
+                    var logoColor = {_json.dumps(logo_color)};
+                    var logoColorInput = document.getElementById('fondo-logo-color');
+                    if (logoColorInput && logoColor) logoColorInput.value = logoColor;
+                    var logoFlood = document.getElementById('logo-flood');
+                    if (logoFlood && logoColor) logoFlood.setAttribute('flood-color', logoColor);
+
+                    var logoSize = {_json.dumps(logo_size)};
+                    var logoSizeInput = document.getElementById('fondo-logo-size');
+                    if (logoSizeInput && logoSize) {{
+                        logoSizeInput.value = logoSize;
+                        var logoSizeVal = document.getElementById('fondo-logo-size-val');
+                        if (logoSizeVal) logoSizeVal.textContent = logoSize + '%';
+                        var scale = Number(logoSize) / 100.0;
+                        if (ig && !Number.isNaN(scale)) ig.style.setProperty('--fondo-logo-scale', String(scale));
+                    }}
+
+                    var logoOpacity = {_json.dumps(logo_opacity)};
+                    var logoOpInput = document.getElementById('fondo-logo-opacity');
+                    if (logoOpInput && logoOpacity) {{
+                        logoOpInput.value = logoOpacity;
+                        var logoOpVal = document.getElementById('fondo-logo-opacity-val');
+                        if (logoOpVal) logoOpVal.textContent = logoOpacity + '%';
+                        var op = Number(logoOpacity) / 100.0;
+                        if (ig && !Number.isNaN(op)) ig.style.setProperty('--fondo-logo-opacity', String(op));
                     }}
 
                     var visMetrics = {_json.dumps(visible_metrics)};
                     if (visMetrics) {{
-                        ['fondo', 'koms', 'prs'].forEach(function(key) {{
+                        ['fondo', 'koms', 'prs', 'thropies'].forEach(function(key) {{
                             var toggle = document.getElementById('toggle-' + key);
                             var col = document.getElementById('col-' + key);
                             if (toggle && visMetrics[key] !== undefined) {{
@@ -4189,6 +4276,11 @@ def fondo_o_meter_export():
                         }} else {{
                             igOv.style.display = 'none';
                         }}
+                    }}
+                    var crownSel = document.getElementById('fondo-crown-type');
+                    if (crownSel) {{
+                        crownSel.value = {_json.dumps(crown_type)};
+                        crownSel.dispatchEvent(new Event('change'));
                     }}
                     var sel = document.getElementById('fondo-year');
                     if (sel) sel.dispatchEvent(new Event('change'));

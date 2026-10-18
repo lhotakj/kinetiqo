@@ -1573,8 +1573,9 @@
                 if (typeof toneCol === 'string') {
                     res.mapToneColor = /^#[0-9a-fA-F]{6}$/.test(toneCol) ? toneCol : '';
                 }
-                if (typeof saved.basemap === 'string' && saved.basemap && TILE_PROVIDERS[saved.basemap]) {
-                    res.mapProvider = saved.basemap;
+                const baseKey = saved.basemap || saved.mapProvider;
+                if (typeof baseKey === 'string' && baseKey && TILE_PROVIDERS[baseKey] && !TILE_PROVIDERS[baseKey].disabled) {
+                    res.mapProvider = baseKey;
                 }
                 return res;
             } catch (_) {
@@ -1596,7 +1597,7 @@
                 const mapOp = s.mapOpacity !== undefined ? s.mapOpacity : mapSaved.mapOpacity;
                 const toneOp = s.toneOpacity !== undefined ? s.toneOpacity : mapSaved.toneOpacity;
                 const toneCol = s.mapToneColor !== undefined ? s.mapToneColor : (mapSaved.mapToneColor !== undefined ? mapSaved.mapToneColor : mapSaved.toneColor);
-                const basemap = s.mapProvider || mapSaved.basemap;
+                const basemap = (s.bgType === 'map' && s.mapProvider) ? s.mapProvider : (mapSaved.basemap || mapSaved.mapProvider || 'openstreetmap');
 
                 const updated = {
                     ...mapSaved,
@@ -1610,7 +1611,8 @@
                     toneOpacity: Number.isFinite(Number(toneOp)) ? Number.parseInt(toneOp, 10) : 50,
                     mapToneColor: toneCol || '',
                     toneColor: toneCol || '',
-                    basemap: basemap || 'openstreetmap'
+                    basemap: basemap || 'openstreetmap',
+                    mapProvider: basemap || 'openstreetmap'
                 };
                 localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(updated));
             } catch (_) {}
@@ -1635,9 +1637,14 @@
                     if (saved.routeOpacity !== undefined && saved.mapLineOpacity === undefined) saved.mapLineOpacity = saved.routeOpacity;
                     if (saved.mapLineOpacity !== undefined && saved.routeOpacity === undefined) saved.routeOpacity = saved.mapLineOpacity;
 
+                    const preferredMapProvider = (mapDefaults.mapProvider && TILE_PROVIDERS[mapDefaults.mapProvider] && !TILE_PROVIDERS[mapDefaults.mapProvider].disabled)
+                        ? mapDefaults.mapProvider
+                        : (saved.mapProvider || 'openstreetmap');
+
                     return {
                         ...effectiveDefaults,
                         ...saved,
+                        mapProvider: preferredMapProvider,
                         boxVisible: { ...DEFAULTS.boxVisible, ...(saved.boxVisible || {}) },
                         boxCollapsed: { ...DEFAULTS.boxCollapsed },
                         photoFilters: {
