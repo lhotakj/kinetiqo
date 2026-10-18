@@ -1,0 +1,31 @@
+{% set _box_id = box_id|default('statsSize') %}
+{% set _box_title = box_title|default('Mega Stats Size') %}
+{% set _size_id = size_control_id|default('stats-size') %}
+{% set _dim_id = dimensions_id|default('stats-dimensions') %}
+
+<div class="control-box">
+    {% with box_id=_box_id, box_title=_box_title %}
+    {% include "_control_box_header.html" %}
+    {% endwith %}
+    <div class="control-box-body">
+        <div class="control-row">
+            <label for="{{ _size_id }}">Width</label>
+            <select id="{{ _size_id }}"
+                class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                <option value="1280">M (width 1280px)</option>
+                <option value="1440">L (width 1440px)</option>
+                <option value="1600">XL (width 1600px)</option>
+                <option value="1920">XXL (width 1920px)</option>
+                <option value="2048">XXXL (width 2048px)</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label>Ratio</label>
+            <span class="text-sm text-gray-600 dark:text-gray-400 font-mono">{{ ratio_label|default('4:3 (fixed)') }}</span>
+        </div>
+        <div class="control-row">
+            <label for="{{ _dim_id }}">Dimensions</label>
+            <span id="{{ _dim_id }}" class="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">— × —</span>
+        </div>
+    </div>
+</div>

@@ -66,6 +66,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🏃 **Fitness & Freshness**: Banister impulse-response model for CTL (Fitness), ATL (Fatigue), and TSB (Form) curves calculated from suffer scores, with configurable time constants.
 - 📸 **WYSIWYG Activity Poster Generator**: Create professional activity posters with customizable fonts (Italiana, Inter, Outfit, JetBrains Mono, Fanwood Text), colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation profile chart, background photo mode (upload personal photos in PNG, JPG, WEBP, or HEIC formats, with clear image option and built-in photo editing tool for Color, Light, and Details adjustments) or interactive Leaflet canvas map background mode (tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element checkboxes, and Playwright-powered PNG export at exact pixel dimensions.
 - 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year, half-year, quarter, and custom-period statistics with 365-day activity calendar heatmaps. Features custom background photo upload (PNG, JPG, WEBP, or HEIC with reset), configurable tint color overlay and opacity slider, typography font selector (Inter, Italiana, Outfit, etc.), unified collapsible control panels (Stats Options, Appearance, Size, Period), responsive column width layout with stacked default (20%) and expanded full-width row layout (>20% up to 50%), metrics for Most Active Month by Distance and Most Active Month by Elevation, visible stat toggles with dynamic 1px hairline auto-cleanup, complete `localStorage` state persistence, and vector PDF / PNG Playwright export.
+- 🎯 **Fondo-o-meter Infographic**: Showcase infographic celebrating milestone endurance efforts with dynamic concentric radial progress rings and smart distance binning (up to 8 harmonic rings from sport threshold to single longest activity with bold distance label, e.g. **213.2 km**). Features dedicated Gran Fondo emblem (`gran-fondo.svg`), hero-sized total Fondos completed counter, KOMs conquered on cycling activities and PR segment badges across seasons, discipline-specific thresholds (≥100km cycling, ≥42.2km marathon running/walking, ≥50km skiing, ≥10km swimming), customizable canvas size (1280–2048px, 4:3 fixed), custom background photo upload with tint/opacity controls, arc base color & width customizer, typography selectors, dynamic auto-expanding layout, complete `localStorage` state persistence, and vector PDF / PNG Playwright export. See [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md).
 - ✍️ **Strava Description Auto-Update Engine**: Automatically render custom templates with 150+ dynamic placeholders into synced Strava activity descriptions. Includes the `{{workout-summary}}` engine (power zones, normalized power % FTP, sustained blocks, peak surges via `WORKOUT_SUMMARY_PEAK_THRESHOLD_W`), 6 independent activity buckets, begin/end placement, milestone handling (🎉), server-side validation, and a 30-activity-per-sync safety cap. See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
 - 🗺️ **Interactive Canvas Maps**: Multi-provider Leaflet map with Canvas renderer for thousands of GPS points, 16 basemaps across 7 providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, and Esri). Includes built-in server-side OSM tile proxy (`/tiles/osm/...`), distance-based GPS track simplification (`GPS_SIMPLIFICATION` levels 1–10) for 10–30× payload reduction, persistent route/map styling, tone controls, fullscreen mode, and viewport PNG export.
 - 💾 **Multi-DB Zero-ORM Warehouse**: Direct parameterized raw SQL execution with strict SQL injection immunity and zero ORM overhead across **PostgreSQL** (12+), **MySQL 8 / MariaDB 10+**, and **Firebird** (3.0, 4.0, 5.0). Includes automated built-in benchmark utility (`kinetiqo benchmark` with `-s, --scope` and `-d, --database-type`). See [docs/DATABASE.md](docs/DATABASE.md).
@@ -91,6 +92,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
 | `/vo2max` | VO₂max | Townsend/Storer-Davis 5-minute MAP and Coggan FTP-based VO₂max estimates with trend and classification |
 | `/stats` | MEGA Stats | Veloviewer-style infographic of year, half-year, quarter, custom-period, and activity-group statistics with calendar heatmap, custom background photo upload (PNG, JPG, WEBP, HEIC with reset), tint/opacity controls, font selection, collapsible control panels, responsive column width (stacked 20% default vs expanded full-width), configurable visible metrics, full state persistence, and PNG/PDF export |
+| `/fondo-o-meter` | Fondo-o-meter | Showcase infographic of Fondo distance tiers, KOMs, and PRs with concentric radial gauge chart, customizable size (1280–2048px), year selector, appearance controls (background color, photo upload with tint/opacity, font selection), dynamic auto-expanding layout, and Playwright PNG/PDF export |
 | `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), draggable persistent layout, background image (Strava reload, custom photo upload supporting PNG, JPG, WEBP, and HEIC, clear, and photo editing tool for Color, Light, Details) or interactive Leaflet map mode, persistent map center/zoom, elevation chart, and Playwright PNG export |
 | `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
 | `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
@@ -114,6 +116,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/ftp_history` | GET | FTP estimation history |
 | `/api/vo2max_history` | GET | VO₂max estimation history |
 | `/api/stats_data` | GET | MEGA Stats infographic data (year, period, group params) |
+| `/api/fondo_o_meter_data` | GET | Fondo-o-meter infographic data (year, group params) |
 | `/api/poster/photo/<activity_id>` | GET | Cached activity poster background photo |
 | `/api/poster/photo/<activity_id>` | POST | Fetch and cache poster photo from Strava |
 | `/api/poster/upload/<activity_id>` | POST | Upload custom poster background image |
@@ -123,6 +126,10 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/stats/upload` | POST | Upload custom background image for MEGA Stats infographic |
 | `/api/stats/image` | GET | Retrieve cached custom background image for MEGA Stats infographic |
 | `/api/stats/image/reset` | POST/DELETE | Reset custom background image for MEGA Stats infographic |
+| `/api/fondo_o_meter/export` | POST | Generate a Fondo-o-meter PNG or PDF export via Playwright |
+| `/api/fondo_o_meter/upload` | POST | Upload custom background image for Fondo-o-meter infographic |
+| `/api/fondo_o_meter/image` | GET | Retrieve cached custom background image for Fondo-o-meter infographic |
+| `/api/fondo_o_meter/image/reset` | POST/DELETE | Reset custom background image for Fondo-o-meter infographic |
 | `/tiles/osm/<z>/<x>/<y>.png` | GET | Server-side OpenStreetMap tile proxy |
 | `/strava/reconnect` | GET | Start Strava OAuth reconnection, including `activity:write` when required |
 | `/strava/callback` | GET | Complete Strava OAuth callback |
@@ -607,6 +614,8 @@ The CLI tool is located in the `src` directory.
 -   `version`: Outputs the current version information.
 -   `benchmark`: Profiles database operations for the configured backend.
     -   `--scope` / `-s`: Lookback period in days (default: `365`).
+-   `scan-trophies`: Scans and backfills segment trophies (placements 1st–10th) from Strava.
+    -   `--limit` / `-l`: Maximum number of activities with achievements to scan (default: `50`).
 
 ### Manual Sync
 
@@ -627,6 +636,9 @@ python kinetiqo.py --log-level DEBUG sync --fast-sync
 
 # Execute incremental synchronization
 python kinetiqo.py sync --fast-sync
+
+# Scan and backfill segment trophies for historical activities
+python kinetiqo.py scan-trophies --limit 50
 
 # Run the database benchmark for the last 90 days
 python kinetiqo.py benchmark --scope 90
@@ -656,9 +668,10 @@ src/
     ├── __init__.py
     ├── __main__.py
     ├── cache.py                 # Strava API response cache
-    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version, benchmark)
+    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version, benchmark, scan-trophies)
     ├── config.py                # Config dataclass (reads env vars)
     ├── gps_simplify.py          # Distance-based GPS track simplification
+    ├── koms.py                  # KOMs and segment trophy extraction and persistence
     ├── logging_utils.py         # Shared logging configuration
     ├── profile_sync.py          # Environment/profile synchronization and token persistence
     ├── strava.py                # Strava API client (OAuth2, activity streams)
@@ -677,6 +690,7 @@ src/
         ├── app.py               # Flask app, all routes & API endpoints
         ├── auth.py              # flask-login User model & auth helpers
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
+        ├── fondo_o_meter.py     # Fondo-o-meter infographic data aggregation
         ├── fonts.py             # Single source of truth for all Google Fonts
         ├── progress.py          # SSE sync progress stream
         ├── stats.py             # MEGA Stats infographic data aggregation
@@ -695,6 +709,7 @@ src/
             ├── fitness.html         # Fitness & Freshness chart (CTL/ATL/TSB)
             ├── vo2max.html          # VO₂max estimation chart
             ├── stats.html           # MEGA Stats Veloviewer-style infographic
+            ├── fondo-o-meter.html   # Fondo-o-meter concentric milestone rings infographic
             ├── poster.html          # Activity poster generator (customizable fonts, colors, sizes)
             ├── settings.html        # Settings page (profile, goals, config)
             ├── logs.html            # Audit log viewer

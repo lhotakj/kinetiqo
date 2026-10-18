@@ -289,6 +289,49 @@ class StravaClient:
         self.cache.set("athlete", data)
         return data
 
+    def get_athlete_koms(self, athlete_id: int | str, page: int = 1, per_page: int = 200) -> list[dict]:
+        """Fetch the athlete's King of the Mountain (KOM/QOM/CR) efforts from Strava.
+
+        Calls ``GET /api/v3/athletes/{athlete_id}/koms`` to retrieve all segment efforts
+        where the athlete currently holds the #1 ranking.
+
+        :param athlete_id: Strava athlete ID.
+        :param page: Starting page number (1-indexed).
+        :param per_page: Items per page (up to 200).
+        :return: List of segment effort dictionaries.
+        """
+        all_koms = []
+        current_page = page
+
+        while True:
+            url = f"{self.BASE_URL}/athletes/{athlete_id}/koms"
+            params = {"page": current_page, "per_page": per_page}
+            logger.debug(f"GET {url} | params={params}")
+
+            attempt = 0
+            while True:
+                attempt += 1
+                try:
+                    r = requests.get(url, headers=self._headers(), params=params, timeout=self.request_timeout)
+                    r.raise_for_status()
+                    break
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Strava athlete KOMs request failed (attempt {attempt}): {e}")
+                    if attempt > self.request_retries:
+                        logger.exception(f"Failed to fetch athlete KOMs for {athlete_id} after {attempt} attempts: {e}")
+                        raise
+                    time.sleep(2 ** attempt)
+
+            batch = r.json()
+            if not isinstance(batch, list):
+                break
+            all_koms.extend(batch)
+            if len(batch) < per_page:
+                break
+            current_page += 1
+
+        return all_koms
+
     def get_streams(self, activity_id: int) -> dict:
         """Fetch detailed streams for an activity."""
         # Check cache first

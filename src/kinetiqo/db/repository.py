@@ -173,6 +173,16 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def update_activity_trophies(self, activity_id: Any, trophies: Any):
+        """Update placement achievements (trophies ranks 1-10) for an activity."""
+        pass
+
+    @abstractmethod
+    def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get activities with achievements that have not yet had their trophies breakdown extracted."""
+        pass
+
+    @abstractmethod
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to the database."""
         pass

@@ -1,0 +1,1812 @@
+{% extends "base.html" %}
+
+{% block head %}
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
+<style>
+    /* ==========================================================================
+       Fondo-o-meter Infographic Styles
+       ========================================================================== */
+    .infographic-wrapper {
+        position: relative;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+        transform-origin: top left;
+        user-select: none;
+        flex-shrink: 0;
+        background-color: #4a4a4a;
+    }
+
+    .infographic {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 28px 32px 20px 32px;
+        box-sizing: border-box;
+        color: #ffffff;
+        font-family: var(--fondo-font-family, "Inter", sans-serif);
+        overflow: hidden;
+        background: transparent;
+    }
+
+    /* ---- Background Elements ---- */
+    .ig-bg-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        z-index: 0;
+        display: none;
+    }
+
+    .ig-bg-overlay {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        display: none;
+    }
+
+    .ig-bg-vignette {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        display: none;
+    }
+
+    /* ---- Header ---- */
+    .ig-header {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+        padding-bottom: 14px;
+    }
+
+    .ig-title {
+        font-size: var(--fondo-title-font-size, 1.5rem);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+
+    .ig-title .brand {
+        opacity: 0.55;
+        font-weight: 400;
+    }
+
+    .ig-subtitle {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.95);
+        opacity: 0.7;
+        margin-top: 3px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+    }
+
+    .ig-period {
+        font-size: calc(var(--fondo-title-font-size, 1.5rem) * 1.67);
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        line-height: 1;
+        text-align: right;
+    }
+
+    .ig-period-sub {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.9);
+        opacity: 0.5;
+        font-weight: 400;
+        text-align: right;
+    }
+
+    /* ---- Body: Dynamic Columns ---- */
+    .ig-body {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex: 1;
+        gap: 24px;
+        min-height: 0;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    .fondo-col {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px 22px;
+        backdrop-filter: blur(var(--fondo-section-blur, 8px));
+        -webkit-backdrop-filter: blur(var(--fondo-section-blur, 8px));
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        transition: all 0.3s ease;
+    }
+
+    .fondo-col-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .fondo-col-title {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.85);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .fondo-badge {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.8);
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.12);
+        padding: 3px 8px;
+        border-radius: 6px;
+        letter-spacing: 0.04em;
+    }
+
+    /* Column 1: Fondo SVG Concentric Circles */
+    .fondo-chart-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        min-height: 0;
+    }
+
+    .fondo-svg {
+        width: 100%;
+        height: 100%;
+        max-height: 400px;
+        overflow: visible;
+        font-family: var(--fondo-font-family, "Inter", sans-serif);
+    }
+
+    .fondo-track {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.07);
+    }
+
+    .fondo-arc {
+        fill: none;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .fondo-label {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.78 * var(--fondo-arc-text-scale, 1.0));
+        font-weight: 500;
+        fill: rgba(255, 255, 255, 0.85);
+        text-anchor: end;
+        dominant-baseline: middle;
+        font-family: var(--fondo-font-family, "Inter", sans-serif);
+    }
+
+    .fondo-label.longest {
+        font-weight: 800;
+        fill: #ffffff;
+    }
+
+    /* Columns 2 & 3: Hero Metric Cards */
+    .fondo-stat-hero {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        text-align: center;
+        padding: 24px 10px 20px 10px;
+    }
+
+    /* Column 1: Top Hero Section above Arcs */
+    .fondo-stat-hero-top {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        text-align: center;
+        padding: 24px 10px 6px 10px;
+        margin-bottom: 6px;
+        flex-shrink: 0;
+    }
+
+    .fondo-stat-img {
+        height: calc(var(--fondo-font-size, 14px) * 22 * var(--fondo-logo-scale, 1.0));
+        max-height: calc(306px * var(--fondo-logo-scale, 1.0));
+        max-width: 100%;
+        width: auto;
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
+        display: inline-block;
+        vertical-align: middle;
+        opacity: var(--fondo-logo-opacity, 1.0);
+        filter: url(#logo-colorize) drop-shadow(0 8px 22px rgba(0, 0, 0, 0.45));
+        transition: opacity 0.15s ease;
+    }
+
+    .fondo-stat-icon {
+        line-height: 1;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .fondo-stat-number {
+        font-size: calc(var(--fondo-title-font-size, 1.5rem) * 2.8);
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        margin-bottom: 6px;
+    }
+
+    .fondo-stat-number.gold {
+        background: linear-gradient(135deg, #FFE259 0%, #FFA751 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .fondo-stat-number.purple {
+        background: linear-gradient(135deg, #E0C3FC 0%, #8EC5FC 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .fondo-stat-number.green {
+        background: linear-gradient(135deg, #E2F19D 0%, #94C03B 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .fondo-stat-number.amber {
+        background: linear-gradient(135deg, #FDE68A 0%, #F59E0B 50%, #D97706 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    #col-thropies .fondo-stat-hero {
+        padding: 24px 10px 10px 10px;
+        margin-bottom: 0;
+        flex: 0 0 auto;
+    }
+
+    #col-thropies .fondo-stat-desc {
+        margin-top: 10px;
+    }
+
+    .thropies-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        margin-top: 10px;
+        width: 100%;
+    }
+
+    .trophy-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 3px 2px;
+        background: transparent;
+        border: none;
+    }
+
+
+    .trophy-rank-badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+    .trophy-medal-svg {
+        width: 17px;
+        height: 17px;
+        flex-shrink: 0;
+    }
+
+    .trophy-rank-name {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.8);
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+    }
+
+    .trophy-count {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.85);
+        font-weight: 700;
+        font-family: var(--font-mono, monospace);
+        color: rgba(255, 255, 255, 0.95);
+    }
+
+    .fondo-stat-label-large {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.95);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .fondo-stat-desc {
+        font-size: calc(var(--fondo-font-size, 14px) * 0.78);
+        color: rgba(255, 255, 255, 0.45);
+        margin-top: 14px;
+        text-align: center;
+        max-width: 240px;
+        line-height: 1.4;
+    }
+
+    /* ---- Footer ---- */
+    .ig-footer {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: calc(var(--fondo-font-size, 14px) * 0.75);
+        color: rgba(255, 255, 255, 0.4);
+    }
+
+    .ig-footer .footer-brand {
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* ---- Scaling Preview Area ---- */
+    .fondo-preview-scaler {
+        position: relative;
+        overflow: visible;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+    }
+
+    /* Control box overrides */
+    .control-box {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    .dark .control-box {
+        background: #18181b;
+        border-color: #27272a;
+    }
+    .control-box-header {
+        padding: 10px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .dark .control-box-header {
+        background: #202023;
+        border-color: #27272a;
+    }
+    .control-box-header.collapsed {
+        border-bottom: none;
+    }
+    .control-box-body {
+        padding: 14px;
+    }
+    .control-box-body.collapsed {
+        display: none;
+    }
+    .collapse-toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px;
+        color: #71717a;
+    }
+    .chevron-icon {
+        width: 16px;
+        height: 16px;
+        transition: transform 0.2s ease;
+    }
+    .control-box-header.collapsed .chevron-icon {
+        transform: rotate(-90deg);
+    }
+    .control-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        font-size: 0.8125rem;
+    }
+    .control-row:last-child {
+        margin-bottom: 0;
+    }
+    .control-row > label,
+    .control-row label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        min-width: 80px;
+        color: #4b5563;
+        flex-shrink: 0;
+    }
+    .dark .control-row > label,
+    .dark .control-row label {
+        color: #9ca3af;
+    }
+    .control-row.flex-col {
+        align-items: flex-start;
+    }
+    .control-row.flex-col > label {
+        min-width: auto;
+        text-align: left;
+        margin-bottom: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row gap-6">
+
+    <!-- ===== Left Controls Panel ===== -->
+    <div class="w-full lg:w-72 flex-shrink-0">
+
+        <!-- Action Buttons -->
+        {% include "_infographic_action_buttons.html" %}
+
+        <!-- Fondo-o-meter Infographic Size -->
+        {% with box_id='fondoOMeterSize', box_title='Fondo-o-meter Size', size_control_id='fondo-size', dimensions_id='fondo-dimensions' %}
+        {% include "_infographic_size_box.html" %}
+        {% endwith %}
+
+        <!-- Period (Year only) -->
+        <div class="control-box">
+            {% with box_id='fondoOMeterPeriod', box_title='Period' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                {% with control_id='fondo-year', label='Year', include_all_time=True %}
+                {% include "_control_year_select.html" %}
+                {% endwith %}
+            </div>
+        </div>
+
+        <!-- Appearance -->
+        {% with box_id='fondoOMeterAppearance', prefix='fondo', show_vignette=True %}
+        {% include "_infographic_appearance_box.html" %}
+        {% endwith %}
+
+        <!-- Fondo-o-meter Options -->
+        <div class="control-box">
+            {% with box_id='fondoOMeterOptions', box_title='Fondo-o-meter Options' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                {% with control_id='fondo-title-font-size', label='Title Size', min_val=16, max_val=64, value=24, suffix='px' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='fondo-font-size', label='Font Size', min_val=10, max_val=24, value=14, suffix='px' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                <div class="control-row">
+                    <label for="fondo-arc-color">Arc Color</label>
+                    <div class="flex items-center gap-2 flex-1 justify-end">
+                        <input type="color" id="fondo-arc-color" value="#94C03B"
+                            class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600"
+                            aria-label="Arc Color">
+                        <button type="button" id="fondo-arc-color-reset"
+                            class="h-8 px-2.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 text-xs text-gray-600 dark:text-gray-300 transition"
+                            title="Reset to default light green">Reset</button>
+                    </div>
+                </div>
+                {% with control_id='fondo-arc-width', label='Arc Width', min_val=80, max_val=160, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='fondo-arc-size', label='Arc Text Size', min_val=70, max_val=140, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                <div class="control-row">
+                    <label for="fondo-crown-type">Crown Badge</label>
+                    <div class="flex-1 flex justify-end">
+                        <select id="fondo-crown-type" class="text-xs rounded border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-700 dark:text-gray-300 px-2 py-1" aria-label="Crown Badge Type">
+                            <option value="kom" selected>KOM (King)</option>
+                            <option value="qom">QOM (Queen)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="control-row">
+                    <label for="fondo-logo-color">Logo Color</label>
+                    <div class="flex items-center gap-2 flex-1 justify-end">
+                        <input type="color" id="fondo-logo-color" value="#FFFFFF"
+                            class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600"
+                            aria-label="Logo Color">
+                        <button type="button" id="fondo-logo-color-reset"
+                            class="h-8 px-2.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700 text-xs text-gray-600 dark:text-gray-300 transition"
+                            title="Reset to default white">Reset</button>
+                    </div>
+                </div>
+                {% with control_id='fondo-logo-size', label='Logo Size', min_val=50, max_val=150, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='fondo-logo-opacity', label='Logo Opacity', min_val=10, max_val=100, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                {% with control_id='fondo-section-blur', label='Section Blur', min_val=0, max_val=100, value=100, suffix='%', span_width='w-10' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+                <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2.5">Visible Metrics</div>
+                    <div class="flex flex-col gap-2">
+                        <label for="toggle-fondo"
+                            class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" id="toggle-fondo" class="fondo-toggle flex-shrink-0" data-stat="fondo" checked aria-label="Toggle Fondo Analysis">
+                            <span class="truncate">Fondo Analysis</span>
+                        </label>
+                        <label for="toggle-koms"
+                            class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" id="toggle-koms" class="fondo-toggle flex-shrink-0" data-stat="koms" checked aria-label="Toggle KOMs">
+                            <span class="truncate">Number of KOMs</span>
+                        </label>
+                        <label for="toggle-prs"
+                            class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" id="toggle-prs" class="fondo-toggle flex-shrink-0" data-stat="prs" checked aria-label="Toggle Personal Records">
+                            <span class="truncate">Number of PRs</span>
+                        </label>
+                        <label for="toggle-thropies"
+                            class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5">
+                            <input type="checkbox" id="toggle-thropies" class="fondo-toggle flex-shrink-0" data-stat="thropies" checked aria-label="Toggle Thropies">
+                            <span class="truncate">Thropies</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===== Right Preview Canvas ===== -->
+    <div class="flex-1 min-w-0 flex flex-col items-center">
+        <div class="fondo-preview-scaler" id="fondo-preview-scaler">
+            <div id="infographic-wrapper" class="infographic-wrapper">
+                <img id="ig-bg-image" class="ig-bg-image" alt="Background" {% if has_bg_image %}src="/api/fondo_o_meter/image"{% endif %} style="{% if has_bg_image %}display:block;{% endif %}" />
+                <div id="ig-bg-overlay" class="ig-bg-overlay"></div>
+                <div id="ig-bg-vignette" class="ig-bg-vignette"></div>
+
+                <div id="infographic" class="infographic">
+                    <!-- SVG Colorize Filter for Badges & Logos -->
+                    <svg width="0" height="0" style="position:absolute;left:-9999px;width:0;height:0;" aria-hidden="true">
+                        <defs>
+                            <filter id="logo-colorize" color-interpolation-filters="sRGB">
+                                <feFlood id="logo-flood" flood-color="#FFFFFF" result="flood" />
+                                <feComposite in="flood" in2="SourceAlpha" operator="in" />
+                            </filter>
+                        </defs>
+                    </svg>
+
+                    <!-- Infographic Header -->
+                    <div class="ig-header">
+                        <div>
+                            <div class="ig-title">
+                                <span class="brand">KINETIQO</span> FONDO-O-METER
+                            </div>
+                            <div class="ig-subtitle" id="ig-athlete-name">{{ athlete_name }}</div>
+                        </div>
+                        <div>
+                            <div class="ig-period" id="ig-period-display">{{ current_year }}</div>
+                            <div class="ig-period-sub" id="ig-group-display">CYCLING</div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic 3-Column Display Body -->
+                    <div class="ig-body" id="ig-body">
+
+                        <!-- Column 1: Fondo Analysis -->
+                        <div class="fondo-col" id="col-fondo">
+                            <div class="fondo-col-header">
+                                <span class="fondo-col-title" id="fondo-col-title">
+                                    <span id="fondo-title-text">FONDO ANALYSIS</span>
+                                </span>
+                                <span class="fondo-badge" id="fondo-threshold-badge">≥ 100 km</span>
+                            </div>
+                            <div class="fondo-stat-hero-top">
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-gf.png') }}" id="fondo-hero-logo" class="fondo-stat-img" alt="Gran Fondo" width="306" height="306">
+                                    <span id="fondo-hero-emoji" style="display:none;">🚴</span>
+                                </div>
+                                <div class="fondo-stat-number green" id="fondos-count">0</div>
+                                <div class="fondo-stat-label-large" id="fondos-label">Fondos Completed</div>
+                            </div>
+                            <div class="fondo-chart-container" id="fondo-container">
+                                <svg class="fondo-svg" id="fondo-svg" viewBox="0 0 460 380">
+                                    <!-- Radial circles rendered dynamically -->
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Column 2: Number of KOMs -->
+                        <div class="fondo-col" id="col-koms">
+                            <div class="fondo-col-header">
+                                <span class="fondo-col-title">
+                                    <span id="koms-header-title">KOMs</span>
+                                </span>
+                                <span class="fondo-badge" id="koms-year-badge">{{ current_year }}</span>
+                            </div>
+                            <div class="fondo-stat-hero">
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-kom.png') }}" id="koms-hero-img" class="fondo-stat-img" alt="KOMs" width="306" height="306">
+                                </div>
+                                <div class="fondo-stat-number gold" id="koms-count">0</div>
+                                <div class="fondo-stat-label-large">Segments Conquered</div>
+                                <div class="fondo-stat-desc" id="koms-desc-text">
+                                    King of the Mountains verified across cycling activities in <span id="koms-desc-year">{{ current_year }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Column 3: Number of PRs -->
+                        <div class="fondo-col" id="col-prs">
+                            <div class="fondo-col-header">
+                                <span class="fondo-col-title">
+                                    <span>Personal Records</span>
+                                </span>
+                                <span class="fondo-badge" id="prs-year-badge">{{ current_year }}</span>
+                            </div>
+                            <div class="fondo-stat-hero">
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-pr.png') }}" id="prs-hero-img" class="fondo-stat-img" alt="Personal Records" width="306" height="306">
+                                </div>
+                                <div class="fondo-stat-number purple" id="prs-count">0</div>
+                                <div class="fondo-stat-label-large">PRs Set</div>
+                                <div class="fondo-stat-desc">
+                                    Personal records and top segment performances earned during <span id="prs-desc-year">{{ current_year }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Column 4: Thropies -->
+                        <div class="fondo-col" id="col-thropies">
+                            <div class="fondo-col-header">
+                                <span class="fondo-col-title">
+                                    <span>Thropies</span>
+                                </span>
+                                <span class="fondo-badge" id="thropies-year-badge">{{ current_year }}</span>
+                            </div>
+                            <div class="fondo-stat-hero">
+                                <div class="fondo-stat-icon">
+                                    <img src="{{ url_for('static', filename='icons/fondo-o-meter-thropies.png') }}" id="thropies-hero-img" class="fondo-stat-img" alt="Thropies" width="306" height="306">
+                                </div>
+                                <div class="fondo-stat-number amber" id="thropies-total-count">0</div>
+                                <div class="fondo-stat-label-large">Top 10 Placements</div>
+                                <div class="fondo-stat-desc">
+                                    All achievements placed 1st to 10th on segments in <span id="thropies-desc-year">{{ current_year }}</span>
+                                </div>
+                            </div>
+                            <div class="thropies-breakdown" id="thropies-breakdown">
+                                <!-- 1st Place (Gold) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFE259"/><stop offset="100%" stop-color="#FFA751"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#DC2626" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gold)" stroke="#F59E0B" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#78350F">1</text></svg>
+                                        <span class="trophy-rank-name">1st Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-1">0</span>
+                                </div>
+                                <!-- 2nd Place (Silver) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#94A3B8"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#2563EB" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-silver)" stroke="#CBD5E1" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#1E293B">2</text></svg>
+                                        <span class="trophy-rank-name">2nd Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-2">0</span>
+                                </div>
+                                <!-- 3rd Place (Bronze) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-bronze" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FED7AA"/><stop offset="100%" stop-color="#C2410C"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#059669" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-bronze)" stroke="#EA580C" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#451A03">3</text></svg>
+                                        <span class="trophy-rank-name">3rd Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-3">0</span>
+                                </div>
+                                <!-- 4th to 10th Place (Gray) -->
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><defs><linearGradient id="t-gray" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#64748B"/><stop offset="100%" stop-color="#334155"/></linearGradient></defs><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">4</text></svg>
+                                        <span class="trophy-rank-name">4th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-4">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">5</text></svg>
+                                        <span class="trophy-rank-name">5th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-5">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">6</text></svg>
+                                        <span class="trophy-rank-name">6th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-6">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">7</text></svg>
+                                        <span class="trophy-rank-name">7th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-7">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">8</text></svg>
+                                        <span class="trophy-rank-name">8th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-8">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.3" text-anchor="middle" font-size="6.5" font-weight="900" fill="#F8FAFC">9</text></svg>
+                                        <span class="trophy-rank-name">9th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-9">0</span>
+                                </div>
+                                <div class="trophy-row">
+                                    <div class="trophy-rank-badge">
+                                        <svg class="trophy-medal-svg" viewBox="0 0 20 20" fill="none"><path d="M6 2L10 7L14 2H11.5L10 4.5L8.5 2H6Z" fill="#475569" opacity="0.9"/><circle cx="10" cy="12" r="5.5" fill="url(#t-gray)" stroke="#94A3B8" stroke-width="0.8"/><text x="10" y="14.2" text-anchor="middle" font-size="5.2" font-weight="900" fill="#F8FAFC">10</text></svg>
+                                        <span class="trophy-rank-name">10th Place</span>
+                                    </div>
+                                    <span class="trophy-count" id="trophy-count-10">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Infographic Footer -->
+                    <div class="ig-footer">
+                        <div class="footer-brand">Kinetiqo • Self-Hosted Fitness Warehouse</div>
+                        <div id="ig-timestamp"></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Elements
+        const wrapper = document.getElementById('infographic-wrapper');
+        const scaler = document.getElementById('fondo-preview-scaler');
+        const ig = document.getElementById('infographic');
+        const igBgImage = document.getElementById('ig-bg-image');
+        const igBgOverlay = document.getElementById('ig-bg-overlay');
+        const igBgVignette = document.getElementById('ig-bg-vignette');
+
+        const elSize = document.getElementById('fondo-size');
+        const elDim = document.getElementById('fondo-dimensions');
+        const elYear = document.getElementById('fondo-year');
+        const elGroup = document.getElementById('fondo-group');
+        const elBg = document.getElementById('fondo-bg');
+        const elTint = document.getElementById('fondo-tint');
+        const elTintClearBtn = document.getElementById('fondo-tint-clear-btn');
+        const elOpacity = document.getElementById('fondo-opacity');
+        const elOpacityVal = document.getElementById('fondo-opacity-val');
+        const elVignette = document.getElementById('fondo-vignette');
+        const elVignetteVal = document.getElementById('fondo-vignette-val');
+        const elFont = document.getElementById('fondo-font');
+        const elUploadInput = document.getElementById('fondo-upload-input');
+        const elUploadBtn = document.getElementById('fondo-upload-btn');
+        const elUploadText = document.getElementById('fondo-upload-text');
+        const elUploadSpinner = document.getElementById('fondo-upload-spinner');
+        const elClearImageBtn = document.getElementById('fondo-clear-image-btn');
+
+        const titleFontSizeSlider = document.getElementById('fondo-title-font-size');
+        const titleFontSizeVal = document.getElementById('fondo-title-font-size-val');
+        const fontSizeSlider = document.getElementById('fondo-font-size');
+        const fontSizeVal = document.getElementById('fondo-font-size-val');
+
+        const elArcColor = document.getElementById('fondo-arc-color');
+        const elArcColorReset = document.getElementById('fondo-arc-color-reset');
+        const elArcWidth = document.getElementById('fondo-arc-width');
+        const elArcWidthVal = document.getElementById('fondo-arc-width-val');
+        const elArcSize = document.getElementById('fondo-arc-size') || document.getElementById('fondo-arch-size');
+        const elArcSizeVal = document.getElementById('fondo-arc-size-val') || document.getElementById('fondo-arch-size-val');
+        const elSectionBlur = document.getElementById('fondo-section-blur');
+        const elSectionBlurVal = document.getElementById('fondo-section-blur-val');
+
+        const elLogoColor = document.getElementById('fondo-logo-color');
+        const elLogoColorReset = document.getElementById('fondo-logo-color-reset');
+        const elLogoSize = document.getElementById('fondo-logo-size');
+        const elLogoSizeVal = document.getElementById('fondo-logo-size-val');
+        const elLogoOpacity = document.getElementById('fondo-logo-opacity');
+        const elLogoOpacityVal = document.getElementById('fondo-logo-opacity-val');
+
+        // Target displays
+        const elPeriodDisplay = document.getElementById('ig-period-display');
+        const elGroupDisplay = document.getElementById('ig-group-display');
+        const elKomsCount = document.getElementById('koms-count');
+        const elPrsCount = document.getElementById('prs-count');
+        const elKomsYearBadge = document.getElementById('koms-year-badge');
+        const elPrsYearBadge = document.getElementById('prs-year-badge');
+        const elKomsDescYear = document.getElementById('koms-desc-year');
+        const elPrsDescYear = document.getElementById('prs-desc-year');
+        const elThropiesTotalCount = document.getElementById('thropies-total-count');
+        const elThropiesYearBadge = document.getElementById('thropies-year-badge');
+        const elThropiesDescYear = document.getElementById('thropies-desc-year');
+        const elFondoThresholdBadge = document.getElementById('fondo-threshold-badge');
+        const elFondoTitleText = document.getElementById('fondo-title-text');
+        const elFondoSvg = document.getElementById('fondo-svg');
+        const elCrownType = document.getElementById('fondo-crown-type');
+        const elKomsHeroImg = document.getElementById('koms-hero-img');
+        const elKomsHeaderTitle = document.getElementById('koms-header-title');
+        const elKomsDescText = document.getElementById('koms-desc-text');
+
+        let lastFondoData = null;
+        let hasCustomImage = {{ 'true' if has_bg_image else 'false' }};
+
+        // Aspect ratio 4:3 fixed
+        const ASPECT_RATIO = 4 / 3;
+
+        // ---- Size & Layout Scaling ----
+        function getExportSize() {
+            const width = Number.parseInt(elSize.value, 10) || 1280;
+            const height = Math.round(width / ASPECT_RATIO);
+            return { width: width, height: height };
+        }
+
+        function updateDimensionsDisplay() {
+            const { width, height } = getExportSize();
+            if (elDim) {
+                elDim.textContent = width + ' \u00d7 ' + height;
+            }
+        }
+
+        function applyInfographicSize() {
+            const { width, height } = getExportSize();
+            updateDimensionsDisplay();
+
+            wrapper.style.width = width + 'px';
+            wrapper.style.height = height + 'px';
+
+            const containerWidth = scaler.parentElement.clientWidth;
+            const previewWidth = Math.min(width, containerWidth);
+            const scale = previewWidth / width;
+
+            wrapper.style.transform = `scale(${scale})`;
+            scaler.style.height = (height * scale) + 'px';
+            scaler.style.width = (width * scale) + 'px';
+        }
+
+        elSize.addEventListener('change', function () {
+            localStorage.setItem('fondoOMeterSize', this.value);
+            applyInfographicSize();
+        });
+
+        window.addEventListener('resize', applyInfographicSize);
+
+        // Restore saved size
+        const savedSize = localStorage.getItem('fondoOMeterSize');
+        if (savedSize && ['1280', '1440', '1600', '1920', '2048'].includes(savedSize)) {
+            elSize.value = savedSize;
+        }
+
+        // Restore saved Year & Group
+        const savedYear = localStorage.getItem('fondoOMeterYear');
+        if (savedYear) elYear.value = savedYear;
+        const savedGroup = localStorage.getItem('fondoOMeterGroup');
+        if (savedGroup) elGroup.value = savedGroup;
+
+        // ---- Typography Controls ----
+        function applyTitleFontSize(size) {
+            size = Number.parseInt(size, 10);
+            if (Number.isNaN(size)) size = 24;
+            ig.style.setProperty('--fondo-title-font-size', size + 'px');
+            if (titleFontSizeSlider) titleFontSizeSlider.value = String(size);
+            if (titleFontSizeVal) titleFontSizeVal.textContent = size + 'px';
+            localStorage.setItem('fondoOMeterTitleFontSize', String(size));
+        }
+
+        function applyFontSize(size) {
+            size = Number.parseInt(size, 10);
+            if (Number.isNaN(size)) size = 14;
+            ig.style.setProperty('--fondo-font-size', size + 'px');
+            if (fontSizeSlider) fontSizeSlider.value = String(size);
+            if (fontSizeVal) fontSizeVal.textContent = size + 'px';
+            localStorage.setItem('fondoOMeterFontSize', String(size));
+        }
+
+        function applyFontFamily(font) {
+            if (!font) font = 'Inter';
+            const fontVal = `"${font}", sans-serif`;
+            ig.style.setProperty('--fondo-font-family', fontVal);
+            ig.style.fontFamily = fontVal;
+            if (elFont) elFont.value = font;
+            localStorage.setItem('fondoOMeterFontFamily', font);
+            if (document.fonts && document.fonts.load) {
+                document.fonts.load('bold 24px "' + font + '"').then(function () {
+                    if (lastFondoData && lastFondoData.fondo) {
+                        renderFondoChart(lastFondoData.fondo);
+                    }
+                }).catch(function () { });
+            }
+            if (lastFondoData && lastFondoData.fondo) {
+                renderFondoChart(lastFondoData.fondo);
+            }
+        }
+
+        if (titleFontSizeSlider) {
+            titleFontSizeSlider.addEventListener('input', function () { applyTitleFontSize(this.value); });
+            titleFontSizeSlider.addEventListener('change', function () { applyTitleFontSize(this.value); });
+        }
+        if (fontSizeSlider) {
+            fontSizeSlider.addEventListener('input', function () { applyFontSize(this.value); });
+            fontSizeSlider.addEventListener('change', function () { applyFontSize(this.value); });
+        }
+        if (elFont) {
+            elFont.addEventListener('change', function () { applyFontFamily(this.value); });
+            elFont.addEventListener('input', function () { applyFontFamily(this.value); });
+        }
+
+        const savedTitleFontSize = localStorage.getItem('fondoOMeterTitleFontSize') || '24';
+        applyTitleFontSize(savedTitleFontSize);
+        const savedFontSize = localStorage.getItem('fondoOMeterFontSize') || '14';
+        applyFontSize(savedFontSize);
+        const savedFontFamily = localStorage.getItem('fondoOMeterFontFamily') || 'Inter';
+        applyFontFamily(savedFontFamily);
+
+        // ---- Tint & Opacity ----
+        function applyTintAndOpacity() {
+            const tint = localStorage.getItem('fondoOMeterTint') || '';
+            const rawOp = localStorage.getItem('fondoOMeterOpacity');
+            const op = rawOp !== null ? Number.parseInt(rawOp, 10) : 40;
+
+            if (elTint) elTint.value = tint || '#000000';
+            if (elOpacity) elOpacity.value = String(op);
+            if (elOpacityVal) elOpacityVal.textContent = op + '%';
+
+            if (tint && op > 0) {
+                igBgOverlay.style.display = 'block';
+                igBgOverlay.style.backgroundColor = tint;
+                igBgOverlay.style.opacity = String(op / 100.0);
+            } else if (hasCustomImage && op > 0) {
+                igBgOverlay.style.display = 'block';
+                igBgOverlay.style.backgroundColor = '#000000';
+                igBgOverlay.style.opacity = String(op / 100.0);
+            } else {
+                igBgOverlay.style.display = 'none';
+                igBgOverlay.style.backgroundColor = 'transparent';
+                igBgOverlay.style.opacity = '0';
+            }
+        }
+
+        if (elTint) {
+            const handleTint = function () {
+                localStorage.setItem('fondoOMeterTint', this.value);
+                const currentOp = localStorage.getItem('fondoOMeterOpacity');
+                if (currentOp === null || Number.parseInt(currentOp, 10) === 0) {
+                    localStorage.setItem('fondoOMeterOpacity', '40');
+                }
+                applyTintAndOpacity();
+            };
+            elTint.addEventListener('input', handleTint);
+            elTint.addEventListener('change', handleTint);
+        }
+
+        if (elTintClearBtn) {
+            elTintClearBtn.addEventListener('click', function () {
+                localStorage.setItem('fondoOMeterTint', '');
+                localStorage.setItem('fondoOMeterOpacity', '0');
+                applyTintAndOpacity();
+            });
+        }
+
+        if (elOpacity) {
+            elOpacity.addEventListener('input', function () {
+                const val = Number.parseInt(this.value, 10);
+                if (elOpacityVal) elOpacityVal.textContent = val + '%';
+                localStorage.setItem('fondoOMeterOpacity', String(val));
+                applyTintAndOpacity();
+            });
+        }
+
+        // ---- Vignette Control ----
+        function applyVignette(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 0;
+            if (val < -50) val = -50;
+            if (val > 50) val = 50;
+
+            if (elVignette) elVignette.value = String(val);
+            if (elVignetteVal) {
+                elVignetteVal.textContent = (val > 0 ? '+' : '') + val + '%';
+            }
+            localStorage.setItem('fondoOMeterVignette', String(val));
+
+            if (!igBgVignette) return;
+            if (val > 0) {
+                const alpha = (val / 50) * 0.85;
+                const midAlpha = (val / 50) * 0.35;
+                igBgVignette.style.display = 'block';
+                igBgVignette.style.background = `radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, ${midAlpha.toFixed(3)}) 70%, rgba(0, 0, 0, ${alpha.toFixed(3)}) 100%)`;
+            } else if (val < 0) {
+                const absVal = Math.abs(val);
+                const alpha = (absVal / 50) * 0.8;
+                const midAlpha = (absVal / 50) * 0.3;
+                igBgVignette.style.display = 'block';
+                igBgVignette.style.background = `radial-gradient(ellipse at center, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, ${midAlpha.toFixed(3)}) 70%, rgba(255, 255, 255, ${alpha.toFixed(3)}) 100%)`;
+            } else {
+                igBgVignette.style.display = 'none';
+                igBgVignette.style.background = 'none';
+            }
+        }
+
+        if (elVignette) {
+            elVignette.addEventListener('input', function () { applyVignette(this.value); });
+            elVignette.addEventListener('change', function () { applyVignette(this.value); });
+        }
+
+        const savedVignette = localStorage.getItem('fondoOMeterVignette') !== null
+            ? localStorage.getItem('fondoOMeterVignette')
+            : '0';
+        applyVignette(savedVignette);
+
+        // Background Color
+        elBg.addEventListener('input', function () {
+            wrapper.style.backgroundColor = this.value;
+            localStorage.setItem('fondoOMeterBgColor', this.value);
+        });
+        const savedBg = localStorage.getItem('fondoOMeterBgColor');
+        if (savedBg) {
+            elBg.value = savedBg;
+            wrapper.style.backgroundColor = savedBg;
+        }
+
+        // ---- Visible Fondo Columns Toggle ----
+        const toggles = document.querySelectorAll('.fondo-toggle');
+        function applyFondoVisibility() {
+            let vis = {};
+            try {
+                vis = JSON.parse(localStorage.getItem('fondoOMeterVisible') || '{}');
+            } catch (_) { }
+
+            toggles.forEach(function (cb) {
+                const statKey = cb.dataset.stat;
+                const isVisible = (vis[statKey] !== undefined) ? vis[statKey] : true;
+                cb.checked = isVisible;
+                const colEl = document.getElementById('col-' + statKey);
+                if (colEl) {
+                    colEl.style.display = isVisible ? 'flex' : 'none';
+                }
+            });
+        }
+
+        toggles.forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                let vis = {};
+                try {
+                    vis = JSON.parse(localStorage.getItem('fondoOMeterVisible') || '{}');
+                } catch (_) { }
+                vis[this.dataset.stat] = this.checked;
+                localStorage.setItem('fondoOMeterVisible', JSON.stringify(vis));
+                applyFondoVisibility();
+            });
+        });
+
+        // ---- Collapsible Sections Persistence ----
+        function setupBoxCollapsibleEvents() {
+            document.querySelectorAll('.control-box-header').forEach(function (hdr) {
+                hdr.addEventListener('click', function () {
+                    const boxId = this.dataset.boxId;
+                    const body = this.nextElementSibling;
+                    const isCollapsed = body.classList.toggle('collapsed');
+                    this.classList.toggle('collapsed', isCollapsed);
+                    if (boxId) {
+                        localStorage.setItem('fondoBoxCollapsed_' + boxId, isCollapsed ? '1' : '0');
+                    }
+                });
+            });
+        }
+
+        function applyBoxCollapsedStates() {
+            document.querySelectorAll('.control-box-header').forEach(function (hdr) {
+                const boxId = hdr.dataset.boxId;
+                if (!boxId) return;
+                const isCollapsed = localStorage.getItem('fondoBoxCollapsed_' + boxId) === '1';
+                const body = hdr.nextElementSibling;
+                if (isCollapsed) {
+                    hdr.classList.add('collapsed');
+                    if (body) body.classList.add('collapsed');
+                } else {
+                    hdr.classList.remove('collapsed');
+                    if (body) body.classList.remove('collapsed');
+                }
+            });
+        }
+
+        // ---- Image upload & reset ----
+        function setFondoUploadLoading(isLoading) {
+            if (elUploadBtn) {
+                if (isLoading) {
+                    elUploadBtn.classList.add('opacity-60', 'pointer-events-none', 'cursor-wait');
+                    elUploadBtn.classList.remove('cursor-pointer', 'hover:bg-green-700');
+                } else {
+                    elUploadBtn.classList.remove('opacity-60', 'pointer-events-none', 'cursor-wait');
+                    elUploadBtn.classList.add('cursor-pointer', 'hover:bg-green-700');
+                }
+            }
+            if (elUploadSpinner) {
+                if (isLoading) {
+                    elUploadSpinner.classList.remove('hidden');
+                    elUploadSpinner.style.display = 'inline-block';
+                } else {
+                    elUploadSpinner.classList.add('hidden');
+                    elUploadSpinner.style.display = 'none';
+                }
+            }
+            if (elUploadText) {
+                if (isLoading) {
+                    elUploadText.classList.add('hidden');
+                    elUploadText.style.display = 'none';
+                } else {
+                    elUploadText.classList.remove('hidden');
+                    elUploadText.style.display = '';
+                    elUploadText.textContent = 'Upload Image';
+                }
+            }
+            if (elUploadInput) elUploadInput.disabled = isLoading;
+            if (elClearImageBtn) elClearImageBtn.disabled = isLoading;
+            document.body.style.cursor = isLoading ? 'wait' : '';
+        }
+
+        if (elUploadInput) {
+            elUploadInput.addEventListener('change', async function () {
+                const file = this.files[0];
+                if (!file) return;
+
+                setFondoUploadLoading(true);
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const r = await fetch('/api/fondo_o_meter/upload', { method: 'POST', body: formData });
+                    if (!r.ok) {
+                        alert('Upload failed: HTTP ' + r.status);
+                        return;
+                    }
+                    hasCustomImage = true;
+                    const blob = await r.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    igBgImage.onload = () => {
+                        igBgImage.style.display = 'block';
+                        applyTintAndOpacity();
+                    };
+                    igBgImage.src = objectUrl;
+                } catch (err) {
+                    console.error('Fondo-o-meter upload error:', err);
+                    alert('Upload error: ' + (err.message || err));
+                } finally {
+                    setFondoUploadLoading(false);
+                    if (elUploadInput) elUploadInput.value = '';
+                }
+            });
+        }
+
+        if (elClearImageBtn) {
+            elClearImageBtn.addEventListener('click', function () {
+                fetch('/api/fondo_o_meter/image/reset', { method: 'POST' })
+                    .then(r => {
+                        if (r.ok) {
+                            hasCustomImage = false;
+                            igBgImage.removeAttribute('src');
+                            igBgImage.style.display = 'none';
+                            if (elUploadInput) elUploadInput.value = '';
+                            applyTintAndOpacity();
+                        }
+                    })
+                    .catch(err => console.warn('Failed to reset Fondo-o-meter image:', err));
+            });
+        }
+
+        // ---- Inverse Gradient Color Helpers ----
+        function hexToHsl(hex) {
+            let c = hex.replace('#', '');
+            if (c.length === 3) c = c.split('').map(function (x) { return x + x; }).join('');
+            const num = Number.parseInt(c, 16);
+            if (Number.isNaN(num)) return [80, 53, 49]; // Default light green #94C03B
+            const r = ((num >> 16) & 255) / 255;
+            const g = ((num >> 8) & 255) / 255;
+            const b = (num & 255) / 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h = 0, s = 0, l = (max + min) / 2;
+            if (max !== min) {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+                    case g: h = ((b - r) / d + 2) / 6; break;
+                    case b: h = ((r - g) / d + 4) / 6; break;
+                }
+            }
+            return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+        }
+
+        function getRingColor(baseHex, ringIndex, totalRings) {
+            if (totalRings <= 1) return baseHex;
+            const hsl = hexToHsl(baseHex);
+            const h = hsl[0];
+            const s = hsl[1];
+            const l = hsl[2];
+            // t goes from 0.0 (innermost, lowest km) to 1.0 (outermost, highest km)
+            const t = ringIndex / (totalRings - 1);
+            // Inverse gradient: Outermost (highest km, t=1.0) is the brightest
+            // Innermost (lowest km, t=0.0) is the deepest/darkest shade of that hue
+            const ringL = Math.max(16, Math.min(92, Math.round(l * (0.35 + 0.65 * t))));
+            const ringS = Math.max(20, Math.min(100, Math.round(s * (0.55 + 0.45 * t))));
+            return 'hsl(' + h + ', ' + ringS + '%, ' + ringL + '%)';
+        }
+
+        // ---- Arc Color & Arc Width Handlers ----
+        function applyArcColor(color) {
+            if (!color) color = '#94C03B';
+            if (elArcColor) elArcColor.value = color;
+            localStorage.setItem('fondoOMeterArcColor', color);
+            const elFondosCount = document.getElementById('fondos-count');
+            if (elFondosCount) {
+                const hsl = hexToHsl(color);
+                const lighter = 'hsl(' + hsl[0] + ', ' + Math.min(100, hsl[1] + 15) + '%, ' + Math.min(85, hsl[2] + 25) + '%)';
+                elFondosCount.style.background = `linear-gradient(135deg, ${lighter} 0%, ${color} 100%)`;
+                elFondosCount.style.webkitBackgroundClip = 'text';
+                elFondosCount.style.webkitTextFillColor = 'transparent';
+            }
+            if (lastFondoData && lastFondoData.fondo) {
+                renderFondoChart(lastFondoData.fondo);
+            }
+        }
+
+        if (elArcColor) {
+            elArcColor.addEventListener('input', function () { applyArcColor(this.value); });
+            elArcColor.addEventListener('change', function () { applyArcColor(this.value); });
+        }
+
+        if (elArcColorReset) {
+            elArcColorReset.addEventListener('click', function () {
+                applyArcColor('#94C03B');
+            });
+        }
+
+        const savedArcColor = localStorage.getItem('fondoOMeterArcColor') || '#94C03B';
+        if (elArcColor) elArcColor.value = savedArcColor;
+
+        function applyArcWidth(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 100;
+            if (elArcWidth) elArcWidth.value = String(val);
+            if (elArcWidthVal) elArcWidthVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterArcWidth', String(val));
+            if (lastFondoData && lastFondoData.fondo) {
+                renderFondoChart(lastFondoData.fondo);
+            }
+        }
+
+        if (elArcWidth) {
+            elArcWidth.addEventListener('input', function () { applyArcWidth(this.value); });
+            elArcWidth.addEventListener('change', function () { applyArcWidth(this.value); });
+        }
+
+        const savedArcWidth = localStorage.getItem('fondoOMeterArcWidth') || '100';
+        applyArcWidth(savedArcWidth);
+
+        // ---- Arc Text Size ----
+        function applyArcSize(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 100;
+            if (elArcSize) elArcSize.value = String(val);
+            if (elArcSizeVal) elArcSizeVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterArcSize', String(val));
+            if (ig) {
+                const scale = val / 100.0;
+                ig.style.setProperty('--fondo-arc-text-scale', String(scale));
+            }
+        }
+
+        if (elArcSize) {
+            elArcSize.addEventListener('input', function () { applyArcSize(this.value); });
+            elArcSize.addEventListener('change', function () { applyArcSize(this.value); });
+        }
+
+        const savedArcSize = localStorage.getItem('fondoOMeterArcSize') || localStorage.getItem('fondoOMeterArchSize') || '100';
+        applyArcSize(savedArcSize);
+
+        // ---- Section Blur ----
+        function applySectionBlur(val) {
+            if (val === undefined || val === null || val === '') val = 100;
+            const numVal = Number.parseInt(val, 10);
+            const safeVal = Number.isNaN(numVal) ? 100 : Math.max(0, Math.min(100, numVal));
+            if (elSectionBlur) elSectionBlur.value = String(safeVal);
+            if (elSectionBlurVal) elSectionBlurVal.textContent = safeVal + '%';
+            localStorage.setItem('fondoOMeterSectionBlur', String(safeVal));
+            if (ig) {
+                const blurPx = (safeVal / 100.0) * 8.0;
+                ig.style.setProperty('--fondo-section-blur', blurPx.toFixed(1) + 'px');
+            }
+        }
+
+        if (elSectionBlur) {
+            elSectionBlur.addEventListener('input', function () { applySectionBlur(this.value); });
+            elSectionBlur.addEventListener('change', function () { applySectionBlur(this.value); });
+        }
+
+        const savedSectionBlur = localStorage.getItem('fondoOMeterSectionBlur') || '100';
+        applySectionBlur(savedSectionBlur);
+
+        // ---- Crown Badge Type (KOM vs QOM) ----
+        function applyCrownType(type) {
+            if (!type) type = 'kom';
+            if (elCrownType) elCrownType.value = type;
+            localStorage.setItem('fondoOMeterCrownType', type);
+            const isQom = type === 'qom';
+            const iconPath = isQom ? '/static/icons/fondo-o-meter-qom.png' : '/static/icons/fondo-o-meter-kom.png';
+            if (elKomsHeroImg) elKomsHeroImg.src = iconPath;
+            if (elKomsHeaderTitle) elKomsHeaderTitle.textContent = isQom ? 'QOMs' : 'KOMs';
+            if (elKomsDescText) {
+                const titleStr = isQom ? 'Queen of the Mountains' : 'King of the Mountains';
+                const isAll = (elYear.value === 'all' || elYear.value === 'ALL');
+                const yearText = isAll ? 'all time' : elYear.value;
+                elKomsDescText.innerHTML = `${titleStr} verified across cycling activities in <span id="koms-desc-year">${yearText}</span>`;
+            }
+        }
+
+        if (elCrownType) {
+            elCrownType.addEventListener('change', function () {
+                applyCrownType(this.value);
+            });
+        }
+
+        const savedCrownType = localStorage.getItem('fondoOMeterCrownType') || 'kom';
+        applyCrownType(savedCrownType);
+
+        // ---- Logo Color, Size, & Opacity Handlers ----
+        function applyLogoColor(color) {
+            if (!color) color = '#FFFFFF';
+            if (elLogoColor) elLogoColor.value = color;
+            localStorage.setItem('fondoOMeterLogoColor', color);
+            const flood = document.getElementById('logo-flood');
+            if (flood) {
+                flood.setAttribute('flood-color', color);
+            }
+        }
+
+        if (elLogoColor) {
+            elLogoColor.addEventListener('input', function () { applyLogoColor(this.value); });
+            elLogoColor.addEventListener('change', function () { applyLogoColor(this.value); });
+        }
+
+        if (elLogoColorReset) {
+            elLogoColorReset.addEventListener('click', function () {
+                applyLogoColor('#FFFFFF');
+            });
+        }
+
+        function applyLogoSize(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 100;
+            val = Math.max(50, Math.min(150, val));
+            if (elLogoSize) elLogoSize.value = String(val);
+            if (elLogoSizeVal) elLogoSizeVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterLogoSize', String(val));
+            if (ig) {
+                ig.style.setProperty('--fondo-logo-scale', String(val / 100.0));
+            }
+        }
+
+        if (elLogoSize) {
+            elLogoSize.addEventListener('input', function () { applyLogoSize(this.value); });
+            elLogoSize.addEventListener('change', function () { applyLogoSize(this.value); });
+        }
+
+        function applyLogoOpacity(val) {
+            val = Number.parseInt(val, 10);
+            if (Number.isNaN(val)) val = 100;
+            val = Math.max(10, Math.min(100, val));
+            if (elLogoOpacity) elLogoOpacity.value = String(val);
+            if (elLogoOpacityVal) elLogoOpacityVal.textContent = val + '%';
+            localStorage.setItem('fondoOMeterLogoOpacity', String(val));
+            if (ig) {
+                ig.style.setProperty('--fondo-logo-opacity', String(val / 100.0));
+            }
+        }
+
+        if (elLogoOpacity) {
+            elLogoOpacity.addEventListener('input', function () { applyLogoOpacity(this.value); });
+            elLogoOpacity.addEventListener('change', function () { applyLogoOpacity(this.value); });
+        }
+
+        const savedLogoColor = localStorage.getItem('fondoOMeterLogoColor') || '#FFFFFF';
+        applyLogoColor(savedLogoColor);
+
+        const savedLogoSize = localStorage.getItem('fondoOMeterLogoSize') || '100';
+        applyLogoSize(savedLogoSize);
+
+        const savedLogoOpacity = localStorage.getItem('fondoOMeterLogoOpacity') || '100';
+        applyLogoOpacity(savedLogoOpacity);
+
+        // ---- Render Fondo Concentric Radial Gauge ----
+        function renderFondoChart(fondoData) {
+            elFondoSvg.innerHTML = '';
+            if (!fondoData || !fondoData.circles || fondoData.circles.length === 0) {
+                const emptyG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                emptyG.innerHTML = `
+                    <text x="230" y="190" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.4)" font-size="14" font-weight="500">
+                        No activities ≥ ${fondoData ? fondoData.threshold_km : 100} km in ${elYear.value}
+                    </text>
+                `;
+                elFondoSvg.appendChild(emptyG);
+                return;
+            }
+
+            const circles = fondoData.circles; // Ordered from innermost (index 0) to outermost (longest)
+            const count = circles.length;
+
+            // Geometry configuration
+            const cx = 230;
+            const cy = 205;
+            const rMin = count === 1 ? 140 : 45;
+            const rMax = 165;
+            const baseStrokeWidth = count <= 3 ? 14 : (count <= 5 ? 12 : 9.5);
+            const widthPct = elArcWidth ? Number.parseInt(elArcWidth.value, 10) : 100;
+            const widthMultiplier = Number.isNaN(widthPct) ? 1.0 : (widthPct / 100.0);
+            const strokeWidth = baseStrokeWidth * widthMultiplier;
+            const dr = count > 1 ? (rMax - rMin) / (count - 1) : 0;
+            const baseHex = (elArcColor && elArcColor.value) ? elArcColor.value : '#94C03B';
+
+            const gRoot = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+            circles.forEach(function (c, i) {
+                const r = rMin + i * dr;
+                // Inverse gradient: outermost (highest km, index count - 1) is brightest
+                const color = getRingColor(baseHex, i, count);
+                const arcPct = Math.min(50.0, Math.max(0.0, c.arc_pct || 0.0));
+
+                // 1. 180-degree background track arc (max value scale from 12 o'clock clockwise to 6 o'clock)
+                const track = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const trackD = `M ${cx.toFixed(2)} ${(cy - r).toFixed(2)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 0 1 ${cx.toFixed(2)} ${(cy + r).toFixed(2)}`;
+                track.setAttribute('d', trackD);
+                track.setAttribute('class', 'fondo-track');
+                track.setAttribute('stroke-width', String(strokeWidth));
+                track.setAttribute('stroke-linecap', 'round');
+                gRoot.appendChild(track);
+
+                // 2. Active arc sweeping clockwise from 12 o'clock (max 180° / 50% = 6 o'clock)
+                if (arcPct > 0) {
+                    const rad = (arcPct / 100.0) * 2 * Math.PI;
+                    // Start point at 12 o'clock (-pi/2)
+                    const x1 = cx;
+                    const y1 = cy - r;
+                    // End point at -pi/2 + rad
+                    const endAngle = -Math.PI / 2 + rad;
+                    const x2 = cx + r * Math.cos(endAngle);
+                    const y2 = cy + r * Math.sin(endAngle);
+
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('class', 'fondo-arc');
+                    path.setAttribute('stroke', color);
+                    path.setAttribute('stroke-width', String(strokeWidth));
+                    path.setAttribute('stroke-linecap', 'round');
+                    gRoot.appendChild(path);
+                }
+
+                // 3. Label text placed to the left of 12 o'clock
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                const labelX = cx - 10;
+                const labelY = cy - r;
+                label.setAttribute('x', String(labelX));
+                label.setAttribute('y', String(labelY));
+                label.setAttribute('class', 'fondo-label' + (c.is_longest ? ' longest' : ''));
+                if (c.is_longest) {
+                    label.setAttribute('font-weight', 'bold');
+                    // Format distance only (e.g. 213.2 km) in bold
+                    label.textContent = c.distance_km ? `${c.distance_km} km` : c.label;
+                } else {
+                    label.textContent = c.label;
+                }
+                gRoot.appendChild(label);
+            });
+
+            elFondoSvg.appendChild(gRoot);
+        }
+
+        // ---- Fetch and update data ----
+        async function fetchFondoData() {
+            const year = elYear.value;
+            const group = elGroup.value;
+
+            const isAllTime = (year === 'all' || year === 'ALL');
+            const displayYear = isAllTime ? 'ALL TIME' : year;
+            const descYear = isAllTime ? 'all time' : year;
+
+            elPeriodDisplay.textContent = displayYear;
+            elGroupDisplay.textContent = group.replace('_', ' ').toUpperCase();
+            elKomsYearBadge.textContent = displayYear;
+            elPrsYearBadge.textContent = displayYear;
+            elKomsDescYear.textContent = descYear;
+            elPrsDescYear.textContent = descYear;
+            if (elThropiesYearBadge) elThropiesYearBadge.textContent = displayYear;
+            if (elThropiesDescYear) elThropiesDescYear.textContent = descYear;
+
+            try {
+                const resp = await fetch(`/api/fondo_o_meter_data?year=${year}&group=${group}`);
+                if (!resp.ok) {
+                    throw new Error('HTTP ' + resp.status);
+                }
+                const data = await resp.json();
+                lastFondoData = data;
+
+                // Update athlete name
+                if (data.athlete_name) {
+                    document.getElementById('ig-athlete-name').textContent = data.athlete_name;
+                }
+
+                // Update KOMs & PRs counts
+                elKomsCount.textContent = data.koms_count.toLocaleString();
+                elPrsCount.textContent = data.prs_count.toLocaleString();
+
+                // Update Thropies total & rank counts (1st to 10th place)
+                const trophiesObj = data.trophies || {};
+                const trophiesTotal = (trophiesObj.total !== undefined)
+                    ? trophiesObj.total
+                    : (data.trophies_count || 0);
+                if (elThropiesTotalCount) {
+                    elThropiesTotalCount.textContent = trophiesTotal.toLocaleString();
+                }
+                const ranks = trophiesObj.ranks || {};
+                for (let r = 1; r <= 10; r++) {
+                    const elRank = document.getElementById('trophy-count-' + r);
+                    if (elRank) {
+                        const countVal = (ranks[String(r)] !== undefined)
+                            ? ranks[String(r)]
+                            : (ranks[r] !== undefined ? ranks[r] : 0);
+                        elRank.textContent = countVal.toLocaleString();
+                    }
+                }
+
+                // Update Fondos count & label
+                const fondosTotal = (data.fondo && data.fondo.total_qualifying !== undefined)
+                    ? data.fondo.total_qualifying
+                    : (data.fondos_count || 0);
+                const elFondosCount = document.getElementById('fondos-count');
+                if (elFondosCount) {
+                    elFondosCount.textContent = fondosTotal.toLocaleString();
+                }
+
+                const elFondosLabel = document.getElementById('fondos-label');
+                const elHeroLogo = document.getElementById('fondo-hero-logo');
+                const elHeroEmoji = document.getElementById('fondo-hero-emoji');
+                const isCycling = !group.includes('run') && !group.includes('swim') && !group.includes('ski');
+
+                if (elFondosLabel) {
+                    if (group.includes('run')) {
+                        elFondosLabel.textContent = 'Marathons Completed';
+                    } else if (group.includes('swim')) {
+                        elFondosLabel.textContent = 'Long Swims';
+                    } else {
+                        elFondosLabel.textContent = 'Fondos Completed';
+                    }
+                }
+
+                if (elHeroLogo && elHeroEmoji) {
+                    if (isCycling) {
+                        elHeroLogo.src = '/static/icons/fondo-o-meter-gf.png';
+                        elHeroLogo.style.display = 'inline-block';
+                        elHeroEmoji.style.display = 'none';
+                    } else {
+                        elHeroLogo.style.display = 'none';
+                        elHeroEmoji.style.display = 'inline-block';
+                        elHeroEmoji.textContent = data.group_icon || '🏅';
+                    }
+                }
+
+                // Update Crown description year
+                applyCrownType(elCrownType ? elCrownType.value : (localStorage.getItem('fondoOMeterCrownType') || 'kom'));
+
+                // Update Fondo headers
+                const threshold = data.fondo ? data.fondo.threshold_km : 100;
+                elFondoThresholdBadge.textContent = `≥ ${threshold} km`;
+                const sportName = data.group_name ? data.group_name.toUpperCase() : 'CYCLING';
+                elFondoTitleText.textContent = sportName.includes('RUN') ? 'MARATHON ANALYSIS' : 'FONDO ANALYSIS';
+
+                // Render Radial Chart
+                renderFondoChart(data.fondo);
+
+                // Update timestamp
+                const tsEl = document.getElementById('ig-timestamp');
+                if (tsEl) {
+                    const now = new Date();
+                    tsEl.textContent = now.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                }
+            } catch (err) {
+                console.error('Failed to load Fondo-o-meter data:', err);
+            }
+        }
+
+        elYear.addEventListener('change', function () {
+            localStorage.setItem('fondoOMeterYear', this.value);
+            fetchFondoData();
+        });
+        elGroup.addEventListener('change', function () {
+            localStorage.setItem('fondoOMeterGroup', this.value);
+            fetchFondoData();
+        });
+
+        // ---- Export handlers (PNG & PDF) ----
+        document.getElementById('btn-download-png').addEventListener('click', async function () {
+            const btn = this;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+
+            try {
+                const { width, height } = getExportSize();
+                const visObj = {};
+                document.querySelectorAll('.fondo-toggle').forEach(function (cb) {
+                    visObj[cb.dataset.stat] = cb.checked;
+                });
+                const payload = {
+                    year: elYear.value,
+                    group: elGroup.value,
+                    bg: elBg.value,
+                    width: width,
+                    height: height,
+                    titleFontSize: titleFontSizeSlider ? titleFontSizeSlider.value : '24',
+                    fontSize: fontSizeSlider ? fontSizeSlider.value : '14',
+                    fontFamily: elFont ? elFont.value : 'Inter',
+                    hasImage: hasCustomImage,
+                    tint: localStorage.getItem('fondoOMeterTint') !== null ? localStorage.getItem('fondoOMeterTint') : '#000000',
+                    opacity: localStorage.getItem('fondoOMeterOpacity') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterOpacity'), 10) : 40,
+                    arcColor: elArcColor ? elArcColor.value : '#94C03B',
+                    arcWidth: elArcWidth ? elArcWidth.value : '100',
+                    arcSize: elArcSize ? elArcSize.value : '100',
+                    sectionBlur: elSectionBlur ? elSectionBlur.value : '100',
+                    vignette: localStorage.getItem('fondoOMeterVignette') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterVignette'), 10) : 0,
+                    crownType: elCrownType ? elCrownType.value : 'kom',
+                    logoColor: elLogoColor ? elLogoColor.value : '#FFFFFF',
+                    logoSize: elLogoSize ? elLogoSize.value : '100',
+                    logoOpacity: elLogoOpacity ? elLogoOpacity.value : '100',
+                    visibleMetrics: visObj,
+                    format: 'png'
+                };
+                const resp = await fetch('/api/fondo_o_meter/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) {
+                    let msg = 'HTTP ' + resp.status;
+                    try { msg = (await resp.json()).error || msg; } catch (_) { }
+                    alert('Export failed: ' + msg);
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = `kinetiqo-fondo-o-meter-${elYear.value}-${elGroup.value}.png`;
+                a.href = url;
+                a.click();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+            } catch (e) {
+                alert('Export failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-60', 'cursor-wait');
+                btn.innerHTML = origHtml;
+            }
+        });
+
+        document.getElementById('btn-download-pdf').addEventListener('click', async function () {
+            const btn = this;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+
+            try {
+                const { width, height } = getExportSize();
+                const visObj = {};
+                document.querySelectorAll('.fondo-toggle').forEach(function (cb) {
+                    visObj[cb.dataset.stat] = cb.checked;
+                });
+                const payload = {
+                    year: elYear.value,
+                    group: elGroup.value,
+                    bg: elBg.value,
+                    width: width,
+                    height: height,
+                    titleFontSize: titleFontSizeSlider ? titleFontSizeSlider.value : '24',
+                    fontSize: fontSizeSlider ? fontSizeSlider.value : '14',
+                    fontFamily: elFont ? elFont.value : 'Inter',
+                    hasImage: hasCustomImage,
+                    tint: localStorage.getItem('fondoOMeterTint') !== null ? localStorage.getItem('fondoOMeterTint') : '#000000',
+                    opacity: localStorage.getItem('fondoOMeterOpacity') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterOpacity'), 10) : 40,
+                    arcColor: elArcColor ? elArcColor.value : '#94C03B',
+                    arcWidth: elArcWidth ? elArcWidth.value : '100',
+                    arcSize: elArcSize ? elArcSize.value : '100',
+                    sectionBlur: elSectionBlur ? elSectionBlur.value : '100',
+                    vignette: localStorage.getItem('fondoOMeterVignette') !== null ? Number.parseInt(localStorage.getItem('fondoOMeterVignette'), 10) : 0,
+                    crownType: elCrownType ? elCrownType.value : 'kom',
+                    logoColor: elLogoColor ? elLogoColor.value : '#FFFFFF',
+                    logoSize: elLogoSize ? elLogoSize.value : '100',
+                    logoOpacity: elLogoOpacity ? elLogoOpacity.value : '100',
+                    visibleMetrics: visObj,
+                    format: 'pdf'
+                };
+                const resp = await fetch('/api/fondo_o_meter/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) {
+                    let msg = 'HTTP ' + resp.status;
+                    try { msg = (await resp.json()).error || msg; } catch (_) { }
+                    alert('Export failed: ' + msg);
+                    return;
+                }
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = `kinetiqo-fondo-o-meter-${elYear.value}-${elGroup.value}.pdf`;
+                a.href = url;
+                a.click();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+            } catch (e) {
+                alert('Export failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-60', 'cursor-wait');
+                btn.innerHTML = origHtml;
+            }
+        });
+
+        // Initial setup
+        setFondoUploadLoading(false);
+        setupBoxCollapsibleEvents();
+        applyBoxCollapsedStates();
+        applyInfographicSize();
+        applyFondoVisibility();
+        applyTintAndOpacity();
+        fetchFondoData();
+    });
+</script>
+{% endblock %}

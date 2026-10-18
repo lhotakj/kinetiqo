@@ -63,6 +63,8 @@ SCHEMA_DEFINITION = {
              "type_firebird": _DOUBLE_PRECISION},
             {"name": "workout_type", "type_mysql": "INTEGER", "type_pg": "INTEGER",
              "type_firebird": "INTEGER"},
+            {"name": "trophies", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(255)"},
         ],
         "indexes": [
             {

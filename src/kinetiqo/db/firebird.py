@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import time
@@ -411,13 +412,20 @@ class FirebirdRepository(DatabaseRepository):
                     "elev_low",
                     "gear_id",
                     "has_heartrate",
-                    "workout_type"
+                    "workout_type",
+                    "trophies"
                 FROM "activities" 
                 ORDER BY "start_date" DESC
             """)
 
             activities = []
             for row in cur.fetchall():
+                trophies_parsed = None
+                if len(row) > 25 and row[25]:
+                    try:
+                        trophies_parsed = json.loads(row[25]) if isinstance(row[25], str) else row[25]
+                    except Exception:
+                        trophies_parsed = None
                 activity = {
                     'id': row[0],
                     'name': row[1],
@@ -443,7 +451,8 @@ class FirebirdRepository(DatabaseRepository):
                     'elev_low': row[21],
                     'gear_id': row[22],
                     'has_heartrate': row[23],
-                    'workout_type': row[24]
+                    'workout_type': row[24],
+                    'trophies': trophies_parsed
                 }
                 activities.append(activity)
             return activities
@@ -515,7 +524,8 @@ class FirebirdRepository(DatabaseRepository):
                 "gear_id",
                 "has_heartrate",
                 "workout_type",
-                "max_speed"
+                "max_speed",
+                "trophies"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -526,6 +536,12 @@ class FirebirdRepository(DatabaseRepository):
 
             activities = []
             for row in cur.fetchall():
+                trophies_parsed = None
+                if len(row) > 26 and row[26]:
+                    try:
+                        trophies_parsed = json.loads(row[26]) if isinstance(row[26], str) else row[26]
+                    except Exception:
+                        trophies_parsed = None
                 activity = {
                     'id': row[0],
                     'name': row[1],
@@ -552,7 +568,8 @@ class FirebirdRepository(DatabaseRepository):
                     'gear_id': row[22],
                     'has_heartrate': row[23],
                     'workout_type': row[24],
-                    'max_speed': row[25]
+                    'max_speed': row[25],
+                    'trophies': trophies_parsed
                 }
                 activities.append(activity)
             return activities
@@ -593,7 +610,8 @@ class FirebirdRepository(DatabaseRepository):
                     "elev_low",
                     "gear_id",
                     "has_heartrate",
-                    "workout_type"
+                    "workout_type",
+                    "trophies"
                 FROM "activities" 
                 WHERE "activity_id" IN ({placeholders})
                 ORDER BY "start_date" DESC
@@ -601,6 +619,12 @@ class FirebirdRepository(DatabaseRepository):
 
             activities = []
             for row in cur.fetchall():
+                trophies_parsed = None
+                if len(row) > 25 and row[25]:
+                    try:
+                        trophies_parsed = json.loads(row[25]) if isinstance(row[25], str) else row[25]
+                    except Exception:
+                        trophies_parsed = None
                 activity = {
                     'id': row[0],
                     'name': row[1],
@@ -626,7 +650,8 @@ class FirebirdRepository(DatabaseRepository):
                     'elev_low': row[21],
                     'gear_id': row[22],
                     'has_heartrate': row[23],
-                    'workout_type': row[24]
+                    'workout_type': row[24],
+                    'trophies': trophies_parsed
                 }
                 activities.append(activity)
             return activities
@@ -755,7 +780,39 @@ class FirebirdRepository(DatabaseRepository):
                     to_int(activity.get("workout_type"))
                 )
             )
+            trophies_val = activity.get("trophies")
+            if trophies_val is not None:
+                trophies_str = json.dumps(trophies_val) if isinstance(trophies_val, dict) else str(trophies_val)
+                cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (trophies_str, int(activity["id"])))
             self.conn.commit()
+
+    def update_activity_trophies(self, activity_id: Any, trophies: Any):
+        """Update placement achievements (trophies ranks 1-10) for an activity."""
+        self._ensure_connected()
+        val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
+        self.conn.commit()
+
+    def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get activities with achievements that have not yet had their trophies breakdown extracted."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT FIRST ? "activity_id", "name", "sport", "start_date", "achievement_count", "pr_count", "trophies"
+                FROM "activities"
+                WHERE "achievement_count" > 0 AND ("trophies" IS NULL)
+                ORDER BY "start_date" DESC
+            """, (limit,))
+            cols = [d[0].lower() for d in cur.description]
+            activities = []
+            for row in cur.fetchall():
+                act = dict(zip(cols, row))
+                act['id'] = act.get('activity_id')
+                if isinstance(act.get('start_date'), datetime):
+                    act['start_date'] = act['start_date'].isoformat()
+                activities.append(act)
+            return activities
 
     def write_activity_streams(self, activity: dict, streams: dict):
         """Write activity streams to Firebird."""

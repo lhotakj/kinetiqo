@@ -197,3 +197,29 @@ class TestSyncMatrix(unittest.TestCase):
                 self.assertEqual(mock_repo.write_activity.call_count, 2)
                 mock_strava_instance.get_streams.assert_not_called()
                 mock_repo.delete_activities.assert_not_called()
+
+    @patch('kinetiqo.sync.save_verified_koms')
+    @patch('kinetiqo.sync.StravaClient')
+    @patch('kinetiqo.cli.create_repository')
+    @patch('kinetiqo.sync.create_repository')
+    def test_sync_fetches_and_persists_athlete_koms(self, mock_sync_repo, mock_cli_repo, mock_strava_client, mock_save_koms):
+        """Sync should fetch athlete KOMs in Phase 3 and persist them grouped by activity."""
+        mock_repo = MagicMock()
+        mock_repo.get_synced_activity_ids.return_value = set()
+        mock_cli_repo.return_value = mock_sync_repo.return_value = mock_repo
+
+        mock_strava_instance = mock_strava_client.return_value
+        mock_strava_instance.get_activities.return_value = iter([[]])
+        mock_strava_instance.get_athlete.return_value = {"id": 98765}
+        mock_strava_instance.get_athlete_koms.return_value = [
+            {"id": 1, "activity": {"id": 1001}},
+            {"id": 2, "activity": {"id": 1001}},
+            {"id": 3, "activity": {"id": 1002}},
+        ]
+
+        result = self.runner.invoke(cli, ['sync', '--full-sync'], catch_exceptions=False)
+
+        self.assertEqual(result.exit_code, 0)
+        mock_strava_instance.get_athlete_koms.assert_called_once_with(98765)
+        mock_save_koms.assert_called_once_with({"1001": 2, "1002": 1})
+

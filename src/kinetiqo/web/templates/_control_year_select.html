@@ -1,0 +1,12 @@
+<div class="control-row">
+    <label for="{{ control_id|default('year-select') }}">{{ label|default('Year') }}</label>
+    <select id="{{ control_id|default('year-select') }}"
+        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+        {% if include_all_time %}
+        <option value="all" {% if selected_year == 'all' %}selected{% endif %}>All Time</option>
+        {% endif %}
+        {% for y in range(current_year|default(2026), (min_year|default(2020)) - 1, -1) %}
+        <option value="{{ y }}" {% if y == selected_year|default(current_year|default(2026)) %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+    </select>
+</div>

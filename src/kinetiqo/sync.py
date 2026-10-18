@@ -11,6 +11,14 @@ from kinetiqo.db.factory import create_repository
 from kinetiqo.strava import StravaClient, StravaFetchError
 from kinetiqo.profile_sync import sync_update_strava_from_env, sync_gps_simplification_from_env, sync_athlete_weight_from_env
 from kinetiqo.strava_description import DescriptionContext, any_update_strava_template_configured, get_template_for_activity
+from kinetiqo.koms import (
+    load_verified_koms,
+    save_verified_koms,
+    load_verified_trophies,
+    save_verified_trophies,
+    record_activity_trophies,
+    extract_trophies_from_segment_efforts,
+)
 
 logger = logging.getLogger("kinetiqo")
 
@@ -89,7 +97,7 @@ class SyncService:
             return True
         return False
 
-    def _update_strava_description(self, description_context: "DescriptionContext", activity: dict) -> "tuple[str, str | None]":
+    def _update_strava_description(self, description_context: "DescriptionContext", activity: dict, detail: dict | None = None) -> "tuple[str, str | None]":
         """Render the applicable UPDATE_STRAVA_* template for *activity* and push it to Strava if changed.
 
         Selects the template based on the activity's own sport type (cycling
@@ -130,7 +138,15 @@ class SyncService:
             return DESC_SKIPPED, None
         activity_id = activity["id"]
         try:
-            detail = self.strava.get_activity_detail(activity_id)
+            if detail is None:
+                detail = self.strava.get_activity_detail(activity_id)
+            if detail and detail.get("segment_efforts"):
+                t_dict = extract_trophies_from_segment_efforts(detail["segment_efforts"])
+                record_activity_trophies(activity_id, t_dict)
+                try:
+                    self.db.update_activity_trophies(activity_id, t_dict)
+                except Exception as db_err:
+                    logger.debug(f"Could not persist trophies in database for activity {activity_id}: {db_err}")
             existing_description = (detail or {}).get("description") or ""
             new_description = description_context.render_for_activity(
                 template,
@@ -418,17 +434,52 @@ class SyncService:
 
             # --- Phase 1: Sync all activities (existing + new) in one pass ---
             total_activities = len(activities)
+            trophies_cache = load_verified_trophies()
             for i, activity in enumerate(activities, 1):
                 if self._check_stop_signal():
                     stopped = True
                     yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                     return
                 activity_id = activity["id"]
+                act_id_str = str(activity_id)
                 sport = activity["sport_type"]
                 name = activity.get("name", "Unknown Activity")
                 percent = (i / total_activities) * 100 if total_activities > 0 else 0
-                is_existing = str(activity_id) in synced_ids
+                is_existing = act_id_str in synced_ids
                 desc_suffix = ""
+                trophies_suffix = ""
+                detail = None
+
+                # Check if we should fetch activity detail for trophies or description update
+                ach_count = int(activity.get("achievement_count") or 0)
+                cached_tr = trophies_cache.get(act_id_str, {})
+                already_scanned = bool(cached_tr.get("scanned")) or any(
+                    int(cached_tr.get(str(r), 0)) > 0 for r in range(2, 11)
+                )
+                needs_trophies = (ach_count > 0) and not already_scanned
+                needs_desc = (description_context is not None) and (act_id_str in description_update_ids)
+
+                if needs_trophies or needs_desc:
+                    try:
+                        detail = self.strava.get_activity_detail(activity_id)
+                    except Exception as det_err:
+                        logger.warning(f"Failed to fetch activity detail for {activity_id}: {det_err}")
+
+                if detail and needs_trophies:
+                    efforts = detail.get("segment_efforts", [])
+                    t_dict = extract_trophies_from_segment_efforts(efforts) if efforts else {r: 0 for r in range(1, 11)}
+                    record_activity_trophies(activity_id, t_dict)
+                    activity["trophies"] = t_dict
+                    trophies_cache[act_id_str] = {str(r): t_dict[r] for r in range(1, 11)}
+                    trophies_cache[act_id_str]["scanned"] = 1
+                    podium = [f"#{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
+                    if podium:
+                        trophies_suffix = f" [{', '.join(podium)}]"
+                elif already_scanned:
+                    podium = [f"#{r}: {cached_tr.get(str(r), 0)}" for r in range(1, 11) if int(cached_tr.get(str(r), 0)) > 0]
+                    if podium:
+                        trophies_suffix = f" [{', '.join(podium)}]"
+
                 try:
                     self.db.write_activity(activity)
                     if is_existing:
@@ -444,8 +495,8 @@ class SyncService:
                             logger.warning(msg)
                             sync_warnings.append(msg)
                     if description_context is not None:
-                        if str(activity_id) in description_update_ids:
-                            status, warning = self._update_strava_description(description_context, activity)
+                        if act_id_str in description_update_ids:
+                            status, warning = self._update_strava_description(description_context, activity, detail=detail)
                         else:
                             # Template may be absent for this activity's bucket;
                             # preserve the old "no status suffix" behavior there.
@@ -454,13 +505,15 @@ class SyncService:
                         desc_suffix = _description_status_suffix(status)
                         if warning:
                             sync_warnings.append(warning)
-                    yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}){desc_suffix}")
+                    yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}){trophies_suffix}{desc_suffix}")
                 except Exception as e:
                     msg = f"Error syncing activity {activity_id}: {e}"
                     sync_warnings.append(msg)
                     logger.exception(msg)
                     yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}) — failed: {e}")
                 time.sleep(0.1)
+
+            save_verified_trophies(trophies_cache)
 
             # --- Phase 2: Delete stale activities ---
             if ids_to_delete:
@@ -472,6 +525,100 @@ class SyncService:
                     msg = f"Error deleting stale activities: {e}"
                     sync_warnings.append(msg)
                     yield yield_log(msg)
+
+            # --- Phase 3: Sync athlete KOMs and backfill any legacy database activities ---
+            try:
+                yield yield_log("Syncing King of the Mountains (KOMs) and trophies from Strava...")
+                athlete = self.strava.get_athlete()
+                if athlete and athlete.get("id"):
+                    koms_list = self.strava.get_athlete_koms(athlete["id"])
+                    koms_by_activity: dict[str, int] = {}
+                    for effort in koms_list:
+                        act_ref = effort.get("activity") or {}
+                        act_id = act_ref.get("id")
+                        if act_id:
+                            act_id_str = str(act_id)
+                            koms_by_activity[act_id_str] = koms_by_activity.get(act_id_str, 0) + 1
+
+                    save_verified_koms(koms_by_activity)
+                    trophies_cache = load_verified_trophies()
+                    for act_id_str, count in koms_by_activity.items():
+                        if act_id_str not in trophies_cache:
+                            trophies_cache[act_id_str] = {str(r): 0 for r in range(1, 11)}
+                        trophies_cache[act_id_str]["1"] = max(trophies_cache[act_id_str].get("1", 0), count)
+                        try:
+                            self.db.update_activity_trophies(act_id_str, trophies_cache[act_id_str])
+                        except Exception:
+                            pass
+                    save_verified_trophies(trophies_cache)
+                    yield yield_log(f"Synced {len(koms_list)} verified KOMs across {len(koms_by_activity)} activities.")
+
+                    # Only scan historical activities from DB if any legacy backlog remains unscanned
+                    unscanned_db = []
+                    try:
+                        max_db = 40 if full_sync else 15
+                        unscanned_db = self.db.get_activities_needing_trophies(limit=max_db)
+                    except Exception as db_err:
+                        logger.debug(f"Could not query database for unscanned trophy activities: {db_err}")
+
+                    if unscanned_db:
+                        yield yield_log(f"Backfilling segment trophies for {len(unscanned_db)} historical activities...")
+                        for idx, act in enumerate(unscanned_db, start=1):
+                            if self._check_stop_signal():
+                                stopped = True
+                                yield yield_log("Stop signal received during trophy scan. Aborting...", final=True, is_stopped=True)
+                                return
+
+                            act_id = act.get("id") or act.get("activity_id")
+                            act_id_str = str(act_id)
+                            name = act.get("name") or f"Activity {act_id_str}"
+                            disp_name = (name[:28] + "...") if len(name) > 31 else name
+
+                            try:
+                                detail = self.strava.get_activity_detail(act_id_str)
+                                efforts = (detail or {}).get("segment_efforts", [])
+                                if efforts:
+                                    t_dict = extract_trophies_from_segment_efforts(efforts)
+                                    if act_id_str in koms_by_activity:
+                                        t_dict[1] = max(t_dict[1], koms_by_activity[act_id_str])
+                                    record_activity_trophies(act_id_str, t_dict)
+                                    try:
+                                        self.db.update_activity_trophies(act_id_str, t_dict)
+                                    except Exception:
+                                        pass
+                                    trophies_cache[act_id_str] = {str(r): t_dict[r] for r in range(1, 11)}
+                                    trophies_cache[act_id_str]["scanned"] = 1
+                                    podium = [f"#{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
+                                    if podium:
+                                        yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> {', '.join(podium)}")
+                                    else:
+                                        yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> no top-10 trophies")
+                                else:
+                                    empty_dict = {r: 0 for r in range(1, 11)}
+                                    if act_id_str in koms_by_activity:
+                                        empty_dict[1] = koms_by_activity[act_id_str]
+                                    record_activity_trophies(act_id_str, empty_dict)
+                                    try:
+                                        self.db.update_activity_trophies(act_id_str, empty_dict)
+                                    except Exception:
+                                        pass
+                                    trophies_cache[act_id_str] = {str(r): empty_dict[r] for r in range(1, 11)}
+                                    trophies_cache[act_id_str]["scanned"] = 1
+                                    yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> no segment efforts")
+                            except Exception as det_err:
+                                logger.warning(f"Historical trophy backfill skipped for {act_id_str}: {det_err}")
+
+                            if idx % 5 == 0:
+                                save_verified_trophies(trophies_cache)
+                            time.sleep(0.05)
+
+                        save_verified_trophies(trophies_cache)
+            except Exception as e:
+                logger.warning(f"Failed to sync athlete KOMs/trophies: {e}")
+                sync_warnings.append(f"Failed to sync athlete KOMs/trophies: {e}")
+                yield yield_log(f"Warning: Failed to sync athlete KOMs/trophies: {e}")
+
+
 
             yield yield_log(
                 f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",

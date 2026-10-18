@@ -266,25 +266,63 @@
     }
 
     .control-box {
+        background: #ffffff;
         border: 1px solid #e5e7eb;
         border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+
+    .dark .control-box {
+        background: #18181b;
+        border-color: #27272a;
     }
 
     .control-box h4 {
         font-weight: 600;
         margin-bottom: 0;
         font-size: 0.875rem;
+        color: #374151;
+    }
+
+    .dark .control-box h4 {
+        color: #d1d5db;
     }
 
     .control-box-header {
+        padding: 10px 14px;
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
         cursor: pointer;
         user-select: none;
-        margin-bottom: 8px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .dark .control-box-header {
+        background: #202023;
+        border-color: #27272a;
+    }
+
+    .control-box-header.collapsed {
+        border-bottom: none;
+    }
+
+    .control-box-body {
+        padding: 14px;
+    }
+
+    .control-box-body.collapsed {
+        display: none !important;
+    }
+
+    .collapse-toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px;
+        color: #71717a;
     }
 
     .control-box-header .chevron-icon {
@@ -295,10 +333,6 @@
 
     .control-box-header.collapsed .chevron-icon {
         transform: rotate(-90deg);
-    }
-
-    .control-box-body.collapsed {
-        display: none !important;
     }
 
     .control-row {
@@ -1539,8 +1573,9 @@
                 if (typeof toneCol === 'string') {
                     res.mapToneColor = /^#[0-9a-fA-F]{6}$/.test(toneCol) ? toneCol : '';
                 }
-                if (typeof saved.basemap === 'string' && saved.basemap && TILE_PROVIDERS[saved.basemap]) {
-                    res.mapProvider = saved.basemap;
+                const baseKey = saved.basemap || saved.mapProvider;
+                if (typeof baseKey === 'string' && baseKey && TILE_PROVIDERS[baseKey] && !TILE_PROVIDERS[baseKey].disabled) {
+                    res.mapProvider = baseKey;
                 }
                 return res;
             } catch (_) {
@@ -1562,7 +1597,7 @@
                 const mapOp = s.mapOpacity !== undefined ? s.mapOpacity : mapSaved.mapOpacity;
                 const toneOp = s.toneOpacity !== undefined ? s.toneOpacity : mapSaved.toneOpacity;
                 const toneCol = s.mapToneColor !== undefined ? s.mapToneColor : (mapSaved.mapToneColor !== undefined ? mapSaved.mapToneColor : mapSaved.toneColor);
-                const basemap = s.mapProvider || mapSaved.basemap;
+                const basemap = (s.bgType === 'map' && s.mapProvider) ? s.mapProvider : (mapSaved.basemap || mapSaved.mapProvider || 'openstreetmap');
 
                 const updated = {
                     ...mapSaved,
@@ -1576,7 +1611,8 @@
                     toneOpacity: Number.isFinite(Number(toneOp)) ? Number.parseInt(toneOp, 10) : 50,
                     mapToneColor: toneCol || '',
                     toneColor: toneCol || '',
-                    basemap: basemap || 'openstreetmap'
+                    basemap: basemap || 'openstreetmap',
+                    mapProvider: basemap || 'openstreetmap'
                 };
                 localStorage.setItem(MAP_STORAGE_KEY, JSON.stringify(updated));
             } catch (_) {}
@@ -1601,9 +1637,14 @@
                     if (saved.routeOpacity !== undefined && saved.mapLineOpacity === undefined) saved.mapLineOpacity = saved.routeOpacity;
                     if (saved.mapLineOpacity !== undefined && saved.routeOpacity === undefined) saved.routeOpacity = saved.mapLineOpacity;
 
+                    const preferredMapProvider = (mapDefaults.mapProvider && TILE_PROVIDERS[mapDefaults.mapProvider] && !TILE_PROVIDERS[mapDefaults.mapProvider].disabled)
+                        ? mapDefaults.mapProvider
+                        : (saved.mapProvider || 'openstreetmap');
+
                     return {
                         ...effectiveDefaults,
                         ...saved,
+                        mapProvider: preferredMapProvider,
                         boxVisible: { ...DEFAULTS.boxVisible, ...(saved.boxVisible || {}) },
                         boxCollapsed: { ...DEFAULTS.boxCollapsed },
                         photoFilters: {

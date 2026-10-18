@@ -157,5 +157,70 @@ class TestRefreshTokenRotationCallback(unittest.TestCase):
         callback.assert_called_once_with("brand-new-token")
 
 
+class TestGetAthleteKoms(unittest.TestCase):
+    """Unit tests for StravaClient.get_athlete_koms()."""
+
+    def _make_client(self):
+        client = StravaClient(_make_config())
+        client._access_token = "token"
+        return client
+
+    @patch("kinetiqo.strava.requests.get")
+    def test_get_athlete_koms_single_page(self, mock_get):
+        """Single page response finishes without making extra pagination requests."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = [
+            {"id": 1, "name": "Climb 1", "activity": {"id": 1001}},
+            {"id": 2, "name": "Climb 2", "activity": {"id": 1002}},
+        ]
+        mock_get.return_value = mock_response
+
+        client = self._make_client()
+        koms = client.get_athlete_koms(12345, per_page=200)
+
+        self.assertEqual(len(koms), 2)
+        self.assertEqual(koms[0]["name"], "Climb 1")
+        self.assertEqual(mock_get.call_count, 1)
+
+    @patch("kinetiqo.strava.requests.get")
+    def test_get_athlete_koms_multiple_pages(self, mock_get):
+        """When a page returns per_page items, it requests the next page."""
+        resp1 = MagicMock()
+        resp1.raise_for_status.return_value = None
+        resp1.json.return_value = [{"id": 1, "activity": {"id": 1001}}, {"id": 2, "activity": {"id": 1002}}]
+
+        resp2 = MagicMock()
+        resp2.raise_for_status.return_value = None
+        resp2.json.return_value = [{"id": 3, "activity": {"id": 1003}}]
+
+        mock_get.side_effect = [resp1, resp2]
+
+        client = self._make_client()
+        koms = client.get_athlete_koms(12345, per_page=2)
+
+        self.assertEqual(len(koms), 3)
+        self.assertEqual(mock_get.call_count, 2)
+
+    @patch("kinetiqo.strava.time.sleep")
+    @patch("kinetiqo.strava.requests.get")
+    def test_get_athlete_koms_retries_transient_error(self, mock_get, mock_sleep):
+        """Transient error is retried up to configured limit."""
+        fail_resp = _http_error_response(503)
+        success_resp = MagicMock()
+        success_resp.raise_for_status.return_value = None
+        success_resp.json.return_value = [{"id": 1, "activity": {"id": 1001}}]
+
+        mock_get.side_effect = [fail_resp, success_resp]
+
+        client = self._make_client()
+        koms = client.get_athlete_koms(12345, per_page=200)
+
+        self.assertEqual(len(koms), 1)
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(mock_sleep.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+
