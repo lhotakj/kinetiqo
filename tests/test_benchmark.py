@@ -37,6 +37,13 @@ class TestBenchmarkCLI(unittest.TestCase):
             'order_dist_count': 150,
             'order_elev_ms': 0.99,
             'order_elev_count': 150,
+            'paged_ms': 0.85,
+            'paged_count': 50,
+            'totals_ms': 0.75,
+            'suffer_ms': 1.50,
+            'suffer_count': 120,
+            'count_ms': 0.45,
+            'activity_count': 150,
         }
         mock_create_repo.return_value = mock_repo
 
@@ -48,6 +55,11 @@ class TestBenchmarkCLI(unittest.TestCase):
         self.assertIn("Scope: Last 365 days", result.output)
         self.assertIn("12.34 ms (5,000 records)", result.output)
         self.assertIn("1.23 ms (150 activities)", result.output)
+        self.assertIn("Paged grid fetch (LIMIT 50 - UI DataTables):", result.output)
+        self.assertIn("0.85 ms (50 activities)", result.output)
+        self.assertIn("Aggregate metric totals (Infographics/Goals):", result.output)
+        self.assertIn("Fitness suffer scores (CTL/ATL/TSB trend):", result.output)
+        self.assertIn("Activity count query (Filter badges & pagination):", result.output)
         mock_repo.close.assert_called_once()
 
     @patch("kinetiqo.cli.create_repository")

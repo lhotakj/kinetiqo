@@ -1088,41 +1088,52 @@ python src/kinetiqo.py benchmark --scope 90 --database postgresql
 
 **Metrics benchmark example on three database types using default dockerized setup:**
 ```text
-$ ./kinetiqo.py benchmark --database mysql && ./kinetiqo.py benchmark --database postgresql && ./kinetiqo.py benchmark --database firebird
-2026-10-20 22:27:29 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
+2026-10-20 23:38:55 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
 
 ==========================================================================
   Kinetiqo Database Benchmark (MYSQL)
   Scope: Last 365 days
 ==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 3751.81 ms (1,829,887 records)
-  * Order all activities by name:                             10.43 ms (656 activities)
-  * Order all activities by distance:                         8.75 ms (656 activities)
-  * Order all activities by elevation gained:                 8.64 ms (656 activities)
+  * Fetch all GPS data for last 365 days all activity types: 3710.61 ms (1,829,887 records)
+  * Order all activities by name:                             9.50 ms (656 activities)
+  * Order all activities by distance:                         8.85 ms (656 activities)
+  * Order all activities by elevation gained:                 11.89 ms (656 activities)
+  * Paged grid fetch (LIMIT 50 - UI DataTables):              1.89 ms (50 activities)
+  * Aggregate metric totals (Infographics/Goals):             3.81 ms (distance, elev, time)
+  * Fitness suffer scores (CTL/ATL/TSB trend):                3.60 ms (549 activities)
+  * Activity count query (Filter badges & pagination):        0.91 ms (656 activities)
 ==========================================================================
 
-2026-10-20 22:27:33 [INFO] Running database benchmark (backend=POSTGRESQL, scope=365 days)...
+2026-10-20 23:39:00 [INFO] Running database benchmark (backend=POSTGRESQL, scope=365 days)...
 
 ==========================================================================
   Kinetiqo Database Benchmark (POSTGRESQL)
   Scope: Last 365 days
 ==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 1811.41 ms (1,829,887 records)
-  * Order all activities by name:                             17.87 ms (656 activities)
-  * Order all activities by distance:                         31.88 ms (656 activities)
-  * Order all activities by elevation gained:                 15.74 ms (656 activities)
+  * Fetch all GPS data for last 365 days all activity types: 2016.83 ms (1,829,887 records)
+  * Order all activities by name:                             8.34 ms (656 activities)
+  * Order all activities by distance:                         10.26 ms (656 activities)
+  * Order all activities by elevation gained:                 7.14 ms (656 activities)
+  * Paged grid fetch (LIMIT 50 - UI DataTables):              1.99 ms (50 activities)
+  * Aggregate metric totals (Infographics/Goals):             0.97 ms (distance, elev, time)
+  * Fitness suffer scores (CTL/ATL/TSB trend):                2.24 ms (617 activities)
+  * Activity count query (Filter badges & pagination):        0.58 ms (656 activities)
 ==========================================================================
 
-2026-10-20 22:27:36 [INFO] Running database benchmark (backend=FIREBIRD, scope=365 days)...
+2026-10-20 23:39:02 [INFO] Running database benchmark (backend=FIREBIRD, scope=365 days)...
 
 ==========================================================================
   Kinetiqo Database Benchmark (FIREBIRD)
   Scope: Last 365 days
 ==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 24797.95 ms (1,829,887 records)
-  * Order all activities by name:                             39.11 ms (656 activities)
-  * Order all activities by distance:                         36.73 ms (656 activities)
-  * Order all activities by elevation gained:                 37.40 ms (656 activities)
+  * Fetch all GPS data for last 365 days all activity types: 24223.35 ms (1,829,887 records)
+  * Order all activities by name:                             38.69 ms (656 activities)
+  * Order all activities by distance:                         35.91 ms (656 activities)
+  * Order all activities by elevation gained:                 41.27 ms (656 activities)
+  * Paged grid fetch (LIMIT 50 - UI DataTables):              6.15 ms (50 activities)
+  * Aggregate metric totals (Infographics/Goals):             1.53 ms (distance, elev, time)
+  * Fitness suffer scores (CTL/ATL/TSB trend):                16.94 ms (617 activities)
+  * Activity count query (Filter badges & pagination):        1.83 ms (656 activities)
 ==========================================================================
 ```
 

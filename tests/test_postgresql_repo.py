@@ -262,6 +262,12 @@ def test_get_activities_web_pagination_and_sorting():
     sql, params = cursor.executed[0]
     assert "ORDER BY start_date ASC" in sql
 
+    # Name sorting uses COLLATE "C" for performance
+    cursor.executed.clear()
+    repo.get_activities_web(limit=10, sort_by="name", sort_order="ASC")
+    sql, params = cursor.executed[0]
+    assert 'ORDER BY name COLLATE "C" ASC' in sql
+
 
 def test_get_activities_web_filters():
     cursor = DummyCursor(default_rows=[])
