@@ -271,6 +271,13 @@ def _print_benchmark_results(db_type: str, scope_days: int, results: Dict[str, A
     order_dist_count = results.get('order_dist_count', 0)
     order_elev_ms = results.get('order_elev_ms', 0.0)
     order_elev_count = results.get('order_elev_count', 0)
+    paged_ms = results.get('paged_ms')
+    paged_count = results.get('paged_count', 0)
+    totals_ms = results.get('totals_ms')
+    suffer_ms = results.get('suffer_ms')
+    suffer_count = results.get('suffer_count', 0)
+    count_ms = results.get('count_ms')
+    activity_count = results.get('activity_count', 0)
 
     print("\n" + "=" * 74)
     print(f"  Kinetiqo Database Benchmark ({db_name})")
@@ -280,6 +287,14 @@ def _print_benchmark_results(db_type: str, scope_days: int, results: Dict[str, A
     print(f"  * Order all activities by name:                             {order_name_ms:.2f} ms ({order_name_count:,} activities)")
     print(f"  * Order all activities by distance:                         {order_dist_ms:.2f} ms ({order_dist_count:,} activities)")
     print(f"  * Order all activities by elevation gained:                 {order_elev_ms:.2f} ms ({order_elev_count:,} activities)")
+    if paged_ms is not None:
+        print(f"  * Paged grid fetch (LIMIT 50 - UI DataTables):              {paged_ms:.2f} ms ({paged_count:,} activities)")
+    if totals_ms is not None:
+        print(f"  * Aggregate metric totals (Infographics/Goals):             {totals_ms:.2f} ms (distance, elev, time)")
+    if suffer_ms is not None:
+        print(f"  * Fitness suffer scores (CTL/ATL/TSB trend):                {suffer_ms:.2f} ms ({suffer_count:,} activities)")
+    if count_ms is not None:
+        print(f"  * Activity count query (Filter badges & pagination):        {count_ms:.2f} ms ({activity_count:,} activities)")
     print("=" * 74 + "\n")
 
 

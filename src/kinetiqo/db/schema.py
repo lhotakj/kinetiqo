@@ -92,6 +92,12 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE INDEX idx_activities_totals_cover ON "activities" ("sport", "start_date", "distance", "total_elevation_gain", "moving_time")'
             },
             {
+                "name": "idx_activities_totals_date_cover",
+                "def_mysql": "CREATE INDEX idx_activities_totals_date_cover ON activities (start_date, distance, total_elevation_gain, moving_time)",
+                "def_pg": "CREATE INDEX idx_activities_totals_date_cover ON activities (start_date) INCLUDE (distance, total_elevation_gain, moving_time)",
+                "def_firebird": 'CREATE INDEX idx_activities_totals_date_cover ON "activities" ("start_date", "distance", "total_elevation_gain", "moving_time")'
+            },
+            {
                 "name": "idx_activities_athlete_start_date",
                 "def_mysql": "CREATE INDEX idx_activities_athlete_start_date ON activities (athlete_id, start_date DESC)",
                 "def_pg": "CREATE INDEX idx_activities_athlete_start_date ON activities (athlete_id, start_date DESC)",
@@ -120,6 +126,38 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_start_dist ON activities (start_date DESC, distance DESC)",
                 "def_pg": "CREATE INDEX idx_activities_start_dist ON activities (start_date DESC, distance DESC)",
                 "def_firebird": 'CREATE DESCENDING INDEX idx_activities_start_dist ON "activities" ("start_date", "distance")'
+            },
+            {
+                "name": "idx_activities_elev_start",
+                "def_mysql": "CREATE INDEX idx_activities_elev_start ON activities (total_elevation_gain DESC, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_elev_start ON activities (total_elevation_gain DESC, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_elev_start ON "activities" ("total_elevation_gain", "start_date")'
+            },
+            {
+                "name": "idx_activities_dist_start",
+                "def_mysql": "CREATE INDEX idx_activities_dist_start ON activities (distance DESC, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_dist_start ON activities (distance DESC, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_dist_start ON "activities" ("distance", "start_date")'
+            },
+            {
+                "name": "idx_activities_name_start",
+                "def_mysql": "CREATE INDEX idx_activities_name_start ON activities (name(191), start_date DESC)",
+                "def_pg": 'CREATE INDEX idx_activities_name_start ON activities (name COLLATE "C", start_date DESC)',
+                # Note: Firebird omits def_firebird because VARCHAR(500) UTF-8 (up to 2000 bytes) + TIMESTAMP
+                # exceeds Firebird's maximum index key size limit (page_size / 4 = 1024 bytes on 4KB pages,
+                # 2048 bytes on 8KB pages). Firebird relies on single-column idx_activities_name ON "activities" ("name").
+            },
+            {
+                "name": "idx_activities_speed_start",
+                "def_mysql": "CREATE INDEX idx_activities_speed_start ON activities (average_speed DESC, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_speed_start ON activities (average_speed DESC, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_speed_start ON "activities" ("average_speed", "start_date")'
+            },
+            {
+                "name": "idx_activities_time_start",
+                "def_mysql": "CREATE INDEX idx_activities_time_start ON activities (moving_time DESC, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_time_start ON activities (moving_time DESC, start_date DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_time_start ON "activities" ("moving_time", "start_date")'
             },
             {
                 "name": "idx_activities_elevation",

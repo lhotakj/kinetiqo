@@ -342,13 +342,13 @@ class MySQLRepository(DatabaseRepository):
             cur.execute(query, tuple(params))
 
             activities = []
-            for row in cur.fetchall():
-                activity = dict(row)
-                if isinstance(activity['start_date'], datetime):
+            for activity in cur.fetchall():
+                if isinstance(activity.get('start_date'), datetime):
                     activity['start_date'] = activity['start_date'].isoformat()
-                if activity.get('trophies') and isinstance(activity['trophies'], str):
+                trophies = activity.get('trophies')
+                if trophies and isinstance(trophies, str):
                     try:
-                        activity['trophies'] = json.loads(activity['trophies'])
+                        activity['trophies'] = json.loads(trophies)
                     except Exception:
                         pass
                 activities.append(activity)
@@ -965,7 +965,7 @@ class MySQLRepository(DatabaseRepository):
     def get_activities_with_suffer_score(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all activities that have a suffer_score > 0, ordered by date."""
         self._ensure_connected()
-        with self.conn.cursor(dictionary=True) as cur:
+        with self.conn.cursor() as cur:
             if days is not None:
                 start_date_limit = datetime.now(timezone.utc) - timedelta(days=days)
                 cur.execute("""
@@ -984,10 +984,11 @@ class MySQLRepository(DatabaseRepository):
 
             activities = []
             for row in cur.fetchall():
-                activity = dict(row)
-                if isinstance(activity['start_date'], datetime):
-                    activity['start_date'] = activity['start_date'].isoformat()
-                activities.append(activity)
+                dt, score = (row.get('start_date'), row.get('suffer_score')) if isinstance(row, dict) else (row[0], row[1])
+                activities.append({
+                    'start_date': dt.isoformat() if isinstance(dt, datetime) else dt,
+                    'suffer_score': score,
+                })
             return activities
 
     def get_profile(self):
@@ -1100,6 +1101,7 @@ class MySQLRepository(DatabaseRepository):
     def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
         """Run performance benchmarks on database queries for the given lookback scope."""
         import time
+        import gc
         self._ensure_connected()
         since_date = datetime.now(timezone.utc) - timedelta(days=scope_days)
         since_date_iso = since_date.isoformat()
@@ -1118,6 +1120,8 @@ class MySQLRepository(DatabaseRepository):
             gps_rows = cur.fetchall()
         gps_ms = (time.perf_counter() - t0) * 1000.0
         gps_count = len(gps_rows)
+        del gps_rows
+        gc.collect()
 
         # 2. Order all activities by name
         t0 = time.perf_counter()
@@ -1137,6 +1141,28 @@ class MySQLRepository(DatabaseRepository):
         order_elev_ms = (time.perf_counter() - t0) * 1000.0
         order_elev_count = len(elev_activities)
 
+        # 5. Paged activity grid (50 rows per page - UI default)
+        t0 = time.perf_counter()
+        paged_activities = self.get_activities_web(limit=50, offset=0, sort_by='start_date', sort_order='DESC', start_date=since_date_iso)
+        paged_ms = (time.perf_counter() - t0) * 1000.0
+        paged_count = len(paged_activities)
+
+        # 6. Aggregate metric totals (distance, elevation, moving time)
+        t0 = time.perf_counter()
+        totals = self.get_activities_totals(start_date=since_date_iso)
+        totals_ms = (time.perf_counter() - t0) * 1000.0
+
+        # 7. Fitness suffer scores (CTL/ATL/TSB trend)
+        t0 = time.perf_counter()
+        suffer_scores = self.get_activities_with_suffer_score(days=scope_days)
+        suffer_ms = (time.perf_counter() - t0) * 1000.0
+        suffer_count = len(suffer_scores)
+
+        # 8. Activity count query
+        t0 = time.perf_counter()
+        activity_count = self.count_activities(start_date=since_date_iso)
+        count_ms = (time.perf_counter() - t0) * 1000.0
+
         return {
             'gps_ms': gps_ms,
             'gps_count': gps_count,
@@ -1146,4 +1172,11 @@ class MySQLRepository(DatabaseRepository):
             'order_dist_count': order_dist_count,
             'order_elev_ms': order_elev_ms,
             'order_elev_count': order_elev_count,
+            'paged_ms': paged_ms,
+            'paged_count': paged_count,
+            'totals_ms': totals_ms,
+            'suffer_ms': suffer_ms,
+            'suffer_count': suffer_count,
+            'count_ms': count_ms,
+            'activity_count': activity_count,
         }

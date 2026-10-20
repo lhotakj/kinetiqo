@@ -1356,6 +1356,7 @@ class FirebirdRepository(DatabaseRepository):
     def run_benchmarks(self, scope_days: int = 365) -> Dict[str, Any]:
         """Run performance benchmarks on database queries for the given lookback scope."""
         import time
+        import gc
         self._ensure_connected()
         since_date = datetime.now(timezone.utc) - timedelta(days=scope_days)
         since_date_iso = since_date.isoformat()
@@ -1374,6 +1375,8 @@ class FirebirdRepository(DatabaseRepository):
             gps_rows = cur.fetchall()
         gps_ms = (time.perf_counter() - t0) * 1000.0
         gps_count = len(gps_rows)
+        del gps_rows
+        gc.collect()
 
         # 2. Order all activities by name
         t0 = time.perf_counter()
@@ -1393,6 +1396,28 @@ class FirebirdRepository(DatabaseRepository):
         order_elev_ms = (time.perf_counter() - t0) * 1000.0
         order_elev_count = len(elev_activities)
 
+        # 5. Paged activity grid (50 rows per page - UI default)
+        t0 = time.perf_counter()
+        paged_activities = self.get_activities_web(limit=50, offset=0, sort_by='start_date', sort_order='DESC', start_date=since_date_iso)
+        paged_ms = (time.perf_counter() - t0) * 1000.0
+        paged_count = len(paged_activities)
+
+        # 6. Aggregate metric totals (distance, elevation, moving time)
+        t0 = time.perf_counter()
+        totals = self.get_activities_totals(start_date=since_date_iso)
+        totals_ms = (time.perf_counter() - t0) * 1000.0
+
+        # 7. Fitness suffer scores (CTL/ATL/TSB trend)
+        t0 = time.perf_counter()
+        suffer_scores = self.get_activities_with_suffer_score(days=scope_days)
+        suffer_ms = (time.perf_counter() - t0) * 1000.0
+        suffer_count = len(suffer_scores)
+
+        # 8. Activity count query
+        t0 = time.perf_counter()
+        activity_count = self.count_activities(start_date=since_date_iso)
+        count_ms = (time.perf_counter() - t0) * 1000.0
+
         return {
             'gps_ms': gps_ms,
             'gps_count': gps_count,
@@ -1402,6 +1427,13 @@ class FirebirdRepository(DatabaseRepository):
             'order_dist_count': order_dist_count,
             'order_elev_ms': order_elev_ms,
             'order_elev_count': order_elev_count,
+            'paged_ms': paged_ms,
+            'paged_count': paged_count,
+            'totals_ms': totals_ms,
+            'suffer_ms': suffer_ms,
+            'suffer_count': suffer_count,
+            'count_ms': count_ms,
+            'activity_count': activity_count,
         }
 
     def __del__(self):
