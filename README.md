@@ -1089,40 +1089,40 @@ python src/kinetiqo.py benchmark --scope 90 --database postgresql
 **Metrics benchmark example on three database types using default dockerized setup:**
 ```text
 $ ./kinetiqo.py benchmark --database mysql && ./kinetiqo.py benchmark --database postgresql && ./kinetiqo.py benchmark --database firebird
-2026-08-30 23:58:38 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
+2026-10-20 22:27:29 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
 
 ==========================================================================
   Kinetiqo Database Benchmark (MYSQL)
   Scope: Last 365 days
 ==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 3703.84 ms (1,761,230 records)
-  * Order all activities by name:                             10.66 ms (629 activities)
-  * Order all activities by distance:                         9.29 ms (629 activities)
-  * Order all activities by elevation gained:                 9.38 ms (629 activities)
+  * Fetch all GPS data for last 365 days all activity types: 3751.81 ms (1,829,887 records)
+  * Order all activities by name:                             10.43 ms (656 activities)
+  * Order all activities by distance:                         8.75 ms (656 activities)
+  * Order all activities by elevation gained:                 8.64 ms (656 activities)
 ==========================================================================
 
-2026-08-30 23:58:42 [INFO] Running database benchmark (backend=POSTGRESQL, scope=365 days)...
+2026-10-20 22:27:33 [INFO] Running database benchmark (backend=POSTGRESQL, scope=365 days)...
 
 ==========================================================================
   Kinetiqo Database Benchmark (POSTGRESQL)
   Scope: Last 365 days
 ==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 1707.30 ms (1,761,230 records)
-  * Order all activities by name:                             16.08 ms (629 activities)
-  * Order all activities by distance:                         13.72 ms (629 activities)
-  * Order all activities by elevation gained:                 28.32 ms (629 activities)
+  * Fetch all GPS data for last 365 days all activity types: 1811.41 ms (1,829,887 records)
+  * Order all activities by name:                             17.87 ms (656 activities)
+  * Order all activities by distance:                         31.88 ms (656 activities)
+  * Order all activities by elevation gained:                 15.74 ms (656 activities)
 ==========================================================================
 
-2026-08-30 23:58:44 [INFO] Running database benchmark (backend=FIREBIRD, scope=365 days)...
+2026-10-20 22:27:36 [INFO] Running database benchmark (backend=FIREBIRD, scope=365 days)...
 
 ==========================================================================
   Kinetiqo Database Benchmark (FIREBIRD)
   Scope: Last 365 days
 ==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 23115.18 ms (1,761,230 records)
-  * Order all activities by name:                             36.59 ms (629 activities)
-  * Order all activities by distance:                         35.99 ms (629 activities)
-  * Order all activities by elevation gained:                 35.20 ms (629 activities)
+  * Fetch all GPS data for last 365 days all activity types: 24797.95 ms (1,829,887 records)
+  * Order all activities by name:                             39.11 ms (656 activities)
+  * Order all activities by distance:                         36.73 ms (656 activities)
+  * Order all activities by elevation gained:                 37.40 ms (656 activities)
 ==========================================================================
 ```
 
