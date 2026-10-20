@@ -49,11 +49,25 @@ def print_table_header() -> None:
     print(f"  {'─'*32} {'─'*12} {'─'*45}")
 
 
+def validate_safe_path(path: Path) -> Path:
+    """Validate and resolve path strictly within repository root to prevent path traversal."""
+    resolved = path.resolve()
+    base_dir = _REPO_ROOT.resolve()
+    if base_dir not in resolved.parents and resolved != base_dir:
+        raise ValueError(f"Path traversal detected: {path} is outside repository root.")
+    return resolved
+
+
 def parse_requirements(path: Path) -> List[str]:
     lines: List[str] = []
-    if not path.is_file():
+    try:
+        safe_path = validate_safe_path(path)
+    except ValueError as err:
+        logger.warning("Skipping untrusted path: %s", err)
         return lines
-    with path.open("r", encoding="utf-8") as fh:
+    if not safe_path.is_file():
+        return lines
+    with safe_path.open("r", encoding="utf-8") as fh:
         for ln in fh:
             lines.append(ln.rstrip("\n"))
     return lines
@@ -116,18 +130,20 @@ def write_atomic(path: Path, lines: List[str]) -> None:
 
     This reduces the risk of partial writes.
     """
-    dirpath = path.parent
+    safe_path = validate_safe_path(path)
+    dirpath = safe_path.parent
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=str(dirpath)) as tf:
         tf.write("\n".join(lines) + "\n")
         tmp = Path(tf.name)
-    os.replace(str(tmp), str(path))
+    os.replace(str(tmp), str(safe_path))
 
 
 def make_backup(path: Path) -> Path:
+    safe_path = validate_safe_path(path)
     ts = int(time.time())
-    bak = path.with_suffix(path.suffix + f".bak-{ts}")
+    bak = safe_path.with_suffix(safe_path.suffix + f".bak-{ts}")
     # copy original file to backup path
-    copy2(str(path), str(bak))
+    copy2(str(safe_path), str(bak))
     return bak
 
 
@@ -143,7 +159,14 @@ def update_file(path: Path, new_lines: List[str], backup: bool = False) -> None:
 
 def collect_targets(paths: List[str]) -> List[Path]:
     if paths:
-        return [Path(p) for p in paths]
+        validated_paths: List[Path] = []
+        for p in paths:
+            try:
+                candidate = Path(p) if Path(p).is_absolute() else _REPO_ROOT / p
+                validated_paths.append(validate_safe_path(candidate))
+            except ValueError as err:
+                logger.warning("Ignoring unsafe path argument: %s", err)
+        return validated_paths
     targets: List[Path] = []
     for p in _REPO_ROOT.rglob("requirements.txt"):
         targets.append(p)
@@ -152,11 +175,11 @@ def collect_targets(paths: List[str]) -> List[Path]:
     dedup: List[Path] = []
     for t in targets:
         try:
-            tp = t.resolve()
+            tp = validate_safe_path(t)
         except Exception:
-            tp = t
+            continue
         if tp not in seen:
-            dedup.append(t)
+            dedup.append(tp)
             seen.add(tp)
     return dedup
 

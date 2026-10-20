@@ -11,7 +11,7 @@ threshold) are highlighted as best moments, e.g.
 "Endurance | 90min @ 180W + 3x surges 1-2min @360-400W".
 """
 
-import random
+import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
@@ -380,7 +380,7 @@ def format_sprint_peak_highlight(sprint_peak: Optional[Dict[str, Any]]) -> str:
     if not selected_adjectives:
         return ""
 
-    adjective = random.choice(selected_adjectives)
+    adjective = secrets.choice(selected_adjectives)
     article = "an" if adjective[0].lower() in "aeiou" else "a"
     duration_s = sprint_peak["duration_s"]
     watts = round(sprint_peak["avg_w"]) if sprint_peak["duration_s"] > 1 else round(sprint_peak["max_w"])

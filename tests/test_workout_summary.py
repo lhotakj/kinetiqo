@@ -196,6 +196,69 @@ class TestWorkoutSummary(unittest.TestCase):
             elif "remarkable" in formatted:
                 self.assertIn("with a remarkable", formatted)
 
+    def test_format_sprint_peak_highlight_none_or_empty(self):
+        """format_sprint_peak_highlight returns empty string for None or empty dict."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        self.assertEqual(format_sprint_peak_highlight(None), "")
+        self.assertEqual(format_sprint_peak_highlight({}), "")
+
+    def test_format_sprint_peak_highlight_below_threshold(self):
+        """format_sprint_peak_highlight returns empty string when below 1000W."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        self.assertEqual(format_sprint_peak_highlight({"tier_w": 999.0, "max_w": 999.0, "duration_s": 5}), "")
+        self.assertEqual(format_sprint_peak_highlight({"max_w": 500.0, "duration_s": 1}), "")
+
+    def test_format_sprint_peak_highlight_duration_one_sec_uses_max_w(self):
+        """Single-second sprint peak uses max_w for rounded watts display."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        peak = {"duration_s": 1, "avg_w": 1000.0, "max_w": 1080.4, "tier_w": 1080.0}
+        formatted = format_sprint_peak_highlight(peak)
+        self.assertIn("1 sec peak 1080W", formatted)
+
+    def test_format_sprint_peak_highlight_duration_multi_sec_uses_avg_w(self):
+        """Multi-second sprint peak uses avg_w for rounded watts display."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        peak = {"duration_s": 5, "avg_w": 1250.6, "max_w": 1400.0, "tier_w": 1250.0}
+        formatted = format_sprint_peak_highlight(peak)
+        self.assertIn("5 sec peak 1251W", formatted)
+
+    def test_format_sprint_peak_highlight_tier_1700w_plus(self):
+        """1700W+ tier selects from monumental/breathtaking/jaw-dropping/extraordinary."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        peak = {"duration_s": 3, "avg_w": 1750.0, "max_w": 1800.0, "tier_w": 1750.0}
+        allowed = {"monumental", "breathtaking", "jaw-dropping", "extraordinary"}
+        for _ in range(50):
+            formatted = format_sprint_peak_highlight(peak)
+            matched = [adj for adj in allowed if adj in formatted]
+            self.assertEqual(len(matched), 1)
+            adj = matched[0]
+            if adj == "extraordinary":
+                self.assertIn("with an extraordinary", formatted)
+            else:
+                self.assertIn(f"with a {adj}", formatted)
+
+    def test_format_sprint_peak_highlight_tier_1000w_to_1500w(self):
+        """1000W-1500W tier selects from impressive/striking/respectable with proper articles."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        peak = {"duration_s": 10, "avg_w": 1100.0, "max_w": 1200.0, "tier_w": 1100.0}
+        allowed = {"impressive", "striking", "respectable"}
+        for _ in range(50):
+            formatted = format_sprint_peak_highlight(peak)
+            matched = [adj for adj in allowed if adj in formatted]
+            self.assertEqual(len(matched), 1)
+            adj = matched[0]
+            if adj == "impressive":
+                self.assertIn("with an impressive", formatted)
+            else:
+                self.assertIn(f"with a {adj}", formatted)
+
+    def test_format_sprint_peak_highlight_tier_w_fallback_to_max_w(self):
+        """When tier_w is missing, falls back to max_w."""
+        from kinetiqo.workout_summary import format_sprint_peak_highlight
+        peak = {"duration_s": 1, "avg_w": 1600.0, "max_w": 1600.0}
+        formatted = format_sprint_peak_highlight(peak)
+        self.assertIn("1 sec peak 1600W", formatted)
+
 
 if __name__ == "__main__":
     unittest.main()

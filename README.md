@@ -760,13 +760,13 @@ build/
 | WSGI server | Gunicorn | 26.2.0 |
 | CLI | Click | 8.5.0 |
 | HTTP client | httpx | 0.28.1 |
-| Data processing | pandas | 3.0.5 |
+| Data processing | pandas | 3.0.6 |
 | Versioning | packaging | ≥26.3 |
 | PostgreSQL driver | psycopg2-binary | 2.9.13 |
-| MySQL driver | mysql-connector-python | 9.7.0 |
+| MySQL driver | mysql-connector-python | 26.7.0 |
 | Firebird driver | firebird-driver | 2.0.3 |
-| Image processing | Pillow / pillow-heif | ≥12.3.0 / ≥1.7.0 |
-| Browser automation | Playwright | ≥1.63.0 |
+| Image processing | Pillow / pillow-heif | ≥13.0.0 / ≥1.8.1 |
+| Browser automation | Playwright | ≥1.64.0 |
 | Frontend CSS | Tailwind CSS | Local build (Tailwind CLI 4.3.3) |
 | Reactivity | HTMX + htmx-ext-sse | 2.0.10 (local vendor file) / 2.2.2 |
 | Data tables | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 |

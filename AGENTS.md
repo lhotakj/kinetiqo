@@ -57,11 +57,11 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
 | CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
-| Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 9.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
+| Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 26.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
-| Data Processing | **pandas** | 3.0.5 | CTL/ATL/TSB calculation |
-| Browser Automation | **Playwright** | ≥1.63.0 | PNG poster and infographic rendering |
-| Image Processing | **Pillow** / **pillow-heif** | ≥12.3.0 / ≥1.7.0 | Poster and image processing (HEIC/HEIF support) |
+| Data Processing | **pandas** | 3.0.6 | CTL/ATL/TSB calculation |
+| Browser Automation | **Playwright** | ≥1.64.0 | PNG poster and infographic rendering |
+| Image Processing | **Pillow** / **pillow-heif** | ≥13.0.0 / ≥1.8.1 | Poster and image processing (HEIC/HEIF support) |
 | Date Parsing | **python-dateutil** | ≥2.9.0.post0 | Date parsing utilities |
 | Versioning | **packaging** | ≥26.3 | SemVer comparisons |
 
@@ -189,6 +189,36 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 - **Sync Progress Indicator**: During fast or full synchronization, the "Sync in progress..." status indicator MUST render the rotating loading icon immediately preceding the text (`<p class="text-sm font-medium mb-3 inline-flex items-center justify-center gap-2 sync-progress-text"><img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16"><span>Sync in progress...</span></p>`). The text color MUST be styled via `.sync-progress-text` in `common.css` to ensure black (`#000000`) in light mode and pure white (`#ffffff`) in dark mode.
 - **DataTables Activity Data Loading Standard**: For DataTables (such as the activities grid), DataTables 2.x's default 4-dot bouncing animation in `div.dt-processing > div:last-child` MUST be hidden via CSS (`display: none !important;`). The processing container `div.dt-processing` MUST render exclusively the centered `static/img/kinetiqo-loading-32x32.webp` icon in a styled translucent card (`language.processing`), with `language.loadingRecords` set to `'&nbsp;'` to prevent flash of raw text.
 
+### 4.14 Cryptographic Randomness & Security Standard (Sonar python:S2245)
+- **Mandatory `secrets` Module over `random`**: Never import or use Python's pseudorandom `random` module (such as `random.choice`, `random.randint`, `random.random`, `random.sample`) in application code, CLI scripts, or data generators. SonarQube flags all uses of `random` under rule `python:S2245` ("Make sure that using this pseudorandom number generator is safe here").
+- **Approved Replacements**:
+  - Element selection: `secrets.choice(sequence)` instead of `random.choice(sequence)`.
+  - Bounded integers: `secrets.randbelow(upper_bound)` instead of `random.randint(0, upper_bound - 1)` or `random.randrange(upper_bound)`.
+  - Secure tokens, IDs, and random strings: `secrets.token_hex(nbytes)` or `secrets.token_urlsafe(nbytes)`.
+- **Unit Testing Exception**: Standard pseudorandom generators (`random.Random(seed)`) are permitted ONLY within test files (`tests/`) when reproducible seeds are explicitly required for deterministic unit test fixtures.
+
+### 4.15 Modern Timezone-Aware UTC Datetimes Standard (Python 3.11+ Deprecation Prevention)
+- **Timezone-Aware UTC Mandate**: Python 3.11+ deprecated naive UTC datetime creation (`datetime.utcnow()` and `datetime.utcfromtimestamp()`), scheduling them for removal. All Python code across Kinetiqo must strictly use timezone-aware datetime objects in UTC:
+  - ❌ **Forbidden**: `datetime.utcnow()`
+  - ❌ **Forbidden**: `datetime.utcfromtimestamp(ts)`
+  - ✅ **Mandatory Current UTC Time**: `datetime.now(timezone.utc)`
+  - ✅ **Mandatory Timestamp Conversion**: `datetime.fromtimestamp(ts, tz=timezone.utc)`
+- **Naive UTC Conversions**: When storing timestamps in legacy database columns or schemas that strictly expect naive UTC datetimes, strip the timezone explicitly after generating the timezone-aware UTC datetime: `datetime.now(timezone.utc).replace(tzinfo=None)`.
+- **Third-Party Deprecation Shims**: When external libraries (such as Flask-Login 0.6.3 session duration handlers) still invoke `datetime.utcnow()`, apply clean compatibility shims or monkey-patches during application bootstrap (`src/kinetiqo/web/app.py`) to prevent deprecation warnings in logs and test runs.
+
+### 4.16 Path Traversal & Boundary Validation Standard (Sonar pythonsecurity:S8707)
+- **Strict Canonical Boundary Validation**: Any function or CLI script accepting file or directory paths from user input, environment variables, or CLI arguments MUST strictly validate paths before performing filesystem operations (`open()`, `Path.write_text()`, `os.replace()`, `shutil.copy2()`). Direct unvalidated path usage triggers SonarQube rule `pythonsecurity:S8707` ("Path Traversal").
+- **Validation Protocol**:
+  1. **Define Root Boundary**: Establish an absolute, resolved boundary root directory (e.g., `_REPO_ROOT = Path(__file__).resolve().parent.parent`).
+  2. **Canonical Resolution**: Convert relative paths against the boundary root and resolve symlinks: `target = (base_dir / input_path).resolve()`.
+  3. **Containment Check**: Enforce that the resolved path resides within the boundary using `target.is_relative_to(base_dir)`. If false, raise `ValueError(f"Path traversal detected: {target} is outside {base_dir}")`.
+  4. **Symlink Rejection**: For write operations or file replacement, explicitly reject symlinks: `if target.is_symlink(): raise ValueError(f"Target cannot be a symlink: {target}")`.
+  5. **Atomic Replacements in Same Directory**: When replacing files safely, create temporary staging files in the exact same parent directory (`tempfile.NamedTemporaryFile(dir=target.parent, delete=False)`) to guarantee atomic `os.replace()` across filesystem mount points, and clean up orphaned temp files in a `finally` block if an error occurs.
+
+### 4.17 JavaScript Object Property Uniqueness (Sonar javascript:S1534) & Anonymous User Safety
+- **JavaScript Object Property Uniqueness (`javascript:S1534`)**: Duplicate keys in JavaScript object literals (e.g. within inline DataTables configuration objects or chart options in Jinja templates) cause silent configuration overwrites and trigger SonarQube `javascript:S1534`. Always merge option groups (such as DataTables `language: { processing: ..., search: ... }`) into a single unified key.
+- **Anonymous User Safety in Web Endpoints & Templates**: Never access `current_user.id` or user-specific attributes without first verifying authentication status (`if current_user.is_authenticated:`). For unauthenticated requests or public views, access user attributes defensively via `getattr(current_user, 'id', None)` to prevent `AttributeError: 'AnonymousUserMixin' object has no attribute 'id'`.
+
 
 ---
 
@@ -270,6 +300,11 @@ When adding a new Google Font to the offline font library, execute every step be
 - **Complete, Production-Ready Code**: Provide complete code snippets without placeholders or missing imports.
 - **No ORMs**: Use parameterized raw SQL queries exclusively across PostgreSQL, MySQL, and Firebird.
 - **Strict Compliance**: Follow SonarQube rules for label association (`Web:S6853` / `Web:InputWithoutLabelCheck`), XSS output encoding (`Web:S5725`), static Number methods (`javascript:S7773`), SRI hashes, and same-tab internal link navigation.
+- **Cryptographic Randomness**: Never import or use Python's pseudorandom `random` module in application or CLI code; always use standard library `secrets` (`secrets.choice`, `secrets.randbelow`, `secrets.token_hex`) to avoid `python:S2245`.
+- **Modern Timezone-Aware UTC**: Never use deprecated `datetime.utcnow()` or `datetime.utcfromtimestamp()`; always use `datetime.now(timezone.utc)` and `datetime.fromtimestamp(ts, tz=timezone.utc)`.
+- **Path Traversal Defense**: Validate, resolve, and confine any user- or CLI-supplied file path within a defined root boundary using `Path.resolve().is_relative_to(root)` before reading or writing (`pythonsecurity:S8707`).
+- **JavaScript Object Key Uniqueness**: Never define duplicate property names inside JavaScript object literals, especially in DataTables or Chart.js configs (`javascript:S1534`).
+- **Anonymous User Safety**: Guard accesses to `current_user.id` or user attributes behind `current_user.is_authenticated` or use `getattr(current_user, 'id', None)` to prevent `AttributeError`.
 
 ---
 

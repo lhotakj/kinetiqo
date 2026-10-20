@@ -225,10 +225,10 @@
         <div class="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-warm-200 transition">
             <a href="{{ url_for('profile_page') }}" class="flex items-center gap-3 flex-1 min-w-0" title="View Profile">
                 <div class="w-8 h-8 rounded-full bg-orange-200 text-orange-800 flex items-center justify-center font-bold text-xs border border-orange-300">
-                    {{ current_user.id[0]|upper }}
+                    {{ current_user.id[0]|upper if current_user.is_authenticated and current_user.id else 'U' }}
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">{{ current_user.id }}</p>
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ current_user.id if current_user.is_authenticated else '' }}</p>
                 </div>
             </a>
             <form method="POST" action="{{ url_for('logout') }}" class="m-0">

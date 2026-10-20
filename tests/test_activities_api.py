@@ -164,6 +164,86 @@ class TestActivitiesAPI(unittest.TestCase):
         self.assertIn('"processing": true', html)
         self.assertIn('"loadingRecords": \'&nbsp;\'', html)
 
+    @patch('kinetiqo.web.app.get_db')
+    def test_activities_page_datatable_language_config_no_duplicates(self, mock_get_db):
+        """Activities page renders DataTable language block without duplicate language keys."""
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.get_distinct_activity_types.return_value = ['Ride', 'Run']
+
+        with self.client.session_transaction() as sess:
+            sess['_user_id'] = 'admin'
+
+        resp = self.client.get('/activities')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+
+        # Ensure language configuration includes search and lengthMenu options
+        self.assertIn('"searchPlaceholder": "Filter activities..."', html)
+        self.assertIn('"lengthMenu": "Show _MENU_ entries"', html)
+        # Verify that "language": { is defined exactly once in the rendered HTML
+        self.assertEqual(html.count('"language": {'), 1)
+
+    @patch('kinetiqo.web.app.get_db')
+    def test_delete_single_activity_api_anonymous_user_fallback(self, mock_get_db):
+        """DELETE /api/activities/<id> handles anonymous user gracefully with fallback."""
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+
+        # Anonymous request without setting session user
+        with patch('kinetiqo.web.app.current_user') as mock_user:
+            # Simulate AnonymousUserMixin lacking 'id' attribute
+            del mock_user.id
+            resp = self.client.delete('/api/activities/1001')
+            self.assertEqual(resp.status_code, 200)
+            mock_repo.log_sync.assert_called_once_with(
+                added=0, removed=1, trigger="web", success=True, action="delete", user="admin"
+            )
+
+    @patch('kinetiqo.web.app.get_db')
+    def test_delete_bulk_activities_api_anonymous_user_fallback(self, mock_get_db):
+        """DELETE /api/activities handles anonymous user in bulk deletion."""
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+
+        with patch('kinetiqo.web.app.current_user') as mock_user:
+            del mock_user.id
+            resp = self.client.delete('/api/activities', json={'activity_ids': ['1001', '1002']})
+            self.assertEqual(resp.status_code, 200)
+            mock_repo.log_sync.assert_called_once_with(
+                added=0, removed=2, trigger="web", success=True, action="delete_bulk", user="admin"
+            )
+
+    @patch('kinetiqo.web.app.get_db')
+    def test_delete_single_activity_api_log_failure_resilient(self, mock_get_db):
+        """DELETE /api/activities/<id> succeeds even if log_sync raises an error."""
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.log_sync.side_effect = RuntimeError("DB write error")
+
+        with self.client.session_transaction() as sess:
+            sess['_user_id'] = 'admin'
+
+        resp = self.client.delete('/api/activities/1001')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data['success'])
+
+    @patch('kinetiqo.web.app.get_db')
+    def test_delete_bulk_activities_api_log_failure_resilient(self, mock_get_db):
+        """DELETE /api/activities bulk succeeds even if log_sync raises an error."""
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.log_sync.side_effect = RuntimeError("DB write error")
+
+        with self.client.session_transaction() as sess:
+            sess['_user_id'] = 'admin'
+
+        resp = self.client.delete('/api/activities', json={'activity_ids': ['1001']})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data['success'])
+
 
 if __name__ == '__main__':
     unittest.main()

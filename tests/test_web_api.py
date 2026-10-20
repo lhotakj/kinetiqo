@@ -100,3 +100,80 @@ def test_sync_start_loading_indicator(monkeypatch):
         assert '/static/img/kinetiqo-loading-32x32.webp' in html_text
         assert 'sync-progress-text' in html_text
         assert html_text.index('/static/img/kinetiqo-loading-32x32.webp') < html_text.index('Sync in progress...')
+
+
+def test_base_template_authenticated_vs_anonymous_user(monkeypatch):
+    """Base template renders user initial when authenticated, and fallback 'U' when anonymous."""
+    app.config['LOGIN_DISABLED'] = True
+    client = app.test_client()
+
+    class DummyUser:
+        is_authenticated = True
+        id = "jarda"
+
+    # Authenticated user
+    monkeypatch.setattr('kinetiqo.web.app.current_user', DummyUser())
+    resp_auth = client.get('/login')
+    html_auth = resp_auth.get_data(as_text=True)
+    # Login page extends base.html or has its own template, check another endpoint that extends base.html
+    class PosterDummyRepo(DummyRepo):
+        def get_activities_by_ids(self, activity_ids):
+            return [{'id': activity_ids[0], 'name': 'Ride', 'distance': 10000}]
+
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: PosterDummyRepo())
+    resp_poster = client.get('/poster/100')
+    html_poster = resp_poster.get_data(as_text=True)
+    assert 'J' in html_poster
+    assert 'jarda' in html_poster
+
+    # Anonymous user lacking 'id' attribute
+    class AnonymousUser:
+        is_authenticated = False
+
+    monkeypatch.setattr('kinetiqo.web.app.current_user', AnonymousUser())
+    resp_anon = client.get('/poster/100')
+    assert resp_anon.status_code == 200
+    html_anon = resp_anon.get_data(as_text=True)
+    assert 'U' in html_anon
+
+
+def test_sync_stream_passes_user_id(monkeypatch):
+    """sync_stream passes user ID or fallback 'admin' to SyncService."""
+    app.config['LOGIN_DISABLED'] = True
+    client = app.test_client()
+
+    captured_users = []
+
+    class MockSyncService:
+        def __init__(self, cfg):
+            pass
+
+        def sync(self, **kwargs):
+            captured_users.append(kwargs.get('user'))
+            yield "data: progress\n\n"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr('kinetiqo.web.app.SyncService', MockSyncService)
+
+    # Test with anonymous user
+    class AnonymousUser:
+        is_authenticated = False
+
+    monkeypatch.setattr('kinetiqo.web.app.current_user', AnonymousUser())
+    resp1 = client.get('/api/sync/stream/fast')
+    assert resp1.status_code == 200
+    list(resp1.response)  # exhaust generator
+    assert captured_users[-1] == 'admin'
+
+    # Test with authenticated user
+    class AuthenticatedUser:
+        is_authenticated = True
+        id = 'athlete_42'
+
+    monkeypatch.setattr('kinetiqo.web.app.current_user', AuthenticatedUser())
+    resp2 = client.get('/api/sync/stream/fast')
+    assert resp2.status_code == 200
+    list(resp2.response)  # exhaust generator
+    assert captured_users[-1] == 'athlete_42'

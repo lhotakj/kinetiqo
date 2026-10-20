@@ -11,7 +11,7 @@ import secrets
 import shutil
 import threading
 import time as _time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
 
@@ -33,6 +33,16 @@ except Exception as exc:
     generate_csrf = None
 
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+import flask_login.login_manager
+
+# Ensure modern timezone-aware UTC datetime for Flask-Login remember cookie (Python 3.12+ deprecation of datetime.utcnow)
+if hasattr(flask_login.login_manager, 'datetime'):
+    class _FlaskLoginDateTime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return datetime.now(timezone.utc)
+
+    flask_login.login_manager.datetime = _FlaskLoginDateTime
 from kinetiqo.config import Config
 from kinetiqo.gps_simplify import simplify_track, GPS_SIMPLIFICATION_THRESHOLDS
 from kinetiqo.strava_description import any_update_strava_template_configured, validate_template
@@ -2917,7 +2927,7 @@ def delete_activity_api(activity_id):
 
         # Log the deletion
         try:
-            repo.log_sync(added=0, removed=1, trigger="web", success=True, action="delete", user=current_user.id)
+            repo.log_sync(added=0, removed=1, trigger="web", success=True, action="delete", user=getattr(current_user, 'id', 'admin'))
         except Exception as log_err:
             logger.exception(f"Failed to log deletion: {log_err}")
 
@@ -2948,7 +2958,7 @@ def delete_activities_api():
 
         try:
             repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk",
-                          user=current_user.id)
+                          user=getattr(current_user, 'id', 'admin'))
         except Exception as log_err:
             logger.exception(f"Failed to log bulk deletion: {log_err}")
 
@@ -3050,7 +3060,7 @@ def sync_stream(type):
         Response: A text/event-stream response streaming progress events.
     """
     is_full_sync = (type == 'full')
-    user_id = current_user.id
+    user_id = getattr(current_user, 'id', 'admin')
     limit_days = request.args.get('limit_days', default=0, type=int)
     update_strava_param = request.args.get('update_strava', default='off')
     update_strava = update_strava_param in ('on', 'true', '1')

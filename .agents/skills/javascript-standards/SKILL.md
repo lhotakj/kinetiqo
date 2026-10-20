@@ -51,3 +51,28 @@ const sec = Number(seconds);
 if (Number.isNaN(sec) || sec < 0) { ... }
 if (Number.isFinite(value)) { ... }
 ```
+
+---
+
+## 2. Object Literal Property Uniqueness (SonarQube javascript:S1534)
+
+In JavaScript objects (and inline configs in templates), duplicate property keys trigger SonarQube `javascript:S1534` and result in silent overwrites.
+
+### Example: DataTables Configuration
+```javascript
+// ❌ Non-compliant (duplicate 'language' property overwrites 'processing' loading indicator)
+const options = {
+    language: { processing: '<img src="/static/img/loading.webp">' },
+    pageLength: 25,
+    language: { search: 'Search:' }
+};
+
+// ✅ Compliant (single unified object)
+const options = {
+    language: {
+        processing: '<img src="/static/img/loading.webp">',
+        search: 'Search:'
+    },
+    pageLength: 25
+};
+```

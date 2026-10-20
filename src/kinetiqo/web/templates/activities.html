@@ -797,7 +797,10 @@ var table = null;
             "processing": true,
             "language": {
                 "processing": '<div class="flex justify-center items-center"><img src="{{ url_for("static", filename="img/kinetiqo-loading-32x32.webp") }}" alt="Loading..." class="h-8 w-8 inline-block" width="32" height="32"></div>',
-                "loadingRecords": '&nbsp;'
+                "loadingRecords": '&nbsp;',
+                "search": "",
+                "searchPlaceholder": "Filter activities...",
+                "lengthMenu": "Show _MENU_ entries"
             },
             "serverSide": false,
             "pageLength": 25,
@@ -1061,11 +1064,6 @@ var table = null;
                     _lastTotals.movingTime = formatDuration(json.totals.total_moving_time);
                     recalculateFooterColspans();
                 }
-            },
-            "language": {
-                "search": "",
-                "searchPlaceholder": "Filter activities...",
-                "lengthMenu": "Show _MENU_ entries"
             },
             "initComplete": function (settings, json) {
                 updateSelectionSummary();
