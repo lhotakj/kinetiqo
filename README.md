@@ -1,4 +1,4 @@
-# Kinetiqo 2.4
+# Kinetiqo 2.5
 
 <!-- Badges: SonarCloud (main branch), Docker Hub pulls, Python version -->
 [![SonarCloud Quality Gate (main)](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&branch=main&metric=alert_status)](https://sonarcloud.io/project/overview?id=lhotakj_kinetiqo)
