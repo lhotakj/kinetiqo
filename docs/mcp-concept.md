@@ -19,7 +19,7 @@ Remote Strava integrations are constrained by API access, permissions and provid
 2. **A creative visual assistant**: Private posters, maps and infographic artifacts, once browser rendering has been extracted into reusable services.
 3. **A guarded training assistant**: Optional, separately enabled syncs, goal changes and preview-bound Strava description publishing, never automatic writes from a read-only question.
 
-> **MCP on/off switch (proposed, not implemented yet):** Docker deployments run **web only by default**. To start a separate MCP server, include the planned `build/compose.mcp.yaml` overlay **and** enable Docker Compose's `mcp` profile with `COMPOSE_PROFILES=mcp` (or Compose's `--profile mcp` option). Neither the profile without the overlay nor the overlay without the profile starts MCP. Local desktop MCP is instead enabled by registering the `kinetiqo mcp` stdio command in the client. See **Minimal MCP activation and environment-variable contract** in Section 5 and the **future-user setup guide** in Section 7 for required settings, client attachment and troubleshooting. There is no separate application-level enable switch inside the web server.
+> **MCP on/off switch (proposed, not implemented yet):** Docker deployments run **web only by default**. To start a separate MCP server, include the planned `build/compose.mcp.yaml` overlay **and** enable Docker Compose's `mcp` profile with `COMPOSE_PROFILES=mcp` (or Compose's `--profile mcp` option). Neither the profile without the overlay nor the overlay without the profile starts MCP. Local desktop MCP is instead enabled by registering the `kinetiqo mcp` stdio command in the client. See **Minimal MCP activation and environment-variable contract** in Section 5 and the **future-user setup guide** in Section 8 for required settings, client attachment and troubleshooting. There is no separate application-level enable switch inside the web server.
 
 ### Athlete jobs to be done
 
@@ -79,6 +79,10 @@ To deliver maximum utility without overwhelming LLM context windows, tools are c
 ---
 
 ### Master Tool Catalog
+
+> **Dynamic Tool Registration for Gated Mutations**: Mutating tools (`kinetiqo_update_training_goals` [24], `kinetiqo_trigger_sync` [29], `kinetiqo_update_strava_description` [32], and `kinetiqo_update_athlete_profile` [33]) are **completely omitted from the MCP tool registry (`tools/list`)** when their respective gate flag (`KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`) is `0` or unset. This keeps the LLM context window lean and eliminates hallucinated tool calls. When enabled (`1`), call-time gate checks are also enforced as defense-in-depth.
+
+> **Unified Initial Analytical Release**: The implementation roadmap groups **Phases 0, 1, and 2** into a cohesive initial read-only analytical release (Tools 1–19), delivering full activity discovery, telemetry downsampling, power curves, personal records, and exercise physiology models (CTL/ATL/TSB, FTP history, VO₂max, Power Skills) together via local stdio before progressing to visual rendering and write automations.
 
 The table below provides the authoritative master index of all 33 Kinetiqo MCP tools, their functional grouping, target Python module in `src/kinetiqo/mcp/tools/`, delivery phase, priority, and mutation gating:
 
@@ -334,7 +338,7 @@ Tools for tracking verified crowns, ribbons, Gran Fondos, and training targets.
 
 ### Group E: Creative Visual Generation (Posters, Maps, Infographics)
 
-Visual exports leverage headless Playwright Chromium rendering. 
+Visual exports leverage headless Playwright Chromium rendering. To guarantee full offline functionality under local stdio when the Flask web application is not running, rendering services in `src/kinetiqo/web/renderers/` synthesize standalone HTML in-process using Jinja2 templates, injecting activity data, SVG assets, and self-hosted CSS directly. Playwright loads the document via `page.set_content(html, wait_until="networkidle")`, eliminating any dependence on an active Flask HTTP server, local port binding, or browser session cookies. Map tiles use cached/direct provider URLs with attribution, or photo background mode.
 
 #### Dual Delivery Contract (Local Desktop Stdio vs Remote HTTP)
 
@@ -528,7 +532,7 @@ src/kinetiqo/
   1. **Standard I/O (`stdio`)**: The default transport for local LLM clients (Claude Desktop, Cursor, Antigravity IDE, Claude Code).
   2. **HTTP (later phase)**: Use only a transport supported by the *pinned* SDK and target clients; do not assume legacy SSE and streamable HTTP are interchangeable. Bind to `127.0.0.1` by default, use authentication/TLS for non-loopback exposure.
 * **Database Access**: Use repository factory at request/tool boundary and close every connection; never retain one mutable DB connection shared between concurrent calls. Ensure schema was initialized by the application's normal setup, not by a read-only MCP request.
-* **Visual Rendering**: Refactor existing session-dependent Flask Playwright exports into reusable core renderers invoked from both web and MCP. No arbitrary URL/file input or reliance on copying a user's web cookie.
+* **Visual Rendering**: Refactor existing session-dependent Flask Playwright exports into reusable core renderers (`src/kinetiqo/web/renderers/`) invoked from both web and MCP. Headless Playwright uses in-process HTML synthesis (`page.set_content(html, wait_until="networkidle")`) with Jinja2 templates, injecting data, SVG assets, and self-hosted CSS directly. This eliminates any reliance on a running Flask web server, local HTTP port, or copying web cookies.
 
 ### Common response, validation and data provenance contract
 
@@ -597,7 +601,7 @@ To ensure stable, zero-offset pagination across growing activity catalogs, `kine
 
 Errors use stable codes `INVALID_ARGUMENT`, `NOT_FOUND`, `DATA_UNAVAILABLE`, `NOT_CONFIGURED`, `PERMISSION_DENIED`, `CONFLICT`, `RATE_LIMITED`, `RESOURCE_LIMIT`, `UPSTREAM_ERROR`, `INTERNAL_ERROR`. Do not return an empty successful result on upstream failure or reveal tokens/passwords/internal paths in errors. Timeout and cancellation must release cursors, browser contexts and job locks.
 
-The MVP supports the single configured athlete; callers cannot choose another `athlete_id`. Accept calendar dates as `YYYY-MM-DD`: inclusive start and inclusive end in an explicitly configured IANA `ATHLETE_TIMEZONE` (default UTC with a warning), translated to a half-open SQL timestamp interval. Reject reversed ranges and invalid dates. Sport groups come from a single documented mapping, with indoor and assisted cycling distinguished when comparisons require it. Sort columns are allowlisted and ties resolve by `start_date DESC, activity_id DESC`. Reject negative bounds, non-finite floats, duplicate IDs, unknown streams and unsupported basemaps rather than silently coercing them.
+The analytical tools support the single configured athlete; callers cannot choose another `athlete_id`. Accept calendar dates as `YYYY-MM-DD`: inclusive start and inclusive end translated to a half-open SQL timestamp interval using the resolved `ATHLETE_TIMEZONE`. Timezone resolution follows a strict 3-tier hierarchy: (1) explicit `ATHLETE_TIMEZONE` environment variable (e.g. `Europe/Prague`, `America/New_York`), (2) athlete timezone stored in the database `profile` table (synced from Strava athlete profile), and (3) fallback to `'UTC'` with a logged operational warning advising the athlete to configure their IANA timezone for accurate calendar boundary alignment. Reject reversed ranges and invalid dates. Sport groups come from a single documented mapping, with indoor and assisted cycling distinguished when comparisons require it. Sort columns are allowlisted and ties resolve by `start_date DESC, activity_id DESC`. Reject negative bounds, non-finite floats, duplicate IDs, unknown streams and unsupported basemaps rather than silently coercing them.
 
 | Limit | Default | Hard maximum |
 | :--- | ---: | ---: |
@@ -718,7 +722,7 @@ Store rendered files outside source/static directories in a dedicated configurab
 
 ### Operations, permissions and audit contract
 
-Registration of mutating tools is disabled by default and gated separately: `KINETIQO_MCP_ALLOW_SYNC=0`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE=0`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE=0`. See the **MCP activation and environment-variable contract** below for all proposed variable names, defaults and validation; none are implemented yet. Any enabled mutation validates the configured athlete and its allowlisted input, records a safe audit entry and never logs descriptions, passwords, refresh tokens or API keys. MCP is a separate security surface: Flask session auth and CSRF do not automatically protect it.
+Registration of mutating tools is disabled by default and gated separately: `KINETIQO_MCP_ALLOW_SYNC=0`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE=0`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE=0`. When any of these flags is `0` or unset, the corresponding mutating tools (Tools 24, 29, 32, 33) are **completely omitted from the FastMCP tool registry (`tools/list`)**, preventing LLM context bloat and eliminating hallucinated tool calls. When enabled (`1`), tool handlers also enforce execution-time flag verification as defense-in-depth. See the **MCP activation and environment-variable contract** below for all proposed variable names, defaults and validation; none are implemented yet. Any enabled mutation validates the configured athlete and its allowlisted input, records a safe audit entry and never logs descriptions, passwords, refresh tokens or API keys. MCP is a separate security surface: Flask session auth and CSRF do not automatically protect it.
 
 Sync returns a durable job ID and immediately reports `queued`/`running`; add a read-only `kinetiqo_get_sync_job_status` with `completed`, `failed`, `cancelled`, counts and duration. Default to no Strava description updates even when CLI defaults differ. Prevent overlapping jobs across processes and report `CONFLICT`; full sync may reconcile deletions and must require explicit acknowledgement. Follow `SyncService.sync`'s generator lifecycle and close service/repository on all exits.
 
@@ -783,7 +787,7 @@ Set `COMPOSE_PROFILES` in the **operator's shell/Compose invocation**, not as an
 
 **Fixed implementation settings, not operator env variables:** `KINETIQO_ROLE` is set by the Compose service/entrypoint (`web` by default, `mcp-http` for the optional service, `mcp-stdio` if the container entrypoint is used for stdio); it is **internal**, not an activation switch. CLI/Compose define transport (stdio for direct `mcp`, SDK-verified HTTP in the overlay), bind (loopback for any local HTTP CLI; container-private `0.0.0.0` for proxy reachability) and port (4445) without extra environment knobs. Non-loopback HTTP is accepted only in the reviewed private-network Compose role with token-file authentication and TLS proxy; arbitrary direct CLI non-loopback binds are rejected. Browser-origin policy belongs to the reviewed HTTP server/proxy configuration; no wildcard with credentials. Register renderers only after Phase 3 and private storage readiness. Fix auto streams to 500 returned samples and raw streams to 20,000 (on explicit request only), browser concurrency to one per service and artifact expiry to 24 hours. Enforce scan/size/timeout/ownership limits server-side. Use a fixed private container volume path such as `/data/mcp-artifacts`; for direct stdio choose a private per-user application-data directory. Tests must cover safe defaults, permissions, cleanup and quota rejection. If future operators genuinely need tuning, add narrowly scoped documented settings **after** measuring a need, not preemptively.
 
-**Shared athlete setting (not an MCP activation variable):** `ATHLETE_TIMEZONE` is a planned application-wide IANA timezone setting for fair calendar comparisons, defaulting to UTC with an unset warning; it is not in `Config` yet. Web and MCP should use the same setting. It does not turn on MCP or change stored timestamps.
+**Shared athlete setting (not an MCP activation variable):** `ATHLETE_TIMEZONE` is an application-wide IANA timezone setting for fair calendar comparisons. It resolves through a strict 3-tier hierarchy: (1) explicit `ATHLETE_TIMEZONE` environment variable, (2) athlete timezone read from database `profile` table (synced from Strava), (3) fallback to `'UTC'` with a logged operational warning. Web and MCP share this exact resolution logic. It does not turn on MCP or change stored timestamps.
 
 **Existing Kinetiqo settings (not new MCP flags):** DB connectivity still uses `DATABASE_TYPE` (or legacy `DATABASE`) and the selected backend's `POSTGRESQL_*`, `MYSQL_*` or `FIREBIRD_*` credentials; MCP should reject an invalid backend instead of silently falling back. Read-only MCP needs DB credentials, not Strava tokens. MCP sync and preview/publish need existing `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` and the persisted refresh token as appropriate. Rendering may use existing map API keys and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`; missing providers have a safe fallback. `FAST_SYNC`/`FULL_SYNC` are cron schedules, **not** MCP activation switches; MCP role never starts their cron. `UPDATE_STRAVA_*`, `ATHLETE_WEIGHT`, `GPS_SIMPLIFICATION`, `DATE_FORMAT`, `LOG_LEVEL`, `WEB_LOGIN`, `WEB_PASSWORD`, `SECRET_KEY` and `KINETIQO_PRODUCTION` retain their existing meanings; Flask web login/CSRF does not protect MCP. Document backend credentials and how to mount the token file in deployment docs rather than copying the entire web environment into MCP.
 
@@ -845,13 +849,25 @@ def create_mcp_server(config: Config) -> FastMCP:
         finally:
             repo.close()
 
-    # Register modular tool groups (passing request-scoped repo factory)
+    # Register modular tool groups (mutating tools are registered ONLY if explicitly enabled)
     register_discovery_tools(mcp, get_repo, config)
     register_telemetry_tools(mcp, get_repo, config)
     register_physiology_tools(mcp, get_repo, config)
-    register_achievement_tools(mcp, get_repo, config)
+    register_achievement_tools(
+        mcp,
+        get_repo,
+        config,
+        allow_profile_write=bool(int(os.getenv("KINETIQO_MCP_ALLOW_PROFILE_WRITE", "0"))),
+    )
     register_generator_tools(mcp, get_repo, config)
-    register_operation_tools(mcp, get_repo, config)
+    register_operation_tools(
+        mcp,
+        get_repo,
+        config,
+        allow_sync=bool(int(os.getenv("KINETIQO_MCP_ALLOW_SYNC", "0"))),
+        allow_strava_write=bool(int(os.getenv("KINETIQO_MCP_ALLOW_STRAVA_WRITE", "0"))),
+        allow_profile_write=bool(int(os.getenv("KINETIQO_MCP_ALLOW_PROFILE_WRITE", "0"))),
+    )
 
     # Register passive resources & coaching prompts
     register_mcp_resources(mcp, get_repo, config)
@@ -884,34 +900,131 @@ def mcp_cmd(ctx):
 
 ---
 
-## 6. Implementation Roadmap & Milestones
+## 6. MCP Code Pre-Requirements
 
-Each phase ships its own mocked tests, usage documentation and working examples. Later-phase tool descriptions are **planned contracts** until their exit gates pass. Prioritize real athlete questions and reliable data over registering all tools at once.
+Before writing MCP tool handlers or mounting protocol endpoints, several foundational prerequisites and refactorings must be completed across the Kinetiqo codebase. 
+
+> **Transparency & Backward-Compatibility Guarantee**: None of these prerequisite refactorings may alter, degrade, or break existing web routes, DataTables grids, Chart.js visualizations, CLI subcommands (`web`, `sync`, `flightcheck`, `benchmark`), or cron schedules. Existing functions must either remain intact or have their internal calculations extracted into shared, pure-function services that both existing web code and the new MCP server invoke with identical outputs.
+
+```
+                  ┌────────────────────────────────────────┐
+                  │       Existing Kinetiqo Web/CLI        │
+                  │   (Unchanged API, routes, & cron)      │
+                  └───────────────────┬────────────────────┘
+                                      │
+               ┌──────────────────────┴──────────────────────┐
+               │         Shared Foundational Services        │
+               │   (Pure functions, repositories, renderers) │
+               └──────────────────────┬──────────────────────┘
+                                      │
+                  ┌───────────────────▼────────────────────┐
+                  │          New Kinetiqo MCP              │
+                  │  (Stdio tools, resources, and prompts) │
+                  └────────────────────────────────────────┘
+```
+
+The six prerequisite workstreams are detailed below:
+
+### 6.1 CLI & Configuration Validation Decoupling
+
+* **Current Limitation**: In `src/kinetiqo/cli.py`, `validate_config(config)` unconditionally asserts `all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token])`. If any Strava variable is missing, it logs an error and executes `sys.exit(1)`. For local read-only MCP queries against a pre-synced database, an athlete should not need active Strava credentials.
+* **Required Code Changes**:
+  1. In `src/kinetiqo/cli.py`, introduce a dedicated `validate_db_config(config)` helper that strictly checks `config.database_type` and the active backend's connection settings (`host`, `user`, `password`, `database`, `port`).
+  2. Retain the existing `validate_config(config)` unchanged for `sync` and `web` commands.
+  3. In `src/kinetiqo/config.py`, add `athlete_timezone: str` to `Config` implementing the 3-tier resolution hierarchy: (1) explicit `ATHLETE_TIMEZONE` env var, (2) database `profile.timezone` fallback, (3) default `'UTC'` with an operational warning.
+* **Verification & Transparency**: Running `python src/kinetiqo.py mcp` with only database variables configured must validate successfully without exiting due to missing Strava credentials. Existing `web`, `sync`, and `flightcheck` commands continue calling `validate_config(config)` completely unchanged.
+
+### 6.2 Repository Layer Extensions Across All 3 Dialects
+
+* **Current Limitation**: The `DatabaseRepository` interface (`src/kinetiqo/db/repository.py`) and its concrete implementations (`postgresql.py`, `mysql.py`, `firebird.py`) lack:
+  1. *Multi-metric bounded search & keyset pagination*: `get_activities_web()` only filters by sport type and date for DataTables offset pagination. Keyset pagination on `(sort_metric, start_date DESC, activity_id DESC)` and metric bounds (`min_distance_km`, `max_distance_km`, `min_elevation_m`, `average_watts`, name search) do not exist.
+  2. *Unified multi-channel stream retrieval*: Telemetry streams are queried through isolated functions (`get_activity_gps`, `get_activity_elevation`, `get_watts_streams_for_activities`). There is no method returning a timestamp-aligned, multi-channel window with null preservation.
+  3. *Sensor coverage summaries*: Checking sensor availability currently requires inspecting unreliable activity flags (`device_watts`, `has_heartrate`) or loading all stream rows.
+* **Required Code Changes**:
+  1. Add abstract methods to `DatabaseRepository`:
+     - `search_activities(athlete_id: int, filters: dict, limit: int, cursor: str | None) -> tuple[list[dict], str | None, bool]`
+     - `get_stream_coverage(activity_id: int) -> dict[str, dict]`
+     - `get_activity_stream_window(activity_id: int, columns: list[str], start_ts: int | None, end_ts: int | None, max_rows: int) -> list[dict]`
+  2. Implement all three methods with dialect-specific parameterized SQL in `postgresql.py` (`%s`), `mysql.py` (`%s`), and `firebird.py` (`?` with quoted identifiers).
+  3. Add URL-safe base64 opaque cursor serialization/deserialization in a new module `src/kinetiqo/db/pagination.py`.
+* **Verification & Transparency**: Repository parity unit tests mocking cursors across all 3 databases verifying placeholder correctness, tie-breaking, bounds enforcement, and opaque cursor round-tripping. Existing repository methods (`get_activities_web`, `get_activity_gps`, etc.) remain completely untouched; web UI DataTables and charts continue to use their existing queries.
+
+### 6.3 Decoupling Pure Analytical Services
+
+* **Current Limitation**: 
+  1. In `src/kinetiqo/workout_summary.py`, `generate_workout_summary()` produces formatted prose text with an embedded fallback FTP of 250 W. It does not return structured numbers (Normalized Power, Intensity Factor, Training Stress Score, interval lists, surge counts).
+  2. In `src/kinetiqo/web/fitness.py`, CTL/ATL/TSB calculation runs directly for the web Chart.js endpoint without a 42-day historical warm-up window or zero-activity day generation for inactive dates.
+  3. Power-duration analysis in `get_best_power_per_activity` counts SQL rows (`ROWS BETWEEN`), which breaks on gapped or irregular sensor streams.
+* **Required Code Changes**:
+  1. Extract pure mathematical functions into `src/kinetiqo/analytics/`:
+     - `src/kinetiqo/analytics/power.py`: Pure functions `calculate_normalized_power(watts, timestamps)`, `calculate_intensity_factor(np_w, ftp)`, `calculate_tss(duration_s, np_w, if_val, ftp)`, and `calculate_mmp_curve(timestamps, watts, durations)` using continuous elapsed-time sliding windows.
+     - `src/kinetiqo/analytics/fitness.py`: Pure function `calculate_ctl_atl_tsb(daily_suffer_scores, period_days, lookback_warmup_days=42)` ensuring full EWMA warm-up and zero-activity calendar padding.
+     - `src/kinetiqo/analytics/pacing.py`: Pure function `calculate_pacing_splits(stream_data, split_basis, num_splits)` computing split deltas and aerobic decoupling `(P1/HR1)/(P2/HR2) - 1`.
+  2. Have `workout_summary.py` call `calculate_normalized_power` internally, ensuring identical description output while eliminating duplicate math.
+* **Verification & Transparency**: Deterministic golden-fixture unit tests covering constant power, missing FTP/weight, irregular timestamps, paused sessions, and 42-day warm-up curves. Web fitness routes continue functioning normally.
+
+### 6.4 Decoupling Headless Playwright Renderers for Offline Stdio
+
+* **Current Limitation**: In `src/kinetiqo/web/app.py`, `export_poster`, `export_stats`, and `export_fondo` launch Playwright Chromium, extract Flask session cookies from `request.cookies`, and navigate Playwright to `request.host_url + ...` over HTTP. Under MCP stdio, the Flask web application is typically not running, and no browser cookies exist.
+* **Required Code Changes**:
+  1. Create reusable export services in `src/kinetiqo/web/renderers/`:
+     - `poster_renderer.py`: `render_poster_artifact(activity_id, config, repo, options) -> bytes`
+     - `stats_renderer.py`: `render_stats_artifact(year, sport_group, config, repo, options) -> bytes`
+     - `fondo_renderer.py`: `render_fondo_artifact(year, sport_group, config, repo, options) -> bytes`
+  2. Adopt **in-process HTML synthesis (`page.set_content(html)`)**:
+     - Render the existing Jinja2 templates directly in Python with the activity/infographic payload and local CSS (`static/css/tailwind.css`), fonts, and SVG icons injected.
+     - Invoke Playwright via `page.set_content(html, wait_until="networkidle")` and execute `page.screenshot()` or `page.pdf()`.
+  3. Refactor Flask endpoints in `src/kinetiqo/web/app.py` (`/api/poster/export`, `/api/stats/export`, `/api/fondo_o_meter/export`) to delegate directly to these shared renderer functions.
+* **Verification & Transparency**: Existing web export buttons generate identical pixel-perfect output without changes to user workflow, while MCP stdio renders exports completely offline with zero web server dependency.
+
+### 6.5 Schema Safety Declarations & Migration Pre-Registration
+
+* **Current Limitation**: `src/kinetiqo/db/schema.py:_update_table()` drops any column not declared in `SCHEMA_DEFINITION`. Dynamic or runtime table creation outside `SCHEMA_DEFINITION` causes reconciliation errors or accidental data dropping during web restarts. Furthermore, read-only MCP must never mutate the schema.
+* **Required Code Changes**:
+  1. Add table definitions for `sync_jobs` and `verified_segment_efforts` directly into `SCHEMA_DEFINITION` in `src/kinetiqo/db/schema.py` for all 3 dialects (`type_mysql`, `type_pg`, `type_firebird`).
+  2. In `src/kinetiqo/cli.py`, ensure the `mcp` command performs non-mutating schema existence checks (e.g. verifying `activities` table exists) rather than invoking `_prepare_db()` or `initialize_schema()`.
+* **Verification & Transparency**: Running `python src/kinetiqo.py web` initializes the declared tables cleanly without dropping existing columns; running `kinetiqo mcp` verifies schema readiness without issuing `CREATE TABLE` or `ALTER TABLE`.
+
+### 6.6 Dependency Pinning in requirements.txt
+
+* **Current Limitation**: `requirements.txt` currently lacks `mcp` and `pydantic`.
+* **Required Code Changes**:
+  1. Add `mcp` (pinned Python 3.14 compatible release, e.g. `mcp>=1.3.0`) and `pydantic>=2.0` to `requirements.txt`.
+  2. Verify that `pip check` passes with all existing pinned packages (`Flask[async]==3.1.3`, `playwright==1.64.0`, `pandas==3.0.6`, `psycopg2-binary==2.9.13`, `mysql-connector-python==26.7.0`, `firebird-driver==2.0.3`).
+* **Verification & Transparency**: Pinned pip packages install cleanly alongside existing libraries without upgrading or breaking existing pinned versions.
+
+---
+
+## 7. Implementation Roadmap & Milestones
+
+Each phase ships its own mocked tests, usage documentation and working examples. Later-phase tool descriptions are **planned contracts** until their exit gates pass. 
+
+> **Implementation Scope Strategy**: The implementation roadmap groups **Phases 0, 1, and 2** into a single, cohesive **initial read-only analytical release** delivering all 19 discovery, telemetry, and physiology tools (Tools 1–19) via local stdio. This ensures that the athlete assistant provides complete analytical depth (activity discovery, period comparison, sensor coverage, MMP power curves, PR records, workout structure analysis, CTL/ATL/TSB trends, VO₂max estimates, and Power Skills) from day one, before subsequent milestones introduce visual rendering (Phase 3) and mutation automations (Phase 4).
 
 ### Detailed Phase Tasks
 
-#### Phase 0: SDK and source-data verification (required before coding tools)
+#### Phase 0: SDK and source-data verification (Unified Analytical Milestone - Part 1)
 1. Pin a Python-3.14-compatible `mcp` version in `requirements.txt` after verifying official SDK API, license and dependency security. Record version and tested transports; do not use unverified `dependencies`, `settings` or `sse` arguments.
 2. Smoke-test initialize, list/call tool, list/read resource and list/get prompt via STDIO in a local **mocked** client; stdout must contain only protocol frames.
 3. Audit repository/schema/API field availability and missing-data examples for each tool; record sport mapping, local calendar/timezone, formula, units, null policy and limits from Section 5.
 4. Freeze and test the **MCP activation and environment-variable contract** in Section 5, including web-only default, optional Compose profile, role/transport compatibility, stdio auth boundary and feature-specific credential validation; decide whether new persistence is needed before allowing mutations.
 **Exit gate:** approved versioned tool schemas and SDK smoke test; no production DB or Strava needed for normal tests.
 
-#### Phase 1: Read-only discovery preview (Group A and P0 discovery gaps)
+#### Phase 1: Read-only discovery preview (Unified Analytical Milestone - Part 2: Tools 1–7 & 9)
 1. Implement stdio-only `kinetiqo mcp`, package factory and per-call repository lifecycle without implicit schema migration.
-2. Add backend-parity parameterized search by name/sport/date/metric bounds, detail, totals and pagination. Keep filters consistent in PostgreSQL/MySQL/Firebird.
-3. Implement `kinetiqo_get_data_coverage` and `kinetiqo_compare_periods` with inclusive local dates and equal elapsed-day options (see final Feature gap chapter).
-4. Register sanitized profile/goals/latest-activity resources and a read-only period-review prompt.
+2. Add backend-parity parameterized search by name/sport/date/metric bounds, detail, totals and pagination (`kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_totals`, `kinetiqo_compare_activities`, `kinetiqo_find_similar_routes`, `kinetiqo_compare_route_attempts`). Keep filters consistent in PostgreSQL/MySQL/Firebird.
+3. Implement `kinetiqo_get_data_coverage` and `kinetiqo_compare_periods` with inclusive local dates and equal elapsed-day options using the 3-tier `ATHLETE_TIMEZONE` resolution hierarchy.
+4. Register sanitized profile/goals/latest-activity resources and read-only coaching prompts.
 5. Mock repository factory in CLI/server tests; test SQL parameterization and result normalization for all backends.
-**Exit gate:** real STDIO handshake against fixtures and the everyday-history Example Prompts that use discovery/coverage/period comparison; no external network requests, writes or credentials logged. Analytical MVP sign-off waits for the P0 personal-record work in Phase 2.
+**Exit gate:** real STDIO handshake against fixtures and discovery/coverage/period comparison prompts; verified in Antigravity IDE and automated unit test suite.
 
-#### Phase 2: Telemetry Streams & Physiology (Groups B & C)
-1. Add a bounded, timestamp-aligned multi-channel repository read, stream coverage and event/extrema-preserving downsampling. Implement missing-sensor, pause, irregular-rate and no-GPS handling.
-2. Validate continuous-window semantics of `get_best_power_per_activity`; implement `kinetiqo_get_personal_records`, `kinetiqo_calculate_power_curve`, FTP and Power Skills with evidence activity IDs.
-3. Extract structured NP, IF, TSS and intervals into pure analysis functions; retain `generate_workout_summary()` for prose only. Do not infer FTP from its 250 W fallback.
-4. Adapt `fitness.py` with historical warm-up and zero-load days through today; retain suffer score as its own scale. Expose qualification/methods for VO₂max estimates.
-5. Test formula fixtures, timestamps, missing/invalid FTP/weight, sample gaps, power/HR-free sports and long streams across three repository implementations.
-**Exit gate:** analysis prompts expose measurement versus estimate, nulls and coverage without medical claims.
+#### Phase 2: Telemetry Streams & Physiology (Unified Analytical Milestone - Part 3: Tools 8, 10–19)
+1. Add a bounded, timestamp-aligned multi-channel repository read (`get_activity_stream_window`), stream coverage and event/extrema-preserving downsampling (`kinetiqo_get_activity_streams`). Implement missing-sensor, pause, irregular-rate and no-GPS handling.
+2. Validate continuous-window semantics of `get_best_power_per_activity`; implement `kinetiqo_get_personal_records`, `kinetiqo_calculate_power_curve`, FTP history (`kinetiqo_get_ftp_history`) and Power Skills (`kinetiqo_get_power_skills`) with evidence activity IDs.
+3. Extract structured NP, IF, TSS and intervals into pure analysis functions (`kinetiqo_analyze_workout_structure`, `kinetiqo_analyze_pacing`, `kinetiqo_get_route_highlights`); retain `generate_workout_summary()` for prose only. Do not infer FTP from its 250 W fallback.
+4. Adapt `fitness.py` with historical warm-up and zero-load days through today; retain suffer score as its own scale (`kinetiqo_get_fitness_and_freshness`, `kinetiqo_get_training_load_trends`). Expose qualification/methods for VO₂max estimates (`kinetiqo_get_vo2max_trend`).
+5. Test formula fixtures, timestamps, missing/invalid FTP/weight, sample gaps, power/HR-free sports and long streams across all three repository implementations (PostgreSQL, MySQL, Firebird).
+**Exit gate:** complete analytical suite operational via stdio; analysis prompts expose measurement versus estimate, nulls and coverage without medical claims. Real-world verification passes in Antigravity IDE.
 
 #### Phase 3: Visual & Creative Generation (Group E)
 1. Refactor poster, MEGA Stats and Fondo Playwright rendering into shared services called by existing Flask routes and MCP without accepting arbitrary URLs or caller-supplied cookies.
@@ -930,7 +1043,7 @@ Each phase ships its own mocked tests, usage documentation and working examples.
 **Exit gate:** no write tool available by default; approval of a read-only prompt never performs sync or publication.
 
 #### Phase 5: Remote access and client documentation
-1. Test supported desktop clients (including Antigravity and OpenClaw versions documented in Section 7) in stdio mode with **secrets-free** config examples and explicit working-directory/env instructions. Never commit client configs containing credentials.
+1. Test supported desktop clients (including Antigravity and OpenClaw versions documented in Section 8) in stdio mode with **secrets-free** config examples and explicit working-directory/env instructions. Never commit client configs containing credentials.
 2. If remote access is approved, verify SDK/client HTTP transport compatibility, implement caller authentication, TLS reverse proxy, loopback default, quotas and protected artifact delivery; test unauthorized and cross-user access.
 3. Create the MCP-specific validation/deployment pipeline described below; gate the existing publishing workflow on its result, without building or publishing a second image.
 4. Document privacy boundary (client may relay GPS to a cloud model), web-only-by-default behavior, exact `COMPOSE_PROFILES=mcp` opt-in and required overlay, one-image/two-service deployment, role-aware entrypoint, the Section 5 environment-variable table, required map/Playwright setup, performance limits, disabled tools and troubleshooting. Include an explicit procedure to turn MCP off without stopping web or deleting user data.
@@ -945,7 +1058,7 @@ Implement a dedicated `.github/workflows/mcp-ci.yml` or reusable workflow with t
 
 | Gate | Execution / success requirement |
 | :--- | :--- |
-| **Contract and security** | Python 3.14 dependency install and `pip check`, existing syntax checks, mocked tests from Section 9 on CLI/STDIO/HTTP/roles, validation of secret masking and no surprise write-tool registration. Run dependency vulnerability/license review and fail on an approved severity threshold; check container dependencies too. |
+| **Contract and security** | Python 3.14 dependency install and `pip check`, existing syntax checks, mocked tests from Section 10 on CLI/STDIO/HTTP/roles, validation of secret masking and no surprise write-tool registration. Run dependency vulnerability/license review and fail on an approved severity threshold; check container dependencies too. |
 | **SDK interoperability** | Install the **pinned** MCP SDK, initialize a stdio session with a local synthetic client and exercise list/call tool, read resource and get prompt; assert no stdout banners and correct errors/limits. Later add HTTP client handshake/auth tests for the selected pinned transport. |
 | **Entrypoint matrix** | Invoke `build/entrypoint.sh` with mocked commands and unset/default `KINETIQO_ROLE`, `web`, `mcp-http`, `mcp-stdio` and optional `scheduler`: test valid/invalid roles, cron enabled only once, no STDIO stdout, no schema migration/profile seeding in MCP role, signal forwarding and no secrets echoed. Validate Section 5 env defaults, missing HTTP token, role/transport mismatch, disabled writes and DB-only validation without Strava credentials. Avoid real DB/Strava in this gate. |
 | **Container smoke** | Build **one** local candidate image from `build/Dockerfile` using the existing Firebird base; test that the image contains MCP SDK, web server and Chromium without downloading another browser. Start web and MCP *from the same candidate image* against disposable fixture services if available; smoke-test port separation, read-only schema checks, health, artifact volume ownership and restart isolation. Keep DB/browser/network-dependent tests isolated from default mocked CI; provide a separately triggered full smoke gate for release. |
@@ -956,11 +1069,11 @@ Implement a dedicated `.github/workflows/mcp-ci.yml` or reusable workflow with t
 
 **Separate deployment pipeline:** Add an opt-in `.github/workflows/mcp-deploy.yml` (or equivalent deployment automation) that **pulls** a previously tested app image by digest; it must not independently rebuild or tag a second MCP image. Require a protected staging environment and manual approval for production, provision DB/Strava/proxy credentials from environment secrets (never build arguments or checked-in Compose), apply schema migrations once, then roll out the web and optional MCP services using the **same digest**. Stage the proxy and private artifact volume; run authenticated MCP initialize/tool checks plus web readiness. Only after those checks enable external routing. On failure, withdraw the MCP route, stop/revert the MCP service, restore the prior image digest for web if required and document schema rollback compatibility; do not assume an automatic destructive DB downgrade. Roll out web-only installations unchanged when the MCP profile is disabled. Maintain runbooks for rotating proxy/client credentials, replacing an expired artifact store and observing job locks/cron ownership.
 
-**Definition of done for the pipeline:** A PR cannot silently ship untested MCP changes through `/publish`, the default install has **no MCP process/listener**, `COMPOSE_PROFILES=mcp` with the overlay deliberately starts one, both roles share an attested/tested digest, `mcp-stdio` emits protocol-only stdout, remote MCP is private and authenticated by default, scheduled jobs run in exactly one role, and production deployment/rollback is repeatable without a second Docker image build. The pipeline itself needs mocked workflow/entrypoint tests plus opt-in disposable-container smoke tests; Section 9 remains the default developer test suite.
+**Definition of done for the pipeline:** A PR cannot silently ship untested MCP changes through `/publish`, the default install has **no MCP process/listener**, `COMPOSE_PROFILES=mcp` with the overlay deliberately starts one, both roles share an attested/tested digest, `mcp-stdio` emits protocol-only stdout, remote MCP is private and authenticated by default, scheduled jobs run in exactly one role, and production deployment/rollback is repeatable without a second Docker image build. The pipeline itself needs mocked workflow/entrypoint tests plus opt-in disposable-container smoke tests; Section 10 remains the default developer test suite.
 
 ---
 
-## 7. Client Configuration Examples
+## 8. Client Configuration Examples
 
 ### Future-user setup: run Kinetiqo MCP and connect a client
 
@@ -968,11 +1081,11 @@ Implement a dedicated `.github/workflows/mcp-ci.yml` or reusable workflow with t
 
 #### Exactly which environment variables are required?
 
-All MCP-specific variable names in this subsection are **planned**; existing Kinetiqo DB/Strava variables are already in `src/kinetiqo/config.py`. Enter credentials using your OS secret manager or a private environment provided to the process; **do not commit them to a client JSON config**. Only credentials for the selected database backend are needed. `ATHLETE_TIMEZONE` is planned shared configuration, optional with a warned UTC default.
+All MCP-specific variable names in this subsection are **planned**; existing Kinetiqo DB/Strava variables are already in `src/kinetiqo/config.py`. Enter credentials using your OS secret manager or a private environment provided to the process; **do not commit them to a client JSON config**. Only credentials for the selected database backend are needed. `ATHLETE_TIMEZONE` is optional configuration (resolving via env var -> DB profile -> UTC fallback).
 
 | Mode / feature | Required values | Set where | Unneeded or optional values |
 | :--- | :--- | :--- | :--- |
-| **Local read-only stdio** | `DATABASE_TYPE` (`postgresql`, `mysql`, `firebird`; current default is PostgreSQL) and the selected backend's host, user, password and database as detailed below | Environment of the **client-launched MCP child process**, supplied securely. Python command/arguments are in the client's MCP configuration, not environment variables. | No `COMPOSE_PROFILES`, MCP HTTP token, Strava credentials, web password, session `SECRET_KEY` or MCP permission flags required. `ATHLETE_TIMEZONE` optional (UTC fallback). |
+| **Local read-only stdio** | `DATABASE_TYPE` (`postgresql`, `mysql`, `firebird`; current default is PostgreSQL) and the selected backend's host, user, password and database as detailed below | Environment of the **client-launched MCP child process**, supplied securely. Python command/arguments are in the client's MCP configuration, not environment variables. | No `COMPOSE_PROFILES`, MCP HTTP token, Strava credentials, web password, session `SECRET_KEY` or MCP permission flags required. `ATHLETE_TIMEZONE` optional (resolves via env var -> DB profile -> UTC fallback). |
 | **Docker read-only HTTP** | Same backend DB settings; `COMPOSE_PROFILES=mcp` **plus both planned Compose files**; `KINETIQO_MCP_AUTH_TOKEN_FILE` pointing to a read-only mounted secret containing a strong token | `COMPOSE_PROFILES` in the **operator's Compose invocation**; DB settings and secret-file path in the **MCP service's runtime environment** / Compose secret mount, never in the web container to activate MCP | Three `KINETIQO_MCP_ALLOW_*` flags default to `0`; web/cron continue separately. Proxy TLS/auth, network isolation and secret provision are mandatory deployment configuration, **not** additional MCP env variables. |
 | **MCP-triggered sync** (off by default) | `KINETIQO_MCP_ALLOW_SYNC=1` plus valid `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` and effective refresh token persisted/resolved by Kinetiqo; write-capable DB permissions/job lock | **Only** MCP process/service, from secured deployment environment | Not required for ordinary local reads; setting this flag on the web service does **not** activate MCP. |
 | **Profile/goal changes** (off by default) | `KINETIQO_MCP_ALLOW_PROFILE_WRITE=1` plus DB write privileges | MCP service/client-launched process | Strava credentials not needed solely to edit DB goals; honor env overrides for profile fields. |
@@ -1046,7 +1159,7 @@ In any client supporting stdio, configure the executable path, `src/kinetiqo.py`
 
 ---
 
-## 8. Sample Conversational Scenarios
+## 9. Sample Conversational Scenarios
 
 ### Scenario A: Deep Post-Ride Coaching & Pacing Analysis
 
@@ -1086,7 +1199,7 @@ In any client supporting stdio, configure the executable path, `src/kinetiqo.py`
 
 ---
 
-## 9. Testing, Safety & Performance Standards
+## 10. Testing, Safety & Performance Standards
 
 ### Default testing policy and commands
 
@@ -1123,7 +1236,7 @@ Enforce the Section 5 input/output limits in server code, not just documentation
 
 ---
 
-## 10. Conclusion & Next Steps
+## 11. Conclusion & Next Steps
 
 The MCP server is feasible as a phased, private athlete-data assistant. Its strongest differentiation is evidence-linked local longitudinal analysis, available telemetry and protected visual artifacts—not unsupported promises of complete sensor coverage, medical certainty or unlimited performance. The read-only MVP precedes rendering and explicit opt-in mutations.
 
@@ -1134,7 +1247,7 @@ The MCP server is feasible as a phased, private athlete-data assistant. Its stro
 
 ---
 
-## 11. Example Prompts
+## 12. Example Prompts
 
 These are user-facing acceptance scenarios, **not claims that all tools already exist**. Tools are indexed in the Master Tool Catalog (Section 3) with priority badges (`[P0]`, `[P1]`, `[P2]`, `[MVP]`). Return only facts present in tool responses; explain missing coverage and label estimates. Do not automatically publish, sync or share location when a user asks a question.
 
@@ -1175,7 +1288,7 @@ These are user-facing acceptance scenarios, **not claims that all tools already 
 
 ---
 
-## 12. Feature Implementation & Algorithmic Deep Dives
+## 13. Feature Implementation & Algorithmic Deep Dives
 
 This is intentionally the **last chapter**. It provides the deep architectural, algorithmic, and backend implementation specifications for the core gap deliverables required across Phases 1–4. The Master Tool Catalog in Section 3 indexes all 33 tools. P0 gaps are required before the read-only analytical MVP is signed off at the end of Phase 2; Phase 1 delivers the foundational repository extensions and initial read tools. P1 and P2 tools are added iteratively upon passing their respective backend-parity tests.
 
@@ -1195,7 +1308,7 @@ This is intentionally the **last chapter**. It provides the deep architectural, 
 | **P2** | Follow and coordinate background sync | `kinetiqo_get_sync_job_status` (Tool 30) / `kinetiqo_trigger_sync` (Tool 29) | Durable `sync_jobs` table, cross-process exclusivity lease, final counts/duration/failure without credentials. Cancellation only if supported safely across workers. |
 | **P2** | Broader goal categories and physiological profiles | Goal-mapping/UI/DB + model extension | Add running/swimming goals and precise seven-zone/ten-duration/phenotype models only with documented formulas, sport eligibility, migrations, backend parity and tests. |
 
-### 12.1 Implementation
+### 13.1 Implementation
 
 Implement the thirteen gaps below in priority order, sharing the contracts in Section 5. Every database method mentioned here is added to `src/kinetiqo/db/repository.py` **and** `postgresql.py`, `mysql.py`, `firebird.py`; no ORM or raw SQL from MCP handlers. Pure analysis belongs in independently testable modules, while MCP handlers validate inputs, call services and normalize the response envelope. Do not register a planned tool until its backend-parity tests and edge cases pass. All examples below assume one configured athlete, local-calendar filtering and read-only queries unless explicitly marked as an opt-in write.
 
@@ -1257,7 +1370,7 @@ Implement the thirteen gaps below in priority order, sharing the contracts in Se
 #### 12.1.10 Reusable media renderer and private artifacts (Tools 25–28, [P1])
 
 * **Surface:** `kinetiqo_generate_*` returns artifact ID, MIME type, byte size/dimensions, expiry, dual stdio delivery (`file:///` URI + inline base64 WebP), or authenticated HTTP download URL as defined in Section 3 (Group E). Authorized same-athlete clients only; no public source-tree files or unrestricted base64 dumps.
-* **Refactor:** Existing poster, stats and fondo exports live inside `web/app.py` and browse authenticated pages with Flask session cookies. Extract validated settings/defaults, browser launch, page preparation, readiness waits, screenshot/PDF and cleanup into shared `web/renderers/` functions used by both Flask routes and MCP. If rendering still needs a local web server, provide a deliberately scoped internal render identity/transport and test it; never copy or forge an arbitrary user's cookies. Use existing local fonts/vendor assets; preserve map attribution and avoid exposing tile keys or loading arbitrary network URLs. Keep web export behavior stable while adding MCP.
+* **Refactor:** Existing poster, stats and fondo exports live inside `web/app.py` and browse authenticated pages with Flask session cookies. Extract layout generation, browser launch, template synthesis, screenshot/PDF and cleanup into shared `web/renderers/` functions used by both Flask routes and MCP. Headless Playwright uses **in-process HTML synthesis (`page.set_content(html, wait_until="networkidle")`)** with Jinja2 templates, injecting data, SVG assets, and self-hosted CSS directly. This completely eliminates any dependence on an active Flask HTTP server, local port binding, or browser session cookies, enabling standalone stdio rendering. Use existing local fonts and vendor assets; preserve map attribution and avoid exposing tile keys or loading arbitrary untrusted network URLs. Keep web export behavior stable while adding MCP.
 * **Artifact store:** Use a configured directory outside served static files, random opaque IDs, owner ID, MIME, expiry and size/total-quota records; atomic write, max concurrent Chromium processes, timeout, cleanup on failures and periodic expiration. For HTTP delivery enforce authentication and prevent path traversal/symlinks. For maps, redact first/last distance from the raw geometry **before** any simplification, caching, HTML generation, download or screenshot; for photo mode verify ownership of cached uploaded image.
 * **Tests:** Mock browser/context/pages and provider availability; timeout/cancel cleans resources; expired/other-owner ID denied; route redaction checked in output bytes, not just preview; malformed colors, large dimensions, missing Chromium, no GPS and unavailable basemap receive safe errors/fallbacks. Do not demand a live browser in the default unit suite.
 
