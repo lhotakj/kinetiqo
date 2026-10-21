@@ -27,15 +27,11 @@ def print_version():
     print(f"Kinetiqo {get_version()}")
 
 
-def validate_config(config):
-    """Ensures all required environment variables are set."""
+def validate_db_config(config):
+    """Ensures all required database environment variables are set."""
     from kinetiqo.config import VALID_DATABASE_TYPES
     if config.database_type not in VALID_DATABASE_TYPES:
         logger.error(f"Invalid database type {config.database_type!r}. Valid choices are: {', '.join(VALID_DATABASE_TYPES)}.")
-        sys.exit(1)
-
-    if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
-        logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
         sys.exit(1)
 
     db_type = config.database_type
@@ -52,6 +48,20 @@ def validate_config(config):
     if missing:
         logger.error(f"Missing required {db_type.capitalize()} environment variables: {', '.join(missing)}")
         sys.exit(1)
+
+
+def validate_config(config):
+    """Ensures all required environment variables are set."""
+    from kinetiqo.config import VALID_DATABASE_TYPES
+    if config.database_type not in VALID_DATABASE_TYPES:
+        logger.error(f"Invalid database type {config.database_type!r}. Valid choices are: {', '.join(VALID_DATABASE_TYPES)}.")
+        sys.exit(1)
+
+    if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
+        logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
+        sys.exit(1)
+
+    validate_db_config(config)
 
 
 def parse_period(period_str):

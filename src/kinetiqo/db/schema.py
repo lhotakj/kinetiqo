@@ -416,6 +416,77 @@ SCHEMA_DEFINITION = {
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
+    },
+    "sync_jobs": {
+        "columns": [
+            {"name": "job_id", "type_mysql": "VARCHAR(64) PRIMARY KEY", "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "sync_type", "type_mysql": "VARCHAR(32)", "type_pg": "TEXT", "type_firebird": "VARCHAR(32)"},
+            {"name": "status", "type_mysql": "VARCHAR(32)", "type_pg": "TEXT", "type_firebird": "VARCHAR(32)"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP", "type_firebird": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
+            {"name": "started_at", "type_mysql": "TIMESTAMP NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+            {"name": "completed_at", "type_mysql": "TIMESTAMP NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+            {"name": "total_activities", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0", "type_firebird": "INTEGER DEFAULT 0"},
+            {"name": "synced_activities", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0", "type_firebird": "INTEGER DEFAULT 0"},
+            {"name": "error_message", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "VARCHAR(1000)"},
+        ],
+        "indexes": [
+            {
+                "name": "idx_sync_jobs_created_at",
+                "def_mysql": "CREATE INDEX idx_sync_jobs_created_at ON sync_jobs (created_at DESC)",
+                "def_pg": "CREATE INDEX idx_sync_jobs_created_at ON sync_jobs (created_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_sync_jobs_created_at ON "sync_jobs" ("created_at")',
+            },
+            {
+                "name": "idx_sync_jobs_status",
+                "def_mysql": "CREATE INDEX idx_sync_jobs_status ON sync_jobs (status)",
+                "def_pg": "CREATE INDEX idx_sync_jobs_status ON sync_jobs (status)",
+                "def_firebird": 'CREATE INDEX idx_sync_jobs_status ON "sync_jobs" ("status")',
+            },
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "verified_segment_efforts": {
+        "columns": [
+            {"name": "id", "type_mysql": "BIGINT AUTO_INCREMENT PRIMARY KEY", "type_pg": "SERIAL PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"},
+            {"name": "athlete_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
+            {"name": "activity_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
+            {"name": "segment_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
+            {"name": "name", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
+            {"name": "rank", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "elapsed_time", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "moving_time", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "start_date", "type_mysql": "TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE", "type_firebird": "TIMESTAMP"},
+            {"name": "pr_rank", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+        ],
+        "constraints": [
+            {
+                "name": "fk_vse_activity",
+                "def_mysql": "CONSTRAINT fk_vse_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
+                "def_pg": "CONSTRAINT fk_vse_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
+                "def_firebird": 'CONSTRAINT fk_vse_activity FOREIGN KEY("activity_id") REFERENCES "activities"("activity_id") ON DELETE CASCADE',
+            }
+        ],
+        "indexes": [
+            {
+                "name": "idx_vse_activity_id",
+                "def_mysql": "CREATE INDEX idx_vse_activity_id ON verified_segment_efforts (activity_id)",
+                "def_pg": "CREATE INDEX idx_vse_activity_id ON verified_segment_efforts (activity_id)",
+                "def_firebird": 'CREATE INDEX idx_vse_activity_id ON "verified_segment_efforts" ("activity_id")',
+            },
+            {
+                "name": "idx_vse_rank",
+                "def_mysql": "CREATE INDEX idx_vse_rank ON verified_segment_efforts (rank)",
+                "def_pg": "CREATE INDEX idx_vse_rank ON verified_segment_efforts (rank)",
+                "def_firebird": 'CREATE INDEX idx_vse_rank ON "verified_segment_efforts" ("rank")',
+            },
+            {
+                "name": "idx_vse_segment_id",
+                "def_mysql": "CREATE INDEX idx_vse_segment_id ON verified_segment_efforts (segment_id)",
+                "def_pg": "CREATE INDEX idx_vse_segment_id ON verified_segment_efforts (segment_id)",
+                "def_firebird": 'CREATE INDEX idx_vse_segment_id ON "verified_segment_efforts" ("segment_id")',
+            },
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
     }
 }
 

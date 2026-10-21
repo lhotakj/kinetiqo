@@ -8,6 +8,7 @@ import threading
 import mysql.connector
 import mysql.connector.pooling
 from kinetiqo.config import Config
+from kinetiqo.db.pagination import encode_cursor, decode_cursor
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 from mysql.connector import errorcode
@@ -1180,3 +1181,232 @@ class MySQLRepository(DatabaseRepository):
             'count_ms': count_ms,
             'activity_count': activity_count,
         }
+
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination."""
+        self._ensure_connected()
+        filters = filters or {}
+        limit = max(1, min(int(limit), 200))
+
+        sort_field_map = {
+            "date": "start_date",
+            "distance": "distance",
+            "elevation": "total_elevation_gain",
+            "moving_time": "moving_time",
+            "average_watts": "average_watts",
+        }
+        sort_by = filters.get("sort_by", "date")
+        sort_col = sort_field_map.get(sort_by, "start_date")
+        sort_order = "ASC" if str(filters.get("sort_order", "desc")).lower() == "asc" else "DESC"
+        op = ">" if sort_order == "ASC" else "<"
+
+        where_clauses = []
+        params: List[Any] = []
+
+        if athlete_id:
+            where_clauses.append("athlete_id = %s")
+            params.append(athlete_id)
+
+        sport_types = filters.get("sport_types")
+        if sport_types:
+            placeholders = ", ".join(["%s"] * len(sport_types))
+            where_clauses.append(f"sport IN ({placeholders})")
+            params.extend(sport_types)
+
+        if filters.get("start_date"):
+            where_clauses.append("start_date >= %s")
+            params.append(filters["start_date"])
+
+        if filters.get("end_date"):
+            where_clauses.append("start_date <= %s")
+            params.append(filters["end_date"])
+
+        if filters.get("min_distance_km") is not None:
+            where_clauses.append("distance >= %s")
+            params.append(float(filters["min_distance_km"]) * 1000.0)
+
+        if filters.get("max_distance_km") is not None:
+            where_clauses.append("distance <= %s")
+            params.append(float(filters["max_distance_km"]) * 1000.0)
+
+        if filters.get("min_elevation_m") is not None:
+            where_clauses.append("total_elevation_gain >= %s")
+            params.append(float(filters["min_elevation_m"]))
+
+        if filters.get("max_elevation_m") is not None:
+            where_clauses.append("total_elevation_gain <= %s")
+            params.append(float(filters["max_elevation_m"]))
+
+        if filters.get("min_moving_time_min") is not None:
+            where_clauses.append("moving_time >= %s")
+            params.append(int(float(filters["min_moving_time_min"]) * 60))
+
+        if filters.get("max_moving_time_min") is not None:
+            where_clauses.append("moving_time <= %s")
+            params.append(int(float(filters["max_moving_time_min"]) * 60))
+
+        if filters.get("min_watts") is not None:
+            where_clauses.append("average_watts >= %s")
+            params.append(float(filters["min_watts"]))
+
+        if filters.get("max_watts") is not None:
+            where_clauses.append("average_watts <= %s")
+            params.append(float(filters["max_watts"]))
+
+        if filters.get("keyword"):
+            where_clauses.append("name LIKE %s")
+            params.append(f"%{filters['keyword']}%")
+
+        if cursor:
+            decoded = decode_cursor(cursor)
+            if decoded:
+                c_val, c_date, c_id = decoded
+                if sort_col == "start_date":
+                    where_clauses.append(f"(start_date {op} %s OR (start_date = %s AND activity_id {op} %s))")
+                    params.extend([c_date, c_date, c_id])
+                else:
+                    where_clauses.append(f"({sort_col} {op} %s OR ({sort_col} = %s AND (start_date {op} %s OR (start_date = %s AND activity_id {op} %s))))")
+                    params.extend([c_val, c_val, c_date, c_date, c_id])
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        if sort_col == "start_date":
+            order_sql = f"ORDER BY start_date {sort_order}, activity_id {sort_order}"
+        else:
+            order_sql = f"ORDER BY {sort_col} {sort_order}, start_date {sort_order}, activity_id {sort_order}"
+
+        fetch_limit = limit + 1
+        query = f"""
+            SELECT activity_id, name, sport, athlete_id, distance, moving_time, elapsed_time,
+                   total_elevation_gain, start_date, average_speed, max_speed,
+                   average_heartrate, max_heartrate, average_cadence, average_watts,
+                   max_watts, weighted_average_watts, device_watts, calories,
+                   kilojoules, achievement_count, pr_count, suffer_score, average_temp,
+                   gear_id, has_heartrate, workout_type, trophies
+            FROM activities
+            {where_sql}
+            {order_sql}
+            LIMIT %s
+        """
+        params.append(fetch_limit)
+
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute(query, tuple(params))
+            raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            act = dict(r)
+            if isinstance(act.get("start_date"), datetime):
+                act["start_date"] = act["start_date"].isoformat()
+            if act.get("trophies") and isinstance(act["trophies"], str):
+                try:
+                    act["trophies"] = json.loads(act["trophies"])
+                except Exception:
+                    pass
+            rows.append(act)
+
+        has_more = len(rows) > limit
+        if has_more:
+            activities = rows[:limit]
+            last = activities[-1]
+            next_cursor = encode_cursor(last.get(sort_col), last["start_date"], last["activity_id"])
+        else:
+            activities = rows
+            next_cursor = None
+
+        return activities, next_cursor, has_more
+
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*) AS total_points,
+                    MIN(ts) AS first_ts,
+                    MAX(ts) AS last_ts,
+                    COUNT(watts) AS watts_count,
+                    COUNT(heartrate) AS heartrate_count,
+                    COUNT(cadence) AS cadence_count,
+                    COUNT(altitude) AS altitude_count,
+                    COUNT(lat) AS latlng_count,
+                    COUNT(speed) AS speed_count,
+                    COUNT(temp) AS temp_count
+                FROM streams
+                WHERE activity_id = %s
+            """, (activity_id,))
+            row = cur.fetchone() or {}
+
+        first_ts = row.get("first_ts")
+        last_ts = row.get("last_ts")
+        first_iso = first_ts.isoformat() if isinstance(first_ts, datetime) else str(first_ts) if first_ts else None
+        last_iso = last_ts.isoformat() if isinstance(last_ts, datetime) else str(last_ts) if last_ts else None
+
+        channels = {}
+        for ch in ("watts", "heartrate", "cadence", "altitude", "latlng", "speed", "temp"):
+            cnt = int(row.get(f"{ch}_count") or 0)
+            channels[ch] = {
+                "present": cnt > 0,
+                "count": cnt,
+            }
+
+        return {
+            "activity_id": activity_id,
+            "total_points": int(row.get("total_points") or 0),
+            "first_ts": first_iso,
+            "last_ts": last_iso,
+            "channels": channels,
+        }
+
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        self._ensure_connected()
+        allowed = {"ts", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance", "watts", "temp", "grade_smooth", "moving"}
+        cols = [c for c in columns if c in allowed]
+        if "ts" not in cols:
+            cols.insert(0, "ts")
+        if len(cols) == 1 and cols[0] == "ts":
+            cols.extend(["watts", "heartrate", "cadence", "altitude"])
+
+        col_str = ", ".join(cols)
+        where_clauses = ["activity_id = %s"]
+        params: List[Any] = [activity_id]
+
+        if start_ts is not None:
+            where_clauses.append("ts >= %s")
+            params.append(datetime.fromtimestamp(start_ts, tz=timezone.utc))
+
+        if end_ts is not None:
+            where_clauses.append("ts <= %s")
+            params.append(datetime.fromtimestamp(end_ts, tz=timezone.utc))
+
+        where_sql = " AND ".join(where_clauses)
+        limit = max(1, min(int(max_rows), 20000))
+        params.append(limit)
+
+        query = f"SELECT {col_str} FROM streams WHERE {where_sql} ORDER BY ts ASC LIMIT %s"
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute(query, tuple(params))
+            raw_rows = cur.fetchall()
+
+        result = []
+        for r in raw_rows:
+            d = dict(r)
+            if isinstance(d.get("ts"), datetime):
+                d["ts"] = d["ts"].isoformat()
+            result.append(d)
+        return result
+

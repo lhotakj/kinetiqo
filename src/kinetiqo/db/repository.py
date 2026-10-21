@@ -463,4 +463,37 @@ class DatabaseRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination.
+
+        Returns:
+            (activities, next_cursor, has_more)
+        """
+        pass
+
+    @abstractmethod
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        pass
+
+    @abstractmethod
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        pass
+
+
 

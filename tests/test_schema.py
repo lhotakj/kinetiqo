@@ -19,6 +19,19 @@ class TestSchemaDefinition(unittest.TestCase):
                 self.assertIn("type_pg", col)
                 self.assertIn("type_firebird", col)
 
+    def test_mcp_pre_registered_tables(self):
+        """Verify sync_jobs and verified_segment_efforts tables are pre-registered with dialect definitions."""
+        self.assertIn("sync_jobs", SCHEMA_DEFINITION)
+        self.assertIn("verified_segment_efforts", SCHEMA_DEFINITION)
+
+        sync_cols = {col["name"] for col in SCHEMA_DEFINITION["sync_jobs"]["columns"]}
+        expected_sync_cols = {"job_id", "sync_type", "status", "created_at", "started_at", "completed_at", "total_activities", "synced_activities", "error_message"}
+        self.assertTrue(expected_sync_cols.issubset(sync_cols))
+
+        vse_cols = {col["name"] for col in SCHEMA_DEFINITION["verified_segment_efforts"]["columns"]}
+        expected_vse_cols = {"id", "athlete_id", "activity_id", "segment_id", "name", "rank", "elapsed_time", "moving_time", "start_date", "pr_rank"}
+        self.assertTrue(expected_vse_cols.issubset(vse_cols))
+
     def test_activities_reverse_composite_indexes(self):
         """Verify performance-critical reverse composite indexes exist for all dialects."""
         indexes = SCHEMA_DEFINITION["activities"]["indexes"]

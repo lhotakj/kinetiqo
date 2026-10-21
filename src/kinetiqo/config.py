@@ -94,6 +94,7 @@ class Config:
 
     # Athlete
     athlete_weight: float = 0.0  # kg — set via ATHLETE_WEIGHT env var for VO2max estimation
+    athlete_timezone: str = field(default_factory=lambda: (os.getenv("ATHLETE_TIMEZONE") or "").strip())
 
     # Logging
     log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -241,5 +242,20 @@ class Config:
             except ValueError:
                 logger.warning("Environment variable GPS_SIMPLIFICATION=%r should be an integer (0-10) — defaulting to 0.", gps_simp_env)
                 self.gps_simplification = 0
+
+        self.athlete_timezone = (os.getenv("ATHLETE_TIMEZONE") or "").strip()
+
+    def get_athlete_timezone(self, db_timezone: str | None = None) -> str:
+        """Resolves athlete timezone via the 3-tier resolution hierarchy:
+        1. Explicit ATHLETE_TIMEZONE environment variable.
+        2. Database profile.timezone fallback (if provided).
+        3. Default 'UTC' with a logged warning.
+        """
+        if self.athlete_timezone:
+            return self.athlete_timezone
+        if db_timezone and db_timezone.strip():
+            return db_timezone.strip()
+        logger.warning("No athlete timezone configured in ATHLETE_TIMEZONE or database profile. Defaulting to 'UTC'.")
+        return "UTC"
 
     database_connect_verbose: bool = True  # Show verbose output in init

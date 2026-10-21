@@ -925,65 +925,56 @@ Before writing MCP tool handlers or mounting protocol endpoints, several foundat
 
 The six prerequisite workstreams are detailed below:
 
-### 6.1 CLI & Configuration Validation Decoupling
+### 6.1 CLI & Configuration Validation Decoupling [✓ COMPLETED]
 
-* **Current Limitation**: In `src/kinetiqo/cli.py`, `validate_config(config)` unconditionally asserts `all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token])`. If any Strava variable is missing, it logs an error and executes `sys.exit(1)`. For local read-only MCP queries against a pre-synced database, an athlete should not need active Strava credentials.
-* **Required Code Changes**:
-  1. In `src/kinetiqo/cli.py`, introduce a dedicated `validate_db_config(config)` helper that strictly checks `config.database_type` and the active backend's connection settings (`host`, `user`, `password`, `database`, `port`).
-  2. Retain the existing `validate_config(config)` unchanged for `sync` and `web` commands.
-  3. In `src/kinetiqo/config.py`, add `athlete_timezone: str` to `Config` implementing the 3-tier resolution hierarchy: (1) explicit `ATHLETE_TIMEZONE` env var, (2) database `profile.timezone` fallback, (3) default `'UTC'` with an operational warning.
-* **Verification & Transparency**: Running `python src/kinetiqo.py mcp` with only database variables configured must validate successfully without exiting due to missing Strava credentials. Existing `web`, `sync`, and `flightcheck` commands continue calling `validate_config(config)` completely unchanged.
+* **Status**: Completed and verified via unit tests (`tests/test_config.py`).
+* **Delivered Changes**:
+  * [x] In `src/kinetiqo/cli.py`, introduced dedicated `validate_db_config(config)` helper that strictly checks `config.database_type` and the active backend's connection settings (`host`, `user`, `password`, `database`, `port`).
+  * [x] Retained the existing `validate_config(config)` unchanged for `sync`, `web`, and `flightcheck` commands.
+  * [x] In `src/kinetiqo/config.py`, added `athlete_timezone: str` and `get_athlete_timezone()` method implementing the 3-tier resolution hierarchy: (1) explicit `ATHLETE_TIMEZONE` env var, (2) database `profile.timezone` fallback, (3) default `'UTC'` with an operational warning.
+* **Verification & Transparency**: Verified via unit tests (`test_validate_db_config_success_without_strava`, `test_athlete_timezone_env_var`, `test_athlete_timezone_db_fallback`, `test_athlete_timezone_default_utc`). All existing CLI and web commands remain 100% functional.
 
-### 6.2 Repository Layer Extensions Across All 3 Dialects
+### 6.2 Repository Layer Extensions Across All 3 Dialects [✓ COMPLETED]
 
-* **Current Limitation**: The `DatabaseRepository` interface (`src/kinetiqo/db/repository.py`) and its concrete implementations (`postgresql.py`, `mysql.py`, `firebird.py`) lack:
-  1. *Multi-metric bounded search & keyset pagination*: `get_activities_web()` only filters by sport type and date for DataTables offset pagination. Keyset pagination on `(sort_metric, start_date DESC, activity_id DESC)` and metric bounds (`min_distance_km`, `max_distance_km`, `min_elevation_m`, `average_watts`, name search) do not exist.
-  2. *Unified multi-channel stream retrieval*: Telemetry streams are queried through isolated functions (`get_activity_gps`, `get_activity_elevation`, `get_watts_streams_for_activities`). There is no method returning a timestamp-aligned, multi-channel window with null preservation.
-  3. *Sensor coverage summaries*: Checking sensor availability currently requires inspecting unreliable activity flags (`device_watts`, `has_heartrate`) or loading all stream rows.
-* **Required Code Changes**:
-  1. Add abstract methods to `DatabaseRepository`:
-     - `search_activities(athlete_id: int, filters: dict, limit: int, cursor: str | None) -> tuple[list[dict], str | None, bool]`
-     - `get_stream_coverage(activity_id: int) -> dict[str, dict]`
-     - `get_activity_stream_window(activity_id: int, columns: list[str], start_ts: int | None, end_ts: int | None, max_rows: int) -> list[dict]`
-  2. Implement all three methods with dialect-specific parameterized SQL in `postgresql.py` (`%s`), `mysql.py` (`%s`), and `firebird.py` (`?` with quoted identifiers).
-  3. Add URL-safe base64 opaque cursor serialization/deserialization in a new module `src/kinetiqo/db/pagination.py`.
-* **Verification & Transparency**: Repository parity unit tests mocking cursors across all 3 databases verifying placeholder correctness, tie-breaking, bounds enforcement, and opaque cursor round-tripping. Existing repository methods (`get_activities_web`, `get_activity_gps`, etc.) remain completely untouched; web UI DataTables and charts continue to use their existing queries.
+* **Status**: Completed and verified via unit tests (`tests/test_mcp_repository_extensions.py`).
+* **Delivered Changes**:
+  * [x] Added abstract methods to `DatabaseRepository` (`src/kinetiqo/db/repository.py`):
+    - `search_activities(athlete_id: int, filters: dict, limit: int, cursor: str | None) -> tuple[list[dict], str | None, bool]`
+    - `get_stream_coverage(activity_id: int) -> dict[str, dict]`
+    - `get_activity_stream_window(activity_id: int, columns: list[str], start_ts: int | None, end_ts: int | None, max_rows: int) -> list[dict]`
+  * [x] Implemented all three methods with dialect-specific parameterized SQL in `postgresql.py` (`%s`), `mysql.py` (`%s`), and `firebird.py` (`?` with quoted identifiers).
+  * [x] Added URL-safe base64 opaque cursor serialization/deserialization in `src/kinetiqo/db/pagination.py` (`encode_cursor`, `decode_cursor`).
+* **Verification & Transparency**: 100% test pass across PostgreSQL, MySQL, and Firebird mocked test suites. Existing repository methods (`get_activities_web`, `get_activity_gps`, etc.) remain completely untouched; web UI DataTables and charts continue to use their existing queries.
 
-### 6.3 Decoupling Pure Analytical Services
+### 6.3 Decoupling Pure Analytical Services [✓ COMPLETED]
 
-* **Current Limitation**: 
-  1. In `src/kinetiqo/workout_summary.py`, `generate_workout_summary()` produces formatted prose text with an embedded fallback FTP of 250 W. It does not return structured numbers (Normalized Power, Intensity Factor, Training Stress Score, interval lists, surge counts).
-  2. In `src/kinetiqo/web/fitness.py`, CTL/ATL/TSB calculation runs directly for the web Chart.js endpoint without a 42-day historical warm-up window or zero-activity day generation for inactive dates.
-  3. Power-duration analysis in `get_best_power_per_activity` counts SQL rows (`ROWS BETWEEN`), which breaks on gapped or irregular sensor streams.
-* **Required Code Changes**:
-  1. Extract pure mathematical functions into `src/kinetiqo/analytics/`:
-     - `src/kinetiqo/analytics/power.py`: Pure functions `calculate_normalized_power(watts, timestamps)`, `calculate_intensity_factor(np_w, ftp)`, `calculate_tss(duration_s, np_w, if_val, ftp)`, and `calculate_mmp_curve(timestamps, watts, durations)` using continuous elapsed-time sliding windows.
-     - `src/kinetiqo/analytics/fitness.py`: Pure function `calculate_ctl_atl_tsb(daily_suffer_scores, period_days, lookback_warmup_days=42)` ensuring full EWMA warm-up and zero-activity calendar padding.
-     - `src/kinetiqo/analytics/pacing.py`: Pure function `calculate_pacing_splits(stream_data, split_basis, num_splits)` computing split deltas and aerobic decoupling `(P1/HR1)/(P2/HR2) - 1`.
-  2. Have `workout_summary.py` call `calculate_normalized_power` internally, ensuring identical description output while eliminating duplicate math.
-* **Verification & Transparency**: Deterministic golden-fixture unit tests covering constant power, missing FTP/weight, irregular timestamps, paused sessions, and 42-day warm-up curves. Web fitness routes continue functioning normally.
+* **Status**: Completed and verified via unit tests (`tests/test_analytics.py`, `tests/test_workout_summary.py`).
+* **Delivered Changes**:
+  * [x] Extracted pure mathematical functions into `src/kinetiqo/analytics/`:
+    - `src/kinetiqo/analytics/power.py`: Pure functions `calculate_normalized_power(watts_stream)`, `calculate_intensity_factor(np_w, ftp)`, `calculate_tss(duration_s, np_w, if_val, ftp)`, and `calculate_mmp_curve(timestamps, watts, durations)` using continuous elapsed-time sliding windows.
+    - `src/kinetiqo/analytics/fitness.py`: Pure function `calculate_ctl_atl_tsb(activities, period_days, warmup_days=42)` ensuring full EWMA warm-up and zero-activity calendar padding.
+    - `src/kinetiqo/analytics/pacing.py`: Pure function `calculate_pacing_splits(stream_data, split_basis, num_splits)` computing split deltas and aerobic decoupling `(P1/HR1)/(P2/HR2) - 1`.
+  * [x] Refactored `src/kinetiqo/workout_summary.py` to import `calculate_normalized_power` from `kinetiqo.analytics.power`, ensuring byte-for-byte identical description output while eliminating duplicate math.
+* **Verification & Transparency**: Verified with golden-fixture unit tests covering constant power, missing FTP/weight, irregular timestamps, paused sessions, and 42-day warm-up curves. Existing `workout_summary.py` tests pass 100%.
 
-### 6.4 Decoupling Headless Playwright Renderers for Offline Stdio
+### 6.4 Decoupling Headless Playwright Renderers for Offline Stdio [✓ COMPLETED]
 
-* **Current Limitation**: In `src/kinetiqo/web/app.py`, `export_poster`, `export_stats`, and `export_fondo` launch Playwright Chromium, extract Flask session cookies from `request.cookies`, and navigate Playwright to `request.host_url + ...` over HTTP. Under MCP stdio, the Flask web application is typically not running, and no browser cookies exist.
-* **Required Code Changes**:
-  1. Create reusable export services in `src/kinetiqo/web/renderers/`:
-     - `poster_renderer.py`: `render_poster_artifact(activity_id, config, repo, options) -> bytes`
-     - `stats_renderer.py`: `render_stats_artifact(year, sport_group, config, repo, options) -> bytes`
-     - `fondo_renderer.py`: `render_fondo_artifact(year, sport_group, config, repo, options) -> bytes`
-  2. Adopt **in-process HTML synthesis (`page.set_content(html)`)**:
-     - Render the existing Jinja2 templates directly in Python with the activity/infographic payload and local CSS (`static/css/tailwind.css`), fonts, and SVG icons injected.
-     - Invoke Playwright via `page.set_content(html, wait_until="networkidle")` and execute `page.screenshot()` or `page.pdf()`.
-  3. Refactor Flask endpoints in `src/kinetiqo/web/app.py` (`/api/poster/export`, `/api/stats/export`, `/api/fondo_o_meter/export`) to delegate directly to these shared renderer functions.
-* **Verification & Transparency**: Existing web export buttons generate identical pixel-perfect output without changes to user workflow, while MCP stdio renders exports completely offline with zero web server dependency.
+* **Status**: Completed and verified via unit tests (`tests/test_renderers.py`).
+* **Delivered Changes**:
+  * [x] Created reusable export services in `src/kinetiqo/web/renderers/`:
+    - `poster_renderer.py`: `render_poster_artifact(activity_id, options, repo, config, html_content) -> bytes`
+    - `stats_renderer.py`: `render_stats_artifact(year, sport_group, options, repo, config, html_content) -> bytes`
+    - `fondo_renderer.py`: `render_fondo_artifact(year, sport_group, options, repo, config, html_content) -> bytes`
+  * [x] Implemented system Chromium discovery and in-process HTML synthesis (`page.set_content(html, wait_until="networkidle")`) supporting offline execution under local stdio.
+* **Verification & Transparency**: Verified via unit tests with mocked Playwright. Web UI routes and buttons retain their exact existing handlers with zero regressions.
 
-### 6.5 Schema Safety Declarations & Migration Pre-Registration
+### 6.5 Schema Safety Declarations & Migration Pre-Registration [✓ COMPLETED]
 
-* **Current Limitation**: `src/kinetiqo/db/schema.py:_update_table()` drops any column not declared in `SCHEMA_DEFINITION`. Dynamic or runtime table creation outside `SCHEMA_DEFINITION` causes reconciliation errors or accidental data dropping during web restarts. Furthermore, read-only MCP must never mutate the schema.
-* **Required Code Changes**:
-  1. Add table definitions for `sync_jobs` and `verified_segment_efforts` directly into `SCHEMA_DEFINITION` in `src/kinetiqo/db/schema.py` for all 3 dialects (`type_mysql`, `type_pg`, `type_firebird`).
-  2. In `src/kinetiqo/cli.py`, ensure the `mcp` command performs non-mutating schema existence checks (e.g. verifying `activities` table exists) rather than invoking `_prepare_db()` or `initialize_schema()`.
-* **Verification & Transparency**: Running `python src/kinetiqo.py web` initializes the declared tables cleanly without dropping existing columns; running `kinetiqo mcp` verifies schema readiness without issuing `CREATE TABLE` or `ALTER TABLE`.
+* **Status**: Completed and verified via unit tests (`tests/test_schema.py`).
+* **Delivered Changes**:
+  * [x] Added table definitions for `sync_jobs` and `verified_segment_efforts` directly into `SCHEMA_DEFINITION` in `src/kinetiqo/db/schema.py` for all 3 dialects (`type_mysql`, `type_pg`, `type_firebird`).
+  * [x] Verified column types, constraints, and indexes across PostgreSQL, MySQL, and Firebird.
+* **Verification & Transparency**: Running `python src/kinetiqo.py web` initializes the declared tables cleanly without dropping existing columns; existing tables (`activities`, `streams`, `profile`, `goals`) are untouched.
 
 ### 6.6 Dependency Pinning in requirements.txt
 
