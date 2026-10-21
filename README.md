@@ -44,6 +44,12 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
   - [Web Interface](#web-interface)
+  - [Model Context Protocol (MCP) Server](#model-context-protocol-mcp-server)
+    - [Overview & Capabilities](#mcp-overview)
+    - [CLI Execution](#mcp-cli-execution)
+    - [AI Client Configuration](#mcp-client-configuration)
+    - [MCP Toolset Reference](#mcp-toolset-reference)
+    - [Gated Mutation Controls](#mcp-gated-mutations)
 - [Architecture](#architecture)
   - [Project Structure](#project-structure)
   - [Technology Stack](#technology-stack)
@@ -77,6 +83,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🚀 **Response Compression**: All HTTP responses (HTML, JSON, static assets) are automatically compressed via `flask-compress` (gzip/brotli), reducing transfer sizes by 74–99%.
 - 🔒 **Security & Authentication**: OAuth 2.0 for Strava, `flask-login` session authentication, and `flask-wtf` CSRF protection on all mutating routes.
 - 🔔 **Version Check**: Asynchronous, cached check for new releases against GitHub.
+- 🤖 **Model Context Protocol (MCP) Server**: Built-in FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO. Offers 33 evidence-based tools across activity discovery, telemetry time-series, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact generation, with strictly gated mutation flags. See [Model Context Protocol (MCP) Server](#model-context-protocol-mcp-server).
 
 ---
 
@@ -617,6 +624,7 @@ The CLI tool is located in the `src` directory.
     -   `--scope` / `-s`: Lookback period in days (default: `365`).
 -   `scan-trophies`: Scans and backfills segment trophies (placements 1st–10th) from Strava.
     -   `--limit` / `-l`: Maximum number of activities with achievements to scan (default: `50`).
+-   `mcp`: Launches the Model Context Protocol (MCP) server via STDIO for AI agent integration.
 
 ### Manual Sync
 
@@ -657,6 +665,142 @@ python kinetiqo.py web
 python kinetiqo.py --database mysql web --port 8000
 ```
 
+### Model Context Protocol (MCP) Server
+
+Kinetiqo includes a native [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server based on the official FastMCP Python SDK. It allows AI assistants—such as **Google Antigravity IDE**, **Claude Desktop**, **Cursor**, and **OpenClaw**—to connect directly to your local fitness data warehouse via STDIO, performing evidence-based workout analysis, telemetry stream inspection, power curve computation, and creative artifact generation.
+
+📖 **Full Model Context Protocol (MCP) User Guide: [docs/MCP.md](docs/MCP.md)**
+
+#### CLI Execution & Quick Testing
+
+Start the MCP server directly using the `mcp` CLI command:
+
+```bash
+# Run MCP server using default database settings
+python kinetiqo.py mcp
+
+# Run MCP server with a specific database backend
+python kinetiqo.py --database postgresql mcp
+```
+
+**Fast Interactive Testing (MCP Inspector):**
+```bash
+# Test tools visually in your browser with the official MCP Inspector
+npx @modelcontextprotocol/inspector python src/kinetiqo.py mcp
+```
+
+> **Clean STDIO Protocol Design**: The MCP server routes all application and diagnostic logs to `stderr`, guaranteeing that `stdout` carries strictly valid JSON-RPC protocol frames without banner pollution.
+
+#### AI Client Configuration (Example `mcpServers` JSON)
+
+To connect your favorite AI coding assistant or desktop client, register Kinetiqo's STDIO server in your client's configuration file:
+
+##### 1. Google Antigravity IDE (`mcp_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "kinetiqo": {
+      "command": "python",
+      "args": ["src/kinetiqo.py", "mcp"],
+      "cwd": "/path/to/kinetiqo",
+      "env": {
+        "DATABASE_TYPE": "postgresql",
+        "POSTGRESQL_HOST": "localhost",
+        "POSTGRESQL_USER": "athlete",
+        "POSTGRESQL_PASSWORD": "secret_password",
+        "POSTGRESQL_DATABASE": "kinetiqo",
+        "POSTGRESQL_PORT": "5432"
+      }
+    }
+  }
+}
+```
+
+##### 2. Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "kinetiqo": {
+      "command": "/path/to/venv/bin/python",
+      "args": ["/path/to/kinetiqo/src/kinetiqo.py", "mcp"],
+      "cwd": "/path/to/kinetiqo",
+      "env": {
+        "DATABASE_TYPE": "mysql",
+        "MYSQL_HOST": "127.0.0.1",
+        "MYSQL_USER": "athlete",
+        "MYSQL_PASSWORD": "secret_password",
+        "MYSQL_DATABASE": "kinetiqo",
+        "MYSQL_PORT": "3306"
+      }
+    }
+  }
+}
+```
+
+##### 3. Cursor (`.cursor/mcp.json`)
+
+```json
+{
+  "mcpServers": {
+    "kinetiqo": {
+      "command": "python",
+      "args": ["src/kinetiqo.py", "mcp"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}
+```
+
+##### 4. OpenClaw CLI
+
+```bash
+openclaw mcp add kinetiqo \
+  --command /path/to/venv/bin/python \
+  --arg /path/to/kinetiqo/src/kinetiqo.py \
+  --arg mcp \
+  --cwd /path/to/kinetiqo
+openclaw mcp doctor kinetiqo --probe
+```
+
+#### MCP Toolset Reference
+
+Kinetiqo exposes 33 specialized tools across 6 functional groups:
+
+| Group | Tools Included | Description | Mutating? |
+|---|---|---|---|
+| **A: Activity Discovery** | `kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_totals`, `kinetiqo_compare_activities`, `kinetiqo_compare_periods`, `kinetiqo_find_similar_routes`, `kinetiqo_compare_route_attempts` | Filter, search with keyset pagination, compare activities, inspect route overlap. | No |
+| **B: Telemetry & Power** | `kinetiqo_get_activity_streams`, `kinetiqo_get_data_coverage`, `kinetiqo_calculate_power_curve`, `kinetiqo_get_personal_records`, `kinetiqo_analyze_workout_structure`, `kinetiqo_analyze_pacing`, `kinetiqo_get_route_highlights` | Aligned time-series streams, downsampling, MMP curves, NP/IF/TSS, pacing splits, decoupling. | No |
+| **C: Physiology & Fitness** | `kinetiqo_get_fitness_and_freshness`, `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_power_skills`, `kinetiqo_get_training_load_trends` | Suffer-score CTL/ATL/TSB trends, FTP breakthroughs, VO₂max estimates, Acute:Chronic ratio. | No |
+| **D: Achievements & Goals** | `kinetiqo_get_verified_koms`, `kinetiqo_get_segment_trophies`, `kinetiqo_get_fondo_milestones`, `kinetiqo_get_training_goals`, `kinetiqo_update_training_goals` | Verified crowns, top-10 segment ribbons, Gran Fondos (100k+), goals and remaining pace. | Only `update_training_goals` (Gated) |
+| **E: Visual Generation** | `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic`, `kinetiqo_generate_map_artifact` | Decoupled Playwright exports with inline base64 images and privacy start/end redaction. | No |
+| **F: Operations & Sync** | `kinetiqo_get_sync_job_status`, `kinetiqo_preview_strava_description`, `kinetiqo_trigger_sync`, `kinetiqo_update_strava_description`, `kinetiqo_update_athlete_profile` | Background sync triggers, description preview and publishing, profile weight/FTP updates. | Tools 29, 32, 33 (Gated) |
+
+#### Resources & Prompts
+
+* **Resources**:
+  - `kinetiqo://profile`: Sanitized athlete profile (weight, FTP, timezone, units).
+  - `kinetiqo://goals`: Active training targets and current progress.
+  - `kinetiqo://activities/latest`: Details and sensor coverage for the most recent session.
+  - `kinetiqo://analytics/fitness-freshness`: Current CTL/ATL/TSB and 90-day history.
+  - `kinetiqo://analytics/power-skills`: Power-duration benchmarks (5s to 1h).
+  - `kinetiqo://analytics/koms`: Locally verified King of the Mountains crowns.
+* **Pre-Packaged Prompts**:
+  - `post_ride_debrief`: Structured, evidence-based post-session debrief with sensor checks, workout intensity, fatigue form, and poster generation offers.
+  - `race_readiness_assessment`: Training readiness review evaluating TSB form, sustained power benchmarks, and recent volume.
+  - `poster_creative_director`: Basemap, color palette, and typography curation for activity art posters.
+
+#### Gated Mutation Controls
+
+By default, the MCP server runs in **100% read-only mode**. All mutating tools are **completely omitted from the MCP tool registry** (`tools/list`) unless explicitly activated via their respective environment gate flag:
+
+| Variable | Default | Purpose / Permission |
+|---|---|---|
+| `KINETIQO_MCP_ALLOW_SYNC` | `0` | If `1`, registers `kinetiqo_trigger_sync` allowing AI agents to trigger background activity syncs. |
+| `KINETIQO_MCP_ALLOW_PROFILE_WRITE` | `0` | If `1`, registers `kinetiqo_update_athlete_profile` and `kinetiqo_update_training_goals`. |
+| `KINETIQO_MCP_ALLOW_STRAVA_WRITE` | `0` | If `1`, registers `kinetiqo_update_strava_description` allowing AI agents to publish approved descriptions to Strava. |
+
 ## Architecture
 
 ### Project Structure
@@ -680,16 +824,29 @@ src/
     ├── sync.py                  # SyncService (core sync logic, SSE progress)
     ├── version_check.py         # Async GitHub release version check
     ├── workout_summary.py       # Power/heart-rate workout summary generation
+    ├── analytics/               # Pure analytical services (zero network/DB dependency)
+    │   ├── power.py             # NP, IF, TSS, and continuous MMP curves
+    │   ├── fitness.py           # Suffer-score CTL/ATL/TSB with EWMA warm-up
+    │   └── pacing.py            # Splits, stops, and aerobic decoupling
     ├── db/
     │   ├── repository.py        # DatabaseRepository ABC (contract for all backends)
     │   ├── factory.py           # create_repository() factory
-    │   ├── schema.py            # DDL schema definitions
+    │   ├── pagination.py        # Keyset pagination & URL-safe base64 cursor codecs
+    │   ├── schema.py            # DDL schema definitions (including sync_jobs and verified_segment_efforts)
     │   ├── postgresql.py        # PostgreSQL implementation
     │   ├── mysql.py             # MySQL/MariaDB implementation
     │   └── firebird.py          # Firebird implementation
+    ├── mcp/                     # Model Context Protocol (FastMCP server)
+    │   ├── server.py            # FastMCP factory & dynamic tool gating
+    │   ├── contracts.py         # Standard response envelope & error schemas
+    │   ├── resources.py         # MCP resources (profile, goals, latest activity, analytics)
+    │   ├── prompts.py           # Pre-packaged coaching workflows
+    │   ├── utils.py             # Telemetry downsampling & gap detection
+    │   └── tools/               # 33 master catalog tools (Groups A–F)
     └── web/
         ├── app.py               # Flask app, all routes & API endpoints
         ├── auth.py              # flask-login User model & auth helpers
+        ├── renderers/           # Decoupled Playwright HTML-synthesis renderers (posters, stats, fondo)
         ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
         ├── fondo_o_meter.py     # Fondo-o-meter infographic data aggregation
         ├── fonts.py             # Single source of truth for all Google Fonts

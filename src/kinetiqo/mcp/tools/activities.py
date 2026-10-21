@@ -1,0 +1,432 @@
+"""Group A: Activity Discovery & Query Engine Tools."""
+
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+import math
+
+from kinetiqo.mcp.contracts import (
+    create_envelope,
+    create_error_envelope,
+    ERROR_INVALID_ARGUMENT,
+    ERROR_NOT_FOUND,
+)
+
+
+def kinetiqo_search_activities(
+    repo: Any,
+    athlete_id: int,
+    query: Optional[str] = None,
+    sport_types: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    min_distance_km: Optional[float] = None,
+    max_distance_km: Optional[float] = None,
+    min_elevation_m: Optional[float] = None,
+    max_elevation_m: Optional[float] = None,
+    cursor: Optional[str] = None,
+    limit: int = 20,
+    sort_by: str = "start_date",
+) -> Dict[str, Any]:
+    """Search and filter activities using multiple criteria with deterministic keyset pagination."""
+    limit = max(1, min(limit, 100))
+    filters: Dict[str, Any] = {"sort_by": sort_by}
+
+    if query:
+        filters["query"] = query.strip()
+    if sport_types:
+        filters["sport_types"] = sport_types
+    if start_date:
+        filters["start_date"] = start_date
+    if end_date:
+        filters["end_date"] = end_date
+    if min_distance_km is not None:
+        filters["min_distance"] = min_distance_km * 1000.0
+    if max_distance_km is not None:
+        filters["max_distance"] = max_distance_km * 1000.0
+    if min_elevation_m is not None:
+        filters["min_elevation"] = min_elevation_m
+    if max_elevation_m is not None:
+        filters["max_elevation"] = max_elevation_m
+
+    try:
+        rows, next_cursor, has_more = repo.search_activities(
+            athlete_id=athlete_id,
+            filters=filters,
+            limit=limit,
+            cursor=cursor,
+        )
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Activity search failed: {e}")
+
+    activities = []
+    for r in rows:
+        act_id = str(r.get("activity_id") or r.get("id"))
+        dist_m = float(r.get("distance") or 0.0)
+        mov_s = int(r.get("moving_time") or 0)
+        elev_m = float(r.get("total_elevation_gain") or r.get("elevation_gain") or 0.0)
+        watts = float(r["average_watts"]) if r.get("average_watts") is not None else None
+        suffer = int(r["suffer_score"]) if r.get("suffer_score") is not None else None
+
+        start_dt = r.get("start_date")
+        start_str = start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt or "")
+
+        activities.append({
+            "activity_id": act_id,
+            "name": str(r.get("name") or "Unnamed Activity"),
+            "start_date": start_str,
+            "sport": str(r.get("sport_type") or r.get("type") or "Unknown"),
+            "distance_km": round(dist_m / 1000.0, 2),
+            "moving_time_s": mov_s,
+            "elevation_gain_m": round(elev_m, 1),
+            "average_watts": watts,
+            "suffer_score": suffer,
+        })
+
+    payload = {
+        "activities": activities,
+        "pagination": {
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "count": len(activities),
+        },
+    }
+    return create_envelope(payload, source="local_db")
+
+
+def kinetiqo_get_activity_details(repo: Any, activity_id: str) -> Dict[str, Any]:
+    """Retrieve comprehensive metadata and sensor coverage for a single activity."""
+    act_str = str(activity_id).strip()
+    try:
+        activities = repo.get_activities_by_ids([act_str])
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Error fetching activity {activity_id}: {e}")
+
+    if not activities:
+        return create_error_envelope(ERROR_NOT_FOUND, f"Activity {activity_id} not found in local database")
+
+    act = activities[0]
+    dist_m = float(act.get("distance") or 0.0)
+    mov_s = int(act.get("moving_time") or 0)
+    elap_s = int(act.get("elapsed_time") or mov_s)
+    elev_m = float(act.get("total_elevation_gain") or act.get("elevation_gain") or 0.0)
+
+    # Sensor coverage check
+    coverage = {}
+    try:
+        int_id = int(act_str)
+        coverage = repo.get_stream_coverage(int_id)
+    except Exception:
+        pass
+
+    start_dt = act.get("start_date")
+    start_str = start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt or "")
+
+    data = {
+        "activity_id": act_str,
+        "name": act.get("name") or "Unnamed Activity",
+        "sport": act.get("sport_type") or act.get("type") or "Unknown",
+        "start_date": start_str,
+        "distance_km": round(dist_m / 1000.0, 2),
+        "moving_time_s": mov_s,
+        "elapsed_time_s": elap_s,
+        "elevation_gain_m": round(elev_m, 1),
+        "average_speed_kmh": round((dist_m / mov_s * 3.6), 2) if mov_s > 0 else 0.0,
+        "max_speed_kmh": round(float(act.get("max_speed") or 0.0) * 3.6, 2),
+        "average_watts": float(act["average_watts"]) if act.get("average_watts") is not None else None,
+        "max_watts": float(act["max_watts"]) if act.get("max_watts") is not None else None,
+        "average_heartrate_bpm": float(act["average_heartrate"]) if act.get("average_heartrate") is not None else None,
+        "max_heartrate_bpm": float(act["max_heartrate"]) if act.get("max_heartrate") is not None else None,
+        "average_cadence_rpm": float(act["average_cadence"]) if act.get("average_cadence") is not None else None,
+        "calories_kcal": float(act["calories"]) if act.get("calories") is not None else None,
+        "suffer_score": int(act["suffer_score"]) if act.get("suffer_score") is not None else None,
+        "pr_count": int(act.get("pr_count") or 0),
+        "koms_count": int(act.get("koms_count") or 0),
+        "sensor_coverage": coverage,
+    }
+    return create_envelope(data, source="local_db")
+
+
+def kinetiqo_get_activity_totals(
+    repo: Any,
+    sport_types: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Compute aggregated distance, elevation, moving time, and count."""
+    try:
+        totals = repo.get_activities_totals(types=sport_types, start_date=start_date, end_date=end_date)
+        count = repo.count_activities(types=sport_types, start_date=start_date, end_date=end_date)
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating activity totals: {e}")
+
+    dist_m = float(totals.get("distance") or 0.0)
+    elev_m = float(totals.get("elevation") or 0.0)
+    mov_s = float(totals.get("moving_time") or 0.0)
+
+    data = {
+        "count": int(count),
+        "distance_km": round(dist_m / 1000.0, 2),
+        "elevation_m": round(elev_m, 1),
+        "moving_time_hours": round(mov_s / 3600.0, 2),
+        "moving_time_s": int(mov_s),
+        "average_distance_km": round((dist_m / count) / 1000.0, 2) if count > 0 else 0.0,
+        "average_elevation_m": round(elev_m / count, 1) if count > 0 else 0.0,
+    }
+    return create_envelope(data, source="local_db")
+
+
+def kinetiqo_compare_activities(repo: Any, activity_ids: List[str]) -> Dict[str, Any]:
+    """Compare 2 to 5 activities side-by-side."""
+    if not activity_ids or not (2 <= len(activity_ids) <= 5):
+        return create_error_envelope(
+            ERROR_INVALID_ARGUMENT,
+            f"Must specify between 2 and 5 activity IDs to compare; received {len(activity_ids) if activity_ids else 0}",
+        )
+
+    try:
+        activities = repo.get_activities_by_ids([str(aid) for aid in activity_ids])
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed fetching activities for comparison: {e}")
+
+    found_map = {str(a.get("activity_id") or a.get("id")): a for a in activities}
+    missing = [aid for aid in activity_ids if str(aid) not in found_map]
+    warnings = [f"Activity {aid} not found in database" for aid in missing] if missing else []
+
+    compared = []
+    for aid in activity_ids:
+        act = found_map.get(str(aid))
+        if not act:
+            continue
+        dist_m = float(act.get("distance") or 0.0)
+        mov_s = int(act.get("moving_time") or 0)
+        elev_m = float(act.get("total_elevation_gain") or act.get("elevation_gain") or 0.0)
+        compared.append({
+            "activity_id": str(aid),
+            "name": act.get("name") or "Unnamed",
+            "sport": act.get("sport_type") or act.get("type") or "Unknown",
+            "distance_km": round(dist_m / 1000.0, 2),
+            "moving_time_s": mov_s,
+            "elevation_gain_m": round(elev_m, 1),
+            "average_speed_kmh": round((dist_m / mov_s * 3.6), 2) if mov_s > 0 else 0.0,
+            "average_watts": float(act["average_watts"]) if act.get("average_watts") is not None else None,
+            "average_heartrate_bpm": float(act["average_heartrate"]) if act.get("average_heartrate") is not None else None,
+            "suffer_score": int(act["suffer_score"]) if act.get("suffer_score") is not None else None,
+        })
+
+    return create_envelope({"compared_activities": compared}, source="local_db", warnings=warnings)
+
+
+def kinetiqo_compare_periods(
+    repo: Any,
+    period_a: Dict[str, str],
+    period_b: Dict[str, str],
+    sport_types: Optional[List[str]] = None,
+    align: str = "elapsed_days",
+) -> Dict[str, Any]:
+    """Compare two fair training periods with equal elapsed-day alignment."""
+    start_a, end_a = period_a.get("start_date"), period_a.get("end_date")
+    start_b, end_b = period_b.get("start_date"), period_b.get("end_date")
+
+    if not (start_a and end_a and start_b and end_b):
+        return create_error_envelope(
+            ERROR_INVALID_ARGUMENT,
+            "Both period_a and period_b must provide 'start_date' and 'end_date' (YYYY-MM-DD)",
+        )
+
+    try:
+        totals_a = repo.get_activities_totals(types=sport_types, start_date=start_a, end_date=end_a)
+        count_a = repo.count_activities(types=sport_types, start_date=start_a, end_date=end_a)
+        totals_b = repo.get_activities_totals(types=sport_types, start_date=start_b, end_date=end_b)
+        count_b = repo.count_activities(types=sport_types, start_date=start_b, end_date=end_b)
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed querying period totals: {e}")
+
+    dist_a_km = round(float(totals_a.get("distance") or 0.0) / 1000.0, 2)
+    dist_b_km = round(float(totals_b.get("distance") or 0.0) / 1000.0, 2)
+    elev_a_m = round(float(totals_a.get("elevation") or 0.0), 1)
+    elev_b_m = round(float(totals_b.get("elevation") or 0.0), 1)
+    mov_a_s = int(totals_a.get("moving_time") or 0)
+    mov_b_s = int(totals_b.get("moving_time") or 0)
+
+    dist_diff = round(dist_b_km - dist_a_km, 2)
+    dist_pct = round((dist_diff / dist_a_km) * 100.0, 1) if dist_a_km > 0 else None
+
+    elev_diff = round(elev_b_m - elev_a_m, 1)
+    elev_pct = round((elev_diff / elev_a_m) * 100.0, 1) if elev_a_m > 0 else None
+
+    count_diff = count_b - count_a
+    count_pct = round((count_diff / count_a) * 100.0, 1) if count_a > 0 else None
+
+    data = {
+        "alignment_mode": align,
+        "period_a": {
+            "range": [start_a, end_a],
+            "count": count_a,
+            "distance_km": dist_a_km,
+            "elevation_m": elev_a_m,
+            "moving_time_s": mov_a_s,
+        },
+        "period_b": {
+            "range": [start_b, end_b],
+            "count": count_b,
+            "distance_km": dist_b_km,
+            "elevation_m": elev_b_m,
+            "moving_time_s": mov_b_s,
+        },
+        "deltas": {
+            "distance_km": dist_diff,
+            "distance_pct": dist_pct,
+            "elevation_m": elev_diff,
+            "elevation_pct": elev_pct,
+            "count": count_diff,
+            "count_pct": count_pct,
+        },
+    }
+    return create_envelope(data, source="calculated")
+
+
+def kinetiqo_find_similar_routes(
+    repo: Any,
+    activity_id: str,
+    sport_types: Optional[List[str]] = None,
+    max_candidates: int = 10,
+) -> Dict[str, Any]:
+    """Find past activities matching a source activity's route via GPS start/end proximity."""
+    act_str = str(activity_id).strip()
+    try:
+        source_acts = repo.get_activities_by_ids([act_str])
+        if not source_acts:
+            return create_error_envelope(ERROR_NOT_FOUND, f"Source activity {activity_id} not found")
+        source = source_acts[0]
+
+        # Retrieve GPS coordinates for source
+        source_streams = repo.get_streams_coords_for_activities([act_str])
+        coords = source_streams.get(act_str, [])
+        if len(coords) < 10:
+            return create_envelope(
+                {"candidates": [], "message": "Source activity has insufficient GPS points for route matching"},
+                source="calculated",
+                warnings=["Insufficient GPS coordinates in source activity"],
+            )
+
+        src_dist = float(source.get("distance") or 0.0)
+        src_start = coords[0]
+        src_end = coords[-1]
+
+        # Search candidates with similar distance (+/- 20%)
+        min_d = src_dist * 0.80
+        max_d = src_dist * 1.20
+        cands, _, _ = repo.search_activities(
+            athlete_id=int(source.get("athlete_id") or 1),
+            filters={"min_distance": min_d, "max_distance": max_d, "sport_types": sport_types or ["Ride", "VirtualRide"]},
+            limit=max_candidates + 5,
+        )
+
+        cand_ids = [str(c.get("activity_id") or c.get("id")) for c in cands if str(c.get("activity_id") or c.get("id")) != act_str]
+        cand_streams = repo.get_streams_coords_for_activities(cand_ids)
+
+        matches = []
+        for c in cands:
+            cid = str(c.get("activity_id") or c.get("id"))
+            if cid == act_str or cid not in cand_streams:
+                continue
+            c_coords = cand_streams[cid]
+            if len(c_coords) < 10:
+                continue
+
+            # Compare endpoints: same direction vs reverse
+            start_dist = _haversine_dist(src_start, c_coords[0])
+            end_dist = _haversine_dist(src_end, c_coords[-1])
+            rev_start_dist = _haversine_dist(src_start, c_coords[-1])
+            rev_end_dist = _haversine_dist(src_end, c_coords[0])
+
+            direction = "same"
+            endpoint_err = (start_dist + end_dist) / 2.0
+            if (rev_start_dist + rev_end_dist) < (start_dist + end_dist):
+                direction = "reverse"
+                endpoint_err = (rev_start_dist + rev_end_dist) / 2.0
+
+            # Score based on distance difference and endpoint proximity
+            dist_ratio = min(src_dist, float(c.get("distance") or 0.0)) / max(src_dist, float(c.get("distance") or 1.0))
+            proximity_score = max(0.0, 1.0 - (endpoint_err / 2000.0))  # within 2 km
+            similarity = round(0.5 * dist_ratio + 0.5 * proximity_score, 2)
+
+            if similarity >= 0.65:
+                matches.append({
+                    "activity_id": cid,
+                    "name": c.get("name") or "Unnamed",
+                    "start_date": str(c.get("start_date") or ""),
+                    "distance_km": round(float(c.get("distance") or 0.0) / 1000.0, 2),
+                    "similarity_score": similarity,
+                    "direction": direction,
+                })
+
+        matches.sort(key=lambda x: x["similarity_score"], reverse=True)
+        return create_envelope({"candidates": matches[:max_candidates]}, source="calculated")
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Route similarity search failed: {e}")
+
+
+def kinetiqo_compare_route_attempts(
+    repo: Any,
+    source_activity_id: str,
+    target_activity_id: str,
+) -> Dict[str, Any]:
+    """Compare performance across attempts on the same route."""
+    try:
+        acts = repo.get_activities_by_ids([str(source_activity_id), str(target_activity_id)])
+        if len(acts) < 2:
+            return create_error_envelope(ERROR_NOT_FOUND, "One or both activities could not be found")
+
+        act_map = {str(a.get("activity_id") or a.get("id")): a for a in acts}
+        src = act_map[str(source_activity_id)]
+        tgt = act_map[str(target_activity_id)]
+
+        src_mov = int(src.get("moving_time") or 0)
+        tgt_mov = int(tgt.get("moving_time") or 0)
+        time_diff = tgt_mov - src_mov
+
+        src_w = float(src.get("average_watts") or 0.0)
+        tgt_w = float(tgt.get("average_watts") or 0.0)
+
+        src_hr = float(src.get("average_heartrate") or 0.0)
+        tgt_hr = float(tgt.get("average_heartrate") or 0.0)
+
+        data = {
+            "source_activity": {
+                "activity_id": str(source_activity_id),
+                "name": src.get("name"),
+                "date": str(src.get("start_date")),
+                "moving_time_s": src_mov,
+                "average_watts": src_w if src_w > 0 else None,
+                "average_heartrate": src_hr if src_hr > 0 else None,
+            },
+            "target_activity": {
+                "activity_id": str(target_activity_id),
+                "name": tgt.get("name"),
+                "date": str(tgt.get("start_date")),
+                "moving_time_s": tgt_mov,
+                "average_watts": tgt_w if tgt_w > 0 else None,
+                "average_heartrate": tgt_hr if tgt_hr > 0 else None,
+            },
+            "comparison": {
+                "time_delta_s": time_diff,
+                "power_delta_w": round(tgt_w - src_w, 1) if (tgt_w > 0 and src_w > 0) else None,
+                "heartrate_delta_bpm": round(tgt_hr - src_hr, 1) if (tgt_hr > 0 and src_hr > 0) else None,
+            },
+        }
+        return create_envelope(data, source="calculated")
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed comparing route attempts: {e}")
+
+
+def _haversine_dist(p1: List[float], p2: List[float]) -> float:
+    """Compute distance in meters between two [lat, lng] coordinates."""
+    r = 6371000.0  # Earth radius in meters
+    lat1, lon1 = math.radians(p1[0]), math.radians(p1[1])
+    lat2, lon2 = math.radians(p2[0]), math.radians(p2[1])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat / 2.0) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2.0) ** 2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return r * c

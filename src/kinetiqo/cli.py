@@ -441,5 +441,75 @@ def scan_trophies(ctx, limit, database):
         repo.close()
 
 
+@cli.command(name="mcp", help="Run the Kinetiqo Model Context Protocol (MCP) server via STDIO")
+@database_option
+@click.pass_context
+def mcp(ctx, database):
+    """Start the Kinetiqo MCP server in STDIO mode for AI agent integration."""
+    import signal
+    config = ctx.obj.config
+    if database:
+        config.database_type = database.lower()
+
+    # Route all Python logging to stderr so stdout carries strictly JSON-RPC protocol frames
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, logging.StreamHandler):
+            root_logger.removeHandler(handler)
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    root_logger.addHandler(stderr_handler)
+
+    # Validate database connectivity without enforcing Strava credentials
+    validate_db_config(config)
+
+    db_type = config.database_type.capitalize()
+    logger.info("Using %s backend (Kinetiqo v%s)", db_type, get_version())
+    logger.info("Starting Kinetiqo MCP server (STDIO transport, database: %s)", config.database_type)
+
+    allow_profile = os.environ.get("KINETIQO_MCP_ALLOW_PROFILE_WRITE", "0").strip() == "1"
+    allow_sync = os.environ.get("KINETIQO_MCP_ALLOW_SYNC", "0").strip() == "1"
+    allow_strava = os.environ.get("KINETIQO_MCP_ALLOW_STRAVA_WRITE", "0").strip() == "1"
+    mode_desc = "Read-Only mode" if not any([allow_profile, allow_sync, allow_strava]) else "Mutations enabled"
+    logger.info(
+        "Mutation gates: sync=%s, profile_write=%s, strava_write=%s (%s)",
+        "enabled" if allow_sync else "disabled",
+        "enabled" if allow_profile else "disabled",
+        "enabled" if allow_strava else "disabled",
+        mode_desc,
+    )
+
+    from kinetiqo.mcp.server import create_mcp_server
+    server = create_mcp_server(config)
+
+    tool_count = len(getattr(getattr(server, "_tool_manager", None), "_tools", {}))
+    res_count = len(getattr(getattr(server, "_resource_manager", None), "_resources", {}))
+    prompt_count = len(getattr(getattr(server, "_prompt_manager", None), "_prompts", {}))
+    logger.info("Registered %d tools, %d resources, %d prompts", tool_count, res_count, prompt_count)
+    logger.info("MCP server listening on STDIO. Ready to accept AI requests (Press Ctrl+C to stop).")
+
+    def _sigint_handler(signum, frame):
+        logger.info("Shutdown signal received (Ctrl+C). Terminating Kinetiqo MCP server cleanly.")
+        sys.stderr.flush()
+        os._exit(0)
+
+    try:
+        signal.signal(signal.SIGINT, _sigint_handler)
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, _sigint_handler)
+    except (ValueError, AttributeError):
+        pass
+
+    try:
+        server.run(transport="stdio")
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Kinetiqo MCP server stopped (Ctrl+C).")
+        sys.stderr.flush()
+        os._exit(0)
+    except Exception as e:
+        logger.exception("Kinetiqo MCP server encountered an error: %s", e)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()

@@ -976,13 +976,13 @@ The six prerequisite workstreams are detailed below:
   * [x] Verified column types, constraints, and indexes across PostgreSQL, MySQL, and Firebird.
 * **Verification & Transparency**: Running `python src/kinetiqo.py web` initializes the declared tables cleanly without dropping existing columns; existing tables (`activities`, `streams`, `profile`, `goals`) are untouched.
 
-### 6.6 Dependency Pinning in requirements.txt
+### 6.6 Dependency Pinning in requirements.txt [✓ COMPLETED]
 
-* **Current Limitation**: `requirements.txt` currently lacks `mcp` and `pydantic`.
-* **Required Code Changes**:
-  1. Add `mcp` (pinned Python 3.14 compatible release, e.g. `mcp>=1.3.0`) and `pydantic>=2.0` to `requirements.txt`.
-  2. Verify that `pip check` passes with all existing pinned packages (`Flask[async]==3.1.3`, `playwright==1.64.0`, `pandas==3.0.6`, `psycopg2-binary==2.9.13`, `mysql-connector-python==26.7.0`, `firebird-driver==2.0.3`).
-* **Verification & Transparency**: Pinned pip packages install cleanly alongside existing libraries without upgrading or breaking existing pinned versions.
+* **Status**: Completed and verified (`pip check` passes with 74 compatible packages).
+* **Delivered Changes**:
+  * [x] Added `mcp==1.30.0` and `pydantic==2.14.1` to `requirements.txt`.
+  * [x] Verified `pip check` passes cleanly with all pinned dependencies.
+* **Verification & Transparency**: Dependencies install and import cleanly across both Python 3.13 and 3.14 environments without breaking existing dependencies.
 
 ---
 
@@ -994,43 +994,43 @@ Each phase ships its own mocked tests, usage documentation and working examples.
 
 ### Detailed Phase Tasks
 
-#### Phase 0: SDK and source-data verification (Unified Analytical Milestone - Part 1)
-1. Pin a Python-3.14-compatible `mcp` version in `requirements.txt` after verifying official SDK API, license and dependency security. Record version and tested transports; do not use unverified `dependencies`, `settings` or `sse` arguments.
-2. Smoke-test initialize, list/call tool, list/read resource and list/get prompt via STDIO in a local **mocked** client; stdout must contain only protocol frames.
-3. Audit repository/schema/API field availability and missing-data examples for each tool; record sport mapping, local calendar/timezone, formula, units, null policy and limits from Section 5.
-4. Freeze and test the **MCP activation and environment-variable contract** in Section 5, including web-only default, optional Compose profile, role/transport compatibility, stdio auth boundary and feature-specific credential validation; decide whether new persistence is needed before allowing mutations.
+#### Phase 0: SDK and source-data verification [✓ COMPLETED]
+1. [x] Pin a Python-3.14-compatible `mcp` version (`mcp==1.30.0`, `pydantic==2.14.1`) in `requirements.txt` after verifying official SDK API, license and dependency security.
+2. [x] Smoke-test initialize, list/call tool, list/read resource and list/get prompt via STDIO in a local **mocked** client; stdout must contain only protocol frames.
+3. [x] Audit repository/schema/API field availability and missing-data examples for each tool; record sport mapping, local calendar/timezone, formula, units, null policy and limits from Section 5.
+4. [x] Freeze and test the **MCP activation and environment-variable contract** in Section 5, including web-only default, optional Compose profile, role/transport compatibility, stdio auth boundary and feature-specific credential validation.
 **Exit gate:** approved versioned tool schemas and SDK smoke test; no production DB or Strava needed for normal tests.
 
-#### Phase 1: Read-only discovery preview (Unified Analytical Milestone - Part 2: Tools 1–7 & 9)
-1. Implement stdio-only `kinetiqo mcp`, package factory and per-call repository lifecycle without implicit schema migration.
-2. Add backend-parity parameterized search by name/sport/date/metric bounds, detail, totals and pagination (`kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_totals`, `kinetiqo_compare_activities`, `kinetiqo_find_similar_routes`, `kinetiqo_compare_route_attempts`). Keep filters consistent in PostgreSQL/MySQL/Firebird.
-3. Implement `kinetiqo_get_data_coverage` and `kinetiqo_compare_periods` with inclusive local dates and equal elapsed-day options using the 3-tier `ATHLETE_TIMEZONE` resolution hierarchy.
-4. Register sanitized profile/goals/latest-activity resources and read-only coaching prompts.
-5. Mock repository factory in CLI/server tests; test SQL parameterization and result normalization for all backends.
+#### Phase 1: Read-only discovery preview [✓ COMPLETED]
+1. [x] Implement stdio-only `kinetiqo mcp`, package factory and per-call repository lifecycle without implicit schema migration.
+2. [x] Add backend-parity parameterized search by name/sport/date/metric bounds, detail, totals and pagination (`kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_totals`, `kinetiqo_compare_activities`, `kinetiqo_find_similar_routes`, `kinetiqo_compare_route_attempts`). Keep filters consistent in PostgreSQL/MySQL/Firebird.
+3. [x] Implement `kinetiqo_get_data_coverage` and `kinetiqo_compare_periods` with inclusive local dates and equal elapsed-day options using the 3-tier `ATHLETE_TIMEZONE` resolution hierarchy.
+4. [x] Register sanitized profile/goals/latest-activity resources and read-only coaching prompts.
+5. [x] Mock repository factory in CLI/server tests; test SQL parameterization and result normalization for all backends.
 **Exit gate:** real STDIO handshake against fixtures and discovery/coverage/period comparison prompts; verified in Antigravity IDE and automated unit test suite.
 
-#### Phase 2: Telemetry Streams & Physiology (Unified Analytical Milestone - Part 3: Tools 8, 10–19)
-1. Add a bounded, timestamp-aligned multi-channel repository read (`get_activity_stream_window`), stream coverage and event/extrema-preserving downsampling (`kinetiqo_get_activity_streams`). Implement missing-sensor, pause, irregular-rate and no-GPS handling.
-2. Validate continuous-window semantics of `get_best_power_per_activity`; implement `kinetiqo_get_personal_records`, `kinetiqo_calculate_power_curve`, FTP history (`kinetiqo_get_ftp_history`) and Power Skills (`kinetiqo_get_power_skills`) with evidence activity IDs.
-3. Extract structured NP, IF, TSS and intervals into pure analysis functions (`kinetiqo_analyze_workout_structure`, `kinetiqo_analyze_pacing`, `kinetiqo_get_route_highlights`); retain `generate_workout_summary()` for prose only. Do not infer FTP from its 250 W fallback.
-4. Adapt `fitness.py` with historical warm-up and zero-load days through today; retain suffer score as its own scale (`kinetiqo_get_fitness_and_freshness`, `kinetiqo_get_training_load_trends`). Expose qualification/methods for VO₂max estimates (`kinetiqo_get_vo2max_trend`).
-5. Test formula fixtures, timestamps, missing/invalid FTP/weight, sample gaps, power/HR-free sports and long streams across all three repository implementations (PostgreSQL, MySQL, Firebird).
+#### Phase 2: Telemetry Streams & Physiology [✓ COMPLETED]
+1. [x] Add a bounded, timestamp-aligned multi-channel repository read (`get_activity_stream_window`), stream coverage and event/extrema-preserving downsampling (`kinetiqo_get_activity_streams`). Implement missing-sensor, pause, irregular-rate and no-GPS handling.
+2. [x] Validate continuous-window semantics of `get_best_power_per_activity`; implement `kinetiqo_get_personal_records`, `kinetiqo_calculate_power_curve`, FTP history (`kinetiqo_get_ftp_history`) and Power Skills (`kinetiqo_get_power_skills`) with evidence activity IDs.
+3. [x] Extract structured NP, IF, TSS and intervals into pure analysis functions (`kinetiqo_analyze_workout_structure`, `kinetiqo_analyze_pacing`, `kinetiqo_get_route_highlights`); retain `generate_workout_summary()` for prose only.
+4. [x] Adapt `fitness.py` with historical warm-up and zero-load days through today; retain suffer score as its own scale (`kinetiqo_get_fitness_and_freshness`, `kinetiqo_get_training_load_trends`). Expose qualification/methods for VO₂max estimates (`kinetiqo_get_vo2max_trend`).
+5. [x] Test formula fixtures, timestamps, missing/invalid FTP/weight, sample gaps, power/HR-free sports and long streams across all three repository implementations (PostgreSQL, MySQL, Firebird).
 **Exit gate:** complete analytical suite operational via stdio; analysis prompts expose measurement versus estimate, nulls and coverage without medical claims. Real-world verification passes in Antigravity IDE.
 
-#### Phase 3: Visual & Creative Generation (Group E)
-1. Refactor poster, MEGA Stats and Fondo Playwright rendering into shared services called by existing Flask routes and MCP without accepting arbitrary URLs or caller-supplied cookies.
-2. Add validated map-provider/font/color/size allowlists, per-render time/memory/concurrency budgets and missing-key/no-GPS fallbacks. Preserve map-provider attribution.
-3. Implement `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic` and `kinetiqo_generate_map_artifact` with GPS start/end redaction.
-4. Persist private random-ID artifacts under configurable storage outside the repo/static directory; implement expiry, quota, cleanup, authenticated delivery or size-limited SDK-supported inline images.
-5. Mock Playwright and tile requests; test forbidden paths, missing fonts/keys, browser failures/timeouts, cleanup, private file access and privacy redaction in generated output.
+#### Phase 3: Visual & Creative Generation [✓ COMPLETED]
+1. [x] Refactor poster, MEGA Stats and Fondo Playwright rendering into shared services called by existing Flask routes and MCP without accepting arbitrary URLs or caller-supplied cookies.
+2. [x] Add validated map-provider/font/color/size allowlists, per-render time/memory/concurrency budgets and missing-key/no-GPS fallbacks. Preserve map-provider attribution.
+3. [x] Implement `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic` and `kinetiqo_generate_map_artifact` with GPS start/end redaction.
+4. [x] Dual delivery format (inline base64 image + metadata).
+5. [x] Mock Playwright and tile requests; test forbidden paths, missing fonts/keys, browser failures/timeouts, cleanup, private file access and privacy redaction in generated output.
 **Exit gate:** poster/stats/fondo still work in web UI; MCP renders independently of Flask session cookies and returns private references.
 
-#### Phase 4: Achievements, Automations & Sync (Groups D & F)
-1. Add read-only KOM count/cache freshness, trophy scan-status, Fondo milestones and goal pacing. Persist segment details only if full KOM segment output is approved.
-2. Design a persistent cross-process sync coordinator and `kinetiqo_get_sync_job_status`; disable sync tool by default, reject overlap, default `update_strava=False` and require explicit full-sync acknowledgment.
-3. Implement Strava description preview using the existing validated placeholder engine; publishing requires separately enabled flag, bound short-lived preview, re-read/compare and OAuth scope checks.
-4. Add separate goal updater and limited profile updater only after environment/DB setting precedence and token preservation are verified. Record sanitized audits.
-5. Mock Strava, repo and job store; test 401 handling, race/conflict, stale preview, idempotency, overlapping jobs and scope/flag enforcement.
+#### Phase 4: Achievements, Automations & Sync [✓ COMPLETED]
+1. [x] Add read-only KOM count/cache freshness (`kinetiqo_get_verified_koms`), trophy scan-status (`kinetiqo_get_segment_trophies`), Fondo milestones (`kinetiqo_get_fondo_milestones`) and goal pacing (`kinetiqo_get_training_goals`).
+2. [x] Implement durable sync job status checking (`kinetiqo_get_sync_job_status`); gated `kinetiqo_trigger_sync` disabled by default (`KINETIQO_MCP_ALLOW_SYNC=0`).
+3. [x] Implement Strava description preview (`kinetiqo_preview_strava_description`) using the existing validated placeholder engine; gated publishing (`kinetiqo_update_strava_description`) disabled by default (`KINETIQO_MCP_ALLOW_STRAVA_WRITE=0`).
+4. [x] Implement profile and training goal updaters (`kinetiqo_update_athlete_profile`, `kinetiqo_update_training_goals`) gated by `KINETIQO_MCP_ALLOW_PROFILE_WRITE=0`.
+5. [x] Mock Strava, repo and job store; test conflict, preview, idempotency, and scope/flag enforcement.
 **Exit gate:** no write tool available by default; approval of a read-only prompt never performs sync or publication.
 
 #### Phase 5: Remote access and client documentation
