@@ -8,10 +8,10 @@ With Kinetiqo MCP, your AI assistant transforms into an evidence-based personal 
 
 ## 1. Why Use Kinetiqo with MCP?
 
-- 🔒 **Privacy-First & Local**: Your raw sensor streams, GPS coordinates, and heart rates remain completely on your machine. AI assistants query your local SQLite/PostgreSQL/MySQL/Firebird database through standard STDIO JSON-RPC frames.
+- 🔒 **Privacy-First & Local**: Your raw sensor streams, GPS coordinates, and heart rates remain completely on your machine. AI assistants query your local PostgreSQL/MySQL/Firebird database through standard STDIO JSON-RPC frames.
 - ⚡ **Zero Cloud Leak**: No third-party servers or fitness aggregators sit between your AI and your data.
 - 🛡️ **Read-Only by Default**: The MCP server is strictly read-only out of the box. Mutating actions (triggering syncs, editing athlete FTP, publishing Strava descriptions) are completely hidden from the AI tool catalog unless explicitly enabled by you.
-- 📊 **33 Evidence-Based Tools**: Comprehensive access to historical workouts, continuous Mean Maximal Power (MMP), Normalized Power (NP), aerobic decoupling, suffer-score fitness (CTL/ATL/TSB), and Playwright visual poster exports.
+- 📊 **35 Evidence-Based Tools**: Comprehensive access to historical workouts, continuous Mean Maximal Power (MMP), Normalized Power (NP), aerobic decoupling, suffer-score fitness (CTL/ATL/TSB), weekly power profiles, recovery turnaround, and Playwright visual poster exports.
 
 ---
 
@@ -48,7 +48,7 @@ Open `http://localhost:5173` in your browser, click **Connect**, select any tool
 Run the dedicated isolated unit test suite covering contracts, tools, and server security:
 
 ```bash
-python -m pytest -o pythonpath=src tests/test_mcp_contracts.py tests/test_mcp_tools.py tests/test_mcp_server.py -v
+python -m pytest -o pythonpath=src tests/test_mcp_contracts.py tests/test_mcp_tools.py tests/test_mcp_server.py tests/test_cli_mcp.py tests/test_mcp_sse.py -v
 ```
 
 ---
@@ -164,6 +164,162 @@ openclaw mcp doctor kinetiqo --probe
 
 ---
 
+### 5. Running via Docker (Web UI + Concurrent MCP SSE Server)
+
+Kinetiqo publishes two official Docker variants:
+- **`kinetiqo/web:latest` (Standalone)**: Runs the Web Dashboard on port `4444` and the background Cron sync daemon. MCP is disabled by default (`ENABLE_MCP=0`).
+- **`kinetiqo/web-mcp:latest` (Kinetiqo + MCP)**: Runs the Web Dashboard on port `4444`, the Cron sync daemon, and the **FastMCP SSE Server on standard port `8000`** in parallel (`ENABLE_MCP=1`).
+
+Both variants include full system Chromium and Playwright, supporting all 35 MCP tools including Group E visual poster and infographic exports.
+
+#### A. Docker Run with Embedded FastMCP (All Options)
+
+```bash
+docker run -d \
+  --name kinetiqo \
+  --restart unless-stopped \
+  -p 4444:4444 \
+  -p 8000:8000 \
+  -e ENABLE_MCP=1 \
+  -e MCP_PORT=8000 \
+  -e MCP_HOST="0.0.0.0" \
+  -e MCP_TRANSPORT="sse" \
+  -e KINETIQO_MCP_ALLOW_SYNC=0 \
+  -e KINETIQO_MCP_ALLOW_PROFILE_WRITE=0 \
+  -e KINETIQO_MCP_ALLOW_STRAVA_WRITE=0 \
+  -e STRAVA_CLIENT_ID="your_strava_client_id" \
+  -e STRAVA_CLIENT_SECRET="your_strava_client_secret" \
+  -e STRAVA_REFRESH_TOKEN="your_strava_refresh_token" \
+  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
+  -e KINETIQO_PRODUCTION=1 \
+  -e WEB_LOGIN="admin" \
+  -e WEB_PASSWORD="securepassword13" \
+  -e DATABASE_TYPE="postgresql" \
+  -e POSTGRESQL_HOST="host.docker.internal" \
+  -e POSTGRESQL_PORT=5432 \
+  -e POSTGRESQL_USER="postgres" \
+  -e POSTGRESQL_PASSWORD="your_database_password" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e POSTGRESQL_SSL_MODE="disable" \
+  -e FAST_SYNC="*/15 * * * *" \
+  -e FULL_SYNC="0 3 * * *" \
+  -e ATHLETE_WEIGHT="75" \
+  -e DATE_FORMAT="%b %d, %Y" \
+  -e GPS_SIMPLIFICATION="0" \
+  -e LOG_LEVEL="INFO" \
+  -e MAPY_API_KEY="" \
+  -e THUNDERFOREST_API_KEY="" \
+  -e MAPTILER_API_KEY="" \
+  -e GEOAPIFY_API_KEY="" \
+  -e CARTO_API_KEY="" \
+  -e UPDATE_STRAVA_PLACEMENT="end" \
+  -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
+  kinetiqo/web-mcp:latest
+```
+
+- Web UI: **http://localhost:4444**
+- FastMCP SSE Endpoint: **http://localhost:8000/sse**
+
+#### B. Docker Compose with Embedded FastMCP (All Options)
+
+**`docker-compose.yml`:**
+```yaml
+services:
+  kinetiqo:
+    image: kinetiqo/web-mcp:latest
+    container_name: kinetiqo
+    restart: unless-stopped
+    ports:
+      - "4444:4444"   # Web UI
+      - "8000:8000"   # FastMCP SSE
+    env_file:
+      - .env
+    environment:
+      - ENABLE_MCP=1
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+      - MCP_TRANSPORT=sse
+      - KINETIQO_MCP_ALLOW_SYNC=${KINETIQO_MCP_ALLOW_SYNC:-0}
+      - KINETIQO_MCP_ALLOW_PROFILE_WRITE=${KINETIQO_MCP_ALLOW_PROFILE_WRITE:-0}
+      - KINETIQO_MCP_ALLOW_STRAVA_WRITE=${KINETIQO_MCP_ALLOW_STRAVA_WRITE:-0}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
+  postgresql:
+    image: postgres:16-alpine
+    container_name: postgresql
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRESQL_PASSWORD}
+      - POSTGRES_DB=kinetiqo
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kinetiqo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    depends_on:
+      - postgresql
+
+volumes:
+  postgresql_data:
+```
+
+#### Method A: Connect via FastMCP SSE URL (Recommended)
+
+When Kinetiqo is running as a Docker daemon on your computer or local network, configure Claude Desktop, Cursor, or Antigravity IDE with the direct SSE URL:
+
+```json
+{
+  "mcpServers": {
+    "kinetiqo": {
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```
+
+#### Method B: Ephemeral Execution via STDIO
+
+If you prefer to run an on-demand container without keeping Kinetiqo running as a persistent daemon:
+
+```json
+{
+  "mcpServers": {
+    "kinetiqo": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "DATABASE_TYPE=postgresql",
+        "-e", "POSTGRESQL_HOST=host.docker.internal",
+        "-e", "POSTGRESQL_PORT=5432",
+        "-e", "POSTGRESQL_USER=postgres",
+        "-e", "POSTGRESQL_PASSWORD=your_password",
+        "-e", "POSTGRESQL_DATABASE=kinetiqo",
+        "kinetiqo/web-mcp:latest",
+        "python", "kinetiqo.py", "mcp"
+      ]
+    }
+  }
+}
+```
+
+---
+
 ## 4. What Can You Ask Your AI? (Real-World Examples)
 
 Once connected, your AI assistant automatically discovers Kinetiqo's tools. Here are example conversations you can start:
@@ -192,6 +348,14 @@ Once connected, your AI assistant automatically discovers Kinetiqo's tools. Here
 > **You:** *"Generate a minimalist art poster of my latest 120km ride with an elevation profile and OpenCycleMap basemap."*
 - **What the AI does:** Executes `kinetiqo_generate_activity_poster` with your desired aspect ratio, basemap, and color theme, returning the rendered image artifact.
 
+### G. Weekly Volume, Habits & Best Power Weeks
+> **You:** *"What was my best week of 2026 in terms of power output, and what does my usual week look like for kilometers and climbing?"*
+- **What the AI does:** Calls `kinetiqo_get_weekly_training_profile` with `year=2026`, returning the peak week by average watts and total kilojoules (kJ), alongside your typical weekly median distance, elevation gain, and day-of-week ride distribution.
+
+### H. 100km+ Endurance Recovery Turnaround
+> **You:** *"What is my usual recovery time after doing a 100km+ ride?"*
+- **What the AI does:** Calls `kinetiqo_analyze_recovery_turnaround` with `min_distance_km=100.0`, calculating the median rest days taken before your next workout, and how many days it typically takes for your Training Stress Balance (TSB Form) to rebound to fresh baseline.
+
 ---
 
 ## 5. Pre-Packaged Coaching Prompts
@@ -201,6 +365,10 @@ Kinetiqo includes pre-configured coaching workflows that you can invoke directly
 1. **`post_ride_debrief`**: A structured post-workout session debrief. Checks sensor coverage, evaluates Normalized Power and intensity factor, reviews heart-rate decoupling, checks freshness fatigue, and offers to render an activity art poster.
 2. **`race_readiness_assessment`**: An objective readiness check prior to an upcoming target event. Evaluates your current TSB form, acute:chronic workload ratio, and 5-minute / 20-minute power breakthroughs.
 3. **`poster_creative_director`**: Recommends typography, aspect ratios, and map tile layers (Mapy.cz Outdoor, Thunderforest, CARTO Dark Matter) to best showcase an epic route.
+4. **`weekly_training_review`**: Multi-week review of training volume (km, elevation), mechanical work (kJ, average watts, NP), goal pacing, and Acute:Chronic Workload Ratio (ACWR).
+5. **`endurance_recovery_advisor`**: Deep recovery analysis following 100km+ rides, evaluating your median turnaround rest days, days until your next hard ride, and TSB form rebound duration.
+6. **`season_power_audit`**: Comprehensive performance review tracking your standout power week of the year, Mean Maximal Power (MMP) curve, FTP breakthrough history, and benchmark PRs.
+7. **`training_habit_and_volume_profile`**: Behavioral audit of typical weekly kilometers, elevation gain, ride frequency, and preferred days of the week (Monday through Sunday).
 
 ---
 

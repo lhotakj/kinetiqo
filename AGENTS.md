@@ -20,6 +20,7 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, background photo mode (with clear image option) or interactive Leaflet map mode (tile provider selection, map opacity control, route line color/opacity/weight), collapsible control boxes with element checkboxes, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), configurable placement (`begin`/`end`), workout summary with power zones / NP (% FTP), sustained blocks, and high-power sprint peak surge detection (`≥ 1000W` adjectives).
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
+- **Model Context Protocol (MCP) Server**: FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO or FastMCP SSE over HTTP (`0.0.0.0:8000/sse`). Exposes 35 evidence-based tools across activity discovery, telemetry streams, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact exports, with strictly gated mutation flags (`KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`).
 - **Security & Performance**: Session auth (`flask-login`), CSRF validation (`flask-wtf`), response compression (`flask-compress`), self-hosted base fonts, and compiled Tailwind CSS.
 
 ---
@@ -56,7 +57,8 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
-| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
+| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`, `mcp`, `scan-trophies`, `version`) |
+| AI & MCP Protocol | **FastMCP** (`mcp[cli]`) | ≥1.2.0 | FastMCP server for AI agent integration (STDIO & SSE) |
 | Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 26.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
 | Data Processing | **pandas** | 3.0.6 | CTL/ATL/TSB calculation |

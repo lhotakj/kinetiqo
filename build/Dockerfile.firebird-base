@@ -9,7 +9,7 @@
 # the base is rebuilt — not on every application build.  Playwright is
 # configured via ENV to use this system binary instead of downloading its own.
 #
-# Published to Docker Hub as: lhotakj/firebird-python:<python_version>
+# Published to Docker Hub as: kinetiqo/firebird-python:<python_version>
 # =============================================================================
 
 ARG PYTHON_VERSION=3.14

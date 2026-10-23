@@ -82,7 +82,7 @@ class TestMCPServer(unittest.TestCase):
 
         # Test tools discovery
         tools = asyncio.run(server.list_tools())
-        self.assertEqual(len(tools), 29)
+        self.assertEqual(len(tools), 31)
         for tool in tools:
             self.assertTrue(tool.name.startswith("kinetiqo_"))
             self.assertTrue(len(tool.description) > 0)
@@ -102,12 +102,23 @@ class TestMCPServer(unittest.TestCase):
 
         # Test prompts discovery
         prompts = asyncio.run(server.list_prompts())
-        self.assertEqual(len(prompts), 3)
+        self.assertEqual(len(prompts), 7)
         prompt_names = {p.name for p in prompts}
-        self.assertEqual(prompt_names, {"post_ride_debrief", "race_readiness_assessment", "poster_creative_director"})
+        self.assertEqual(
+            prompt_names,
+            {
+                "post_ride_debrief",
+                "race_readiness_assessment",
+                "poster_creative_director",
+                "weekly_training_review",
+                "endurance_recovery_advisor",
+                "season_power_audit",
+                "training_habit_and_volume_profile",
+            },
+        )
 
     def test_mcp_server_fast_smoke_listing_with_mutations(self):
-        """Fast smoke test with mutation gates enabled verifying all 33 tools are registered."""
+        """Fast smoke test with mutation gates enabled verifying all 35 tools are registered."""
         import asyncio
         env_patch = {
             "KINETIQO_MCP_ALLOW_PROFILE_WRITE": "1",
@@ -117,12 +128,14 @@ class TestMCPServer(unittest.TestCase):
         with patch.dict(os.environ, env_patch, clear=False):
             server = create_mcp_server(self.mock_config, repo_factory=lambda: self.mock_repo)
             tools = asyncio.run(server.list_tools())
-            self.assertEqual(len(tools), 33)
+            self.assertEqual(len(tools), 35)
             tool_names = {t.name for t in tools}
             self.assertIn("kinetiqo_trigger_sync", tool_names)
             self.assertIn("kinetiqo_update_strava_description", tool_names)
             self.assertIn("kinetiqo_update_athlete_profile", tool_names)
             self.assertIn("kinetiqo_update_training_goals", tool_names)
+            self.assertIn("kinetiqo_get_weekly_training_profile", tool_names)
+            self.assertIn("kinetiqo_analyze_recovery_turnaround", tool_names)
 
     def test_mcp_server_call_tool_execution(self):
         """Smoke test executing a tool through FastMCP call_tool and parsing response envelope."""

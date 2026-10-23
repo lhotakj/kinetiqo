@@ -16,6 +16,15 @@ from kinetiqo.web.renderers.stats_renderer import render_stats_artifact
 from kinetiqo.web.renderers.fondo_renderer import render_fondo_artifact
 
 
+def _format_generator_error(action: str, exc: Exception) -> Dict[str, Any]:
+    err_str = str(exc)
+    msg = f"Failed generating {action}: {err_str}"
+    lower = err_str.lower()
+    if "playwright" in lower or "chromium" in lower or "executable" in lower:
+        msg += ". Visual rendering requires Chromium and Playwright (available in the 'kinetiqo/web-mcp' Docker image)."
+    return create_error_envelope(ERROR_INVALID_ARGUMENT, msg)
+
+
 def kinetiqo_generate_activity_poster(
     repo: Any,
     config: Any,
@@ -50,7 +59,7 @@ def kinetiqo_generate_activity_poster(
         }
         return create_envelope(data, source="rendered")
     except Exception as e:
-        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed generating poster: {e}")
+        return _format_generator_error("poster", e)
 
 
 def kinetiqo_generate_mega_stats_infographic(
@@ -76,7 +85,7 @@ def kinetiqo_generate_mega_stats_infographic(
         }
         return create_envelope(data, source="rendered")
     except Exception as e:
-        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed generating MEGA stats: {e}")
+        return _format_generator_error("MEGA stats", e)
 
 
 def kinetiqo_generate_fondo_infographic(
@@ -102,7 +111,7 @@ def kinetiqo_generate_fondo_infographic(
         }
         return create_envelope(data, source="rendered")
     except Exception as e:
-        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed generating Fondo infographic: {e}")
+        return _format_generator_error("Fondo infographic", e)
 
 
 def kinetiqo_generate_map_artifact(

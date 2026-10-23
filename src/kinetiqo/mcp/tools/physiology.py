@@ -3,6 +3,7 @@
 from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List, Optional
 import math
+import statistics
 
 from kinetiqo.mcp.contracts import (
     create_envelope,
@@ -295,3 +296,332 @@ def kinetiqo_get_training_load_trends(repo: Any, weeks: int = 12) -> Dict[str, A
         return create_envelope(data, source="calculated")
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating training load trends: {e}")
+
+
+def _parse_activity_date(d_raw: Any) -> Optional[date]:
+    """Helper to parse activity date whether it is a datetime, date, or string."""
+    if isinstance(d_raw, datetime):
+        return d_raw.date()
+    if isinstance(d_raw, date):
+        return d_raw
+    if isinstance(d_raw, str) and len(d_raw) >= 10:
+        try:
+            return date.fromisoformat(d_raw[:10])
+        except Exception:
+            return None
+    return None
+
+
+def kinetiqo_get_weekly_training_profile(
+    repo: Any,
+    athlete_id: int = 1,
+    year: Optional[int] = None,
+    weeks: int = 12,
+    sport_types: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Compute multi-week training load profiles grouped by ISO calendar weeks, surfacing power, volume, and habits."""
+    try:
+        types = sport_types or ["Ride", "VirtualRide", "GravelRide"]
+        if year is not None:
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-12-31"
+        else:
+            lookback = max(1, min(weeks, 52))
+            end_date = date.today().isoformat()
+            start_date = (date.today() - timedelta(days=lookback * 7)).isoformat()
+
+        activities = repo.get_activities_web(
+            limit=5000,
+            offset=0,
+            types=types,
+            start_date=start_date,
+            end_date=end_date,
+            sort_by="start_date",
+            sort_order="ASC",
+        ) or []
+
+        weeks_map: Dict[str, Dict[str, Any]] = {}
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        day_counts = {day: 0 for day in day_names}
+
+        for a in activities:
+            d = _parse_activity_date(a.get("start_date"))
+            if not d:
+                continue
+
+            day_counts[day_names[d.weekday()]] += 1
+            iso_year, iso_week, _ = d.isocalendar()
+            week_key = f"{iso_year}-W{iso_week:02d}"
+
+            if week_key not in weeks_map:
+                try:
+                    w_mon = date.fromisocalendar(iso_year, iso_week, 1).isoformat()
+                    w_sun = date.fromisocalendar(iso_year, iso_week, 7).isoformat()
+                except Exception:
+                    w_mon = d.isoformat()
+                    w_sun = d.isoformat()
+
+                weeks_map[week_key] = {
+                    "week_key": week_key,
+                    "iso_year": iso_year,
+                    "iso_week": iso_week,
+                    "start_date": w_mon,
+                    "end_date": w_sun,
+                    "activity_count": 0,
+                    "distance_km": 0.0,
+                    "elevation_m": 0.0,
+                    "moving_time_s": 0.0,
+                    "moving_time_hours": 0.0,
+                    "kilojoules": 0.0,
+                    "power_time_s": 0.0,
+                    "power_work_sum": 0.0,
+                    "weighted_work_sum": 0.0,
+                    "average_watts": None,
+                    "weighted_average_watts": None,
+                }
+
+            w = weeks_map[week_key]
+            dist_m = float(a.get("distance") or 0.0)
+            elev_m = float(a.get("total_elevation_gain") or a.get("elevation_gain") or 0.0)
+            mov_s = float(a.get("moving_time") or 0.0)
+            avg_w = float(a["average_watts"]) if a.get("average_watts") is not None else None
+            weighted_w = float(a["weighted_average_watts"]) if a.get("weighted_average_watts") is not None else None
+            kj = float(a["kilojoules"]) if a.get("kilojoules") is not None else ((avg_w * mov_s / 1000.0) if avg_w and mov_s else 0.0)
+
+            w["activity_count"] += 1
+            w["distance_km"] += dist_m / 1000.0
+            w["elevation_m"] += elev_m
+            w["moving_time_s"] += mov_s
+            w["kilojoules"] += kj
+
+            if avg_w is not None and mov_s > 0:
+                w["power_time_s"] += mov_s
+                w["power_work_sum"] += avg_w * mov_s
+
+            if weighted_w is not None and mov_s > 0:
+                w["weighted_work_sum"] += weighted_w * mov_s
+
+        weekly_history = []
+        for w_key in sorted(weeks_map.keys()):
+            w = weeks_map[w_key]
+            w["distance_km"] = round(w["distance_km"], 1)
+            w["elevation_m"] = round(w["elevation_m"], 1)
+            w["moving_time_hours"] = round(w["moving_time_s"] / 3600.0, 2)
+            w["kilojoules"] = round(w["kilojoules"], 1)
+
+            if w["power_time_s"] > 0:
+                w["average_watts"] = round(w["power_work_sum"] / w["power_time_s"], 1)
+            if w["power_time_s"] > 0 and w["weighted_work_sum"] > 0:
+                w["weighted_average_watts"] = round(w["weighted_work_sum"] / w["power_time_s"], 1)
+
+            del w["moving_time_s"]
+            del w["power_time_s"]
+            del w["power_work_sum"]
+            del w["weighted_work_sum"]
+            weekly_history.append(w)
+
+        best_power_week = None
+        best_distance_week = None
+        best_elevation_week = None
+
+        if weekly_history:
+            power_candidates = [w for w in weekly_history if (w.get("kilojoules") or 0.0) > 0.0 or w.get("average_watts")]
+            if power_candidates:
+                best_power_week = max(power_candidates, key=lambda x: (x.get("kilojoules") or 0.0, x.get("average_watts") or 0.0))
+            best_distance_week = max(weekly_history, key=lambda x: x["distance_km"])
+            best_elevation_week = max(weekly_history, key=lambda x: x["elevation_m"])
+
+        total_activities = len(activities)
+        num_weeks = max(len(weekly_history), 1)
+
+        distances = [w["distance_km"] for w in weekly_history if w["distance_km"] > 0]
+        elevations = [w["elevation_m"] for w in weekly_history if w["elevation_m"] > 0]
+
+        median_dist = round(statistics.median(distances), 1) if distances else 0.0
+        mean_dist = round(sum(w["distance_km"] for w in weekly_history) / num_weeks, 1) if weekly_history else 0.0
+
+        median_elev = round(statistics.median(elevations), 1) if elevations else 0.0
+        mean_elev = round(sum(w["elevation_m"] for w in weekly_history) / num_weeks, 1) if weekly_history else 0.0
+
+        mean_hours = round(sum(w["moving_time_hours"] for w in weekly_history) / num_weeks, 2) if weekly_history else 0.0
+
+        day_pcts = {
+            day: {
+                "count": count,
+                "percentage": round((count / total_activities * 100.0), 1) if total_activities > 0 else 0.0,
+            }
+            for day, count in day_counts.items()
+        }
+
+        data = {
+            "period": {
+                "year": year,
+                "weeks_requested": weeks if year is None else len(weekly_history),
+                "evaluated_weeks_count": len(weekly_history),
+                "total_activities": total_activities,
+            },
+            "peak_weeks": {
+                "best_power_week": best_power_week,
+                "best_distance_week": best_distance_week,
+                "best_elevation_week": best_elevation_week,
+            },
+            "typical_week_profile": {
+                "median_weekly_distance_km": median_dist,
+                "mean_weekly_distance_km": mean_dist,
+                "median_weekly_elevation_m": median_elev,
+                "mean_weekly_elevation_m": mean_elev,
+                "mean_weekly_moving_time_hours": mean_hours,
+                "typical_rides_per_week": round(total_activities / num_weeks, 1),
+                "day_of_week_distribution": day_pcts,
+            },
+            "weekly_history": weekly_history,
+        }
+        return create_envelope(data, source="calculated")
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating weekly training profile: {e}")
+
+
+def kinetiqo_analyze_recovery_turnaround(
+    repo: Any,
+    min_distance_km: float = 100.0,
+    sport_group: str = "cycling",
+    lookback_days: int = 365,
+) -> Dict[str, Any]:
+    """Analyze athlete recovery turnaround time and TSB fatigue dissipation following endurance milestones."""
+    try:
+        types = ["Ride", "VirtualRide", "GravelRide"] if sport_group.lower().startswith("cycl") else ["Run", "Walk"]
+        start_date = (date.today() - timedelta(days=lookback_days)).isoformat()
+        end_date = date.today().isoformat()
+
+        activities = repo.get_activities_web(
+            limit=5000,
+            offset=0,
+            types=types,
+            start_date=start_date,
+            end_date=end_date,
+            sort_by="start_date",
+            sort_order="ASC",
+        ) or []
+
+        act_feed = []
+        for a in activities:
+            suffer = a.get("suffer_score")
+            d_raw = a.get("start_date")
+            d_str = d_raw.isoformat() if hasattr(d_raw, "isoformat") else str(d_raw or "")
+            if suffer is not None:
+                act_feed.append({"start_date": d_str, "suffer_score": suffer})
+
+        tsb_dates = []
+        tsb_form = []
+        try:
+            tsb_calc = calculate_ctl_atl_tsb(act_feed, period_days=lookback_days, warmup_days=42)
+            tsb_dates = tsb_calc.get("dates", [])
+            tsb_form = tsb_calc.get("form", [])
+        except Exception:
+            pass
+
+        date_to_tsb = {d: f for d, f in zip(tsb_dates, tsb_form)}
+
+        threshold_m = min_distance_km * 1000.0
+        milestones = []
+        all_act_by_date = []
+        for a in activities:
+            d = _parse_activity_date(a.get("start_date"))
+            if d:
+                all_act_by_date.append((d, a))
+
+        all_act_by_date.sort(key=lambda x: x[0])
+
+        rest_days_list = []
+        hard_days_list = []
+        tsb_rebound_list = []
+
+        for idx, (m_date, act) in enumerate(all_act_by_date):
+            dist_m = float(act.get("distance") or 0.0)
+            if dist_m < threshold_m:
+                continue
+
+            aid = str(act.get("activity_id") or act.get("id"))
+            mov_s = float(act.get("moving_time") or 0.0)
+            elev_m = float(act.get("total_elevation_gain") or act.get("elevation_gain") or 0.0)
+            suffer = int(act["suffer_score"]) if act.get("suffer_score") is not None else None
+
+            subsequent = [pair for pair in all_act_by_date[idx + 1:] if pair[0] > m_date]
+
+            days_to_next = None
+            next_act_name = None
+            if subsequent:
+                next_d, next_act = subsequent[0]
+                days_to_next = (next_d - m_date).days
+                next_act_name = next_act.get("name")
+                rest_days_list.append(days_to_next)
+
+            days_to_next_hard = None
+            subsequent_hard = [
+                pair for pair in subsequent
+                if (pair[1].get("suffer_score") or 0) >= 50
+                or (float(pair[1].get("distance") or 0.0) >= 50000.0)
+                or (float(pair[1].get("moving_time") or 0.0) >= 5400.0)
+            ]
+            if subsequent_hard:
+                hard_d, _ = subsequent_hard[0]
+                days_to_next_hard = (hard_d - m_date).days
+                hard_days_list.append(days_to_next_hard)
+
+            tsb_rebound = None
+            if date_to_tsb:
+                for check_day_offset in range(1, 21):
+                    check_d = (m_date + timedelta(days=check_day_offset)).isoformat()
+                    val = date_to_tsb.get(check_d)
+                    if val is not None and val >= 0.0:
+                        tsb_rebound = check_day_offset
+                        tsb_rebound_list.append(tsb_rebound)
+                        break
+
+            milestones.append({
+                "activity_id": aid,
+                "name": act.get("name") or "Endurance Milestone",
+                "date": m_date.isoformat(),
+                "distance_km": round(dist_m / 1000.0, 1),
+                "elevation_m": round(elev_m, 1),
+                "moving_time_hours": round(mov_s / 3600.0, 2),
+                "suffer_score": suffer,
+                "rest_days_until_next_activity": days_to_next,
+                "next_activity_name": next_act_name,
+                "days_until_next_hard_workout": days_to_next_hard,
+                "tsb_rebound_days": tsb_rebound,
+            })
+
+        med_rest = round(statistics.median(rest_days_list), 1) if rest_days_list else None
+        avg_rest = round(sum(rest_days_list) / len(rest_days_list), 1) if rest_days_list else None
+        med_hard = round(statistics.median(hard_days_list), 1) if hard_days_list else None
+        avg_tsb_rebound = round(sum(tsb_rebound_list) / len(tsb_rebound_list), 1) if tsb_rebound_list else None
+
+        if med_rest is not None:
+            guidance = f"Following a {min_distance_km:.0f}km+ ride, the athlete typically takes {med_rest} day(s) before training again"
+            if med_hard is not None:
+                guidance += f", and {med_hard} day(s) before attempting another hard or long workout."
+            else:
+                guidance += "."
+            if avg_tsb_rebound is not None:
+                guidance += f" Training Stress Balance (TSB Form) typically rebounds back to fresh within ~{avg_tsb_rebound:.0f} days."
+        else:
+            guidance = f"No subsequent activities found after qualifying {min_distance_km:.0f}km+ rides in the evaluated period."
+
+        data = {
+            "sport_group": sport_group,
+            "min_distance_km": min_distance_km,
+            "lookback_days": lookback_days,
+            "qualifying_milestone_count": len(milestones),
+            "turnaround_summary": {
+                "median_rest_days_until_next_activity": med_rest,
+                "average_rest_days_until_next_activity": avg_rest,
+                "median_days_until_next_hard_workout": med_hard,
+                "average_tsb_rebound_days": avg_tsb_rebound,
+                "guidance": guidance,
+            },
+            "milestones": milestones,
+        }
+        return create_envelope(data, source="calculated")
+    except Exception as e:
+        return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed analyzing recovery turnaround: {e}")

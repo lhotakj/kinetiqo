@@ -130,6 +130,85 @@ class TestMCPTools(unittest.TestCase):
         self.assertIsNotNone(res["data"]["coggan_ftp_vo2max"])
         self.assertEqual(len(res["data"]["recent_storer_davis_efforts"]), 1)
 
+    def test_get_weekly_training_profile(self):
+        self.mock_repo.get_activities_web.return_value = [
+            {
+                "activity_id": 101,
+                "name": "Tuesday Intervals",
+                "start_date": "2026-05-12T08:00:00Z",
+                "distance": 45000.0,
+                "moving_time": 4500,
+                "total_elevation_gain": 400.0,
+                "average_watts": 220.0,
+                "weighted_average_watts": 235.0,
+                "kilojoules": 990.0,
+            },
+            {
+                "activity_id": 102,
+                "name": "Saturday Long Ride",
+                "start_date": "2026-05-16T09:00:00Z",
+                "distance": 110000.0,
+                "moving_time": 12600,
+                "total_elevation_gain": 1200.0,
+                "average_watts": 195.0,
+                "weighted_average_watts": 210.0,
+                "kilojoules": 2450.0,
+            },
+        ]
+
+        res = physiology.kinetiqo_get_weekly_training_profile(self.mock_repo, athlete_id=1, year=2026)
+        self.assertEqual(res["data_status"], "complete")
+        self.assertEqual(res["data"]["period"]["total_activities"], 2)
+        history = res["data"]["weekly_history"]
+        self.assertEqual(len(history), 1)
+        w = history[0]
+        self.assertEqual(w["activity_count"], 2)
+        self.assertEqual(w["distance_km"], 155.0)
+        self.assertEqual(w["elevation_m"], 1600.0)
+        self.assertAlmostEqual(w["kilojoules"], 3440.0)
+        self.assertIsNotNone(w["average_watts"])
+        self.assertIsNotNone(res["data"]["peak_weeks"]["best_power_week"])
+        self.assertIn("day_of_week_distribution", res["data"]["typical_week_profile"])
+
+    def test_analyze_recovery_turnaround(self):
+        self.mock_repo.get_activities_web.return_value = [
+            {
+                "activity_id": 201,
+                "name": "Gran Fondo 120k",
+                "start_date": "2026-05-01T08:00:00Z",
+                "distance": 120000.0,
+                "moving_time": 14400,
+                "total_elevation_gain": 1500.0,
+                "suffer_score": 180,
+            },
+            {
+                "activity_id": 202,
+                "name": "Easy Recovery Spin",
+                "start_date": "2026-05-03T10:00:00Z",
+                "distance": 30000.0,
+                "moving_time": 3600,
+                "total_elevation_gain": 150.0,
+                "suffer_score": 25,
+            },
+            {
+                "activity_id": 203,
+                "name": "Threshold Repeats",
+                "start_date": "2026-05-05T08:00:00Z",
+                "distance": 55000.0,
+                "moving_time": 5500,
+                "total_elevation_gain": 600.0,
+                "suffer_score": 85,
+            },
+        ]
+
+        res = physiology.kinetiqo_analyze_recovery_turnaround(self.mock_repo, min_distance_km=100.0)
+        self.assertEqual(res["data_status"], "complete")
+        self.assertEqual(res["data"]["qualifying_milestone_count"], 1)
+        summary = res["data"]["turnaround_summary"]
+        self.assertEqual(summary["median_rest_days_until_next_activity"], 2.0)
+        self.assertEqual(summary["median_days_until_next_hard_workout"], 4.0)
+        self.assertIn("guidance", summary)
+
     # --- Group D: Achievements ---
     @patch("kinetiqo.mcp.tools.achievements.load_verified_koms")
     def test_get_verified_koms(self, mock_load_koms):
@@ -157,6 +236,14 @@ class TestMCPTools(unittest.TestCase):
         self.assertEqual(res["source"], "rendered")
         self.assertEqual(res["data"]["artifact_type"], "activity_poster")
         self.assertIn("inline_image_base64", res["data"])
+
+    @patch("kinetiqo.mcp.tools.generator.render_poster_artifact")
+    def test_generate_activity_poster_missing_playwright(self, mock_render):
+        mock_render.side_effect = RuntimeError("Playwright is not installed. Run: pip install playwright && playwright install chromium")
+        res = generator.kinetiqo_generate_activity_poster(self.mock_repo, self.mock_config, activity_id="12345")
+        self.assertEqual(res["data_status"], "unavailable")
+        self.assertIn("Playwright", res["data"]["message"])
+        self.assertIn("kinetiqo/web-mcp", res["data"]["message"])
 
     # --- Group F: Operations ---
     def test_operations_gating(self):

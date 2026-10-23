@@ -20,7 +20,6 @@ Remote Strava integrations are constrained by API access, permissions and provid
 3. **A guarded training assistant**: Optional, separately enabled syncs, goal changes and preview-bound Strava description publishing, never automatic writes from a read-only question.
 
 > **MCP on/off switch (proposed, not implemented yet):** Docker deployments run **web only by default**. To start a separate MCP server, include the planned `build/compose.mcp.yaml` overlay **and** enable Docker Compose's `mcp` profile with `COMPOSE_PROFILES=mcp` (or Compose's `--profile mcp` option). Neither the profile without the overlay nor the overlay without the profile starts MCP. Local desktop MCP is instead enabled by registering the `kinetiqo mcp` stdio command in the client. See **Minimal MCP activation and environment-variable contract** in Section 5 and the **future-user setup guide** in Section 8 for required settings, client attachment and troubleshooting. There is no separate application-level enable switch inside the web server.
-
 ### Athlete jobs to be done
 
 | Athlete question | Kinetiqo basis | MCP answer / dependency |
@@ -29,6 +28,8 @@ Remote Strava integrations are constrained by API access, permissions and provid
 | Did I improve compared with last month or season? | Activity metadata, FTP and Power Skills | Equal-period comparisons and qualifying source rides; add `kinetiqo_compare_periods` and personal records. |
 | How did today's session go? | Available power, HR and suffer score | Structured workout analysis with coverage warnings; IF/TSS/HR drift are new calculations. |
 | Am I ready for a race? | Suffer-score fitness trends and available power | Conditional training-load context, **not** a diagnosis, guaranteed race outcome or exact recovery prescription. |
+| What was my best week for power output, and what is my usual week? | Multi-week activity history, watts, kJ, elevation | Calendar-week rollups (`kinetiqo_get_weekly_training_profile`) highlighting peak power weeks and weekly volume/habit profiles. |
+| What is my usual recovery time after a 100km+ ride? | Fondo milestones, subsequent ride dates, TSB history | Post-milestone turnaround analysis (`kinetiqo_analyze_recovery_turnaround`) measuring rest days and TSB rebound. |
 | Where did I ride and where was I strongest? | GPS, altitude and power where recorded | Map artifact now; route matching/highlight analysis and privacy redaction require new work. |
 | What can I share? | Poster, MEGA Stats and Fondo-o-meter pages | Private artifact after extracting reusable renderers; protect home location and attribution. |
 | Can you update my Strava activity? | Existing template/Strava client | Read-only preview first, then separately enabled, conflict-checked publish. |
@@ -82,12 +83,12 @@ To deliver maximum utility without overwhelming LLM context windows, tools are c
 
 > **Dynamic Tool Registration for Gated Mutations**: Mutating tools (`kinetiqo_update_training_goals` [24], `kinetiqo_trigger_sync` [29], `kinetiqo_update_strava_description` [32], and `kinetiqo_update_athlete_profile` [33]) are **completely omitted from the MCP tool registry (`tools/list`)** when their respective gate flag (`KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`) is `0` or unset. This keeps the LLM context window lean and eliminates hallucinated tool calls. When enabled (`1`), call-time gate checks are also enforced as defense-in-depth.
 
-> **Unified Initial Analytical Release**: The implementation roadmap groups **Phases 0, 1, and 2** into a cohesive initial read-only analytical release (Tools 1–19), delivering full activity discovery, telemetry downsampling, power curves, personal records, and exercise physiology models (CTL/ATL/TSB, FTP history, VO₂max, Power Skills) together via local stdio before progressing to visual rendering and write automations.
+> **Unified Initial Analytical Release**: The implementation roadmap groups **Phases 0, 1, and 2** into a cohesive initial read-only analytical release (Tools 1–19, 34–35), delivering full activity discovery, telemetry downsampling, power curves, personal records, and exercise physiology models (CTL/ATL/TSB, FTP history, VO₂max, Power Skills, weekly profiles, recovery turnaround) together via local stdio before progressing to visual rendering and write automations.
 
-The table below provides the authoritative master index of all 33 Kinetiqo MCP tools, their functional grouping, target Python module in `src/kinetiqo/mcp/tools/`, delivery phase, priority, and mutation gating:
+The table below provides the authoritative master index of all 35 Kinetiqo MCP tools, their functional grouping, target Python module in `src/kinetiqo/mcp/tools/`, delivery phase, priority, and mutation gating:
 
 | # | Tool Name | Group | Target Module | Phase & Priority | Mutating? (Gate Flag) | Purpose Summary |
-| :- | :--- | :--- | :--- | :--- | :--- | :--- |
+| :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 1 | `kinetiqo_search_activities` | A: Discovery | `activities.py` | Phase 1 [P0 / MVP] | No (Read-Only) | Filter & search activities with metric bounds & keyset cursor |
 | 2 | `kinetiqo_get_activity_details` | A: Discovery | `activities.py` | Phase 1 [P0 / MVP] | No (Read-Only) | Detailed metadata & coverage flags for single activity |
 | 3 | `kinetiqo_get_activity_totals` | A: Discovery | `activities.py` | Phase 1 [P0 / MVP] | No (Read-Only) | Aggregated distance, elevation, moving time, count |
@@ -121,6 +122,8 @@ The table below provides the authoritative master index of all 33 Kinetiqo MCP t
 | 31 | `kinetiqo_preview_strava_description` | F: Operations | `operations.py` | Phase 4 [P1] | No (Read-Only) | Preview 150+ placeholder description merge without writing |
 | 32 | `kinetiqo_update_strava_description` | F: Operations | `operations.py` | Phase 4 [P1] | **Yes** (`KINETIQO_MCP_ALLOW_STRAVA_WRITE=1`) | Publish approved preview to Strava with collision check |
 | 33 | `kinetiqo_update_athlete_profile` | F: Operations | `operations.py` | Phase 4 [P1] | **Yes** (`KINETIQO_MCP_ALLOW_PROFILE_WRITE=1`) | Update weight, FTP, and description templates with audit logging |
+| 34 | `kinetiqo_get_weekly_training_profile` | C: Physiology | `physiology.py` | Phase 2 [P0] | No (Read-Only) | Multi-week volume, elevation, power (watts/kJ), best power weeks, and day-of-week habits |
+| 35 | `kinetiqo_analyze_recovery_turnaround` | C: Physiology | `physiology.py` | Phase 2 [P1] | No (Read-Only) | Post-long-ride turnaround time, rest days, and TSB form rebound duration |
 
 ---
 
@@ -293,6 +296,39 @@ Tools implementing exercise physiology models (Coggan, Storer-Davis, impulse-res
   * `weeks` (integer, default `12`, max `52`): Number of historical weeks.
   * `sport_types` (optional array of strings): Sport types to include.
 * **Output**: Weekly aggregates (total distance, total moving time, total elevation, suffer score sum), rolling 4-week moving average, week-over-week % changes, and missing-data caveats.
+
+#### 34. `kinetiqo_get_weekly_training_profile` [P0 / Phase 2]
+* **Description**: Compute multi-week training load profiles grouped by ISO calendar weeks, surfacing weekly energy/work (kJ), average power, weighted average power (NP), distance, elevation gain, peak power weeks, and day-of-week riding habits.
+* **Inputs**:
+  * `year` (optional integer): Calendar year to analyze (e.g. `2026`). If provided, analyzes all ISO weeks of that year.
+  * `weeks` (optional integer, default `12`, max `52`): Rolling weeks lookback if `year` is omitted.
+  * `sport_types` (optional array of strings, default `["Ride", "VirtualRide", "GravelRide"]`): Sport filter.
+* **Output**:
+  * `weekly_history`: Chronological list of weekly summaries: `iso_week`, `start_date`, `end_date`, `activity_count`, `distance_km`, `elevation_m`, `moving_time_hours`, `kilojoules`, `average_watts`, `weighted_average_watts` (when power recorded).
+  * `peak_weeks`: Best week of the period by:
+    - `power_output`: Highest weekly average watts and total kilojoules (kJ).
+    - `distance`: Highest weekly distance (km).
+    - `elevation`: Highest weekly elevation gain (m).
+  * `typical_week_profile`:
+    - `median_weekly_distance_km` and `mean_weekly_distance_km`.
+    - `median_weekly_elevation_m` and `mean_weekly_elevation_m`.
+    - `typical_ride_count`: Average active days and rides per week.
+    - `day_of_week_distribution`: Breakdown of rides across days of the week (Monday through Sunday) showing preferred training days.
+
+#### 35. `kinetiqo_analyze_recovery_turnaround` [P1 / Phase 2]
+* **Description**: Analyze athlete recovery turnaround time and training fatigue dissipation following major endurance milestones (e.g. 100km+ rides, marathons, or high suffer-score sessions).
+* **Inputs**:
+  * `min_distance_km` (number, default `100.0`): Minimum activity distance threshold to qualify as an endurance milestone.
+  * `sport_group` (string, default `"cycling"`): Sport group (`"cycling"`, `"running"`, `"walking"`).
+  * `lookback_days` (integer, default `365`): Historical evaluation window in days.
+* **Output**:
+  * `qualifying_milestone_count`: Number of evaluated 100km+ activities.
+  * `recovery_turnaround`:
+    - `median_rest_days_until_next_ride`: Typical days elapsed before the next activity.
+    - `median_days_until_hard_ride`: Typical days elapsed before the next high-intensity or threshold workout.
+    - `tsb_form_rebound_days`: Average days for Training Stress Balance (TSB) to recover from post-ride fatigue trough back to neutral (`TSB >= 0`) or pre-ride baseline.
+  * `milestone_breakdown`: List of evaluated milestone rides with their date, distance, suffer score, subsequent rest days, and TSB recovery duration.
+  * `recovery_summary`: Descriptive summary of typical recovery speed, fatigue impact, and evidence-based turnaround recommendations.
 
 ---
 
@@ -734,9 +770,9 @@ STDIO stdout carries *only* MCP protocol frames; startup/error/debug logs go to 
 
 ### One image, separate web and MCP services
 
-**Initial deployment choice:** Build **one** Kinetiqo application image and run it as separate processes/services; this is a rollout simplification, **not** a permanent ban on a smaller MCP image. `build/Dockerfile` already installs packages from `requirements.txt`, copies `src/`, and inherits Chromium/Firebird from `lhotakj/firebird-python:3.14`. Pinning the official MCP SDK in `requirements.txt` adds it to the same built image; verify its Python 3.14 wheels because the builder uses `pip install --only-binary=:all:`. `build/build-base.sh` and the manual Firebird base-image workflow change only when Python/Firebird/base dependencies change, not for ordinary MCP code. Docker reuses an identical image's layers on the same host; **running** two containers still incurs separate Python memory/CPU. A read-only MCP process need not launch Chromium. Benchmark pulled image size, startup time, idle/peak RSS and rendering needs after the MVP; if materially beneficial, design a second slimmer image and pipeline based on a base **without Chromium**, while testing DB/schema and release compatibility. Two images inheriting the present Chromium-containing base would not yield that reduction.
+**Initial deployment choice:** Build **one** Kinetiqo application image and run it as separate processes/services; this is a rollout simplification, **not** a permanent ban on a smaller MCP image. `build/Dockerfile.web` already installs packages from `requirements.txt`, copies `src/`, and inherits Chromium/Firebird from `kinetiqo/firebird-python:3.14`. Pinning the official MCP SDK in `requirements.txt` adds it to the same built image; verify its Python 3.14 wheels because the builder uses `pip install --only-binary=:all:`. `./build/build.sh base` and the manual Firebird base-image workflow change only when Python/Firebird/base dependencies change, not for ordinary MCP code. Docker reuses an identical image's layers on the same host; **running** two containers still incurs separate Python memory/CPU. A read-only MCP process need not launch Chromium. Benchmark pulled image size, startup time, idle/peak RSS and rendering needs after the MVP; if materially beneficial, design a second slimmer image and pipeline based on a base **without Chromium**, while testing DB/schema and release compatibility. Two images inheriting the present Chromium-containing base would not yield that reduction.
 
-The currently implemented `web` Click command calls blocking `app.run()`; production starts Gunicorn via `build/Dockerfile`'s default `CMD`. Click does **not** interpret `python src/kinetiqo.py web mcp` as two subcommands. Stdio MCP runs as a separately launched child of a desktop client; HTTP MCP (later phase) runs as a **second container service**, not a Gunicorn worker or background thread in Flask. Both services must use **the same immutable image digest/version** so schema, tools and Python dependencies match. They share one configured athlete/database, not a Python process or mutable DB connection.
+The currently implemented `web` Click command calls blocking `app.run()`; production starts Gunicorn via `build/Dockerfile.web`'s default `CMD`. Click does **not** interpret `python src/kinetiqo.py web mcp` as two subcommands. Stdio MCP runs as a separately launched child of a desktop client; HTTP MCP (later phase) runs as a **second container service**, not a Gunicorn worker or background thread in Flask. Both services must use **the same immutable image digest/version** so schema, tools and Python dependencies match. They share one configured athlete/database, not a Python process or mutable DB connection.
 
 | Role | Same image command and behavior | Network / exposure | Startup ownership |
 | :--- | :--- | :--- | :--- |
@@ -1052,11 +1088,11 @@ Implement a dedicated `.github/workflows/mcp-ci.yml` or reusable workflow with t
 | **Contract and security** | Python 3.14 dependency install and `pip check`, existing syntax checks, mocked tests from Section 10 on CLI/STDIO/HTTP/roles, validation of secret masking and no surprise write-tool registration. Run dependency vulnerability/license review and fail on an approved severity threshold; check container dependencies too. |
 | **SDK interoperability** | Install the **pinned** MCP SDK, initialize a stdio session with a local synthetic client and exercise list/call tool, read resource and get prompt; assert no stdout banners and correct errors/limits. Later add HTTP client handshake/auth tests for the selected pinned transport. |
 | **Entrypoint matrix** | Invoke `build/entrypoint.sh` with mocked commands and unset/default `KINETIQO_ROLE`, `web`, `mcp-http`, `mcp-stdio` and optional `scheduler`: test valid/invalid roles, cron enabled only once, no STDIO stdout, no schema migration/profile seeding in MCP role, signal forwarding and no secrets echoed. Validate Section 5 env defaults, missing HTTP token, role/transport mismatch, disabled writes and DB-only validation without Strava credentials. Avoid real DB/Strava in this gate. |
-| **Container smoke** | Build **one** local candidate image from `build/Dockerfile` using the existing Firebird base; test that the image contains MCP SDK, web server and Chromium without downloading another browser. Start web and MCP *from the same candidate image* against disposable fixture services if available; smoke-test port separation, read-only schema checks, health, artifact volume ownership and restart isolation. Keep DB/browser/network-dependent tests isolated from default mocked CI; provide a separately triggered full smoke gate for release. |
+| **Container smoke** | Build **one** local candidate image from `build/Dockerfile.web` using the existing Firebird base; test that the image contains MCP SDK, web server and Chromium without downloading another browser. Start web and MCP *from the same candidate image* against disposable fixture services if available; smoke-test port separation, read-only schema checks, health, artifact volume ownership and restart isolation. Keep DB/browser/network-dependent tests isolated from default mocked CI; provide a separately triggered full smoke gate for release. |
 | **Compose/proxy policy** | Validate base config without overlay, overlay without profile, and overlay with `COMPOSE_PROFILES=mcp`: first two run web only; last runs web + exactly one MCP service. Assert no public MCP `ports:` mapping, no duplicate cron, network isolation, non-root/read-only permissions where compatible, mounted token-file auth and TLS proxy, feature flags off by default and shared image digest/version. Reject committed real credentials and public artifact directory mounts. |
 | **Release evidence** | Record test summary, pinned SDK version/transport, supported platforms, SBOM/vulnerability report, image SHA/digest, Compose smoke result and migration notes as CI artifacts (no secrets or private GPS). A failed mandatory gate stops publish and deployment. |
 
-**Wire the gate into the existing release path:** Today `build.yaml` has one conditional build/push job and can publish based on a commit message or manual input. Add a required MCP validation job (via reusable workflow or called job) with `needs` before **every** publish/release branch of that job; protect the main branch so publishing cannot bypass it. For no-publish PRs, run mocked MCP validation without DockerHub credentials. If MCP is not yet implemented, gate only documentation/contract checks; expand mandatory gates as Phases 0–5 land. Continue to publish one multi-architecture `lhotakj/kinetiqo` image through `build/build.sh`, but deploy using the tested **immutable digest** rather than mutable `latest` or a timestamp tag. If an MCP-specific smoke job builds a candidate image and `build.yaml` builds another, verify both use the same commit/context and test the **actual published digest** before production; preferably build once, promote the tested artifact/digest and avoid duplicate divergent builds. When changing Firebird/Python base, run the manual base-image workflow first, record the new base digest, rebuild the application and rerun all role smoke tests.
+**Wire the gate into the existing release path:** Today `build.yaml` has one conditional build/push job and can publish based on a commit message or manual input. Add a required MCP validation job (via reusable workflow or called job) with `needs` before **every** publish/release branch of that job; protect the main branch so publishing cannot bypass it. For no-publish PRs, run mocked MCP validation without DockerHub credentials. If MCP is not yet implemented, gate only documentation/contract checks; expand mandatory gates as Phases 0–5 land. Continue to publish multi-architecture `kinetiqo/web` and `kinetiqo/web-mcp` images through `build/build.sh`, but deploy using the tested **immutable digest** rather than mutable `latest` or a timestamp tag. If an MCP-specific smoke job builds a candidate image and `build.yaml` builds another, verify both use the same commit/context and test the **actual published digest** before production; preferably build once, promote the tested artifact/digest and avoid duplicate divergent builds. When changing Firebird/Python base, run the manual base-image workflow first, record the new base digest, rebuild the application and rerun all role smoke tests.
 
 **Separate deployment pipeline:** Add an opt-in `.github/workflows/mcp-deploy.yml` (or equivalent deployment automation) that **pulls** a previously tested app image by digest; it must not independently rebuild or tag a second MCP image. Require a protected staging environment and manual approval for production, provision DB/Strava/proxy credentials from environment secrets (never build arguments or checked-in Compose), apply schema migrations once, then roll out the web and optional MCP services using the **same digest**. Stage the proxy and private artifact volume; run authenticated MCP initialize/tool checks plus web readiness. Only after those checks enable external routing. On failure, withdraw the MCP route, stop/revert the MCP service, restore the prior image digest for web if required and document schema rollback compatibility; do not assume an automatic destructive DB downgrade. Roll out web-only installations unchanged when the MCP profile is disabled. Maintain runbooks for rotating proxy/client credentials, replacing an expired artifact store and observing job locks/cron ownership.
 

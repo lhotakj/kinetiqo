@@ -184,6 +184,20 @@ class TestConfigEnvironmentParsing(unittest.TestCase):
             validate_db_config(config)
         self.assertEqual(cm.exception.code, 1)
 
+    @patch.dict(os.environ, {
+        "ENABLE_MCP": "1",
+        "MCP_PORT": "8000",
+        "MCP_HOST": "127.0.0.1",
+        "MCP_TRANSPORT": "sse",
+    }, clear=True)
+    def test_mcp_env_vars_parsed(self):
+        """Verify ENABLE_MCP, MCP_PORT, MCP_HOST, and MCP_TRANSPORT are parsed correctly."""
+        config = Config()
+        self.assertTrue(config.enable_mcp)
+        self.assertEqual(config.mcp_port, 8000)
+        self.assertEqual(config.mcp_host, "127.0.0.1")
+        self.assertEqual(config.mcp_transport, "sse")
+
 
 if __name__ == '__main__':
     unittest.main()

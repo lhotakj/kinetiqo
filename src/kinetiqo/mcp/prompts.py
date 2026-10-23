@@ -57,3 +57,65 @@ def register_mcp_prompts(mcp_server: Any) -> None:
             "3. Choose a vibrant contrasting route color (e.g. '#f97316' orange, '#22c55e' emerald, '#3b82f6' sapphire) and a modern typeface ('Outfit', 'Inter', 'Cinzel').\n"
             "4. Invoke `kinetiqo_generate_activity_poster` with the chosen parameters and present the resulting visual artifact to the athlete."
         )
+
+    @mcp_server.prompt("weekly_training_review")
+    def weekly_training_review(weeks: int = 4) -> str:
+        """Conduct a comprehensive multi-week review of training volume, power work, and consistency."""
+        return (
+            f"You are the Kinetiqo Athlete Assistant. Conduct a detailed review of the athlete's last {weeks} weeks of training:\n\n"
+            "Workflow Instructions:\n"
+            "1. Fetch weekly training profiles using `kinetiqo_get_weekly_training_profile(weeks=" + str(weeks) + ")`.\n"
+            "2. Check active training goals and progress using `kinetiqo_get_training_goals`.\n"
+            "3. Inspect current training fatigue and form using `kinetiqo_get_fitness_and_freshness`.\n"
+            "4. Synthesize a structured weekly debrief:\n"
+            "   - Detail distance (km), elevation (m), moving time (h), and total work (kJ) across evaluated weeks.\n"
+            "   - Highlight peak weeks (best power output week, highest mileage week, biggest climbing week).\n"
+            "   - Evaluate training consistency against configured weekly goals.\n"
+            "   - Review Acute vs Chronic Workload Ratio (ACWR) and current TSB Form to advise on whether to push or take a deload week."
+        )
+
+    @mcp_server.prompt("endurance_recovery_advisor")
+    def endurance_recovery_advisor(min_distance_km: float = 100.0) -> str:
+        """Analyze recovery turnaround times and fatigue rebound following major endurance milestones."""
+        return (
+            f"You are the Kinetiqo Endurance Coach. Analyze the athlete's recovery patterns after {min_distance_km:.0f}km+ endurance rides:\n\n"
+            "Workflow Instructions:\n"
+            "1. Run `kinetiqo_analyze_recovery_turnaround(min_distance_km=" + str(min_distance_km) + ")` to inspect turnaround statistics and TSB form rebound.\n"
+            "2. Inspect recent Gran Fondo milestones with `kinetiqo_get_fondo_milestones`.\n"
+            "3. Retrieve current fatigue and freshness status via `kinetiqo_get_fitness_and_freshness`.\n"
+            "4. Deliver an evidence-based recovery consultation:\n"
+            "   - Report median rest days taken before riding again and days before attempting hard workouts.\n"
+            "   - Report average duration for TSB Form to rebound from post-ride fatigue trough back to fresh.\n"
+            "   - Give personalized rest and nutrition recommendations tailored to the athlete's observed turnaround trajectory."
+        )
+
+    @mcp_server.prompt("season_power_audit")
+    def season_power_audit(year: int = 2026) -> str:
+        """Perform a deep-dive audit of power output, power curve, personal records, and FTP progression."""
+        return (
+            f"You are the Kinetiqo Performance Scientist. Perform a comprehensive power output audit for the year {year}:\n\n"
+            "Workflow Instructions:\n"
+            "1. Call `kinetiqo_get_weekly_training_profile(year=" + str(year) + ")` to identify the athlete's best power week of the year (by total kJ and average watts).\n"
+            "2. Retrieve verified all-time and season benchmark personal records using `kinetiqo_get_personal_records(start_date='" + str(year) + "-01-01', end_date='" + str(year) + "-12-31')`.\n"
+            "3. Calculate the season Mean Maximal Power (MMP) curve via `kinetiqo_calculate_power_curve(days=365)`.\n"
+            "4. Inspect FTP breakthrough history with `kinetiqo_get_ftp_history` and VO2max progression with `kinetiqo_get_vo2max_trend`.\n"
+            "5. Synthesize an objective performance audit:\n"
+            "   - Highlight the athlete's standout week in terms of power output and kilojoules.\n"
+            "   - Detail power benchmarks across sprint (5s), anaerobic (1m), aerobic (5m), and threshold (20m/1h) durations.\n"
+            "   - Track FTP and W/kg progression over the season."
+        )
+
+    @mcp_server.prompt("training_habit_and_volume_profile")
+    def training_habit_and_volume_profile(weeks: int = 26) -> str:
+        """Analyze longitudinal training habits, typical weekly kilometers, elevation, and day-of-week routines."""
+        return (
+            f"You are the Kinetiqo Training Analyst. Profile the athlete's typical training week and habits over the last {weeks} weeks:\n\n"
+            "Workflow Instructions:\n"
+            "1. Fetch the longitudinal training profile using `kinetiqo_get_weekly_training_profile(weeks=" + str(weeks) + ")`.\n"
+            "2. Retrieve total volume aggregates using `kinetiqo_get_activity_totals`.\n"
+            "3. Inspect long-distance endurance milestones using `kinetiqo_get_fondo_milestones`.\n"
+            "4. Present a clear profile of the athlete's typical week:\n"
+            "   - State typical weekly kilometers (mean and median) and elevation gain (mean and median).\n"
+            "   - State average rides per week and moving time.\n"
+            "   - Present the day-of-week ride distribution, identifying favorite training days and rest days."
+        )

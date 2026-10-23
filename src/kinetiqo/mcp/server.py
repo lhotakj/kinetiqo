@@ -16,10 +16,17 @@ from kinetiqo.mcp.tools import activities, telemetry, physiology, achievements, 
 logger = logging.getLogger("kinetiqo.mcp")
 
 
-def create_mcp_server(config: Any, repo_factory: Optional[Callable[[], Any]] = None) -> FastMCP:
+def create_mcp_server(
+    config: Any,
+    repo_factory: Optional[Callable[[], Any]] = None,
+    host: str = "0.0.0.0",
+    port: int = 8000,
+) -> FastMCP:
     """Create and configure the Kinetiqo FastMCP server with dynamic tool gating."""
     server = FastMCP(
         "kinetiqo",
+        host=host,
+        port=port,
         instructions=(
             "Kinetiqo is a self-hosted private fitness and telemetry platform. "
             "You have access to evidence-based athlete data, telemetry streams, "
@@ -263,6 +270,36 @@ def create_mcp_server(config: Any, repo_factory: Optional[Callable[[], Any]] = N
     def get_training_load_trends(weeks: int = 12) -> Dict[str, Any]:
         with get_repo() as r:
             return physiology.kinetiqo_get_training_load_trends(repo=r, weeks=weeks)
+
+    @server.tool(name="kinetiqo_get_weekly_training_profile", description="Retrieve weekly training profile, volume, power (watts/kJ), best power weeks, and day-of-week habits.")
+    def get_weekly_training_profile(
+        year: Optional[int] = None,
+        weeks: int = 12,
+        sport_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        with get_repo() as r:
+            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            return physiology.kinetiqo_get_weekly_training_profile(
+                repo=r,
+                athlete_id=athlete_id,
+                year=year,
+                weeks=weeks,
+                sport_types=sport_types,
+            )
+
+    @server.tool(name="kinetiqo_analyze_recovery_turnaround", description="Analyze recovery turnaround time and TSB fatigue dissipation following endurance milestones.")
+    def analyze_recovery_turnaround(
+        min_distance_km: float = 100.0,
+        sport_group: str = "cycling",
+        lookback_days: int = 365,
+    ) -> Dict[str, Any]:
+        with get_repo() as r:
+            return physiology.kinetiqo_analyze_recovery_turnaround(
+                repo=r,
+                min_distance_km=min_distance_km,
+                sport_group=sport_group,
+                lookback_days=lookback_days,
+            )
 
     # ==========================================
     # Group D: Achievements & Milestones
