@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 from kinetiqo.chat.encryption import ChatEncryptionError, decrypt_api_key, encrypt_api_key
-from kinetiqo.chat.errors import ChatAuthenticationError, ChatConfigurationError, ChatProviderResponseError
+from kinetiqo.chat.errors import ChatAuthenticationError, ChatConfigurationError, ChatProviderResponseError, ChatRateLimitError
 from kinetiqo.chat.models import ChatMessage, ChatProviderModel
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.repository import ChatRepository
-from kinetiqo.chat.service import ChatService
+from kinetiqo.chat.service import ChatService, build_system_instruction
 
 
 class TestChatEncryption(unittest.TestCase):
@@ -133,6 +133,13 @@ class TestChatService(unittest.TestCase):
         self.assertIn("kinetiqo_get_activity_totals", provenance)
         self.assertIn('"duration_ms": 25', provenance)
 
+    def test_system_instruction_contains_taxonomy_and_indoor_outdoor_mandate(self):
+        instruction = build_system_instruction()
+        self.assertIn("SPORT TAXONOMY MANDATE", instruction)
+        self.assertIn("OUTDOOR vs INDOOR DISTINCTION", instruction)
+        self.assertIn("VirtualRide", instruction)
+        self.assertIn("VirtualRun", instruction)
+
 
 
 class TestChatRepository(unittest.TestCase):
@@ -146,6 +153,16 @@ class TestChatRepository(unittest.TestCase):
                 insert_parameters = cursor.execute.call_args_list[1].args[1]
                 self.assertEqual(insert_parameters[4], expected)
                 backend.conn.commit.assert_called_once()
+
+    def test_clear_history_deletes_messages_and_sessions_for_athlete(self):
+        backend = MagicMock()
+        cursor = backend.conn.cursor.return_value
+        repository = ChatRepository(backend, "postgresql")
+        repository.clear_history("athlete-123")
+        executed_queries = [call.args[0] for call in cursor.execute.call_args_list]
+        self.assertTrue(any("DELETE FROM chat_messages" in q for q in executed_queries))
+        self.assertTrue(any("DELETE FROM chat_sessions" in q for q in executed_queries))
+        backend.conn.commit.assert_called_once()
 
 
 class TestGeminiDiagnostics(unittest.TestCase):
@@ -184,6 +201,12 @@ class TestGeminiDiagnostics(unittest.TestCase):
         response = httpx.Response(401, json={"error": {"status": "UNAUTHENTICATED"}})
         with self.assertRaises(ChatAuthenticationError):
             GeminiChatProvider._raise_for_status(response)
+
+    def test_quota_exceeded_maps_to_transparent_rate_limit_error(self):
+        response = httpx.Response(429, json={"error": {"status": "RESOURCE_EXHAUSTED", "message": "Quota exceeded for model"}})
+        with self.assertRaises(ChatRateLimitError) as ctx:
+            GeminiChatProvider._raise_for_status(response)
+        self.assertIn("quota", ctx.exception.user_message.lower())
 
     def test_stream_uses_gemini_camel_case_system_instruction(self):
         client = MagicMock()

@@ -27,8 +27,32 @@
             .replace(/'/g, '&#39;');
     };
 
+    if (typeof window.marked !== 'undefined' && typeof window.marked.use === 'function') {
+        try {
+            window.marked.use({
+                breaks: true,
+                gfm: true,
+                renderer: {
+                    link({ href, title, text }) {
+                        const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+                        return `<a href="${href || '#'}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
+                    }
+                }
+            });
+        } catch (err) {
+            console.warn('Failed to configure marked:', err);
+        }
+    }
+
     const renderMarkdown = (text) => {
         if (!text) return '';
+        if (typeof window.marked !== 'undefined' && typeof window.marked.parse === 'function') {
+            try {
+                return window.marked.parse(text);
+            } catch (err) {
+                console.warn('Marked parse error, using fallback:', err);
+            }
+        }
         const codeBlocks = [];
         let processed = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
             const id = `__CB_${codeBlocks.length}__`;
@@ -58,11 +82,11 @@
         // Blockquotes
         processed = processed.replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-orange-500 pl-3 my-2 italic text-gray-600 dark:text-gray-300">$1</blockquote>');
 
-        // Tables
-        processed = processed.replace(/((?:\|[^\n]+\|\r?\n)+)/g, (tableBlock) => {
-            const lines = tableBlock.trim().split(/\r?\n/).filter(Boolean);
+        // Tables: match all table rows even if EOF or trailing spaces
+        processed = processed.replace(/((?:^[ \t]*\|[^\n]*\|[ \t]*(?:\r?\n|$))+)/gm, (tableBlock) => {
+            const lines = tableBlock.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
             if (lines.length < 2) return tableBlock;
-            if (!/^\|(?:\s*:?-+:?\s*\|)+$/.test(lines[1].trim())) return tableBlock;
+            if (!/^\|(?:\s*:?-+:?\s*\|)+$/.test(lines[1])) return tableBlock;
 
             const headers = lines[0].split('|').slice(1, -1).map(h => h.trim());
             const rows = lines.slice(2).map(line => line.split('|').slice(1, -1).map(c => c.trim()));
@@ -160,7 +184,89 @@
         article.appendChild(details);
     };
 
-    const messageNode = (role, content = '', toolProvenance = null) => {
+    const ensureFooter = (article) => {
+        let footer = article.querySelector('.chat-msg-footer');
+        if (!footer) {
+            footer = document.createElement('div');
+            footer.className = 'chat-msg-footer mt-3 pt-2.5 border-t border-warm-100 dark:border-zinc-800 flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400 select-none';
+
+            // Left side: Download response button
+            const leftBox = document.createElement('div');
+            leftBox.className = 'chat-msg-footer-left flex items-center gap-2';
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.type = 'button';
+            downloadBtn.className = 'chat-download-btn cursor-pointer inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 rounded hover:bg-black/5 dark:hover:bg-white/5 transition';
+            downloadBtn.title = 'Download response as Markdown';
+            downloadBtn.setAttribute('aria-label', 'Download response as Markdown');
+            downloadBtn.innerHTML = `
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <span>Download the response</span>
+            `;
+            downloadBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const mdContent = article._rawMarkdown || article.querySelector('.chat-text')?.textContent || '';
+                if (!mdContent) return;
+                const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                a.download = `kinetiqo-response-${ts}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+            leftBox.appendChild(downloadBtn);
+            footer.appendChild(leftBox);
+
+            // Right side: Tokens & duration badge
+            const rightBox = document.createElement('div');
+            rightBox.className = 'chat-msg-footer-right font-mono text-[11px] text-gray-400 dark:text-zinc-500';
+            const badge = document.createElement('span');
+            badge.className = 'chat-tokens-badge';
+            rightBox.appendChild(badge);
+            footer.appendChild(rightBox);
+
+            article.appendChild(footer);
+        }
+        return footer;
+    };
+
+    const updateFooterInfo = (article, inTokens = null, outTokens = null, durationStr = null) => {
+        const footer = ensureFooter(article);
+        const badge = footer.querySelector('.chat-tokens-badge');
+        if (!badge) return;
+
+        if (inTokens !== undefined && inTokens !== null) article._inTokens = inTokens;
+        if (outTokens !== undefined && outTokens !== null) article._outTokens = outTokens;
+        if (durationStr !== undefined && durationStr !== null) article._durationStr = durationStr;
+
+        const currentIn = article._inTokens;
+        const currentOut = article._outTokens;
+        const currentDur = article._durationStr;
+
+        const parts = [];
+        if (currentIn !== null && currentIn !== undefined) parts.push(`${Number(currentIn).toLocaleString()} in`);
+        if (currentOut !== null && currentOut !== undefined) parts.push(`${Number(currentOut).toLocaleString()} out`);
+
+        if (parts.length > 0) {
+            let text = `⚡ Tokens: ${parts.join(' · ')}`;
+            if (currentDur) {
+                text += ` · ${currentDur}`;
+            }
+            badge.textContent = text;
+        } else if (currentDur) {
+            badge.textContent = `⚡ ${currentDur}`;
+        } else {
+            badge.textContent = '';
+        }
+    };
+
+    const messageNode = (role, content = '', toolProvenance = null, inputTokens = null, outputTokens = null) => {
         const article = document.createElement('article');
         article.dataset.role = role;
 
@@ -198,6 +304,7 @@
         const textContainer = document.createElement('div');
         textContainer.className = 'chat-text';
         if (role === 'assistant') {
+            article._rawMarkdown = content;
             textContainer.innerHTML = renderMarkdown(content);
         } else {
             textContainer.textContent = content;
@@ -207,14 +314,27 @@
         if (toolProvenance) {
             appendProvenance(article, toolProvenance);
         }
+        if (role === 'assistant') {
+            ensureFooter(article);
+            if (inputTokens || outputTokens) {
+                updateFooterInfo(article, inputTokens, outputTokens);
+            }
+        }
         messages.appendChild(article);
         scrollToBottom();
         return article;
     };
 
+    let promptHistory = [];
+    let historyIndex = -1;
+    let currentDraft = '';
+
     const showMessages = (list) => {
         messages.replaceChildren();
-        list.forEach((item) => messageNode(item.role, item.content, item.tool_provenance));
+        list.forEach((item) => messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens));
+        promptHistory = list.filter(m => m.role === 'user').map(m => m.content);
+        historyIndex = -1;
+        currentDraft = '';
         empty.classList.toggle('hidden', list.length > 0);
         status.classList.add('hidden');
         scrollToBottom();
@@ -301,18 +421,85 @@
         sessionId = null;
         history.replaceState(null, '', '/chat');
         messages.replaceChildren();
+        promptHistory = [];
+        historyIndex = -1;
+        currentDraft = '';
         empty.classList.remove('hidden');
         status.classList.add('hidden');
         loadSessions();
     });
+
+    const clearHistoryBtn = document.getElementById('clear-history');
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', async () => {
+            if (!window.confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
+                return;
+            }
+            try {
+                await request('/api/chat/sessions', { method: 'DELETE' });
+                sessionId = null;
+                history.replaceState(null, '', '/chat');
+                messages.replaceChildren();
+                promptHistory = [];
+                historyIndex = -1;
+                currentDraft = '';
+                empty.classList.remove('hidden');
+                status.classList.add('hidden');
+                await loadSessions();
+            } catch (err) {
+                setStatus(err.message, true);
+            }
+        });
+    }
 
     document.querySelectorAll('.chat-suggestion').forEach((button) => button.addEventListener('click', () => {
         input.value = button.textContent.trim().replace(/^[^\w]+/, '');
         input.focus();
     }));
 
+    const isCursorOnFirstLine = (textarea) => {
+        const selStart = textarea.selectionStart;
+        const textBefore = textarea.value.slice(0, selStart);
+        return !textBefore.includes('\n');
+    };
+
+    const isCursorOnLastLine = (textarea) => {
+        const selEnd = textarea.selectionEnd;
+        const textAfter = textarea.value.slice(selEnd);
+        return !textAfter.includes('\n');
+    };
+
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'ArrowUp') {
+            if (isCursorOnFirstLine(input) && promptHistory.length > 0) {
+                if (historyIndex === -1) {
+                    currentDraft = input.value;
+                    historyIndex = promptHistory.length - 1;
+                    input.value = promptHistory[historyIndex];
+                    input.setSelectionRange(input.value.length, input.value.length);
+                    e.preventDefault();
+                } else if (historyIndex > 0) {
+                    historyIndex--;
+                    input.value = promptHistory[historyIndex];
+                    input.setSelectionRange(input.value.length, input.value.length);
+                    e.preventDefault();
+                }
+            }
+        } else if (e.key === 'ArrowDown') {
+            if (isCursorOnLastLine(input) && historyIndex !== -1) {
+                if (historyIndex < promptHistory.length - 1) {
+                    historyIndex++;
+                    input.value = promptHistory[historyIndex];
+                    input.setSelectionRange(input.value.length, input.value.length);
+                    e.preventDefault();
+                } else {
+                    historyIndex = -1;
+                    input.value = currentDraft;
+                    input.setSelectionRange(input.value.length, input.value.length);
+                    e.preventDefault();
+                }
+            }
+        } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             composer.requestSubmit();
         }
@@ -322,7 +509,11 @@
         event.preventDefault();
         const content = input.value.trim();
         if (!content) return;
+        promptHistory.push(content);
+        historyIndex = -1;
+        currentDraft = '';
         const origSendHtml = send.innerHTML;
+        const turnStartTime = performance.now();
         try {
             if (!sessionId) await createSession();
             send.disabled = true;
@@ -340,6 +531,7 @@
             input.value = '';
             messageNode('user', content);
             const answer = messageNode('assistant');
+            ensureFooter(answer);
             const answerText = answer.querySelector('.chat-text');
             empty.classList.add('hidden');
 
@@ -379,14 +571,18 @@
                             toolStatusEl.className = 'chat-tool-status mb-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2';
                             answer.insertBefore(toolStatusEl, answerText);
                         }
-                        toolStatusEl.innerHTML = `<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="16" height="16" class="inline-block"><span>Consulting ${formatToolName(payload.tool)}…</span>`;
+                        const toolNum = executedTools.length + 1;
+                        toolStatusEl.innerHTML = `<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="16" height="16" class="inline-block"><span>Consulting ${formatToolName(payload.tool)} (query ${toolNum})…</span>`;
                         executedTools.push({ tool: payload.tool });
                         scrollToBottom();
                     } else if (eventType === 'tool_result') {
                         if (toolStatusEl) {
-                            toolStatusEl.innerHTML = `<span class="text-green-500 text-sm font-bold">✓</span><span>Retrieved ${formatToolName(payload.tool)}</span>`;
+                            toolStatusEl.innerHTML = `<span class="text-green-500 text-sm font-bold">✓</span><span>Retrieved ${formatToolName(payload.tool)} (${executedTools.length} queries completed)</span>`;
                             scrollToBottom();
                         }
+                    } else if (eventType === 'usage') {
+                        updateFooterInfo(answer, payload.input_tokens, payload.output_tokens);
+                        scrollToBottom();
                     } else if (eventType === 'text_delta') {
                         if (thinkingEl) {
                             thinkingEl.remove();
@@ -397,6 +593,7 @@
                             toolStatusEl = null;
                         }
                         rawAssistantMarkdown += payload.text || '';
+                        answer._rawMarkdown = rawAssistantMarkdown;
                         answerText.innerHTML = renderMarkdown(rawAssistantMarkdown);
                         scrollToBottom();
                     } else if (eventType === 'error') {
@@ -408,6 +605,7 @@
                             toolStatusEl.remove();
                             toolStatusEl = null;
                         }
+                        answerText.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2"><span class="font-bold text-red-500 text-sm leading-none">⚠️</span><span>${escapeHtml(payload.message)}</span></div>`;
                         setStatus(payload.message, true);
                     }
                 });
@@ -417,11 +615,17 @@
             if (toolStatusEl) toolStatusEl.remove();
 
             if (rawAssistantMarkdown) {
+                answer._rawMarkdown = rawAssistantMarkdown;
                 answerText.innerHTML = renderMarkdown(rawAssistantMarkdown);
             }
 
+            const totalDurationSec = `${((performance.now() - turnStartTime) / 1000).toFixed(1)}s`;
+            updateFooterInfo(answer, null, null, totalDurationSec);
+
             if (executedTools.length > 0 && !answer.querySelector('details')) {
                 appendProvenance(answer, executedTools);
+                const footer = answer.querySelector('.chat-msg-footer');
+                if (footer) answer.appendChild(footer);
                 scrollToBottom();
             }
             await loadSessions();

@@ -5,6 +5,11 @@ class ChatError(Exception):
     error_code = "chat_error"
     user_message = "Chat could not complete. Please try again."
 
+    def __init__(self, message: str | None = None):
+        super().__init__(message or self.user_message)
+        if message:
+            self.user_message = message
+
 
 class ChatConfigurationError(ChatError):
     error_code = "configuration_error"

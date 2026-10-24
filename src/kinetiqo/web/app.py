@@ -2415,13 +2415,16 @@ def chat_page(session_id: str | None = None):
     return render_template('chat.html', title='AI Chat', initial_session_id=session_id, user_name=user_name)
 
 
-@app.route('/api/chat/sessions', methods=['GET', 'POST'])
+@app.route('/api/chat/sessions', methods=['GET', 'POST', 'DELETE'])
 @login_required
 def chat_sessions_api():
     athlete_id = _chat_user_id()
     service = _chat_service()
     if request.method == 'GET':
         return jsonify({'sessions': [item.__dict__ for item in service.repository.list_sessions(athlete_id)]})
+    if request.method == 'DELETE':
+        service.repository.clear_history(athlete_id)
+        return Response(status=204)
     data = request.get_json(silent=True) or {}
     try:
         item = service.create_session(athlete_id, data.get('provider', 'gemini'), data.get('model_id'))

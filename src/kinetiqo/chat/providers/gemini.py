@@ -92,16 +92,20 @@ class GeminiChatProvider(BaseChatProvider):
         logger.debug("Gemini stream starting: model=%s history_messages=%d tools_provided=%d", model_id, len(history), len(tools or []))
         try:
             with self.client_factory(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
-                max_turns = 16  # allow multi-year comparisons up to 15 tool rounds + final answer
+                max_turns = 64  # Generous headroom for multi-year, multi-sport, or complex analytics comparisons
                 any_text_streamed = False
+                seen_tool_signatures: list[str] = []
+
                 for turn_idx in range(max_turns):
                     body: dict[str, Any] = {
                         "systemInstruction": {"parts": [{"text": system_instruction}]},
                         "contents": contents,
                     }
-                    # Omit tools on the final turn to force Gemini to synthesize the final answer
-                    if tools and turn_idx < (max_turns - 1):
+                    if tools:
                         body["tools"] = [{"functionDeclarations": tools}]
+                        # On the final turn, force the model to synthesize text instead of issuing another function call
+                        if turn_idx >= (max_turns - 1):
+                            body["toolConfig"] = {"functionCallingConfig": {"mode": "NONE"}}
 
                     turn_function_calls: list[dict[str, Any]] = []
                     turn_text_chunks: list[str] = []
@@ -146,8 +150,13 @@ class GeminiChatProvider(BaseChatProvider):
                         for call in turn_function_calls:
                             fn_name = call.get("name", "")
                             fn_args = call.get("args") or {}
+                            sig = f"{fn_name}:{json.dumps(fn_args, sort_keys=True, default=str)}"
+                            seen_tool_signatures.append(sig)
                             yield StreamEvent("tool_call", tool=fn_name, arguments=fn_args)
                             result_data, _ = tool_executor(fn_name, fn_args)
+                            # Guard against repetitive identical queries
+                            if seen_tool_signatures.count(sig) >= 3 and isinstance(result_data, dict):
+                                result_data["_directive"] = "You have queried this identical data multiple times. Do not call this tool again with identical parameters; synthesize your answer now."
                             executed_results.append((fn_name, result_data))
                             yield StreamEvent("tool_result", tool=fn_name, tool_data=result_data)
 
@@ -177,13 +186,17 @@ class GeminiChatProvider(BaseChatProvider):
                     logger.info("Gemini stream completed: model=%s turns=%d text_events=%d", model_id, turn_idx + 1, len(turn_text_chunks))
                     break
 
-                # Safety fallback: if no text deltas were streamed after tool looping, perform synthesis call without tools
+                # Safety fallback: if no text deltas were streamed after tool looping, perform synthesis call with mode NONE
                 if not any_text_streamed:
-                    logger.info("Performing final Gemini synthesis pass without tools: model=%s", model_id)
-                    synth_body = {
+                    logger.info("Performing final Gemini synthesis pass: model=%s", model_id)
+                    synth_body: dict[str, Any] = {
                         "systemInstruction": {"parts": [{"text": system_instruction}]},
                         "contents": contents,
                     }
+                    if tools:
+                        synth_body["tools"] = [{"functionDeclarations": tools}]
+                        synth_body["toolConfig"] = {"functionCallingConfig": {"mode": "NONE"}}
+                    synth_usage = None
                     with client.stream("POST", url, headers={"x-goog-api-key": self.api_key, "Content-Type": "application/json"}, json=synth_body) as response:
                         self._raise_for_status(response)
                         for line in response.iter_lines():
@@ -193,11 +206,15 @@ class GeminiChatProvider(BaseChatProvider):
                                 data = json.loads(line[5:].strip())
                             except Exception:
                                 continue
+                            if "usageMetadata" in data:
+                                synth_usage = data["usageMetadata"]
                             for candidate in data.get("candidates", []):
                                 for part in candidate.get("content", {}).get("parts", []):
                                     if "text" in part and isinstance(part["text"], str) and part["text"]:
                                         yield StreamEvent("text_delta", text=part["text"])
                                         any_text_streamed = True
+                    if synth_usage:
+                        yield StreamEvent("usage", input_tokens=synth_usage.get("promptTokenCount"), output_tokens=synth_usage.get("candidatesTokenCount"))
 
             yield StreamEvent("completed")
         except (ChatAuthenticationError, ChatProviderResponseError, ChatProviderUnavailableError, ChatRateLimitError, ChatSafetyBlockedError):
@@ -228,13 +245,16 @@ class GeminiChatProvider(BaseChatProvider):
         if response.status_code < 400:
             return
         provider_status = "unknown"
+        provider_message = ""
         try:
             # httpx deliberately leaves a streamed response unread.  Consume it
             # only on failure so json() can extract the provider's status code;
             # the payload itself is never logged or returned to the browser.
             response.read()
             payload = response.json()
-            provider_status = str(payload.get("error", {}).get("status", "unknown"))[:64]
+            error_obj = payload.get("error", {})
+            provider_status = str(error_obj.get("status", "unknown"))[:64]
+            provider_message = str(error_obj.get("message", "")).strip()
         except (httpx.HTTPError, ValueError, TypeError, AttributeError):
             pass
         request_id = response.headers.get("x-request-id") or response.headers.get("x-goog-request-id") or "unavailable"
@@ -245,11 +265,15 @@ class GeminiChatProvider(BaseChatProvider):
             request_id[:128],
         )
         if response.status_code in (401, 403):
-            raise ChatAuthenticationError()
+            raise ChatAuthenticationError("The Gemini API key was rejected or has expired. Please verify your API key in Settings.")
         if response.status_code == 429:
-            raise ChatRateLimitError()
+            if "quota" in provider_message.lower() or "resource_exhausted" in provider_status.lower():
+                raise ChatRateLimitError("Gemini API quota exceeded. You have reached your account or model limit in Google AI Studio. Please check your quota or billing.")
+            raise ChatRateLimitError("Gemini API rate limit reached. Please wait a moment before sending another message.")
         if response.status_code >= 500:
             raise ChatProviderUnavailableError()
         if response.status_code >= 400:
+            if "token" in provider_message.lower() or "context" in provider_message.lower():
+                raise ChatProviderResponseError(f"Model token or context limit reached: {provider_message}")
             raise ChatProviderResponseError()
 

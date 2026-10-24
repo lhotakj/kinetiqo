@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block head %}
-<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v5') }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v7') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
   main {
@@ -163,6 +164,115 @@
     cursor: wait;
   }
 
+  /* Markdown Elements Inside Assistant Bubble */
+  .chat-text {
+    overflow-x: auto;
+    word-break: break-word;
+  }
+  .chat-text p {
+    margin: 8px 0;
+    line-height: 1.6;
+  }
+  .chat-text p:first-child {
+    margin-top: 0;
+  }
+  .chat-text p:last-child {
+    margin-bottom: 0;
+  }
+  .chat-text table {
+    width: 100%;
+    margin: 12px 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12.5px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .chat-text th {
+    background: #f4f4f5;
+    color: #27272a;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    text-align: left;
+  }
+  .chat-text th:last-child {
+    border-right: none;
+  }
+  .chat-text td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f4f4f5;
+    border-right: 1px solid #f4f4f5;
+    color: #27272a;
+  }
+  .chat-text tr:last-child td {
+    border-bottom: none;
+  }
+  .chat-text td:last-child {
+    border-right: none;
+  }
+  .chat-text tr:hover td {
+    background: #fafaf9;
+  }
+  .chat-text pre {
+    margin: 10px 0;
+    padding: 10px 14px;
+    background: #18181b;
+    color: #f4f4f5;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .chat-text code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: #ea580c;
+  }
+  .chat-text pre code {
+    background: transparent;
+    padding: 0;
+    color: inherit;
+  }
+  .chat-text ul {
+    list-style-type: disc;
+    margin: 6px 0;
+    padding-left: 22px;
+  }
+  .chat-text ol {
+    list-style-type: decimal;
+    margin: 6px 0;
+    padding-left: 22px;
+  }
+  .chat-text li {
+    margin: 3px 0;
+  }
+  .chat-text blockquote {
+    border-left: 4px solid #ea580c;
+    margin: 10px 0;
+    padding-left: 14px;
+    font-style: italic;
+    color: #4b5563;
+  }
+  .chat-text h1 { font-size: 18px; font-weight: 700; margin: 14px 0 6px; color: #111827; }
+  .chat-text h2 { font-size: 16px; font-weight: 700; margin: 12px 0 5px; color: #111827; }
+  .chat-text h3 { font-size: 14px; font-weight: 600; margin: 10px 0 4px; color: #111827; }
+  .chat-text a {
+    color: #ea580c;
+    text-decoration: underline;
+  }
+  .chat-text a:hover {
+    text-decoration: none;
+  }
+
   /* Dark mode overrides */
   html.dark .chat-layout-wrapper {
     background: transparent;
@@ -203,6 +313,34 @@
   html.dark .chat-composer-textarea::placeholder {
     color: #71717a;
   }
+  html.dark .chat-text table {
+    border-color: #3f3f46;
+  }
+  html.dark .chat-text th {
+    background: #27272a;
+    color: #e4e4e7;
+    border-color: #3f3f46;
+  }
+  html.dark .chat-text td {
+    color: #d4d4d8;
+    border-color: #27272a;
+  }
+  html.dark .chat-text tr:hover td {
+    background: #2e2e32;
+  }
+  html.dark .chat-text code {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fb923c;
+  }
+  html.dark .chat-text blockquote {
+    color: #a1a1aa;
+  }
+  html.dark .chat-text h1, html.dark .chat-text h2, html.dark .chat-text h3 {
+    color: #ffffff;
+  }
+  html.dark .chat-text a {
+    color: #fb923c;
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -210,9 +348,13 @@
   <!-- Left Navigation Column: Latest Chats & Settings -->
   <aside class="chat-sidebar" aria-label="Chat Navigation">
     <div style="padding: 12px;">
-      <button id="new-chat" type="button" style="display: flex; min-height: 42px; width: 100%; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; background: #ea580c; padding: 8px 16px; font-size: 13px; font-weight: 600; color: #ffffff; border: none; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: background 0.15s;">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+      <button id="new-chat" type="button" class="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm transition h-[40px] w-full flex items-center justify-center font-medium shadow-sm mb-2" title="Start a new chat conversation">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         <span>New chat</span>
+      </button>
+      <button id="clear-history" type="button" class="px-3 py-2 bg-gray-500 hover:bg-red-600 text-white rounded text-sm transition h-[40px] w-full flex items-center justify-center font-medium shadow-sm" title="Clear all chat history">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+        <span>Clear history</span>
       </button>
       <div style="margin-top: 14px; padding: 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280;" class="dark:text-zinc-400">Recent Chats</div>
     </div>

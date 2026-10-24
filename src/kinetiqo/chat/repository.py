@@ -90,6 +90,19 @@ class ChatRepository:
         finally:
             cur.close()
 
+    def clear_history(self, athlete_id: str) -> None:
+        p = self.placeholder
+        cur = self.conn.cursor()
+        try:
+            cur.execute(f"DELETE FROM chat_messages WHERE athlete_id = {p}", (athlete_id,))
+            cur.execute(f"DELETE FROM chat_sessions WHERE athlete_id = {p}", (athlete_id,))
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        finally:
+            cur.close()
+
     def add_message(self, athlete_id: str, session_id: str, role: str, content: str, status: str = "complete", provider: str | None = None, model_id: str | None = None) -> ChatMessage:
         session = self.get_session(athlete_id, session_id)
         if not session:
