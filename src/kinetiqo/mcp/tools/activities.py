@@ -10,6 +10,7 @@ from kinetiqo.mcp.contracts import (
     ERROR_INVALID_ARGUMENT,
     ERROR_NOT_FOUND,
 )
+from kinetiqo.mcp.utils import normalize_sport_types
 
 
 def kinetiqo_search_activities(
@@ -29,12 +30,13 @@ def kinetiqo_search_activities(
 ) -> Dict[str, Any]:
     """Search and filter activities using multiple criteria with deterministic keyset pagination."""
     limit = max(1, min(limit, 100))
+    norm_sport_types = normalize_sport_types(sport_types)
     filters: Dict[str, Any] = {"sort_by": sort_by}
 
     if query:
         filters["query"] = query.strip()
-    if sport_types:
-        filters["sport_types"] = sport_types
+    if norm_sport_types:
+        filters["sport_types"] = norm_sport_types
     if start_date:
         filters["start_date"] = start_date
     if end_date:
@@ -153,9 +155,10 @@ def kinetiqo_get_activity_totals(
     end_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compute aggregated distance, elevation, moving time, and count."""
+    norm_sports = normalize_sport_types(sport_types)
     try:
-        totals = repo.get_activities_totals(types=sport_types, start_date=start_date, end_date=end_date)
-        count = repo.count_activities(types=sport_types, start_date=start_date, end_date=end_date)
+        totals = repo.get_activities_totals(types=norm_sports, start_date=start_date, end_date=end_date)
+        count = repo.count_activities(types=norm_sports, start_date=start_date, end_date=end_date)
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating activity totals: {e}")
 
@@ -233,11 +236,12 @@ def kinetiqo_compare_periods(
             "Both period_a and period_b must provide 'start_date' and 'end_date' (YYYY-MM-DD)",
         )
 
+    norm_sports = normalize_sport_types(sport_types)
     try:
-        totals_a = repo.get_activities_totals(types=sport_types, start_date=start_a, end_date=end_a)
-        count_a = repo.count_activities(types=sport_types, start_date=start_a, end_date=end_a)
-        totals_b = repo.get_activities_totals(types=sport_types, start_date=start_b, end_date=end_b)
-        count_b = repo.count_activities(types=sport_types, start_date=start_b, end_date=end_b)
+        totals_a = repo.get_activities_totals(types=norm_sports, start_date=start_a, end_date=end_a)
+        count_a = repo.count_activities(types=norm_sports, start_date=start_a, end_date=end_a)
+        totals_b = repo.get_activities_totals(types=norm_sports, start_date=start_b, end_date=end_b)
+        count_b = repo.count_activities(types=norm_sports, start_date=start_b, end_date=end_b)
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed querying period totals: {e}")
 
@@ -319,9 +323,10 @@ def kinetiqo_find_similar_routes(
         # Search candidates with similar distance (+/- 20%)
         min_d = src_dist * 0.80
         max_d = src_dist * 1.20
+        norm_sports = normalize_sport_types(sport_types) or ["Ride", "VirtualRide", "GravelRide"]
         cands, _, _ = repo.search_activities(
             athlete_id=int(source.get("athlete_id") or 1),
-            filters={"min_distance": min_d, "max_distance": max_d, "sport_types": sport_types or ["Ride", "VirtualRide"]},
+            filters={"min_distance": min_d, "max_distance": max_d, "sport_types": norm_sports},
             limit=max_candidates + 5,
         )
 

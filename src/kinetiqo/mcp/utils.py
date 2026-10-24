@@ -222,3 +222,44 @@ def get_best_powers_for_durations(repo: Any, activity_ids: List[str], durations:
         result[d] = get_best_power_for_single_duration(repo, str_ids, d)
 
     return result
+
+
+CYCLING_SPORT_TYPES = (
+    "Ride", "VirtualRide", "EBikeRide", "EMountainBikeRide",
+    "GravelRide", "MountainBikeRide", "Velomobile", "Handcycle",
+)
+RUNNING_SPORT_TYPES = ("Run", "VirtualRun", "TrailRun")
+WALKING_SPORT_TYPES = ("Walk", "Hike")
+
+
+def normalize_sport_types(sport_types: Optional[List[str]]) -> Optional[List[str]]:
+    """Expand generic or shorthand sport types into canonical database taxonomy.
+
+    If an AI provider passes generic strings like ['cycling'], ['bike'], or mistakenly
+    restricts a riding query to solely ['Ride'], this expands it to all cycling types
+    so that VirtualRide (Zwift/Rouvy), GravelRide, MountainBikeRide, etc., are included.
+    """
+    if not sport_types:
+        return None
+    normalized = []
+    for s in sport_types:
+        s_clean = str(s).strip()
+        lower = s_clean.lower()
+        if lower in ("cycling", "bike", "biking", "all_cycling", "cycle"):
+            normalized.extend(CYCLING_SPORT_TYPES)
+        elif lower in ("running", "runs", "all_running", "run"):
+            normalized.extend(RUNNING_SPORT_TYPES)
+        elif lower in ("walking", "hiking", "all_walking", "walk", "hike"):
+            normalized.extend(WALKING_SPORT_TYPES)
+        elif s_clean == "Ride" and len(sport_types) == 1:
+            # Single 'Ride' filter sent by AI for 'ride' / 'rode' prompt:
+            # Expand to include all biking activities per user expectation.
+            normalized.extend(CYCLING_SPORT_TYPES)
+        else:
+            normalized.append(s_clean)
+
+    # Deduplicate while preserving order
+    seen = set()
+    return [x for x in normalized if not (x in seen or seen.add(x))]
+
+

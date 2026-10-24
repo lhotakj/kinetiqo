@@ -19,7 +19,7 @@ from PIL import Image
 
 import httpx
 import requests
-from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session
+from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session, stream_with_context
 from flask_compress import Compress
 
 # CSRF helper. Production must not run with CSRF silently disabled.
@@ -2490,7 +2490,7 @@ def chat_messages_api(session_id: str):
             logger.exception('Chat generation failed without logging prompt content.')
             yield encode('error', {'code': 'chat_error', 'message': 'Chat could not complete. Please try again.'})
 
-    response = Response(generate(), mimetype='text/event-stream')
+    response = Response(stream_with_context(generate()), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'
     return response

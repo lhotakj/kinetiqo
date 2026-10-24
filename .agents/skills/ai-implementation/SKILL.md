@@ -191,6 +191,23 @@ When writing or modifying MCP tools, chat helpers, or AI integrations, you must 
   2. On the penultimate/final turn (`turn_idx == max_turns - 1`), omit tool declarations so the model is forced to synthesize its final answer using the collected data.
   3. Implement a safety fallback: if the loop exits and `not any_text_streamed`, make one synthesis request with tools omitted to guarantee an answer is returned.
 
+---
+
+### Gotcha 8: Cycling Activity Taxonomy & Incomplete Distance Sums
+- **The Bug**: When an athlete asks "how much did I ride this year" or "what was my best year in km ridden", AI models naturally generate queries with `sport_types=['Ride']`. In Strava and Kinetiqo, cycling is split across multiple sport types: `Ride`, `VirtualRide` (indoor Zwift, Rouvy), `GravelRide`, `MountainBikeRide`, `EBikeRide`, etc. Querying only `['Ride']` excludes all virtual and gravel training, causing severe mileage and elevation undercounts.
+- **The Protocol**:
+  1. System instruction specifies the Sport Taxonomy Mandate: biking queries must encompass `['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'EMountainBikeRide', 'Velomobile', 'Handcycle']`.
+  2. The normalization utility `normalize_sport_types()` in `src/kinetiqo/mcp/utils.py` automatically expands shorthand sport filters like `['cycling']`, `['bike']`, or single `['Ride']` queries to include all biking activities.
+
+---
+
+### Gotcha 9: Flask Streaming Teardown & Lazy DB Reconnection
+- **The Bug**: When returning a streaming generator from a Flask view, Flask pops the application context as soon as the view function returns, closing `g.db_repo`. When the stream generator begins and issues an MCP tool query, the repository is closed, forcing a reconnect and logging `[WARNING] PostgreSQL connection lost, reconnecting...`.
+- **The Protocol**:
+  1. Wrap streaming generators with `Response(stream_with_context(generate()), mimetype='text/event-stream')` to keep the application context active until the stream finishes.
+  2. In `PostgresqlRepository._ensure_connected()`, if `self.conn is None`, connect cleanly without emitting false-alarm "connection lost" warnings.
+
+
 
 ---
 

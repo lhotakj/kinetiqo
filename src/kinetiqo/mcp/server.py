@@ -60,7 +60,7 @@ def create_mcp_server(
     # ==========================================
     # Group A: Activity Discovery & Query Engine
     # ==========================================
-    @server.tool(name="kinetiqo_search_activities", description="Search & filter activities with keyset pagination.")
+    @server.tool(name="kinetiqo_search_activities", description="Search & filter activities with keyset pagination. For cycling/biking, sport_types can be ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'] or ['cycling'].")
     def search_activities(
         query: Optional[str] = None,
         sport_types: Optional[List[str]] = None,
@@ -97,7 +97,7 @@ def create_mcp_server(
         with get_repo() as r:
             return activities.kinetiqo_get_activity_details(repo=r, activity_id=activity_id)
 
-    @server.tool(name="kinetiqo_get_activity_totals", description="Compute aggregated distance, elevation, moving time, and count.")
+    @server.tool(name="kinetiqo_get_activity_totals", description="Compute aggregated distance, elevation, moving time, and count. For riding/cycling, specify all biking types: ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'EMountainBikeRide', 'Velomobile', 'Handcycle'] or ['cycling']. Omit for all sports.")
     def get_activity_totals(
         sport_types: Optional[List[str]] = None,
         start_date: Optional[str] = None,

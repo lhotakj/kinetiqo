@@ -83,6 +83,24 @@ class TestMCPTools(unittest.TestCase):
         self.assertEqual(res["data"]["deltas"]["distance_km"], 20.0)
         self.assertEqual(res["data"]["deltas"]["distance_pct"], 20.0)
 
+    def test_get_activity_totals_normalizes_cycling_sport_types(self):
+        self.mock_repo.get_activities_totals.return_value = {
+            "total_distance": 11122550.0,
+            "total_elevation": 91245.9,
+            "total_moving_time": 1529063,
+        }
+        self.mock_repo.count_activities.return_value = 250
+
+        # When AI passes ['Ride'], it is normalized to include all cycling types (VirtualRide, GravelRide, etc.)
+        res = activities.kinetiqo_get_activity_totals(self.mock_repo, sport_types=["Ride"], start_date="2026-01-01", end_date="2026-12-31")
+        self.assertEqual(res["data_status"], "complete")
+        self.assertEqual(res["data"]["distance_km"], 11122.55)
+        self.assertEqual(res["data"]["elevation_m"], 91245.9)
+        call_types = self.mock_repo.get_activities_totals.call_args.kwargs["types"]
+        self.assertIn("VirtualRide", call_types)
+        self.assertIn("GravelRide", call_types)
+        self.assertIn("Ride", call_types)
+
     # --- Group B: Telemetry ---
     def test_get_activity_streams(self):
         self.mock_repo.get_activity_stream_window.return_value = [

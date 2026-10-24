@@ -98,8 +98,11 @@ class PostgresqlRepository(DatabaseRepository):
 
     def _ensure_connected(self):
         """Verify the connection is alive; transparently reconnect if not."""
+        if self.conn is None:
+            self.conn = self._connect()
+            return
         try:
-            if self.conn is None or self.conn.closed:
+            if self.conn.closed:
                 raise psycopg2.OperationalError("Connection is closed")
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")

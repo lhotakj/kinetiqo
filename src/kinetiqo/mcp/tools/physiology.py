@@ -15,6 +15,7 @@ from kinetiqo.mcp.utils import (
     extract_activity_summaries,
     get_best_power_for_single_duration,
     get_best_powers_for_durations,
+    normalize_sport_types,
 )
 from kinetiqo.analytics.fitness import calculate_ctl_atl_tsb
 from kinetiqo.web.vo2max import estimate_vo2max, estimate_vo2max_coggan, classify_vo2max
@@ -383,7 +384,7 @@ def kinetiqo_get_weekly_training_profile(
 ) -> Dict[str, Any]:
     """Compute multi-week training load profiles grouped by ISO calendar weeks, surfacing power, volume, and habits."""
     try:
-        types = sport_types or ["Ride", "VirtualRide", "GravelRide"]
+        types = normalize_sport_types(sport_types) or ["Ride", "VirtualRide", "GravelRide"]
         if year is not None:
             start_date = f"{year}-01-01"
             end_date = f"{year}-12-31"

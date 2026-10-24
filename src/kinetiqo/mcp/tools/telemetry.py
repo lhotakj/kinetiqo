@@ -15,6 +15,7 @@ from kinetiqo.mcp.utils import (
     detect_stream_gaps,
     extract_activity_summaries,
     get_best_powers_for_durations,
+    normalize_sport_types,
 )
 from kinetiqo.analytics.power import (
     calculate_normalized_power,
@@ -186,7 +187,7 @@ def kinetiqo_get_personal_records(
 ) -> Dict[str, Any]:
     """Retrieve verified all-time and period personal power records for benchmark durations."""
     benchmark_durations = durations or [5, 60, 300, 1200, 3600]
-    types = sport_types or ["Ride", "VirtualRide", "GravelRide"]
+    types = normalize_sport_types(sport_types) or ["Ride", "VirtualRide", "GravelRide"]
 
     try:
         try:
