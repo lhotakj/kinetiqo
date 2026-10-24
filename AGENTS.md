@@ -310,7 +310,37 @@ When adding a new Google Font to the offline font library, execute every step be
 
 ---
 
-## 7. Development Environment Notes
+## 7. Available AI Skills (Use by Default)
+
+All AI agents should leverage these specialized domain skills to enhance code quality, consistency, and validation:
+
+### 7.1 Core Kinetiqo Skills
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| **python-standards** | Enforce SonarQube rules and modern Python standards: cryptographic randomness with `secrets` (python:S2245), timezone-aware UTC datetimes, path traversal validation (pythonsecurity:S8707), and anonymous user safety. | `.agents/skills/python-standards/SKILL.md` |
+| **python-type-safety** | Python type safety with type hints, generics, protocols, and strict type checking. Use when adding type annotations, implementing generic classes, defining structural interfaces, or configuring mypy/pyright. | `.agents/skills/python-type-safety/SKILL.md` |
+| **javascript-standards** | Enforce SonarQube rules and modern ECMAScript standards for JavaScript code: avoid legacy global number methods (javascript:S7773), object property uniqueness (javascript:S1534), and modern ES2015+ patterns. | `.agents/skills/javascript-standards/SKILL.md` |
+| **ui-loading-standards** | Enforce uniform UI loading and waiting indicators across Kinetiqo using `kinetiqo-loading-32x32.webp` without accompanying text in action buttons. Covers DataTables, sync progress, chart overlays, and file uploads. | `.agents/skills/ui-loading-standards/SKILL.md` |
+| **grill-me** | Interview the user relentlessly about a plan, spec, or ticket until every branch of the decision tree is resolved. Produces a per-dimension ambiguity report (Goals / Acceptance / Boundaries / Alternatives / Assumptions) and an aggregate gate. Use whenever drafting specs, proposing designs, debating approaches, or finalizing work. | `.agents/skills/grill-me/SKILL.md` |
+
+### 7.2 Marketing Site Skill (kinetiqo-web)
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| **sync-marketing-features** | Instructions and standards to keep the 8 core fitness telemetry features, 16 basemaps, 4x2 grid layout, top navigation dropdown, environment variables, and CLI reference synchronized across the Kinetiqo marketing site (`src/` and `site/`). | `.agents/skills/sync-marketing-features/SKILL.md` |
+
+### 7.3 How to Use Skills
+
+1. **Automatic Discovery**: All skills are automatically discovered by AI agents from the `.agents/skills/` directory in this repository.
+2. **Default Behavior**: Skills are applied by default — you do not need to explicitly request them. When a task touches code that falls within a skill's domain, the agent will automatically apply the skill's guidelines.
+3. **Explicit Invocation**: You can explicitly request a skill by name (e.g., "grill me on this proposal" or "check this against python-standards").
+4. **Subroutine Mode**: Some skills (like `grill-me`) can be invoked as subroutines by other skills to enhance their output.
+5. **Central & Repo Copies**: The central `.agents/skills/` library at the workspace root is the source of truth. Each repository maintains exact independent copies for full self-containment.
+
+---
+
+## 8. Development Environment Notes
 
 When running commands in developer environments (e.g., PyCharm SSH terminal vs. local Windows shell):
 - Windows path: `H:\WORKING\kinetiqo`
