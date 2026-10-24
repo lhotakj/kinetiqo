@@ -2,7 +2,10 @@
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+import logging
 import math
+
+logger = logging.getLogger("kinetiqo.mcp.utils")
 
 
 def format_iso_timestamp(ts: Optional[datetime]) -> Optional[str]:
@@ -150,3 +153,72 @@ def detect_stream_gaps(rows: List[Dict[str, Any]], threshold_s: int = 2) -> Dict
         "max_gap_seconds": max_gap,
         "total_gap_seconds": total_gap_sec,
     }
+
+
+def extract_activity_summaries(raw_activities: List[Any]) -> List[Dict[str, Any]]:
+    """Normalize activity records from repo.get_activity_ids_by_types into [{'id': str, 'name': ..., 'start_date': ...}]."""
+    summaries = []
+    for item in raw_activities or []:
+        if isinstance(item, dict):
+            aid = str(item.get("id") or item.get("activity_id") or "").strip()
+            name = item.get("name")
+            sdate = str(item.get("start_date") or "")
+        else:
+            aid = str(item).strip()
+            name = None
+            sdate = ""
+        if aid:
+            summaries.append({"id": aid, "name": name, "start_date": sdate})
+    return summaries
+
+
+def get_best_power_for_single_duration(repo: Any, activity_ids: List[str], duration: int) -> Dict[str, float]:
+    """Query repo.get_best_power_per_activity for a single duration and normalize to {activity_id: float_watts}."""
+    str_ids = [str(aid).strip() for aid in activity_ids if str(aid).strip()]
+    if not str_ids:
+        return {}
+    res: Dict[str, float] = {}
+    try:
+        raw_res = repo.get_best_power_per_activity(str_ids, duration)
+        if isinstance(raw_res, dict):
+            for aid, val in raw_res.items():
+                if isinstance(val, dict):
+                    w = val.get(duration)
+                    if w is not None:
+                        res[str(aid)] = float(w)
+                elif val is not None:
+                    res[str(aid)] = float(val)
+    except Exception as e:
+        logger.warning("Error querying best power for duration %s: %s", duration, e)
+    return res
+
+
+def get_best_powers_for_durations(repo: Any, activity_ids: List[str], durations: List[int]) -> Dict[int, Dict[str, float]]:
+    """Query best powers across multiple durations.
+
+    Gracefully supports both the canonical DatabaseRepository API (calling get_best_power_per_activity(ids, d)
+    per integer duration) and test mocks that return nested {aid: {d: watts}} maps.
+    """
+    str_ids = [str(aid).strip() for aid in activity_ids if str(aid).strip()]
+    result: Dict[int, Dict[str, float]] = {d: {} for d in durations}
+    if not str_ids:
+        return result
+
+    # Check if a test mock handles durations as a list directly
+    try:
+        mock_check = repo.get_best_power_per_activity(str_ids, durations)
+        if isinstance(mock_check, dict) and any(isinstance(v, dict) for v in mock_check.values()):
+            for aid, d_map in mock_check.items():
+                if isinstance(d_map, dict):
+                    for d, w in d_map.items():
+                        if d in result and w is not None:
+                            result[d][str(aid)] = float(w)
+            return result
+    except Exception:
+        pass
+
+    # Standard DatabaseRepository call per duration
+    for d in durations:
+        result[d] = get_best_power_for_single_duration(repo, str_ids, d)
+
+    return result

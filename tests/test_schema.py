@@ -32,6 +32,18 @@ class TestSchemaDefinition(unittest.TestCase):
         expected_vse_cols = {"id", "athlete_id", "activity_id", "segment_id", "name", "rank", "elapsed_time", "moving_time", "start_date", "pr_rank"}
         self.assertTrue(expected_vse_cols.issubset(vse_cols))
 
+    def test_chat_tables_are_portable_and_scoped(self):
+        """Chat persistence must be bootstrapped for all supported databases."""
+        for table_name in ("chat_sessions", "chat_messages", "chat_provider_keys"):
+            with self.subTest(table=table_name):
+                self.assertIn(table_name, SCHEMA_DEFINITION)
+                columns = {column["name"] for column in SCHEMA_DEFINITION[table_name]["columns"]}
+                self.assertIn("athlete_id", columns)
+                for column in SCHEMA_DEFINITION[table_name]["columns"]:
+                    self.assertIn("type_mysql", column)
+                    self.assertIn("type_pg", column)
+                    self.assertIn("type_firebird", column)
+
     def test_activities_reverse_composite_indexes(self):
         """Verify performance-critical reverse composite indexes exist for all dialects."""
         indexes = SCHEMA_DEFINITION["activities"]["indexes"]

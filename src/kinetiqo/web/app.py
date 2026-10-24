@@ -73,6 +73,10 @@ from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
 from kinetiqo.web.fondo_o_meter import compute_fondo_o_meter, compute_achievements
+from kinetiqo.chat.encryption import encrypt_api_key, ChatEncryptionError
+from kinetiqo.chat.errors import ChatError
+from kinetiqo.chat.repository import ChatRepository
+from kinetiqo.chat.service import ChatService
 
 
 
@@ -2367,6 +2371,160 @@ def settings():
         Response: The rendered settings template.
     """
     return render_template('settings.html', title="Settings")
+
+
+def _chat_service() -> ChatService:
+    """Return the request-scoped service without exposing keys to web clients."""
+    return ChatService(ChatRepository(get_db(), config.database_type), app.secret_key, config=config)
+
+
+def _chat_user_id() -> str:
+    """Get the authenticated chat owner identifier safely."""
+    if not current_user.is_authenticated:
+        raise PermissionError("Authentication is required.")
+    return str(getattr(current_user, 'id', ''))
+
+
+def _chat_error(error: Exception, status: int = 400):
+    code = getattr(error, 'error_code', 'invalid_request')
+    message = getattr(error, 'user_message', str(error))
+    return jsonify({'error': {'code': code, 'message': message}}), status
+
+
+@app.route('/chat', methods=['GET'])
+@app.route('/chat/<session_id>', methods=['GET'])
+@login_required
+def chat_page(session_id: str | None = None):
+    """Render the persistent Kinetiqo AI Chat shell."""
+    athlete_id = _chat_user_id()
+    if session_id and not _chat_service().repository.get_session(athlete_id, session_id):
+        return Response(status=404)
+    user_name = getattr(current_user, 'id', '') or 'Athlete'
+    try:
+        profile = get_db().get_profile()
+        if profile:
+            first_name = (profile.get('first_name') or '').strip()
+            last_name = (profile.get('last_name') or '').strip()
+            full_name = f"{first_name} {last_name}".strip()
+            if full_name:
+                user_name = full_name
+            elif profile.get('name'):
+                user_name = profile['name']
+    except Exception:
+        pass
+    return render_template('chat.html', title='AI Chat', initial_session_id=session_id, user_name=user_name)
+
+
+@app.route('/api/chat/sessions', methods=['GET', 'POST'])
+@login_required
+def chat_sessions_api():
+    athlete_id = _chat_user_id()
+    service = _chat_service()
+    if request.method == 'GET':
+        return jsonify({'sessions': [item.__dict__ for item in service.repository.list_sessions(athlete_id)]})
+    data = request.get_json(silent=True) or {}
+    try:
+        item = service.create_session(athlete_id, data.get('provider', 'gemini'), data.get('model_id'))
+        return jsonify({'session': item.__dict__}), 201
+    except ChatError as exc:
+        return _chat_error(exc, 422)
+
+
+@app.route('/api/chat/sessions/<session_id>', methods=['PATCH', 'DELETE'])
+@login_required
+def chat_session_api(session_id: str):
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'DELETE':
+        repository.delete_session(athlete_id, session_id)
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    title = data.get('title')
+    if title is not None and (not isinstance(title, str) or not title.strip() or len(title.strip()) > 120):
+        return _chat_error(ValueError('Conversation titles must be 1 to 120 characters.'), 422)
+    try:
+        repository.update_session(athlete_id, session_id, title=title.strip() if title else None, model_id=data.get('model_id'))
+        item = repository.get_session(athlete_id, session_id)
+        return jsonify({'session': item.__dict__})
+    except LookupError:
+        return Response(status=404)
+
+
+@app.route('/api/chat/sessions/<session_id>/messages', methods=['GET', 'POST'])
+@login_required
+def chat_messages_api(session_id: str):
+    athlete_id = _chat_user_id()
+    service = _chat_service()
+    if request.method == 'GET':
+        if not service.repository.get_session(athlete_id, session_id):
+            return Response(status=404)
+        return jsonify({'messages': [item.__dict__ for item in service.repository.list_messages(athlete_id, session_id)]})
+    data = request.get_json(silent=True) or {}
+    try:
+        user_message, events = service.stream_turn(athlete_id, session_id, data.get('content', ''), data.get('model_id'))
+    except LookupError:
+        return Response(status=404)
+    except (ValueError, ChatError, ChatEncryptionError) as exc:
+        return _chat_error(exc, 422)
+
+    def encode(name: str, payload: dict) -> str:
+        return f'event: {name}\ndata: {json_module.dumps(payload, separators=(",", ":"), default=str)}\n\n'
+
+    def generate():
+        yield encode('session', {'session_id': session_id})
+        yield encode('user_message', {'message_id': user_message.message_id, 'seq': user_message.seq, 'created_at': user_message.created_at})
+        try:
+            for event in events:
+                if event.type == 'text_delta':
+                    yield encode('text_delta', {'text': event.text})
+                elif event.type == 'tool_call':
+                    yield encode('tool_call', {'tool': event.tool, 'arguments': event.arguments})
+                elif event.type == 'tool_result':
+                    yield encode('tool_result', {'tool': event.tool})
+                elif event.type == 'usage':
+                    yield encode('usage', {'input_tokens': event.input_tokens, 'output_tokens': event.output_tokens})
+            yield encode('completed', {'model_id': data.get('model_id'), 'provider': 'gemini'})
+        except ChatError as exc:
+            yield encode('error', {'code': exc.error_code, 'message': exc.user_message})
+        except Exception:
+            logger.exception('Chat generation failed without logging prompt content.')
+            yield encode('error', {'code': 'chat_error', 'message': 'Chat could not complete. Please try again.'})
+
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
+
+
+@app.route('/api/chat/models', methods=['GET'])
+@login_required
+def chat_models_api():
+    try:
+        provider = request.args.get('provider', 'gemini')
+        return jsonify({'models': _chat_service().models(_chat_user_id(), provider)})
+    except (ChatError, ChatEncryptionError) as exc:
+        return _chat_error(exc, 422)
+
+
+@app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_gemini_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        return jsonify({'configured': repository.get_provider_key(athlete_id, 'gemini') is not None})
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'gemini')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        repository.save_provider_key(athlete_id, 'gemini', encrypt_api_key(api_key.strip(), app.secret_key))
+        return jsonify({'configured': True})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
 
 
 @app.route('/strava/reconnect', methods=['GET'])

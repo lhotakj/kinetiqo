@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block head %}
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v5') }}" defer></script>
+<style>
+  /* Remove outer padding and background on the chat page to use 100% space */
+  main {
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  main > div.overflow-y-auto {
+    padding: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    width: 100% !important;
+    background: transparent !important;
+  }
+  main > div > div.w-full {
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1 !important;
+  }
+  .chat-layout-wrapper {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+    border-radius: 0;
+    border: none;
+    overflow: hidden;
+    background: transparent;
+    box-shadow: none;
+  }
+  .chat-sidebar {
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border-right: 1px solid #e5e7eb;
+    background: #ffffff;
+    flex-shrink: 0;
+  }
+  .chat-main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    background: transparent;
+    position: relative;
+    overflow: hidden;
+  }
+  .chat-hero-icon {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    max-width: 48px !important;
+    max-height: 48px !important;
+    border-radius: 12px;
+    background: rgba(249, 115, 22, 0.12);
+    color: #ea580c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+  }
+  .chat-hero-icon svg {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    display: block;
+  }
+  .chat-suggestions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+    max-width: 100%;
+    margin: 20px auto 0;
+    width: 100%;
+    text-align: left;
+  }
+  .chat-suggestion-chip {
+    padding: 12px 16px !important;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #fbfbf9;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.15s ease-in-out;
+  }
+  .chat-suggestion-chip:hover {
+    border-color: #ea580c;
+    background: rgba(249, 115, 22, 0.05);
+    color: #ea580c;
+    transform: translateY(-1px);
+  }
+  .chat-composer-box {
+    border-top: 1px solid #e5e7eb;
+    background: transparent;
+    padding: 14px 24px 18px;
+    flex-shrink: 0;
+  }
+  .chat-composer-card {
+    position: relative;
+    border-radius: 16px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    padding: 10px 14px 8px;
+    transition: border-color 0.15s;
+  }
+  .chat-composer-card:focus-within {
+    border-color: #ea580c;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.18);
+  }
+  .chat-composer-textarea {
+    width: 100%;
+    resize: none;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    line-height: 1.5;
+    outline: none;
+    padding-right: 76px;
+    min-height: 44px;
+    max-height: 160px;
+    color: #111827;
+  }
+  .chat-send-btn {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    border-radius: 10px;
+    background: #ea580c;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+  }
+  .chat-send-btn:hover {
+    background: #c2410c;
+  }
+  .chat-send-btn:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+
+  /* Dark mode overrides */
+  html.dark .chat-layout-wrapper {
+    background: transparent;
+    border-color: #333336;
+  }
+  html.dark .chat-sidebar {
+    background: #212124;
+    border-color: #333336;
+  }
+  html.dark .chat-main-area {
+    background: transparent;
+  }
+  html.dark .chat-hero-icon {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
+  }
+  html.dark .chat-suggestion-chip {
+    border-color: #333336;
+    background: #262629;
+    color: #e4e4e7;
+  }
+  html.dark .chat-suggestion-chip:hover {
+    border-color: #ea580c;
+    background: rgba(249, 115, 22, 0.12);
+    color: #fb923c;
+  }
+  html.dark .chat-composer-box {
+    border-color: #333336;
+    background: transparent;
+  }
+  html.dark .chat-composer-card {
+    border-color: #3f3f46;
+    background: #262629;
+  }
+  html.dark .chat-composer-textarea {
+    color: #f4f4f5;
+  }
+  html.dark .chat-composer-textarea::placeholder {
+    color: #71717a;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div id="chat-app" data-initial-session-id="{{ initial_session_id | tojson }}" data-user-name="{{ user_name | tojson }}" class="chat-layout-wrapper">
+  <!-- Left Navigation Column: Latest Chats & Settings -->
+  <aside class="chat-sidebar" aria-label="Chat Navigation">
+    <div style="padding: 12px;">
+      <button id="new-chat" type="button" style="display: flex; min-height: 42px; width: 100%; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; background: #ea580c; padding: 8px 16px; font-size: 13px; font-weight: 600; color: #ffffff; border: none; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: background 0.15s;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+        <span>New chat</span>
+      </button>
+      <div style="margin-top: 14px; padding: 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280;" class="dark:text-zinc-400">Recent Chats</div>
+    </div>
+    <div id="chat-sessions" style="flex: 1; overflow-y: auto; padding: 4px 8px; display: flex; flex-direction: column; gap: 4px;"></div>
+
+    <!-- Pinned Settings Panel at bottom of Left Nav -->
+    <div style="border-top: 1px solid #e5e7eb; padding: 12px; display: flex; flex-direction: column; gap: 10px;" class="dark:border-zinc-700 dark:bg-zinc-800">
+      <div>
+        <label for="chat-model" style="display: block; font-size: 11px; font-weight: 600; color: #4b5563; margin-bottom: 4px;" class="dark:text-zinc-300">AI Model</label>
+        <select id="chat-model" aria-label="AI model" style="width: 100%; border-radius: 8px; border: 1px solid #d1d5db; background: #ffffff; padding: 6px 10px; font-size: 12px; font-weight: 500; color: #111827; outline: none;" class="dark:border-zinc-600 dark:bg-zinc-700 dark:text-white">
+          <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+        </select>
+      </div>
+      <a href="{{ url_for('settings') }}" style="display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 500; color: #4b5563; text-decoration: none; transition: background 0.15s;" class="hover:bg-warm-200 dark:text-zinc-300 dark:hover:bg-zinc-700">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+        <span>AI & API Settings</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Right Column: Full Width Output & Bottom Composer -->
+  <section class="chat-main-area">
+    <!-- Scrollable Messages Area -->
+    <div id="chat-scroll" style="flex: 1; overflow-y: auto; padding: 20px 24px;">
+      <div style="width: 100%; display: flex; flex-direction: column; gap: 16px;">
+        <div id="chat-status" role="status" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"></div>
+        <div id="chat-messages" style="display: flex; flex-direction: column; gap: 14px; width: 100%;" aria-live="polite"></div>
+
+        <!-- Empty State Hero -->
+        <div id="chat-empty" style="padding: 40px 0; text-align: center;">
+          <div class="chat-hero-icon">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          </div>
+          <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 6px;" class="dark:text-white">How can I help with your training?</h2>
+          <p style="margin: 0 auto; max-width: 540px; font-size: 13px; color: #4b5563; line-height: 1.5;" class="dark:text-gray-400">I have direct read-only access to your Kinetiqo database to analyze workouts, power curves, totals, fitness trends, and milestones.</p>
+          <div class="chat-suggestions-grid">
+            <button type="button" class="chat-suggestion chat-suggestion-chip">
+              <span style="font-size: 16px; line-height: 1;">📊</span>
+              <span>Summarize my last four weeks of training</span>
+            </button>
+            <button type="button" class="chat-suggestion chat-suggestion-chip">
+              <span style="font-size: 16px; line-height: 1;">⚡</span>
+              <span>How fresh am I right now (CTL/ATL/TSB)?</span>
+            </button>
+            <button type="button" class="chat-suggestion chat-suggestion-chip">
+              <span style="font-size: 16px; line-height: 1;">📈</span>
+              <span>Compare this month's distance to last year</span>
+            </button>
+            <button type="button" class="chat-suggestion chat-suggestion-chip">
+              <span style="font-size: 16px; line-height: 1;">🏆</span>
+              <span>What are my benchmark power records?</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pinned Bottom Chat Box -->
+    <div class="chat-composer-box">
+      <div style="width: 100%;">
+        <form id="chat-composer" class="chat-composer-card">
+          <label for="chat-input" class="sr-only">Message to Kinetiqo AI Chat</label>
+          <textarea id="chat-input" maxlength="32768" rows="2" aria-label="Message to Kinetiqo AI Chat" placeholder="Ask about your training, power, freshness, or activities… (Enter to send, Shift+Enter for newline)" class="chat-composer-textarea"></textarea>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+            <span style="font-size: 11px; color: #9ca3af;" class="dark:text-zinc-500">🔒 Local read-only fitness data tools active</span>
+            <button id="chat-send" type="submit" class="chat-send-btn">
+              <span>Send</span>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </button>
+          </div>
+        </form>
+        <p style="margin-top: 6px; text-align: center; font-size: 11px; color: #9ca3af;" class="dark:text-zinc-500">Kinetiqo AI uses local fitness data tools. Training advice is informational.</p>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+
+
+
+

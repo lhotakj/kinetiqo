@@ -11,6 +11,11 @@ from kinetiqo.mcp.contracts import (
     ERROR_INVALID_ARGUMENT,
     ERROR_NOT_FOUND,
 )
+from kinetiqo.mcp.utils import (
+    extract_activity_summaries,
+    get_best_power_for_single_duration,
+    get_best_powers_for_durations,
+)
 from kinetiqo.analytics.fitness import calculate_ctl_atl_tsb
 from kinetiqo.web.vo2max import estimate_vo2max, estimate_vo2max_coggan, classify_vo2max
 
@@ -87,22 +92,40 @@ def kinetiqo_get_fitness_and_freshness(
 def kinetiqo_get_ftp_history(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
     """Retrieve configured athlete FTP and historical 95% of 20-min power breakthroughs."""
     try:
-        profile = repo.get_profile(athlete_id) or {}
+        try:
+            profile = repo.get_profile() or {}
+        except TypeError:
+            profile = repo.get_profile(athlete_id) or {}
         configured_ftp = float(profile.get("ftp") or 0.0)
         weight_kg = float(profile.get("weight") or 0.0)
 
-        act_ids = repo.get_activity_ids_by_types(
+        raw_acts = repo.get_activity_ids_by_types(
             types=["Ride", "VirtualRide", "GravelRide"],
             watts_only=True,
-        )
+        ) or []
+
+        summaries = extract_activity_summaries(raw_acts)
+        str_ids = [s["id"] for s in summaries]
 
         breakthroughs = []
-        if act_ids:
-            bests_20m = repo.get_best_power_per_activity(act_ids[:150], [1200])
-            act_details = {str(a.get("activity_id") or a.get("id")): a for a in repo.get_activities_by_ids(act_ids[:150])}
+        if str_ids:
+            bests_20m = get_best_power_for_single_duration(repo, str_ids[:150], 1200)
 
-            for aid, d_map in bests_20m.items():
-                p20 = float(d_map.get(1200) or 0.0)
+            act_details = {s["id"]: s for s in summaries if s.get("name")}
+            missing = [aid for aid in bests_20m.keys() if aid not in act_details]
+            if missing and hasattr(repo, "get_activities_by_ids"):
+                try:
+                    for a in repo.get_activities_by_ids(missing):
+                        aid_key = str(a.get("id") or a.get("activity_id"))
+                        act_details[aid_key] = {
+                            "id": aid_key,
+                            "name": a.get("name"),
+                            "start_date": str(a.get("start_date") or ""),
+                        }
+                except Exception:
+                    pass
+
+            for aid, p20 in bests_20m.items():
                 if p20 > 0:
                     est_ftp = round(p20 * 0.95, 1)
                     act = act_details.get(str(aid), {})
@@ -143,14 +166,29 @@ def kinetiqo_get_vo2max_trend(repo: Any, days: int = 90) -> Dict[str, Any]:
 
         coggan_vo2max = estimate_vo2max_coggan(ftp, weight_kg) if ftp > 0 else None
 
-        act_ids = repo.get_activity_ids_by_types(types=["Ride", "VirtualRide", "GravelRide"], watts_only=True)
-        estimates = []
-        if act_ids:
-            bests_5m = repo.get_best_power_per_activity(act_ids[:100], [300])
-            act_details = {str(a.get("activity_id") or a.get("id")): a for a in repo.get_activities_by_ids(act_ids[:100])}
+        since_date = (date.today() - timedelta(days=days)).isoformat() if days else None
+        raw_acts = repo.get_activity_ids_by_types(types=["Ride", "VirtualRide", "GravelRide"], since_date=since_date, watts_only=True) or []
+        summaries = extract_activity_summaries(raw_acts)
+        str_ids = [s["id"] for s in summaries]
 
-            for aid, d_map in bests_5m.items():
-                p5 = float(d_map.get(300) or 0.0)
+        estimates = []
+        if str_ids:
+            bests_5m = get_best_power_for_single_duration(repo, str_ids[:100], 300)
+            act_details = {s["id"]: s for s in summaries if s.get("name")}
+            missing = [aid for aid in bests_5m.keys() if aid not in act_details]
+            if missing and hasattr(repo, "get_activities_by_ids"):
+                try:
+                    for a in repo.get_activities_by_ids(missing):
+                        aid_key = str(a.get("id") or a.get("activity_id"))
+                        act_details[aid_key] = {
+                            "id": aid_key,
+                            "name": a.get("name"),
+                            "start_date": str(a.get("start_date") or ""),
+                        }
+                except Exception:
+                    pass
+
+            for aid, p5 in bests_5m.items():
                 if p5 >= 150.0:  # Minimum meaningful effort
                     raw_sd = estimate_vo2max(p5, weight_kg)
                     act = act_details.get(str(aid), {})
@@ -189,26 +227,50 @@ def kinetiqo_get_power_skills(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
     }
 
     try:
-        profile = repo.get_profile(athlete_id) or {}
+        try:
+            profile = repo.get_profile() or {}
+        except TypeError:
+            profile = repo.get_profile(athlete_id) or {}
         weight_kg = float(profile.get("weight") or 0.0)
 
-        act_ids = repo.get_activity_ids_by_types(types=["Ride", "VirtualRide", "GravelRide"], watts_only=True)
-        if not act_ids:
+        raw_acts = repo.get_activity_ids_by_types(types=["Ride", "VirtualRide", "GravelRide"], watts_only=True) or []
+        summaries = extract_activity_summaries(raw_acts)
+        str_ids = [s["id"] for s in summaries]
+
+        if not str_ids:
             return create_envelope(
                 {"benchmarks": {str(d): None for d in durations}},
                 source="calculated",
                 warnings=["No power activities available for benchmark calculations"],
             )
 
-        activity_bests = repo.get_best_power_per_activity(act_ids[:150], durations)
-        act_details = {str(a.get("activity_id") or a.get("id")): a for a in repo.get_activities_by_ids(act_ids[:150])}
+        multi_bests = get_best_powers_for_durations(repo, str_ids[:150], durations)
+
+        act_details = {s["id"]: s for s in summaries if s.get("name")}
+        winner_aids = set()
+        for d in durations:
+            for aid, val in multi_bests.get(d, {}).items():
+                if val > 0:
+                    winner_aids.add(aid)
+        missing = [aid for aid in winner_aids if aid not in act_details]
+        if missing and hasattr(repo, "get_activities_by_ids"):
+            try:
+                for a in repo.get_activities_by_ids(missing):
+                    aid_key = str(a.get("id") or a.get("activity_id"))
+                    act_details[aid_key] = {
+                        "id": aid_key,
+                        "name": a.get("name"),
+                        "start_date": str(a.get("start_date") or ""),
+                    }
+            except Exception:
+                pass
 
         benchmarks = {}
         for d in durations:
+            dur_bests = multi_bests.get(d, {})
             best_w = 0.0
             best_aid = None
-            for aid, d_map in activity_bests.items():
-                val = float(d_map.get(d) or 0.0)
+            for aid, val in dur_bests.items():
                 if val > best_w:
                     best_w = val
                     best_aid = str(aid)

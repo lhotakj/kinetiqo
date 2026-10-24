@@ -243,6 +243,22 @@
         </div>
     </div>
 
+    <!-- AI provider settings -->
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">AI</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Prompts, relevant Kinetiqo data, and attachments sent in AI Chat are shared with Google Gemini using your own API key.</p>
+        </div>
+        <form id="gemini-key-form" class="p-6 flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-64">
+                <div class="flex items-center gap-2 mb-1"><label for="gemini-api-key" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gemini API key</label><span id="gemini-key-status" class="text-xs text-gray-500"></span></div>
+                <input id="gemini-api-key" type="password" autocomplete="off" aria-label="Gemini API key" class="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white" placeholder="Enter a new Gemini API key">
+            </div>
+            <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">Save key</button>
+            <button id="remove-gemini-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300">Remove key</button>
+        </form>
+    </div>
+
     <!-- Sync Schedules & Database Backend -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
@@ -1036,6 +1052,14 @@
             update_strava_swimming: document.getElementById('profile-update-strava-swimming'),
         };
         const profileStatus = document.getElementById('profile-status');
+        const geminiForm = document.getElementById('gemini-key-form');
+        const geminiInput = document.getElementById('gemini-api-key');
+        const geminiStatus = document.getElementById('gemini-key-status');
+        const geminiHeaders = {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''};
+        function setGeminiStatus(text, error) { if (geminiStatus) { geminiStatus.textContent = text; geminiStatus.className = error ? 'text-xs text-red-600 dark:text-red-400' : 'text-xs text-green-600 dark:text-green-400'; } }
+        fetch('/api/settings/ai/gemini').then((response) => response.json()).then((data) => setGeminiStatus(data.configured ? 'Configured' : 'Not configured', false)).catch(() => setGeminiStatus('Unable to load status', true));
+        if (geminiForm && geminiInput) geminiForm.addEventListener('submit', (event) => { event.preventDefault(); fetch('/api/settings/ai/gemini', {method: 'POST', headers: geminiHeaders, body: JSON.stringify({api_key: geminiInput.value})}).then(async (response) => { if (!response.ok) throw new Error((await response.json()).error?.message || 'Unable to save key'); return response.json(); }).then(() => { geminiInput.value = ''; setGeminiStatus('Configured', false); }).catch((error) => setGeminiStatus(error.message, true)); });
+        document.getElementById('remove-gemini-key')?.addEventListener('click', () => { fetch('/api/settings/ai/gemini', {method: 'DELETE', headers: geminiHeaders}).then((response) => { if (!response.ok) throw new Error('Unable to remove key'); setGeminiStatus('Not configured', false); }).catch((error) => setGeminiStatus(error.message, true)); });
 
         function showStatus(msg, isError) {
             if (!profileStatus) return;

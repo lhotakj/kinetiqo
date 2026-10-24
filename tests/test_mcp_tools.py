@@ -109,7 +109,98 @@ class TestMCPTools(unittest.TestCase):
         self.assertEqual(res["data"]["normalized_power_w"], 250.0)
         self.assertEqual(res["data"]["intensity_factor"], 1.0)
 
+    def test_calculate_power_curve_cross_activity(self):
+        self.mock_repo.get_profile.return_value = {"weight": 70.0}
+        self.mock_repo.get_activity_ids_by_types.return_value = [
+            {"id": "101", "name": "Crit", "start_date": "2026-05-10T10:00:00Z"},
+            {"id": "102", "name": "TT", "start_date": "2026-05-12T10:00:00Z"},
+        ]
+        def mock_best_power(ids, duration):
+            return {"101": 300.0, "102": 320.0}
+        self.mock_repo.get_best_power_per_activity.side_effect = mock_best_power
+
+        res = telemetry.kinetiqo_calculate_power_curve(self.mock_repo, activity_id=None, days=30, durations=[5, 60])
+        self.assertEqual(res["data_status"], "complete")
+        self.assertEqual(res["data"]["mmp_curve"]["5"]["watts"], 320.0)
+        self.assertEqual(res["data"]["mmp_curve"]["5"]["source_activity_id"], "102")
+        self.assertAlmostEqual(res["data"]["mmp_curve"]["5"]["w_per_kg"], 4.57, places=2)
+
+    def test_get_personal_records(self):
+        self.mock_repo.get_profile.return_value = {"weight": 70.0}
+        self.mock_repo.get_activity_ids_by_types.return_value = [
+            {"id": "101", "name": "Morning Ride", "start_date": "2026-05-10T10:00:00Z"},
+            {"id": "102", "name": "Evening Ride", "start_date": "2026-05-12T10:00:00Z"},
+        ]
+        def mock_best_power(ids, duration):
+            if duration == 5:
+                return {"101": 800.0, "102": 750.0}
+            if duration == 300:
+                return {"101": 350.0, "102": 380.0}
+            return {}
+        self.mock_repo.get_best_power_per_activity.side_effect = mock_best_power
+
+        res = telemetry.kinetiqo_get_personal_records(
+            self.mock_repo,
+            athlete_id=1,
+            durations=[5, 300],
+            start_date="2026-05-01",
+            end_date="2026-05-31",
+        )
+        self.assertEqual(res["data_status"], "complete")
+        records = res["data"]["records"]
+        self.assertEqual(records["5"]["watts"], 800.0)
+        self.assertEqual(records["5"]["activity_id"], "101")
+        self.assertEqual(records["5"]["activity_name"], "Morning Ride")
+        self.assertEqual(records["300"]["watts"], 380.0)
+        self.assertEqual(records["300"]["activity_id"], "102")
+        self.assertEqual(records["300"]["activity_name"], "Evening Ride")
+
     # --- Group C: Physiology ---
+    def test_get_ftp_history(self):
+        self.mock_repo.get_profile.return_value = {"weight": 70.0, "ftp": 280.0}
+        self.mock_repo.get_activity_ids_by_types.return_value = [
+            {"id": "201", "name": "20m Test", "start_date": "2026-05-10T10:00:00Z"},
+            {"id": "202", "name": "Zwift Race", "start_date": "2026-05-12T10:00:00Z"},
+        ]
+        def mock_best_power(ids, duration):
+            if duration == 1200:
+                return {"201": 300.0, "202": 320.0}
+            return {}
+        self.mock_repo.get_best_power_per_activity.side_effect = mock_best_power
+
+        res = physiology.kinetiqo_get_ftp_history(self.mock_repo, athlete_id=1)
+        self.assertEqual(res["data_status"], "complete")
+        self.assertEqual(res["data"]["configured_ftp_watts"], 280.0)
+        self.assertEqual(res["data"]["athlete_weight_kg"], 70.0)
+        breakthroughs = res["data"]["historical_20m_breakthroughs"]
+        self.assertEqual(len(breakthroughs), 2)
+        self.assertEqual(breakthroughs[0]["activity_id"], "202")
+        self.assertEqual(breakthroughs[0]["best_20m_watts"], 320.0)
+        self.assertEqual(breakthroughs[0]["estimated_ftp_watts"], 304.0)
+        self.assertAlmostEqual(breakthroughs[0]["w_per_kg"], 4.34, places=2)
+
+    def test_get_power_skills(self):
+        self.mock_repo.get_profile.return_value = {"weight": 70.0, "ftp": 280.0}
+        self.mock_repo.get_activity_ids_by_types.return_value = [
+            {"id": "301", "name": "Sprint Workout", "start_date": "2026-05-10T10:00:00Z"},
+            {"id": "302", "name": "Threshold Intervals", "start_date": "2026-05-12T10:00:00Z"},
+        ]
+        def mock_best_power(ids, duration):
+            if duration == 5:
+                return {"301": 1000.0, "302": 700.0}
+            if duration == 1200:
+                return {"301": 250.0, "302": 320.0}
+            return {}
+        self.mock_repo.get_best_power_per_activity.side_effect = mock_best_power
+
+        res = physiology.kinetiqo_get_power_skills(self.mock_repo, athlete_id=1)
+        self.assertEqual(res["data_status"], "complete")
+        benchmarks = res["data"]["benchmarks"]
+        self.assertEqual(benchmarks["5"]["watts"], 1000.0)
+        self.assertEqual(benchmarks["5"]["activity_id"], "301")
+        self.assertEqual(benchmarks["1200"]["watts"], 320.0)
+        self.assertEqual(benchmarks["1200"]["activity_id"], "302")
+
     def test_get_fitness_and_freshness(self):
         self.mock_repo.get_activities_web.return_value = [
             {"start_date": "2026-05-10T10:00:00Z", "suffer_score": 80},
@@ -262,6 +353,125 @@ class TestMCPTools(unittest.TestCase):
         # Profile write denied by default
         prof_denied = operations.kinetiqo_update_athlete_profile(self.mock_repo, weight_kg=72.0, allow_write=False)
         self.assertEqual(prof_denied["data_status"], "unavailable")
+
+    def test_get_training_goals_db_schema(self):
+        # DatabaseRepository returns rows with activity_type_id and goal columns
+        self.mock_repo.get_goals.return_value = [
+            {
+                "activity_type_id": 1,
+                "weekly_distance_goal": 200.0,
+                "monthly_distance_goal": 800.0,
+                "yearly_distance_goal": 10000.0,
+                "weekly_elevation_goal": 2000.0,
+                "monthly_elevation_goal": None,
+                "yearly_elevation_goal": None,
+            }
+        ]
+        self.mock_repo.get_activities_totals.return_value = {
+            "total_distance": 150000.0,
+            "total_elevation": 1800.0,
+            "total_moving_time": 18000,
+        }
+
+        res = achievements.kinetiqo_get_training_goals(self.mock_repo, athlete_id=1)
+        self.assertEqual(res["data_status"], "complete")
+        goals = res["data"]["goals"]
+        self.assertEqual(len(goals), 4)  # 3 distance goals + 1 elevation goal
+        weekly_dist = next(g for g in goals if g["period"] == "weekly" and g["metric"] == "distance")
+        self.assertEqual(weekly_dist["target"], 200.0)
+        self.assertEqual(weekly_dist["actual"], 150.0)
+        self.assertEqual(weekly_dist["remaining"], 50.0)
+        self.assertEqual(weekly_dist["percent_completed"], 75.0)
+        self.assertFalse(weekly_dist["is_completed"])
+
+    def test_update_training_goals_upsert_goal(self):
+        # DatabaseRepository uses upsert_goal
+        mock_repo = MagicMock(spec=["get_goals", "upsert_goal"])
+        mock_repo.get_goals.return_value = [
+            {
+                "activity_type_id": 1,
+                "weekly_distance_goal": 150.0,
+                "monthly_distance_goal": 600.0,
+                "yearly_distance_goal": None,
+                "weekly_elevation_goal": None,
+                "monthly_elevation_goal": None,
+                "yearly_elevation_goal": None,
+            }
+        ]
+
+        res = achievements.kinetiqo_update_training_goals(
+            mock_repo,
+            athlete_id=1,
+            period="weekly",
+            goal_type="cycling",
+            target=250.0,
+            metric="distance",
+            allow_write=True,
+        )
+        self.assertEqual(res["data_status"], "complete")
+        self.assertTrue(res["data"]["success"])
+        mock_repo.upsert_goal.assert_called_once_with(
+            athlete_id=1,
+            activity_type_id=1,
+            weekly_distance_goal=250.0,
+            monthly_distance_goal=600.0,
+            yearly_distance_goal=None,
+            weekly_elevation_goal=None,
+            monthly_elevation_goal=None,
+            yearly_elevation_goal=None,
+        )
+
+    def test_update_athlete_profile_upsert_profile(self):
+        mock_repo = MagicMock(spec=["get_profile", "upsert_profile"])
+        mock_repo.get_profile.return_value = {
+            "athlete_id": 1,
+            "first_name": "Test",
+            "last_name": "Rider",
+            "weight": 70.0,
+            "ftp": 280.0,
+            "refresh_token": "tok123",
+            "gps_simplification": 1,
+            "update_strava_cycling_indoor": "indoor template",
+        }
+
+        res = operations.kinetiqo_update_athlete_profile(
+            mock_repo,
+            weight_kg=72.5,
+            ftp_watts=295.0,
+            allow_write=True,
+        )
+        self.assertEqual(res["data_status"], "complete")
+        self.assertTrue(res["data"]["success"])
+        mock_repo.upsert_profile.assert_called_once()
+        call_kwargs = mock_repo.upsert_profile.call_args[1]
+        self.assertEqual(call_kwargs["weight"], 72.5)
+        self.assertEqual(call_kwargs["ftp"], 295.0)
+        self.assertEqual(call_kwargs["refresh_token"], "tok123")
+
+    def test_tools_with_zero_argument_get_profile(self):
+        # DatabaseRepository.get_profile() takes 0 arguments. Calling with 1 arg raises TypeError.
+        class RealSignatureRepo:
+            def get_profile(self):
+                return {"athlete_id": 1, "weight": 70.0, "ftp": 280.0}
+
+            def get_activity_ids_by_types(self, types, since_date=None, watts_only=False):
+                return [{"id": "99", "name": "Solo TT", "start_date": "2026-05-15T09:00:00Z"}]
+
+            def get_best_power_per_activity(self, activity_ids, duration_seconds, min_total_samples=0):
+                return {"99": 350.0}
+
+        repo = RealSignatureRepo()
+        ftp_res = physiology.kinetiqo_get_ftp_history(repo, athlete_id=1)
+        self.assertEqual(ftp_res["data_status"], "complete")
+        self.assertEqual(ftp_res["data"]["configured_ftp_watts"], 280.0)
+
+        skills_res = physiology.kinetiqo_get_power_skills(repo, athlete_id=1)
+        self.assertEqual(skills_res["data_status"], "complete")
+        self.assertIsNotNone(skills_res["data"]["benchmarks"]["1200"])
+
+        pr_res = telemetry.kinetiqo_get_personal_records(repo, athlete_id=1, durations=[1200])
+        self.assertEqual(pr_res["data_status"], "complete")
+        self.assertIsNotNone(pr_res["data"]["records"]["1200"])
 
 
 if __name__ == "__main__":

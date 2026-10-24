@@ -152,3 +152,11 @@ def safe_resolve_path(user_input: str | Path, base_dir: Path = _REPO_ROOT) -> Pa
 - **Sonar Web:S6853 (Form Accessibility)**: Every form input, select, and textarea must have an associated `<label for="...">` or `aria-label`.
 - **Anonymous User Safety**: Never access `current_user.id` or user attributes directly without checking `if current_user.is_authenticated:`. Use `getattr(current_user, 'id', None)` for safe fallbacks.
 - **Line Endings Standard**: Use Unix/Linux line endings (**LF / `\n`**), never CRLF. UTF-8 without BOM.
+
+---
+
+## 7. AI Implementation & MCP Tools Guidelines
+
+See detailed authoritative documentation in [`.agents/skills/ai-implementation.md`](.agents/skills/ai-implementation.md) for complete contracts, gotchas, repository signatures, multi-provider guidelines (Gemini, OpenAI, Anthropic, Mistral), and testing standards.
+
+

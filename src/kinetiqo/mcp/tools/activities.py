@@ -159,9 +159,9 @@ def kinetiqo_get_activity_totals(
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating activity totals: {e}")
 
-    dist_m = float(totals.get("distance") or 0.0)
-    elev_m = float(totals.get("elevation") or 0.0)
-    mov_s = float(totals.get("moving_time") or 0.0)
+    dist_m = float(totals.get("total_distance") or totals.get("distance") or 0.0)
+    elev_m = float(totals.get("total_elevation") or totals.get("elevation") or 0.0)
+    mov_s = float(totals.get("total_moving_time") or totals.get("moving_time") or 0.0)
 
     data = {
         "count": int(count),
@@ -241,12 +241,15 @@ def kinetiqo_compare_periods(
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed querying period totals: {e}")
 
-    dist_a_km = round(float(totals_a.get("distance") or 0.0) / 1000.0, 2)
-    dist_b_km = round(float(totals_b.get("distance") or 0.0) / 1000.0, 2)
-    elev_a_m = round(float(totals_a.get("elevation") or 0.0), 1)
-    elev_b_m = round(float(totals_b.get("elevation") or 0.0), 1)
-    mov_a_s = int(totals_a.get("moving_time") or 0)
-    mov_b_s = int(totals_b.get("moving_time") or 0)
+    dist_a_m = float(totals_a.get("total_distance") or totals_a.get("distance") or 0.0)
+    dist_b_m = float(totals_b.get("total_distance") or totals_b.get("distance") or 0.0)
+    elev_a_m = round(float(totals_a.get("total_elevation") or totals_a.get("elevation") or 0.0), 1)
+    elev_b_m = round(float(totals_b.get("total_elevation") or totals_b.get("elevation") or 0.0), 1)
+    mov_a_s = int(totals_a.get("total_moving_time") or totals_a.get("moving_time") or 0)
+    mov_b_s = int(totals_b.get("total_moving_time") or totals_b.get("moving_time") or 0)
+
+    dist_a_km = round(dist_a_m / 1000.0, 2)
+    dist_b_km = round(dist_b_m / 1000.0, 2)
 
     dist_diff = round(dist_b_km - dist_a_km, 2)
     dist_pct = round((dist_diff / dist_a_km) * 100.0, 1) if dist_a_km > 0 else None

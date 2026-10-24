@@ -150,6 +150,14 @@
             Fondo-o-meter
         </a>
 
+        <a href="{{ url_for('chat_page') }}"
+           class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path.startswith('/chat') %}active{% endif %}">
+            <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4.083-.891L3 20l.891-3.083A7.76 7.76 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+            </svg>
+            AI Chat
+        </a>
+
         <a href="{{ url_for('fullsync') }}"
            class="nav-item flex items-center px-3 py-2 text-sm text-warm-900 {% if request.path == '/fullsync' %}active{% endif %}">
             <svg class="w-4 h-4 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

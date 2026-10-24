@@ -18,7 +18,7 @@ def kinetiqo_get_verified_koms(repo: Any, athlete_id: int = 1) -> Dict[str, Any]
         koms_map = load_verified_koms()
         total_koms = sum(koms_map.values())
 
-        act_ids = list(koms_map.keys())
+        act_ids = [str(k) for k in koms_map.keys()]
         activities = repo.get_activities_by_ids(act_ids) if act_ids else []
         act_map = {str(a.get("activity_id") or a.get("id")): a for a in activities}
 
@@ -133,15 +133,46 @@ def kinetiqo_get_training_goals(repo: Any, athlete_id: int = 1) -> Dict[str, Any
         start_month = date(today.year, today.month, 1)
         start_year = date(today.year, 1, 1)
 
-        summary = []
+        parsed_goals = []
         for g in goals:
-            period = str(g.get("period") or "").lower()
-            metric = str(g.get("metric") or "distance").lower()
-            sport = str(g.get("goal_type") or "cycling").lower()
-            target = float(g.get("target") or 0.0)
+            if "activity_type_id" in g:
+                type_id = int(g.get("activity_type_id") or 1)
+                sport_name = "cycling" if type_id == 1 else "walking"
+                field_mappings = [
+                    ("weekly", "distance", g.get("weekly_distance_goal")),
+                    ("monthly", "distance", g.get("monthly_distance_goal")),
+                    ("yearly", "distance", g.get("yearly_distance_goal")),
+                    ("weekly", "elevation", g.get("weekly_elevation_goal")),
+                    ("monthly", "elevation", g.get("monthly_elevation_goal")),
+                    ("yearly", "elevation", g.get("yearly_elevation_goal")),
+                ]
+                for p, m, val in field_mappings:
+                    if val is not None and float(val) > 0:
+                        parsed_goals.append({
+                            "period": p,
+                            "metric": m,
+                            "goal_type": sport_name,
+                            "target": float(val),
+                        })
+            else:
+                period = str(g.get("period") or "").lower()
+                metric = str(g.get("metric") or "distance").lower()
+                sport = str(g.get("goal_type") or "cycling").lower()
+                target = float(g.get("target") or 0.0)
+                if target > 0 and period:
+                    parsed_goals.append({
+                        "period": period,
+                        "metric": metric,
+                        "goal_type": sport,
+                        "target": target,
+                    })
 
-            if target <= 0:
-                continue
+        summary = []
+        for item in parsed_goals:
+            period = item["period"]
+            metric = item["metric"]
+            sport = item["goal_type"]
+            target = item["target"]
 
             if period == "weekly":
                 start_d = start_week.isoformat()
@@ -151,12 +182,13 @@ def kinetiqo_get_training_goals(repo: Any, athlete_id: int = 1) -> Dict[str, Any
                 start_d = start_year.isoformat()
 
             types = ["Ride", "VirtualRide", "GravelRide"] if "cycling" in sport else ["Walk", "Hike"]
-            totals = repo.get_activities_totals(types=types, start_date=start_d, end_date=today.isoformat())
+            totals = repo.get_activities_totals(types=types, start_date=start_d, end_date=today.isoformat()) or {}
 
             if metric == "elevation":
-                actual = float(totals.get("elevation") or 0.0)
+                actual = float(totals.get("total_elevation") or totals.get("elevation") or 0.0)
             else:
-                actual = float(totals.get("distance") or 0.0) / 1000.0
+                dist_m = float(totals.get("total_distance") or totals.get("distance") or 0.0)
+                actual = dist_m / 1000.0
 
             remaining = max(0.0, target - actual)
             percent = round((actual / target) * 100.0, 1)
@@ -194,13 +226,56 @@ def kinetiqo_update_training_goals(
         )
 
     try:
-        repo.set_goal(
-            athlete_id=athlete_id,
-            period=period.lower(),
-            metric=metric.lower(),
-            goal_type=goal_type.lower(),
-            target=target,
-        )
+        norm_period = (period or "").lower()
+        norm_metric = (metric or "distance").lower()
+        norm_sport = (goal_type or "cycling").lower()
+        act_type_id = 2 if ("walk" in norm_sport or "hike" in norm_sport) else 1
+
+        if hasattr(repo, "upsert_goal"):
+            existing_goals = repo.get_goals(athlete_id) if hasattr(repo, "get_goals") else []
+            existing_row = next((r for r in (existing_goals or []) if int(r.get("activity_type_id", 0)) == act_type_id), {})
+
+            w_dist = existing_row.get("weekly_distance_goal")
+            m_dist = existing_row.get("monthly_distance_goal")
+            y_dist = existing_row.get("yearly_distance_goal")
+            w_elev = existing_row.get("weekly_elevation_goal")
+            m_elev = existing_row.get("monthly_elevation_goal")
+            y_elev = existing_row.get("yearly_elevation_goal")
+
+            target_val = float(target) if target > 0 else None
+            if norm_metric == "elevation":
+                if norm_period == "weekly":
+                    w_elev = target_val
+                elif norm_period == "monthly":
+                    m_elev = target_val
+                else:
+                    y_elev = target_val
+            else:
+                if norm_period == "weekly":
+                    w_dist = target_val
+                elif norm_period == "monthly":
+                    m_dist = target_val
+                else:
+                    y_dist = target_val
+
+            repo.upsert_goal(
+                athlete_id=athlete_id,
+                activity_type_id=act_type_id,
+                weekly_distance_goal=w_dist,
+                monthly_distance_goal=m_dist,
+                yearly_distance_goal=y_dist,
+                weekly_elevation_goal=w_elev,
+                monthly_elevation_goal=m_elev,
+                yearly_elevation_goal=y_elev,
+            )
+        elif hasattr(repo, "set_goal"):
+            repo.set_goal(
+                athlete_id=athlete_id,
+                period=norm_period,
+                metric=norm_metric,
+                goal_type=norm_sport,
+                target=target,
+            )
         return create_envelope(
             {
                 "success": True,

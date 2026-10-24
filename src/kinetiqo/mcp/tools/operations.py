@@ -157,7 +157,37 @@ def kinetiqo_update_athlete_profile(
         return create_error_envelope(ERROR_INVALID_ARGUMENT, "Must provide weight_kg or ftp_watts to update")
 
     try:
-        repo.update_profile(updates)
+        if hasattr(repo, "update_profile"):
+            repo.update_profile(updates)
+        elif hasattr(repo, "upsert_profile"):
+            existing = repo.get_profile() or {}
+            athlete_id = int(existing.get("athlete_id") or existing.get("id") or 1)
+            first_name = str(existing.get("first_name") or "")
+            last_name = str(existing.get("last_name") or "")
+            cur_weight = float(existing.get("weight") or 70.0)
+            new_weight = float(updates.get("weight", cur_weight))
+            new_ftp = updates.get("ftp", existing.get("ftp"))
+            preserved = {
+                field: (existing.get(field, "") or "")
+                for field in (
+                    "update_strava_cycling_indoor",
+                    "update_strava_cycling_outdoor",
+                    "update_strava_running_indoor",
+                    "update_strava_running_outdoor",
+                    "update_strava_walking",
+                    "update_strava_swimming",
+                )
+            }
+            repo.upsert_profile(
+                athlete_id=athlete_id,
+                first_name=first_name,
+                last_name=last_name,
+                weight=new_weight,
+                refresh_token=existing.get("refresh_token", "") or "",
+                ftp=new_ftp,
+                gps_simplification=int(existing.get("gps_simplification") or 0),
+                **preserved,
+            )
         return create_envelope({"success": True, "updated_fields": updates}, source="local_db")
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed updating profile: {e}")

@@ -13,9 +13,13 @@ def register_mcp_resources(mcp_server: Any, get_repo: Any) -> None:
         repo = get_repo()
         try:
             profile = repo.get_profile() or {}
+            athlete_id = profile.get("athlete_id") or profile.get("id")
+            first_name = profile.get("first_name", "") or ""
+            last_name = profile.get("last_name", "") or ""
+            full_name = f"{first_name} {last_name}".strip()
             sanitized = {
-                "athlete_id": profile.get("id"),
-                "name": profile.get("username") or profile.get("firstname") or "Athlete",
+                "athlete_id": athlete_id,
+                "name": full_name or profile.get("username") or profile.get("firstname") or "Athlete",
                 "weight_kg": profile.get("weight"),
                 "ftp_watts": profile.get("ftp"),
                 "timezone": profile.get("timezone") or "UTC",
