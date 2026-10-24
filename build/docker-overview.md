@@ -1,6 +1,6 @@
 # Kinetiqo
 
-Kinetiqo liberates your Strava activities, syncing them into a high-performance SQL database (**PostgreSQL** or **MySQL/MariaDB**) for ultimate control.
+Kinetiqo liberates your Strava activities, syncing them into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**) for ultimate control.
 
 Visualize your progress with our **built-in Web UI** or dive deep with the included **Grafana dashboards**. Whether you're a data nerd or just want to see your stats without limits, Kinetiqo is your personal fitness data warehouse.
 
@@ -24,24 +24,37 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 
 ## Quick Start
 
-### Docker Run
+Kinetiqo builds two official container variants:
+- **`kinetiqo/web:latest` (Standalone)**: Web Dashboard (`0.0.0.0:4444`) + background Cron sync.
+- **`kinetiqo/web-mcp:latest` (Kinetiqo + MCP)**: Web Dashboard (`0.0.0.0:4444`) + Cron + **FastMCP SSE Server** (`0.0.0.0:8000/sse`) running concurrently.
+
+---
+
+### Option 1: Standalone Kinetiqo (Web UI + Cron Sync)
+
+#### Docker Run (Standalone)
 
 ```bash
 docker run -d \
   --name kinetiqo \
+  --restart unless-stopped \
   -p 4444:4444 \
-  -e STRAVA_CLIENT_ID="your_id" \
-  -e STRAVA_CLIENT_SECRET="your_secret" \
-  -e STRAVA_REFRESH_TOKEN="your_token" \
+  -e STRAVA_CLIENT_ID="your_strava_client_id" \
+  -e STRAVA_CLIENT_SECRET="your_strava_client_secret" \
+  -e STRAVA_REFRESH_TOKEN="your_strava_refresh_token" \
+  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
+  -e KINETIQO_PRODUCTION=1 \
+  -e WEB_LOGIN="admin" \
+  -e WEB_PASSWORD="securepassword13" \
   -e DATABASE_TYPE="postgresql" \
   -e POSTGRESQL_HOST="postgresql" \
   -e POSTGRESQL_PORT="5432" \
   -e POSTGRESQL_USER="postgres" \
-  -e POSTGRESQL_PASSWORD="password" \
+  -e POSTGRESQL_PASSWORD="your_password" \
   -e POSTGRESQL_DATABASE="kinetiqo" \
   -e POSTGRESQL_SSL_MODE="disable" \
-  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
-  -e KINETIQO_PRODUCTION=1 \
+  -e FAST_SYNC="*/15 * * * *" \
+  -e FULL_SYNC="0 3 * * *" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
@@ -49,28 +62,155 @@ docker run -d \
   -e CARTO_API_KEY="your_carto_api_key" \
   -e ATHLETE_WEIGHT="75" \
   -e DATE_FORMAT="%b %d, %Y" \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="" \
-  -e UPDATE_STRAVA_RUNNING_INDOOR="" \
-  -e UPDATE_STRAVA_RUNNING_OUTDOOR="" \
-  -e UPDATE_STRAVA_WALKING="" \
-  -e UPDATE_STRAVA_SWIMMING="" \
+  -e GPS_SIMPLIFICATION="0" \
+  -e LOG_LEVEL="INFO" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}" \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far.{{new-line}}" \
   -e UPDATE_STRAVA_PLACEMENT="end" \
   -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
   -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
-  -e GPS_SIMPLIFICATION="0" \
-  -e LOG_LEVEL="INFO" \
-  -e FAST_SYNC="*/15 * * * *" \
-  -e FULL_SYNC="0 3 * * *" \
+  kinetiqo/web:latest
+```
+
+The web dashboard is available at **http://localhost:4444**.
+
+#### Docker Compose (Standalone)
+
+```yaml
+services:
+  kinetiqo:
+    image: kinetiqo/web:latest
+    container_name: kinetiqo
+    restart: unless-stopped
+    ports:
+      - "4444:4444"
+    env_file:
+      - .env
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
+  postgresql:
+    image: postgres:16-alpine
+    container_name: postgresql
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRESQL_PASSWORD}
+      - POSTGRES_DB=kinetiqo
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kinetiqo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgresql_data:
+```
+
+---
+
+### Option 2: Kinetiqo + Embedded MCP Server (Web UI + Cron + MCP SSE)
+
+#### Docker Run (Embedded MCP)
+
+Expose **both ports** (`4444` for Web UI, `8000` for FastMCP SSE):
+
+```bash
+docker run -d \
+  --name kinetiqo \
+  --restart unless-stopped \
+  -p 4444:4444 \
+  -p 8000:8000 \
+  -e ENABLE_MCP=1 \
+  -e MCP_PORT=8000 \
+  -e MCP_HOST="0.0.0.0" \
+  -e MCP_TRANSPORT="sse" \
+  -e KINETIQO_MCP_ALLOW_SYNC=0 \
+  -e KINETIQO_MCP_ALLOW_PROFILE_WRITE=0 \
+  -e KINETIQO_MCP_ALLOW_STRAVA_WRITE=0 \
+  -e STRAVA_CLIENT_ID="your_strava_client_id" \
+  -e STRAVA_CLIENT_SECRET="your_strava_client_secret" \
+  -e STRAVA_REFRESH_TOKEN="your_strava_refresh_token" \
+  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
+  -e KINETIQO_PRODUCTION=1 \
   -e WEB_LOGIN="admin" \
   -e WEB_PASSWORD="securepassword13" \
-  lhotakj/kinetiqo:latest
+  -e DATABASE_TYPE="postgresql" \
+  -e POSTGRESQL_HOST="postgresql" \
+  -e POSTGRESQL_PORT="5432" \
+  -e POSTGRESQL_USER="postgres" \
+  -e POSTGRESQL_PASSWORD="your_password" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e POSTGRESQL_SSL_MODE="disable" \
+  -e FAST_SYNC="*/15 * * * *" \
+  -e FULL_SYNC="0 3 * * *" \
+  -e MAPY_API_KEY="your_mapy_com_api_token" \
+  -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
+  -e MAPTILER_API_KEY="your_maptiler_api_token" \
+  -e GEOAPIFY_API_KEY="your_geoapify_api_token" \
+  -e CARTO_API_KEY="your_carto_api_key" \
+  -e ATHLETE_WEIGHT="75" \
+  -e DATE_FORMAT="%b %d, %Y" \
+  -e GPS_SIMPLIFICATION="0" \
+  -e LOG_LEVEL="INFO" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}" \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far.{{new-line}}" \
+  -e UPDATE_STRAVA_PLACEMENT="end" \
+  -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
+  -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
+  kinetiqo/web-mcp:latest
 ```
-The web UI is available at http://localhost:4444.
 
-### Docker Compose
+- Web Dashboard: **http://localhost:4444**
+- FastMCP SSE Endpoint: **http://localhost:8000/sse**
 
-For a complete stack including PostgreSQL and Grafana, check out the [GitHub Repository](https://github.com/lhotakj/kinetiqo).
+#### Docker Compose (Embedded MCP)
+
+```yaml
+services:
+  kinetiqo:
+    image: kinetiqo/web-mcp:latest
+    container_name: kinetiqo
+    restart: unless-stopped
+    ports:
+      - "4444:4444"   # Web UI
+      - "8000:8000"   # FastMCP SSE
+    env_file:
+      - .env
+    environment:
+      - ENABLE_MCP=1
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+      - MCP_TRANSPORT=sse
+      - KINETIQO_MCP_ALLOW_SYNC=${KINETIQO_MCP_ALLOW_SYNC:-0}
+      - KINETIQO_MCP_ALLOW_PROFILE_WRITE=${KINETIQO_MCP_ALLOW_PROFILE_WRITE:-0}
+      - KINETIQO_MCP_ALLOW_STRAVA_WRITE=${KINETIQO_MCP_ALLOW_STRAVA_WRITE:-0}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
+  postgresql:
+    image: postgres:16-alpine
+    container_name: postgresql
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRESQL_PASSWORD}
+      - POSTGRES_DB=kinetiqo
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kinetiqo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgresql_data:
+```
 
 ## Configuration
 
@@ -157,10 +297,136 @@ at 30 eligible activities per sync.
 |----------|-------------|---------|
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | Optional path to a system Chromium executable used for poster and MEGA Stats PNG/PDF export | Auto-detected |
 
-`CARTO_API_KEY` is passed to CARTO tile URLs when configured. Provider layers that
-require a missing key are disabled in the map selector.
+## Model Context Protocol (MCP) Server
+
+Kinetiqo provides native Model Context Protocol (MCP) integration, enabling AI assistants (such as Claude Desktop, Cursor, Antigravity, and OpenClaw) to securely query your private fitness database over Server-Sent Events (SSE) or STDIO.
+
+### Available Docker Images
+
+Kinetiqo builds two official Docker image variants:
+
+| Image Variant | Docker Tag | Default Ports | Included Services |
+|---|---|---|---|
+| **Standalone** (Original) | `kinetiqo/web:latest` | `4444` | • Web UI (`0.0.0.0:4444`)<br>• Background Cron Sync Daemon<br>• MCP disabled by default (`ENABLE_MCP=0`) |
+| **Kinetiqo + MCP** | `kinetiqo/web-mcp:latest` | `4444`, `8000` | • Web UI (`0.0.0.0:4444`)<br>• Background Cron Sync Daemon<br>• **FastMCP SSE Server** (`0.0.0.0:8000/sse`) running concurrently |
+
+*(Note: Both images are full-featured with system Chromium, Playwright, and Firebird client pre-installed, supporting all 35 MCP tools including Group E visual poster and infographic exports).*
+
+### MCP Configuration Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ENABLE_MCP` | Enable the background MCP server concurrently alongside Web UI and Cron (`1`/`0`, `true`/`false`) | `0` in `web`, `1` in `web-mcp` |
+| `MCP_PORT` | Port for the MCP SSE server | `8000` |
+| `MCP_HOST` | Host IP binding for the MCP server | `0.0.0.0` |
+| `MCP_TRANSPORT` | Transport protocol (`sse` or `stdio`) | `sse` |
+| `KINETIQO_MCP_ALLOW_SYNC` | Gated permission for AI to trigger background syncs (`1`/`0`) | `0` (disabled) |
+| `KINETIQO_MCP_ALLOW_PROFILE_WRITE` | Gated permission for AI to edit athlete profile & goals (`1`/`0`) | `0` (disabled) |
+| `KINETIQO_MCP_ALLOW_STRAVA_WRITE` | Gated permission for AI to publish descriptions to Strava (`1`/`0`) | `0` (disabled) |
+
+### Docker Run Example (Web UI + MCP SSE in Parallel)
+
+```bash
+docker run -d \
+  --name kinetiqo \
+  -p 4444:4444 \
+  -p 8000:8000 \
+  -e ENABLE_MCP=1 \
+  -e MCP_PORT=8000 \
+  -e DATABASE_TYPE="postgresql" \
+  -e POSTGRESQL_HOST="postgresql" \
+  -e POSTGRESQL_PORT="5432" \
+  -e POSTGRESQL_USER="postgres" \
+  -e POSTGRESQL_PASSWORD="password" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e SECRET_KEY="replace_with_hex_32" \
+  kinetiqo/web-mcp:latest
+```
+
+- Web UI: **http://localhost:4444**
+- AI MCP Endpoint: **http://localhost:8000/sse**
+
+### Docker Compose Example
+
+```yaml
+services:
+  kinetiqo:
+    image: kinetiqo/web-mcp:latest
+    container_name: kinetiqo
+    ports:
+      - "4444:4444"   # Web UI
+      - "8000:8000"   # FastMCP SSE
+    environment:
+      - ENABLE_MCP=1
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+      - MCP_TRANSPORT=sse
+      - DATABASE_TYPE=postgresql
+      - POSTGRESQL_HOST=db
+      - POSTGRESQL_PORT=5432
+      - POSTGRESQL_USER=postgres
+      - POSTGRESQL_PASSWORD=secret
+      - POSTGRESQL_DATABASE=kinetiqo
+      - SECRET_KEY=your_persistent_secret_key
+    restart: unless-stopped
+```
+
+### Claude Desktop Configuration (Connecting to Running Container)
+
+Because the container exposes FastMCP over SSE, you don't need Claude Desktop to run Docker commands; simply point Claude Desktop to the running container's SSE URL:
+
+```json
+{
+  "mcpServers": {
+    "kinetiqo": {
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```
+
+## Building Images from Source (`build.sh`)
+
+All Docker builds are managed through the single unified script `build/build.sh`. Specifying a target (`base`, `web`, `mcp`, or `all`) is **mandatory**:
+
+```bash
+# Compile Firebird 5.x C client & Python 3.14 base image
+./build/build.sh base
+
+# Build the standalone web application image (kinetiqo/web)
+./build/build.sh web
+
+# Build the web + FastMCP SSE server image (kinetiqo/web-mcp)
+./build/build.sh mcp
+
+# Build all three images in dependency order (base -> web -> mcp)
+./build/build.sh all
+```
+
+### Options & Publishing
+
+Add `--push` to authenticate and publish multi-architecture (`linux/amd64,linux/arm64`) images to Docker Hub:
+
+```bash
+# Push standalone web image to Docker Hub
+./build/build.sh web --push
+
+# Push all images using explicit credentials
+./build/build.sh all --push -u kinetiqo -t your_dockerhub_token
+
+# Simulate execution without building
+./build/build.sh all --dry-run
+```
+
+| Target | Local Build (default) | Build & Push (`--push`) |
+|---|---|---|
+| `./build.sh base` | Builds base image for `linux/amd64`, loads locally | Authenticates via `docker login`, builds multi-arch (`linux/amd64,linux/arm64`), pushes `kinetiqo/firebird-python:3.14` |
+| `./build.sh web` | Builds standalone web image for `linux/amd64`, loads locally | Authenticates via `docker login`, builds multi-arch (`linux/amd64,linux/arm64`), pushes `kinetiqo/web:latest` |
+| `./build.sh mcp` | Builds web + MCP image for `linux/amd64`, loads locally | Authenticates via `docker login`, builds multi-arch (`linux/amd64,linux/arm64`), pushes `kinetiqo/web-mcp:latest` |
+| `./build.sh all` | Builds `base`, then `web`, then `mcp` locally | Authenticates and builds all three multi-arch images in sequence and pushes to Docker Hub |
 
 ## Links
 
 - **Source Code**: [GitHub](https://github.com/lhotakj/kinetiqo)
 - **Issues**: [Bug Tracker](https://github.com/lhotakj/kinetiqo/issues)
+- **MCP Documentation**: [docs/MCP.md](docs/MCP.md)

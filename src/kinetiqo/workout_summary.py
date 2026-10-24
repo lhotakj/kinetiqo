@@ -46,33 +46,7 @@ SPRINT_PEAK_TEXT_CONFIG = [
 SPRINT_PEAK_TEMPLATE = "with {article} {adjective} {duration_s} sec peak {watts}W"
 
 
-def calculate_normalized_power(watts_stream: List[float]) -> float:
-    """Calculate Normalized Power (NP) from a 1-second watts stream.
-
-    NP uses a 30-second rolling average P_30s, raised to the 4th power:
-        NP = ( mean(P_30s^4) ) ^ (1/4)
-    """
-    if not watts_stream or len(watts_stream) < 30:
-        return float(sum(watts_stream) / len(watts_stream)) if watts_stream else 0.0
-
-    # 30-second rolling average
-    window_size = 30
-    cumsum = [0.0]
-    for w in watts_stream:
-        cumsum.append(cumsum[-1] + (w or 0.0))
-
-    p30_pow4_sum = 0.0
-    count = 0
-    for i in range(window_size, len(watts_stream) + 1):
-        avg_30s = (cumsum[i] - cumsum[i - window_size]) / window_size
-        p30_pow4_sum += avg_30s ** 4
-        count += 1
-
-    if count == 0:
-        return 0.0
-
-    mean_pow4 = p30_pow4_sum / count
-    return mean_pow4 ** 0.25
+from kinetiqo.analytics.power import calculate_normalized_power
 
 
 def format_duration(seconds: float, use_minutes: bool = True) -> str:

@@ -11,6 +11,10 @@ on:
         description: 'Create a GitHub Release'
         type: boolean
         default: false
+      build_mcp:
+        description: 'Build Kinetiqo + MCP Docker image (kinetiqo/web-mcp)'
+        type: boolean
+        default: true
   push:
     branches:
       - main
@@ -37,6 +41,7 @@ jobs:
             PROCEED=true
             PUBLISH="${{ inputs.publish }}"
             RELEASE="${{ inputs.create_release }}"
+            BUILD_MCP="${{ inputs.build_mcp }}"
           else
             # push to main: driven by commit message keywords
             if echo "$MSG" | grep -qE '/(release|publish)'; then
@@ -46,11 +51,13 @@ jobs:
             fi
             echo "$MSG" | grep -q '/publish' && PUBLISH=true || PUBLISH=false
             echo "$MSG" | grep -q '/release' && RELEASE=true  || RELEASE=false
+            BUILD_MCP=true
           fi
 
-          echo "proceed=$PROCEED"  >> $GITHUB_OUTPUT
-          echo "publish=$PUBLISH"  >> $GITHUB_OUTPUT
-          echo "release=$RELEASE"  >> $GITHUB_OUTPUT
+          echo "proceed=$PROCEED"    >> $GITHUB_OUTPUT
+          echo "publish=$PUBLISH"    >> $GITHUB_OUTPUT
+          echo "release=$RELEASE"    >> $GITHUB_OUTPUT
+          echo "build_mcp=$BUILD_MCP" >> $GITHUB_OUTPUT
 
       - name: Checkout code
         if: steps.flags.outputs.proceed == 'true'
@@ -71,18 +78,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # The build script pulls lhotakj/firebird-python:3.14 from DockerHub as
+      # The build script pulls kinetiqo/firebird-python:3.14 from DockerHub as
       # its base image (no Firebird compilation here — that lives in the
       # separate "Build Firebird Python Base Image" workflow).
-      - name: Build Docker image
+      # build.sh builds both images:
+      #   1. Standalone Kinetiqo (web + cron): kinetiqo/web:latest
+      #   2. Kinetiqo + FastMCP: kinetiqo/web-mcp:latest
+      - name: Build and publish Kinetiqo Docker images (Standalone & MCP)
         if: steps.flags.outputs.proceed == 'true'
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          BUILD_MCP: ${{ steps.flags.outputs.build_mcp }}
         run: |
           chmod +x build/build.sh
-          cd build
+          PUSH_FLAG=""
           if [[ "${{ steps.flags.outputs.publish }}" == "true" ]]; then
-            ./build.sh --push
+            PUSH_FLAG="--push"
+          fi
+
+          if [[ "${{ steps.flags.outputs.build_mcp }}" == "true" ]]; then
+            ./build/build.sh web mcp $PUSH_FLAG
           else
-            ./build.sh
+            ./build/build.sh web $PUSH_FLAG
           fi
 
       - name: Get versions from build
@@ -132,10 +150,15 @@ jobs:
               .join('\n');
 
             const isPublish = '${{ steps.flags.outputs.publish }}' === 'true';
+            const isMcp = '${{ steps.flags.outputs.build_mcp }}' === 'true';
             const version = process.env.VERSION || '';
-            const dockerLink = isPublish && version
-              ? `\n\n[View Docker image on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${version})`
-              : '';
+            let dockerLink = '';
+            if (isPublish && version) {
+              dockerLink = `\n\n### Published Docker Images\n- **Kinetiqo (Standalone Web + Cron)**: [\`kinetiqo/web:${version}\`](https://hub.docker.com/r/kinetiqo/web/tags?name=${version})`;
+              if (isMcp) {
+                dockerLink += `\n- **Kinetiqo + MCP (Web + Cron + FastMCP SSE)**: [\`kinetiqo/web-mcp:${version}\`](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=${version}) / [\`kinetiqo/web-mcp:latest\`](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=latest)`;
+              }
+            }
 
             const fullChangelog = changelog + dockerLink;
 
@@ -172,5 +195,9 @@ jobs:
           echo "| Release created | \`${{ steps.flags.outputs.release }}\` |" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ steps.flags.outputs.publish }}" == "true" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "[View on DockerHub](https://hub.docker.com/r/lhotakj/kinetiqo/tags?name=${{ steps.get_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+            echo "#### Published Docker Images" >> $GITHUB_STEP_SUMMARY
+            echo "- **App**: [kinetiqo/web:${{ steps.get_version.outputs.version }}](https://hub.docker.com/r/kinetiqo/web/tags?name=${{ steps.get_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+            if [[ "${{ steps.flags.outputs.build_mcp }}" == "true" ]]; then
+              echo "- **Kinetiqo + MCP**: [kinetiqo/web-mcp:${{ steps.get_version.outputs.version }}](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=${{ steps.get_version.outputs.version }}) / [kinetiqo/web-mcp:latest](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=latest)" >> $GITHUB_STEP_SUMMARY
+            fi
           fi

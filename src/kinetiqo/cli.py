@@ -27,15 +27,11 @@ def print_version():
     print(f"Kinetiqo {get_version()}")
 
 
-def validate_config(config):
-    """Ensures all required environment variables are set."""
+def validate_db_config(config):
+    """Ensures all required database environment variables are set."""
     from kinetiqo.config import VALID_DATABASE_TYPES
     if config.database_type not in VALID_DATABASE_TYPES:
         logger.error(f"Invalid database type {config.database_type!r}. Valid choices are: {', '.join(VALID_DATABASE_TYPES)}.")
-        sys.exit(1)
-
-    if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
-        logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
         sys.exit(1)
 
     db_type = config.database_type
@@ -52,6 +48,20 @@ def validate_config(config):
     if missing:
         logger.error(f"Missing required {db_type.capitalize()} environment variables: {', '.join(missing)}")
         sys.exit(1)
+
+
+def validate_config(config):
+    """Ensures all required environment variables are set."""
+    from kinetiqo.config import VALID_DATABASE_TYPES
+    if config.database_type not in VALID_DATABASE_TYPES:
+        logger.error(f"Invalid database type {config.database_type!r}. Valid choices are: {', '.join(VALID_DATABASE_TYPES)}.")
+        sys.exit(1)
+
+    if not all([config.strava_client_id, config.strava_client_secret, config.strava_refresh_token]):
+        logger.error("STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, and STRAVA_REFRESH_TOKEN are required.")
+        sys.exit(1)
+
+    validate_db_config(config)
 
 
 def parse_period(period_str):
@@ -429,6 +439,87 @@ def scan_trophies(ctx, limit, database):
         logger.info(f"Successfully scanned trophies for {scanned_count} activities.")
     finally:
         repo.close()
+
+
+@cli.command(name="mcp", help="Run the Kinetiqo Model Context Protocol (MCP) server")
+@click.option("--transport", "-t", type=click.Choice(["stdio", "sse", "streamable-http"]), default=lambda: os.environ.get("MCP_TRANSPORT", "stdio"), help="Transport protocol (stdio or sse). Default: stdio")
+@click.option("--host", "-h", default=lambda: os.environ.get("MCP_HOST", "0.0.0.0"), help="Host to bind for SSE transport. Default: 0.0.0.0")
+@click.option("--port", "-p", type=int, default=lambda: int(os.environ.get("MCP_PORT", "8000")), help="Port to bind for SSE transport. Default: 8000")
+@database_option
+@click.pass_context
+def mcp(ctx, transport, host, port, database):
+    """Start the Kinetiqo MCP server in STDIO or SSE mode for AI agent integration."""
+    import signal
+    config = ctx.obj.config
+    if database:
+        config.database_type = database.lower()
+
+    if transport == "stdio":
+        # Route all Python logging to stderr so stdout carries strictly JSON-RPC protocol frames
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, logging.StreamHandler):
+                root_logger.removeHandler(handler)
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        root_logger.addHandler(stderr_handler)
+
+    # Validate database connectivity without enforcing Strava credentials
+    validate_db_config(config)
+
+    db_type = config.database_type.capitalize()
+    logger.info("Using %s backend (Kinetiqo v%s)", db_type, get_version())
+    if transport == "stdio":
+        logger.info("Starting Kinetiqo MCP server (STDIO transport, database: %s)", config.database_type)
+    else:
+        logger.info("Starting Kinetiqo MCP server (%s transport on http://%s:%d/sse, database: %s)", transport.upper(), host, port, config.database_type)
+
+    allow_profile = os.environ.get("KINETIQO_MCP_ALLOW_PROFILE_WRITE", "0").strip() == "1"
+    allow_sync = os.environ.get("KINETIQO_MCP_ALLOW_SYNC", "0").strip() == "1"
+    allow_strava = os.environ.get("KINETIQO_MCP_ALLOW_STRAVA_WRITE", "0").strip() == "1"
+    mode_desc = "Read-Only mode" if not any([allow_profile, allow_sync, allow_strava]) else "Mutations enabled"
+    logger.info(
+        "Mutation gates: sync=%s, profile_write=%s, strava_write=%s (%s)",
+        "enabled" if allow_sync else "disabled",
+        "enabled" if allow_profile else "disabled",
+        "enabled" if allow_strava else "disabled",
+        mode_desc,
+    )
+
+    from kinetiqo.mcp.server import create_mcp_server
+    server = create_mcp_server(config, host=host, port=port)
+
+    tool_count = len(getattr(getattr(server, "_tool_manager", None), "_tools", {}))
+    res_count = len(getattr(getattr(server, "_resource_manager", None), "_resources", {}))
+    prompt_count = len(getattr(getattr(server, "_prompt_manager", None), "_prompts", {}))
+    logger.info("Registered %d tools, %d resources, %d prompts", tool_count, res_count, prompt_count)
+
+    if transport == "stdio":
+        logger.info("MCP server listening on STDIO. Ready to accept AI requests (Press Ctrl+C to stop).")
+    else:
+        logger.info("MCP server listening on http://%s:%d/sse. Ready to accept AI SSE connections (Press Ctrl+C to stop).", host, port)
+
+    def _sigint_handler(signum, frame):
+        logger.info("Shutdown signal received. Terminating Kinetiqo MCP server cleanly.")
+        sys.stderr.flush()
+        os._exit(0)
+
+    try:
+        signal.signal(signal.SIGINT, _sigint_handler)
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, _sigint_handler)
+    except (ValueError, AttributeError):
+        pass
+
+    try:
+        server.run(transport=transport)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Kinetiqo MCP server stopped.")
+        sys.stderr.flush()
+        os._exit(0)
+    except Exception as e:
+        logger.exception("Kinetiqo MCP server encountered an error: %s", e)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
