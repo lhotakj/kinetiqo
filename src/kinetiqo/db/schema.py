@@ -530,6 +530,7 @@ SCHEMA_DEFINITION = {
             {"name": "provider", "type_mysql": "VARCHAR(32) NOT NULL", "type_pg": "VARCHAR(32) NOT NULL", "type_firebird": "VARCHAR(32) NOT NULL"},
             {"name": "api_key_enc", "type_mysql": "TEXT NOT NULL", "type_pg": "TEXT NOT NULL", "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
             {"name": "enabled", "type_mysql": "BOOLEAN NOT NULL", "type_pg": "BOOLEAN NOT NULL", "type_firebird": "SMALLINT NOT NULL"},
+            {"name": "config_json", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
             {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
             {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
         ],

@@ -5,6 +5,7 @@ MySQL, and Firebird share one persistence contract.
 """
 
 from datetime import datetime, timezone
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -152,22 +153,90 @@ class ChatRepository:
     def get_provider_key(self, athlete_id: str, provider: str) -> str | None:
         p = self.placeholder
         row = self._one(f"SELECT api_key_enc FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
-        return row[0] if row else None
+        if not row or not row[0]:
+            return None
+        val = row[0]
+        return val.read() if hasattr(val, "read") else str(val)
 
-    def save_provider_key(self, athlete_id: str, provider: str, encrypted_key: str, enabled: bool = True) -> None:
+    def get_provider_config(self, athlete_id: str, provider: str) -> dict[str, Any]:
+        p = self.placeholder
+        row = self._one(f"SELECT config_json FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
+        if not row or not row[0]:
+            return {}
+        val = row[0]
+        raw = val.read() if hasattr(val, "read") else str(val)
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {}
+
+    def save_provider_config(self, athlete_id: str, provider: str, config: dict[str, Any]) -> None:
+        p = self.placeholder
+        now = self._now()
+        raw_json = json.dumps(config)
+        row = self._one(f"SELECT key_id FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
+        if row:
+            self._execute(
+                f"UPDATE chat_provider_keys SET config_json = {p}, updated_at = {p} WHERE athlete_id = {p} AND provider = {p}",
+                (raw_json, now, athlete_id, provider),
+            )
+        else:
+            enabled_value = 1 if self.dialect == "firebird" else True
+            self._execute(
+                f"INSERT INTO chat_provider_keys (key_id, athlete_id, provider, api_key_enc, enabled, config_json, created_at, updated_at) VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})",
+                (str(uuid4()), athlete_id, provider, "", enabled_value, raw_json, now, now),
+            )
+
+    def save_provider_key(self, athlete_id: str, provider: str, encrypted_key: str, enabled: bool = True, config: dict[str, Any] | None = None) -> None:
         p = self.placeholder
         now = self._now()
         enabled_value = int(enabled) if self.dialect == "firebird" else bool(enabled)
+        final_cfg = config
+        if final_cfg is None:
+            final_cfg = self.get_provider_config(athlete_id, provider)
+        raw_json = json.dumps(final_cfg) if final_cfg else None
+
         cur = self.conn.cursor()
         try:
             cur.execute(f"DELETE FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
-            cur.execute(f"INSERT INTO chat_provider_keys (key_id, athlete_id, provider, api_key_enc, enabled, created_at, updated_at) VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p})", (str(uuid4()), athlete_id, provider, encrypted_key, enabled_value, now, now))
+            cur.execute(
+                f"INSERT INTO chat_provider_keys (key_id, athlete_id, provider, api_key_enc, enabled, config_json, created_at, updated_at) VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})",
+                (str(uuid4()), athlete_id, provider, encrypted_key, enabled_value, raw_json, now, now),
+            )
             self.conn.commit()
         except Exception:
             self.conn.rollback()
             raise
         finally:
             cur.close()
+
+    def list_configured_providers(self, athlete_id: str) -> list[dict[str, Any]]:
+        p = self.placeholder
+        rows = self._all(
+            f"SELECT provider, api_key_enc, config_json, enabled FROM chat_provider_keys WHERE athlete_id = {p}",
+            (athlete_id,),
+        )
+        result = []
+        for row in rows:
+            provider = row[0]
+            key_enc = row[1]
+            raw_cfg = row[2]
+            enabled = bool(row[3])
+            has_key = bool(key_enc and len(str(key_enc).strip()) > 0)
+            cfg = {}
+            if raw_cfg:
+                raw_str = raw_cfg.read() if hasattr(raw_cfg, "read") else str(raw_cfg)
+                try:
+                    cfg = json.loads(raw_str)
+                except Exception:
+                    cfg = {}
+            result.append({
+                "provider": provider,
+                "configured": has_key,
+                "enabled": enabled,
+                "config": cfg,
+            })
+        return result
 
     def remove_provider_key(self, athlete_id: str, provider: str) -> None:
         p = self.placeholder

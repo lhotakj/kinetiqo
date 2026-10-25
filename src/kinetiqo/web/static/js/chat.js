@@ -406,28 +406,72 @@
 
     const updateActiveModelDisplay = () => {
         if (activeModelBadge && model) {
-            activeModelBadge.textContent = model.value || '';
+            const selectedOpt = model.options[model.selectedIndex];
+            activeModelBadge.textContent = selectedOpt ? (selectedOpt.text || selectedOpt.value) : (model.value || '');
         }
     };
 
+    const getSelectedProvider = () => {
+        const selectedOpt = model?.options[model.selectedIndex];
+        return selectedOpt?.dataset.provider || 'gemini';
+    };
+
+    const getSelectedModelId = () => {
+        return model?.value || '';
+    };
+
     const loadModels = async () => {
-        const payload = await request('/api/chat/models?provider=gemini');
-        const available = Array.isArray(payload.models) ? payload.models : [];
-        if (available.length === 0) throw new Error('No Gemini text-generation models are available for this API key.');
+        const payload = await request('/api/chat/models?provider=all');
+        const groups = Array.isArray(payload.providers) ? payload.providers : [];
+        const flatModels = [];
+        model.replaceChildren();
+
+        if (groups.length === 0) {
+            // Fallback: try individual providers if grouped returned empty
+            const geminiPayload = await request('/api/chat/models?provider=gemini').catch(() => ({ models: [] }));
+            const geminiModels = geminiPayload.models || [];
+            if (geminiModels.length > 0) {
+                groups.push({
+                    provider: 'gemini',
+                    display_name: 'Google Gemini',
+                    models: geminiModels
+                });
+            }
+        }
+
+        if (groups.length === 0) {
+            throw new Error('No AI models are available. Please configure an API key in Settings.');
+        }
+
+        groups.forEach((group) => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = group.display_name || group.provider;
+            (group.models || []).forEach((item) => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.dataset.provider = group.provider;
+                option.textContent = item.display_name || item.name || item.id;
+                optgroup.appendChild(option);
+                flatModels.push({ ...item, provider: group.provider });
+            });
+            if (optgroup.children.length > 0) {
+                model.appendChild(optgroup);
+            }
+        });
+
+        if (flatModels.length === 0) {
+            throw new Error('No AI models found for your configured providers.');
+        }
+
         const savedModel = localStorage.getItem('kinetiqo_chat_model');
         const priorValue = model.value;
-        model.replaceChildren();
-        available.forEach((item) => {
-            const option = document.createElement('option');
-            option.value = item.id;
-            option.textContent = item.display_name || item.id;
-            model.appendChild(option);
-        });
-        const matchedSaved = savedModel && available.some((item) => item.id === savedModel);
-        const preferred = (matchedSaved ? available.find((item) => item.id === savedModel) : null)
-            || available.find((item) => item.id === priorValue)
-            || PREFERRED_MODELS.map((p) => available.find((item) => item.id === p)).find(Boolean)
-            || available[0];
+
+        const matchedSaved = savedModel && flatModels.some((item) => item.id === savedModel);
+        const preferred = (matchedSaved ? flatModels.find((item) => item.id === savedModel) : null)
+            || flatModels.find((item) => item.id === priorValue)
+            || PREFERRED_MODELS.map((p) => flatModels.find((item) => item.id === p)).find(Boolean)
+            || flatModels[0];
+
         model.value = preferred.id;
         localStorage.setItem('kinetiqo_chat_model', preferred.id);
         updateActiveModelDisplay();
@@ -508,7 +552,7 @@
     const createSession = async () => {
         const payload = await request('/api/chat/sessions', {
             method: 'POST',
-            body: JSON.stringify({ provider: 'gemini', model_id: model.value })
+            body: JSON.stringify({ provider: getSelectedProvider(), model_id: getSelectedModelId() })
         });
         await loadSessions();
         await openSession(payload.session.session_id);

@@ -95,7 +95,29 @@ class ChatService:
         chosen_model = model_id if model_id and model_id not in deprecated else default_model
         return self.repository.create_session(athlete_id, provider, chosen_model)
 
-    def models(self, athlete_id: str, provider: str) -> list[dict[str, Any]]:
+    def configured_providers(self, athlete_id: str) -> list[str]:
+        return self.repository.list_configured_providers(athlete_id)
+
+    def models(self, athlete_id: str, provider: str = "all") -> list[dict[str, Any]] | dict[str, Any]:
+        if provider == "all":
+            groups = []
+            display_names = {
+                "gemini": "Google Gemini",
+                "openrouter": "OpenRouter AI",
+            }
+            for prov in self.configured_providers(athlete_id):
+                try:
+                    adapter = self._provider(athlete_id, prov)
+                    prov_models = [m.__dict__ for m in adapter.list_models()]
+                    if prov_models:
+                        groups.append({
+                            "provider": prov,
+                            "display_name": display_names.get(prov, prov.title()),
+                            "models": prov_models,
+                        })
+                except Exception as exc:
+                    logger.warning("Failed listing models for provider %s: %s", prov, exc)
+            return groups
         adapter = self._provider(athlete_id, provider)
         return [model.__dict__ for model in adapter.list_models()]
 
@@ -203,7 +225,12 @@ class ChatService:
         encrypted_key = self.repository.get_provider_key(athlete_id, provider)
         if not encrypted_key:
             raise ChatConfigurationError()
-        return self._provider_class(provider)(decrypt_api_key(encrypted_key, self.encryption_secret))
+        provider_cls = self._provider_class(provider)
+        api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
+        config = self.repository.get_provider_config(athlete_id, provider)
+        if provider == "openrouter":
+            return provider_cls(api_key, configured_models=config.get("models") or [])
+        return provider_cls(api_key)
 
     @staticmethod
     def _provider_class(provider: str):

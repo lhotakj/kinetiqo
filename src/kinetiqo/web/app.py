@@ -73,10 +73,11 @@ from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
 from kinetiqo.web.fondo_o_meter import compute_fondo_o_meter, compute_achievements
-from kinetiqo.chat.encryption import encrypt_api_key, ChatEncryptionError
-from kinetiqo.chat.errors import ChatError
+from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncryptionError
+from kinetiqo.chat.errors import ChatError, ChatConfigurationError
 from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
+from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
 
 
 
@@ -2474,6 +2475,9 @@ def chat_messages_api(session_id: str):
     except (ValueError, ChatError, ChatEncryptionError) as exc:
         return _chat_error(exc, 422)
 
+    chat_session = service.repository.get_session(athlete_id, session_id)
+    session_provider = chat_session.provider if chat_session else 'gemini'
+
     def encode(name: str, payload: dict) -> str:
         return f'event: {name}\ndata: {json_module.dumps(payload, separators=(",", ":"), default=str)}\n\n'
 
@@ -2490,7 +2494,7 @@ def chat_messages_api(session_id: str):
                     yield encode('tool_result', {'tool': event.tool})
                 elif event.type == 'usage':
                     yield encode('usage', {'input_tokens': event.input_tokens, 'output_tokens': event.output_tokens})
-            yield encode('completed', {'model_id': data.get('model_id'), 'provider': 'gemini'})
+            yield encode('completed', {'model_id': data.get('model_id'), 'provider': session_provider})
         except ChatError as exc:
             yield encode('error', {'code': exc.error_code, 'message': exc.user_message})
         except Exception:
@@ -2507,10 +2511,22 @@ def chat_messages_api(session_id: str):
 @login_required
 def chat_models_api():
     try:
-        provider = request.args.get('provider', 'gemini')
-        return jsonify({'models': _chat_service().models(_chat_user_id(), provider)})
+        provider = request.args.get('provider', 'all')
+        models_data = _chat_service().models(_chat_user_id(), provider)
+        if provider == 'all':
+            return jsonify({'providers': models_data})
+        return jsonify({'models': models_data})
     except (ChatError, ChatEncryptionError) as exc:
         return _chat_error(exc, 422)
+
+
+@app.route('/api/settings/ai/providers', methods=['GET'])
+@login_required
+def chat_providers_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    configured = repository.list_configured_providers(athlete_id)
+    return jsonify({'configured_providers': configured})
 
 
 @app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
@@ -2532,6 +2548,104 @@ def chat_gemini_settings_api():
         return jsonify({'configured': True})
     except ChatEncryptionError as exc:
         return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/openrouter', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_openrouter_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'openrouter') is not None
+        config_data = repository.get_provider_config(athlete_id, 'openrouter')
+        return jsonify({
+            'configured': has_key,
+            'models': config_data.get('models', [])
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'openrouter')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'openrouter')
+        repository.save_provider_key(
+            athlete_id,
+            'openrouter',
+            encrypt_api_key(api_key.strip(), app.secret_key),
+            config_json=json_module.dumps(existing_config)
+        )
+        return jsonify({'configured': True, 'models': existing_config.get('models', [])})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/openrouter/models/validate', methods=['POST'])
+@login_required
+def chat_openrouter_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure OpenRouter API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = OpenRouterChatProvider(api_key)
+        model_info = provider.validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("OpenRouter model validation failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/openrouter/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_openrouter_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure OpenRouter API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
+
+    cfg = repository.get_provider_config(athlete_id, 'openrouter')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = new_models
+        repository.save_provider_config(athlete_id, 'openrouter', cfg)
+        return jsonify({'models': new_models})
+
+    # POST - add model
+    # If model is already present, return current list
+    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
+        return jsonify({'models': current_models})
+
+    # Validate against OpenRouter to get accurate metadata
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = OpenRouterChatProvider(api_key)
+        model_info = provider.validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'openrouter', cfg)
+    return jsonify({'models': current_models}), 201
 
 
 @app.route('/strava/reconnect', methods=['GET'])
