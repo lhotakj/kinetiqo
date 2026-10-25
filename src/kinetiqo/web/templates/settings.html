@@ -277,6 +277,7 @@
                     <option value="" disabled selected>+ Add AI provider</option>
                     <option value="gemini">Google Gemini</option>
                     <option value="openrouter">OpenRouter AI</option>
+                    <option value="ollama">Ollama (Local AI)</option>
                 </select>
             </div>
         </div>
@@ -362,6 +363,95 @@
                             <tbody id="openrouter-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
                                     <td colspan="4" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ollama Provider Card -->
+            <div id="ai-provider-card-ollama" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+                <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 font-bold text-xs shadow-xs">OL</span>
+                        <div>
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Ollama (Local AI)</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Run local open-weights models on your own hardware or local network</p>
+                        </div>
+                    </div>
+                    <span id="ollama-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
+                </div>
+
+                <!-- Setup & Configuration Guide (Brief explanation in settings GUI) -->
+                <div class="mb-6 p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-200 leading-relaxed space-y-2">
+                    <div class="font-semibold text-blue-950 dark:text-blue-100 flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>How to connect Kinetiqo to your Ollama machine</span>
+                    </div>
+                    <ul class="list-disc list-inside space-y-1 pl-1 text-[11px] text-blue-800 dark:text-blue-300">
+                        <li><strong>LAN Binding:</strong> If Ollama runs on a different PC on your network, set the environment variable <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">OLLAMA_HOST=0.0.0.0:11434</code> on that PC and restart Ollama so it accepts connections from other devices.</li>
+                        <li><strong>Firewall:</strong> Allow inbound TCP port <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">11434</code> in Windows Defender Firewall on the Ollama host PC.</li>
+                        <li><strong>Server URL:</strong> Enter <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">http://localhost:11434</code> (if running on same machine) or <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">http://&lt;PC_IP&gt;:11434</code> (e.g. <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">http://192.168.1.150:11434</code>).</li>
+                        <li><strong>API Key:</strong> Optional. Leave empty for standard local/LAN Ollama instances. Only required if using a reverse proxy with Bearer authentication.</li>
+                        <li><strong>Recommended Models:</strong> For multi-turn tool calling and training analytics, 7B+ models like <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">qwen2.5:7b-instruct</code> or <code class="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono">llama3.1:8b</code> are strongly recommended. Smaller models (e.g. 1.7B) work for general chatting but may fail or hallucinate complex function calls.</li>
+                    </ul>
+                </div>
+
+                <!-- Ollama Form -->
+                <form id="ollama-config-form" class="space-y-4 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="ollama-base-url" class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Ollama Server URL</label>
+                            <input id="ollama-base-url" type="text" autocomplete="off" aria-label="Ollama Server URL" class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm font-mono text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition" placeholder="http://192.168.1.150:11434">
+                            <span class="text-[11px] text-gray-500 dark:text-gray-400 mt-1 block">Default: http://localhost:11434</span>
+                        </div>
+                        <div>
+                            <label for="ollama-api-key" class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">API Key (Optional)</label>
+                            <input id="ollama-api-key" type="password" autocomplete="off" aria-label="Ollama API Key (Optional)" class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition" placeholder="Optional token if behind auth proxy">
+                            <span class="text-[11px] text-gray-500 dark:text-gray-400 mt-1 block">Leave empty for standard LAN Ollama</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 pt-2">
+                        <button type="submit" id="ollama-save-btn" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save configuration</button>
+                        <button type="button" id="ollama-test-btn" class="min-h-11 inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-2xs">
+                            <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            <span>Test connection &amp; fetch models</span>
+                        </button>
+                        <button id="remove-ollama-btn" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer ml-auto">Remove provider</button>
+                    </div>
+                </form>
+
+                <div id="ollama-test-feedback" class="text-xs mb-4 hidden"></div>
+
+                <!-- Discovered Models Section -->
+                <div id="ollama-models-section" class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">Discovered Models on Host</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Models currently pulled on your Ollama server and ready for use in AI Chat.</p>
+                        </div>
+                        <span id="ollama-models-count" class="text-xs font-mono px-2 py-0.5 rounded bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-gray-300">0 models</span>
+                    </div>
+
+                    <!-- Discovered Models Table -->
+                    <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
+                            <thead class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                <tr>
+                                    <th scope="col" class="px-5 py-3.5">Model Name &amp; Tag</th>
+                                    <th scope="col" class="px-5 py-3.5">Parameters</th>
+                                    <th scope="col" class="px-5 py-3.5">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ollama-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                <tr>
+                                    <td colspan="3" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">Click &ldquo;Test connection &amp; fetch models&rdquo; to query your Ollama instance.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1181,6 +1271,16 @@
         const openrouterAddModelBtn = document.getElementById('openrouter-add-model-btn');
         const openrouterModelFeedback = document.getElementById('openrouter-model-feedback');
         const openrouterTableBody = document.getElementById('openrouter-models-table-body');
+        const ollamaCard = document.getElementById('ai-provider-card-ollama');
+        const ollamaForm = document.getElementById('ollama-config-form');
+        const ollamaUrlInput = document.getElementById('ollama-base-url');
+        const ollamaKeyInput = document.getElementById('ollama-api-key');
+        const ollamaStatus = document.getElementById('ollama-key-status');
+        const ollamaTestBtn = document.getElementById('ollama-test-btn');
+        const ollamaRemoveBtn = document.getElementById('remove-ollama-btn');
+        const ollamaTestFeedback = document.getElementById('ollama-test-feedback');
+        const ollamaTableBody = document.getElementById('ollama-models-table-body');
+        const ollamaModelsCount = document.getElementById('ollama-models-count');
         const addProviderSelect = document.getElementById('add-ai-provider-select');
 
         function setStatusPill(el, text, isConfigured, isError) {
@@ -1454,6 +1554,180 @@
             });
         }
 
+        // Render Ollama discovered models table
+        function renderOllamaModels(models) {
+            if (!ollamaTableBody) return;
+            ollamaTableBody.replaceChildren();
+            if (ollamaModelsCount) {
+                const count = Array.isArray(models) ? models.length : 0;
+                ollamaModelsCount.textContent = `${count} model${count === 1 ? '' : 's'}`;
+            }
+
+            if (!Array.isArray(models) || models.length === 0) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 3;
+                td.className = 'px-4 py-4 text-center text-gray-500 dark:text-gray-400';
+                td.textContent = 'No models detected on server. Pull a model via `ollama run <model>` first.';
+                tr.appendChild(td);
+                ollamaTableBody.appendChild(tr);
+                return;
+            }
+
+            models.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
+
+                const tdName = document.createElement('td');
+                tdName.className = 'px-5 py-3.5 align-middle font-mono font-medium text-gray-900 dark:text-white';
+                tdName.textContent = item.id || item.name;
+
+                const tdSize = document.createElement('td');
+                tdSize.className = 'px-5 py-3.5 align-middle text-gray-600 dark:text-gray-300';
+                tdSize.textContent = item.parameter_size || '—';
+
+                const tdStatus = document.createElement('td');
+                tdStatus.className = 'px-5 py-3.5 align-middle';
+                const pill = document.createElement('span');
+                pill.className = 'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
+                pill.textContent = 'Available';
+                tdStatus.appendChild(pill);
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdSize);
+                tr.appendChild(tdStatus);
+                ollamaTableBody.appendChild(tr);
+            });
+        }
+
+        // Fetch Ollama status
+        function loadOllamaStatus() {
+            fetch('/api/settings/ai/ollama')
+                .then(r => r.json())
+                .then(d => {
+                    setStatusPill(ollamaStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+                    if (ollamaUrlInput && d.base_url) {
+                        ollamaUrlInput.value = d.base_url;
+                    }
+                    if (ollamaKeyInput && d.has_api_key) {
+                        ollamaKeyInput.placeholder = '•••••••• (API key saved)';
+                    }
+                    renderOllamaModels(d.models || []);
+                })
+                .catch(() => setStatusPill(ollamaStatus, 'Status error', false, true));
+        }
+
+        // Save Ollama configuration
+        if (ollamaForm) {
+            ollamaForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const baseUrl = ollamaUrlInput?.value.trim() || 'http://localhost:11434';
+                const apiKey = ollamaKeyInput?.value.trim();
+                const payload = { base_url: baseUrl };
+                if (apiKey) {
+                    payload.api_key = apiKey;
+                } else {
+                    payload.keep_key = true;
+                }
+
+                try {
+                    const res = await fetch('/api/settings/ai/ollama', {
+                        method: 'POST',
+                        headers: aiHeaders,
+                        body: JSON.stringify(payload)
+                    });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.error?.message || 'Unable to save Ollama settings');
+                    setStatusPill(ollamaStatus, 'Configured', true, false);
+                    if (ollamaKeyInput && apiKey) {
+                        ollamaKeyInput.value = '';
+                        ollamaKeyInput.placeholder = '•••••••• (API key saved)';
+                    }
+                    renderOllamaModels(d.models || []);
+                    if (ollamaTestFeedback) {
+                        ollamaTestFeedback.classList.remove('hidden');
+                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300';
+                        ollamaTestFeedback.textContent = `Settings saved successfully. Discovered ${d.models?.length || 0} model(s).`;
+                        setTimeout(() => { ollamaTestFeedback.classList.add('hidden'); }, 5000);
+                    }
+                } catch (err) {
+                    setStatusPill(ollamaStatus, err.message, false, true);
+                    if (ollamaTestFeedback) {
+                        ollamaTestFeedback.classList.remove('hidden');
+                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300';
+                        ollamaTestFeedback.textContent = err.message;
+                    }
+                }
+            });
+        }
+
+        // Test connection to Ollama
+        if (ollamaTestBtn) {
+            ollamaTestBtn.addEventListener('click', async () => {
+                const baseUrl = ollamaUrlInput?.value.trim() || 'http://localhost:11434';
+                const apiKey = ollamaKeyInput?.value.trim() || '';
+
+                ollamaTestBtn.disabled = true;
+                const origHtml = ollamaTestBtn.innerHTML;
+                ollamaTestBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Testing" width="14" height="14" class="inline-block"><span>Connecting…</span>';
+
+                if (ollamaTestFeedback) {
+                    ollamaTestFeedback.classList.remove('hidden');
+                    ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-gray-300 flex items-center gap-2';
+                    ollamaTestFeedback.replaceChildren();
+                    const spinImg = document.createElement('img');
+                    spinImg.src = '/static/img/kinetiqo-loading-32x32.webp';
+                    spinImg.alt = 'Testing';
+                    spinImg.width = 14;
+                    spinImg.height = 14;
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = `Connecting to Ollama at ${baseUrl}…`;
+                    ollamaTestFeedback.appendChild(spinImg);
+                    ollamaTestFeedback.appendChild(textSpan);
+                }
+
+                try {
+                    const res = await fetch('/api/settings/ai/ollama/test', {
+                        method: 'POST',
+                        headers: aiHeaders,
+                        body: JSON.stringify({ base_url: baseUrl, api_key: apiKey })
+                    });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.error?.message || 'Connection test failed');
+                    renderOllamaModels(d.models || []);
+                    if (ollamaTestFeedback) {
+                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300';
+                        ollamaTestFeedback.textContent = `Connected successfully to Ollama at ${baseUrl}! Discovered ${d.models?.length || 0} model(s).`;
+                    }
+                } catch (err) {
+                    if (ollamaTestFeedback) {
+                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300';
+                        ollamaTestFeedback.textContent = err.message;
+                    }
+                } finally {
+                    ollamaTestBtn.disabled = false;
+                    ollamaTestBtn.innerHTML = origHtml;
+                }
+            });
+        }
+
+        // Remove Ollama provider
+        if (ollamaRemoveBtn) {
+            ollamaRemoveBtn.addEventListener('click', () => {
+                fetch('/api/settings/ai/ollama', { method: 'DELETE', headers: aiHeaders })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Unable to remove Ollama provider');
+                        setStatusPill(ollamaStatus, 'Not configured', false, false);
+                        if (ollamaKeyInput) {
+                            ollamaKeyInput.value = '';
+                            ollamaKeyInput.placeholder = 'Optional (leave empty for standard local/LAN Ollama)';
+                        }
+                        renderOllamaModels([]);
+                    })
+                    .catch(err => setStatusPill(ollamaStatus, err.message, false, true));
+            });
+        }
+
         // Provider dropdown jump-to or focus
         if (addProviderSelect) {
             addProviderSelect.addEventListener('change', () => {
@@ -1464,6 +1738,9 @@
                 } else if (val === 'openrouter' && openrouterCard) {
                     openrouterCard.scrollIntoView({ behavior: 'smooth' });
                     openrouterInput?.focus();
+                } else if (val === 'ollama' && ollamaCard) {
+                    ollamaCard.scrollIntoView({ behavior: 'smooth' });
+                    ollamaUrlInput?.focus();
                 }
                 addProviderSelect.selectedIndex = 0;
             });
@@ -1471,6 +1748,7 @@
 
         loadGeminiStatus();
         loadOpenRouterStatus();
+        loadOllamaStatus();
 
         function showStatus(msg, isError) {
             if (!profileStatus) return;

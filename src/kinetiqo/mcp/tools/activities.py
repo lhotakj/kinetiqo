@@ -15,7 +15,7 @@ from kinetiqo.mcp.utils import normalize_sport_types, resolve_date_range
 
 def kinetiqo_search_activities(
     repo: Any,
-    athlete_id: int,
+    athlete_id: Optional[int] = None,
     query: Optional[str] = None,
     sport_types: Optional[List[str]] = None,
     start_date: Optional[str] = None,
@@ -416,9 +416,9 @@ def kinetiqo_find_similar_routes(
         # Search candidates with similar distance (+/- 20%)
         min_d = src_dist * 0.80
         max_d = src_dist * 1.20
-        norm_sports = normalize_sport_types(sport_types) or ["Ride", "VirtualRide", "GravelRide"]
+        src_aid = source.get("athlete_id")
         cands, _, _ = repo.search_activities(
-            athlete_id=int(source.get("athlete_id") or 1),
+            athlete_id=int(src_aid) if src_aid is not None else None,
             filters={"min_distance": min_d, "max_distance": max_d, "sport_types": norm_sports},
             limit=max_candidates + 5,
         )

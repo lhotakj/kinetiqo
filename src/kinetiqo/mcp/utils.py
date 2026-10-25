@@ -299,11 +299,13 @@ def parse_flexible_date(
         ).isoformat()
 
     s = str(val).strip()
-    if not s or s.lower() in ("all_time", "all", "none"):
+    if not s:
         return None
 
     now = now or datetime.now(timezone.utc)
     s_lower = s.lower().replace("-", "_").replace(" ", "_")
+    if s_lower in ("all_time", "all", "none", "all_times"):
+        return None
 
     if s_lower in ("today", "now"):
         return (
@@ -320,7 +322,7 @@ def parse_flexible_date(
             else y.replace(hour=0, minute=0, second=0, microsecond=0)
         ).isoformat()
 
-    if s_lower in ("this_week", "current_week"):
+    if s_lower in ("this_week", "current_week", "week"):
         monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
         return (
             (monday + timedelta(days=6, hours=23, minutes=59, seconds=59)).isoformat()
@@ -328,7 +330,7 @@ def parse_flexible_date(
             else monday.isoformat()
         )
 
-    if s_lower in ("last_week", "prev_week"):
+    if s_lower in ("last_week", "prev_week", "previous_week", "past_week"):
         monday = (now - timedelta(days=now.weekday() + 7)).replace(hour=0, minute=0, second=0, microsecond=0)
         return (
             (monday + timedelta(days=6, hours=23, minutes=59, seconds=59)).isoformat()
@@ -336,13 +338,13 @@ def parse_flexible_date(
             else monday.isoformat()
         )
 
-    if s_lower in ("this_month", "current_month"):
+    if s_lower in ("this_month", "current_month", "month"):
         start = datetime(now.year, now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
         last_d = calendar.monthrange(now.year, now.month)[1]
         end = datetime(now.year, now.month, last_d, 23, 59, 59, tzinfo=timezone.utc)
         return end.isoformat() if is_end else start.isoformat()
 
-    if s_lower in ("last_month", "prev_month"):
+    if s_lower in ("last_month", "prev_month", "previous_month", "past_month"):
         pm = now.month - 1 if now.month > 1 else 12
         py = now.year if now.month > 1 else now.year - 1
         start = datetime(py, pm, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -350,14 +352,14 @@ def parse_flexible_date(
         end = datetime(py, pm, last_d, 23, 59, 59, tzinfo=timezone.utc)
         return end.isoformat() if is_end else start.isoformat()
 
-    if s_lower in ("this_year", "current_year"):
+    if s_lower in ("this_year", "current_year", "year_to_date", "ytd"):
         return (
             datetime(now.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc).isoformat()
             if is_end
             else datetime(now.year, 1, 1, 0, 0, 0, tzinfo=timezone.utc).isoformat()
         )
 
-    if s_lower in ("last_year", "prev_year"):
+    if s_lower in ("last_year", "prev_year", "previous_year", "past_year"):
         return (
             datetime(now.year - 1, 12, 31, 23, 59, 59, tzinfo=timezone.utc).isoformat()
             if is_end
@@ -466,13 +468,18 @@ def resolve_date_range(
         end_str = parse_flexible_date(preset, is_end=True, now=now)
         return start_str, end_str
 
-    # Check if start_date itself is a preset or lone year/month
-    if start_date and not end_date:
+    # Check if start_date itself is a preset or lone year/month, or start_date == end_date
+    if start_date and (not end_date or str(start_date).strip().lower() == str(end_date).strip().lower()):
         s_clean = str(start_date).strip().lower().replace("-", "_").replace(" ", "_")
         if (
             s_clean in (
-                "today", "yesterday", "this_week", "last_week", "this_month", "last_month",
-                "this_year", "last_year", "7_days", "14_days", "30_days", "year", "last_12_months",
+                "today", "yesterday", "this_week", "current_week", "week",
+                "last_week", "prev_week", "previous_week", "past_week",
+                "this_month", "current_month", "month",
+                "last_month", "prev_month", "previous_month", "past_month",
+                "this_year", "current_year", "year_to_date", "ytd",
+                "last_year", "prev_year", "previous_year", "past_year",
+                "7_days", "14_days", "30_days", "year", "last_12_months", "all_time", "all",
             )
             or re.match(r"^(?:last_)?\d+_?(?:day|days|week|weeks|month|months|year|years)$", s_clean)
             or re.match(r"^\d{4}$", str(start_date).strip())

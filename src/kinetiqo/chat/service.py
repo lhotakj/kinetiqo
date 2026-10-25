@@ -1,9 +1,10 @@
 """Chat orchestration with durable user prompts and bounded context."""
 
+import calendar
 import json
 import logging
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from kinetiqo.chat.config import MAX_HISTORY_CHARS, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS
@@ -25,11 +26,44 @@ DEPRECATED_MODELS = frozenset({
 
 def build_system_instruction() -> str:
     """Build dynamic system prompt with current date anchoring to prevent hallucinated timeframes."""
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    today_date = now.date()
+    today_str = today_date.strftime("%Y-%m-%d")
+    weekday_name = today_date.strftime("%A")
+    iso_year, iso_week, _ = today_date.isocalendar()
+
+    # ISO calendar week: Monday to Sunday
+    this_week_monday = today_date - timedelta(days=today_date.weekday())
+    this_week_sunday = this_week_monday + timedelta(days=6)
+    last_week_monday = this_week_monday - timedelta(days=7)
+    last_week_sunday = this_week_monday - timedelta(days=1)
+
+    # Calendar months
+    this_month_start = today_date.replace(day=1)
+    last_day_this_month = calendar.monthrange(today_date.year, today_date.month)[1]
+    this_month_end = today_date.replace(day=last_day_this_month)
+    prev_month_end = this_month_start - timedelta(days=1)
+    last_month_start = prev_month_end.replace(day=1)
+
+    this_year = today_date.year
+
     return (
         f"You are Kinetiqo's private fitness-data AI assistant. Be concise, accurate, and evidence-based.\n"
-        f"Today's date is {today_str} (UTC). Always use this date to correctly resolve relative time periods "
-        f"such as 'this month', 'last month', 'this year', 'last year', 'this week', etc.\n"
+        f"DATE & TIME RECKONING (SYSTEM SOURCE OF TRUTH):\n"
+        f"- Current Date: {weekday_name}, {today_str} (UTC).\n"
+        f"- 'This Week' (current ISO calendar week W{iso_week:02d}): Monday {this_week_monday.isoformat()} to Sunday {this_week_sunday.isoformat()}.\n"
+        f"- 'Last Week' (previous ISO calendar week): Monday {last_week_monday.isoformat()} to Sunday {last_week_sunday.isoformat()}.\n"
+        f"- 'This Month': {this_month_start.isoformat()} to {this_month_end.isoformat()}.\n"
+        f"- 'Last Month': {last_month_start.isoformat()} to {prev_month_end.isoformat()}.\n"
+        f"- 'This Year': {this_year}-01-01 to {this_year}-12-31.\n"
+        f"- When the user asks 'when do you consider this week?' or asks for dates, state clearly that in training analysis 'this week' is the current Monday-to-Sunday ISO block: {this_week_monday.strftime('%A, %B %d, %Y')} to {this_week_sunday.strftime('%A, %B %d, %Y')}.\n"
+        f"- TOOL DATE SIMPLIFICATION:\n"
+        f"  * When querying activities for 'this week', simply pass `date_preset='this_week'` (or start_date='{this_week_monday.isoformat()}', end_date='{this_week_sunday.isoformat()}').\n"
+        f"  * When querying for 'last week', pass `date_preset='last_week'` (or start_date='{last_week_monday.isoformat()}', end_date='{last_week_sunday.isoformat()}').\n"
+        f"  * When querying for 'this month', pass `date_preset='this_month'`.\n"
+        f"  * When querying for 'last month', pass `date_preset='last_month'`.\n"
+        f"  * When querying for 'this year', pass `date_preset='this_year'`.\n"
+        f"  * The underlying database query engine resolves presets deterministically. Never assume the database has no activities without checking with date presets or ISO dates.\n"
         f"You have access to the athlete's local Kinetiqo tools (activity search, details, totals, telemetry, "
         f"fitness/freshness, power curves, FTP, PRs, milestones, goals).\n"
         f"Always invoke relevant tools when questions ask about athlete training, activities, fitness, metrics, "
@@ -59,6 +93,7 @@ def build_system_instruction() -> str:
         f"  * Aerobic Decoupling (Pw:HR): Efficiency Factor (watts/HR) drift from 1st half to 2nd half. <5% indicates stable aerobic endurance base; >5% indicates cardiac drift due to fatigue, heat, or dehydration.\n"
         f"- Tool Routing Accuracy:\n"
         f"  * For finding activities by title, name, keyword, person, or location -> invoke `kinetiqo_search_activities` with query='<keyword>'. When searching for rides with someone, include all cycling types (or omit sport_types to search across all activities).\n"
+        f"  * For weekly training, rides this week, or weekly totals (e.g. 'what did I do this week', 'rides this week', 'biking this week') -> invoke `kinetiqo_search_activities` (and/or `kinetiqo_get_activity_totals`) with date_preset='this_week'. For riding queries, include all biking types (or sport_types=['cycling']). Present the total count, total distance in km, total elevation gain in meters, total moving time, and list each session with its date, title, sport type, and key metrics.\n"
         f"  * For training zones (e.g. 'what are my z1, z2, z3 ... zones' or 'what is my Z2 power') -> invoke `kinetiqo_get_ftp_history`. It provides `power_zones_coggan` (Z1 Active Recovery to Z7 Neuromuscular Power with exact Watts, W/kg, and descriptions) and `heart_rate_zones` (Z1-Z5 with BPM boundaries). Present every zone in a clear, formatted Markdown breakdown with exact personal wattage ranges and physiological objectives.\n"
         f"  * For determining when the athlete really did VO2max training (e.g. 'when did I really do vo2max training?') -> explain that genuine VO2max training requires accumulating sustained time in Zone 5 (106%–120% FTP, e.g. 15–25 min total via 3–8 min intervals or 30/30s micro-bursts), distinct from isolated sprint spikes or steady tempo. Invoke `kinetiqo_get_vo2max_trend` (which lists activities with top 5m MAP power) and `kinetiqo_search_activities(has_power=True)`, then inspect candidate sessions using `kinetiqo_analyze_workout_structure`. Review `vo2max_analysis` (`vo2max_time_min`, `sustained_z5_intervals`, `is_genuine_vo2max_workout`, `classification_reason`) to report the exact dates and workouts where genuine VO2max interval blocks were completed vs sessions with only brief surges.\n"
         f"  * For VO2max training meaning and actionable coaching (e.g. 'what a vo2max training means for me? How should I train for best vo2max') -> invoke `kinetiqo_get_ftp_history` and/or `kinetiqo_get_vo2max_trend` to obtain the athlete's exact FTP and weight. Explain that VO2max is their physiological aerobic ceiling (maximal oxygen uptake in ml/kg/min). Ground your advice in their personal numbers: state their exact Zone 5 target range (106%–120% FTP in Watts and W/kg). Prescribe evidence-based protocols: (1) Long intervals (4–5 × 4–5 min @ 108–115% FTP with 3–4 min recovery in Z1), (2) Micro-bursts (30s ON @ 115–125% FTP / 30s OFF @ 50% FTP, 2–3 sets of 8–10 reps), (3) High cadence (95–105+ RPM) to maximize cardiovascular stroke volume and spare muscular glycogen, and (4) Polarized 80/20 balance with 1–2 VO2max sessions weekly and 48–72h recovery between hard days.\n"
@@ -111,6 +146,7 @@ class ChatService:
             display_names = {
                 "gemini": "Google Gemini",
                 "openrouter": "OpenRouter AI",
+                "ollama": "Ollama (Local AI)",
             }
             for prov in self.configured_providers(athlete_id):
                 try:
@@ -278,12 +314,18 @@ class ChatService:
         return list(reversed(selected))
 
     def _provider(self, athlete_id: str, provider: str):
+        provider_cls = self._provider_class(provider)
+        config = self.repository.get_provider_config(athlete_id, provider)
         encrypted_key = self.repository.get_provider_key(athlete_id, provider)
+
+        if provider == "ollama":
+            api_key = decrypt_api_key(encrypted_key, self.encryption_secret) if encrypted_key else ""
+            base_url = config.get("base_url") or "http://localhost:11434"
+            return provider_cls(api_key=api_key, config=config, base_url=base_url)
+
         if not encrypted_key:
             raise ChatConfigurationError()
-        provider_cls = self._provider_class(provider)
         api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
-        config = self.repository.get_provider_config(athlete_id, provider)
         if provider == "openrouter":
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)

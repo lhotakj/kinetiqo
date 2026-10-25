@@ -77,6 +77,7 @@ from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncry
 from kinetiqo.chat.errors import ChatError, ChatConfigurationError
 from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
+from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
 
 
@@ -2656,6 +2657,114 @@ def chat_openrouter_models_api():
     cfg['models'] = current_models
     repository.save_provider_config(athlete_id, 'openrouter', cfg)
     return jsonify({'models': current_models}), 201
+
+
+@app.route('/api/settings/ai/ollama', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_ollama_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        is_configured = repository.has_provider(athlete_id, 'ollama')
+        config_data = repository.get_provider_config(athlete_id, 'ollama')
+        has_key = repository.get_provider_key(athlete_id, 'ollama') is not None
+        return jsonify({
+            'configured': is_configured,
+            'base_url': config_data.get('base_url', 'http://localhost:11434'),
+            'has_api_key': has_key,
+            'models': config_data.get('models', []),
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'ollama')
+        return Response(status=204)
+
+    data = request.get_json(silent=True) or {}
+    raw_url = str(data.get('base_url') or '').strip() or 'http://localhost:11434'
+    if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+        return _chat_error(ValueError('Base URL must begin with http:// or https://'), 422)
+    base_url = raw_url.rstrip('/')
+
+    api_key = data.get('api_key')
+    enc_key = ""
+    if isinstance(api_key, str) and api_key.strip():
+        if len(api_key.strip()) > 1024:
+            return _chat_error(ValueError('API key is too long.'), 422)
+        try:
+            enc_key = encrypt_api_key(api_key.strip(), app.secret_key)
+        except ChatEncryptionError as exc:
+            return _chat_error(exc, 500)
+    else:
+        existing_key = repository.get_provider_key(athlete_id, 'ollama')
+        if data.get('keep_key') and existing_key:
+            enc_key = existing_key
+
+    # Auto-discover models from Ollama instance if reachable
+    discovered_models = []
+    plain_key = api_key.strip() if (isinstance(api_key, str) and api_key.strip()) else (decrypt_api_key(enc_key, app.secret_key) if enc_key else "")
+    try:
+        connection_result = OllamaChatProvider.test_connection(base_url, plain_key)
+        discovered_models = connection_result.get('models', [])
+    except Exception as exc:
+        logger.info("Ollama discovery on save skipped: %s", exc)
+
+    cfg = {'base_url': base_url}
+    if discovered_models:
+        cfg['models'] = discovered_models
+    else:
+        existing_cfg = repository.get_provider_config(athlete_id, 'ollama')
+        if existing_cfg.get('models'):
+            cfg['models'] = existing_cfg['models']
+
+    repository.save_provider_key(
+        athlete_id,
+        'ollama',
+        enc_key,
+        enabled=True,
+        config=cfg,
+    )
+    return jsonify({
+        'configured': True,
+        'base_url': base_url,
+        'has_api_key': bool(enc_key),
+        'models': cfg.get('models', []),
+    })
+
+
+@app.route('/api/settings/ai/ollama/test', methods=['POST'])
+@login_required
+def chat_ollama_test_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    data = request.get_json(silent=True) or {}
+    raw_url = str(data.get('base_url') or '').strip() or 'http://localhost:11434'
+    if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+        return _chat_error(ValueError('Base URL must begin with http:// or https://'), 422)
+    base_url = raw_url.rstrip('/')
+
+    api_key = data.get('api_key')
+    if not api_key:
+        encrypted_key = repository.get_provider_key(athlete_id, 'ollama')
+        if encrypted_key:
+            try:
+                api_key = decrypt_api_key(encrypted_key, app.secret_key)
+            except Exception:
+                api_key = ""
+        else:
+            api_key = ""
+
+    try:
+        result = OllamaChatProvider.test_connection(base_url, api_key.strip() if isinstance(api_key, str) else "")
+        cfg = repository.get_provider_config(athlete_id, 'ollama')
+        if result.get('models'):
+            cfg['base_url'] = base_url
+            cfg['models'] = result['models']
+            repository.save_provider_config(athlete_id, 'ollama', cfg)
+        return jsonify(result)
+    except (ConnectionError, TimeoutError, ValueError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("Ollama test connection failed: %s", exc)
+        return _chat_error(exc, 500)
 
 
 @app.route('/strava/reconnect', methods=['GET'])

@@ -34,7 +34,14 @@ CHAT_TOOL_ALLOWLIST = frozenset({
 
 class _FallbackConfig:
     def __init__(self, repo: Any = None):
-        self.athlete_id = getattr(repo, "athlete_id", 1) or 1
+        aid = None
+        if hasattr(repo, "get_profile"):
+            try:
+                prof = repo.get_profile() or {}
+                aid = prof.get("athlete_id") or prof.get("id")
+            except Exception:
+                pass
+        self.athlete_id = int(aid) if aid is not None else getattr(repo, "athlete_id", None)
         self.database_type = getattr(repo, "database_type", "postgresql") or "postgresql"
 
 
@@ -155,7 +162,7 @@ def get_chat_tools(provider: str = "gemini", config: Any = None, repo_factory: C
         description = getattr(tool, "description", "") or ""
         raw_schema = getattr(tool, "inputSchema", {})
 
-        if norm_provider in ("openai", "mistral", "openrouter"):
+        if norm_provider in ("openai", "mistral", "openrouter", "ollama"):
             declarations.append({
                 "type": "function",
                 "function": {
@@ -247,7 +254,11 @@ def build_training_context(repo: Any, prompt: str) -> str:
     lower = prompt.lower()
     results: list[tuple[str, dict[str, Any]]] = []
     today = date.today()
-    if any(term in lower for term in ("week", "month", "training", "summary", "volume", "distance", "elevation", "last four", "4 week")):
+    if "this week" in lower or "current week" in lower:
+        results.append(("kinetiqo_get_activity_totals_this_week", activities.kinetiqo_get_activity_totals(
+            repo=repo, date_preset="this_week",
+        )))
+    elif any(term in lower for term in ("week", "month", "training", "summary", "volume", "distance", "elevation", "last four", "4 week")):
         start_date = (today - timedelta(days=28)).isoformat()
         results.append(("kinetiqo_get_activity_totals", activities.kinetiqo_get_activity_totals(
             repo=repo, start_date=start_date, end_date=today.isoformat(),

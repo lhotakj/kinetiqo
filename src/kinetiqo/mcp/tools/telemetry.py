@@ -16,6 +16,7 @@ from kinetiqo.mcp.utils import (
     extract_activity_summaries,
     get_best_powers_for_durations,
     normalize_sport_types,
+    resolve_date_range,
     CYCLING_SPORT_TYPES,
 )
 from kinetiqo.analytics.power import (
@@ -180,35 +181,37 @@ def kinetiqo_calculate_power_curve(
 
 def kinetiqo_get_personal_records(
     repo: Any,
-    athlete_id: int,
+    athlete_id: Optional[int] = None,
     durations: Optional[List[int]] = None,
     sport_types: Optional[List[str]] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    date_preset: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieve verified all-time and period personal power records for benchmark durations."""
     benchmark_durations = durations or [5, 60, 300, 1200, 3600]
     types = normalize_sport_types(sport_types) or ["Ride", "VirtualRide", "GravelRide"]
+    resolved_start, resolved_end = resolve_date_range(start_date=start_date, end_date=end_date, preset=date_preset)
 
     try:
         try:
             profile = repo.get_profile() or {}
         except TypeError:
-            profile = repo.get_profile(athlete_id) or {}
+            profile = repo.get_profile(athlete_id) if athlete_id else {}
         weight_kg = float(profile.get("weight") or 0.0)
     except Exception:
         weight_kg = 0.0
 
     try:
-        raw_acts = repo.get_activity_ids_by_types(types=types, since_date=start_date, watts_only=True) or []
+        raw_acts = repo.get_activity_ids_by_types(types=types, since_date=resolved_start, watts_only=True) or []
         summaries = extract_activity_summaries(raw_acts)
-        if start_date or end_date:
+        if resolved_start or resolved_end:
             filtered = []
             for s in summaries:
                 sdate = str(s.get("start_date") or "")
-                if start_date and sdate and sdate[:10] < str(start_date)[:10]:
+                if resolved_start and sdate and sdate[:10] < str(resolved_start)[:10]:
                     continue
-                if end_date and sdate and sdate[:10] > str(end_date)[:10]:
+                if resolved_end and sdate and sdate[:10] > str(resolved_end)[:10]:
                     continue
                 filtered.append(s)
             summaries = filtered

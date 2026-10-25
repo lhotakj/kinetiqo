@@ -222,9 +222,17 @@ class ChatRepository:
             key_enc = row[1]
             enabled = bool(row[2])
             has_key = bool(key_enc and len(str(key_enc).strip()) > 0)
-            if has_key and enabled:
+            if (has_key or provider == "ollama") and enabled:
                 result.append(provider)
         return result
+
+    def has_provider(self, athlete_id: str, provider: str) -> bool:
+        p = self.placeholder
+        row = self._one(
+            f"SELECT enabled FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}",
+            (athlete_id, provider),
+        )
+        return bool(row and row[0])
 
     def remove_provider_key(self, athlete_id: str, provider: str) -> None:
         p = self.placeholder

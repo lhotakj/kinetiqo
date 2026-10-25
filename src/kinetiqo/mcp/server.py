@@ -52,6 +52,24 @@ def create_mcp_server(
                 if hasattr(repo, "close"):
                     repo.close()
 
+    def _resolve_athlete_id(repo: Any) -> Optional[int]:
+        """Resolve active athlete ID from repository profile or config."""
+        if hasattr(repo, "get_profile"):
+            try:
+                prof = repo.get_profile() or {}
+                aid = prof.get("athlete_id") or prof.get("id")
+                if aid is not None:
+                    return int(aid)
+            except Exception:
+                pass
+        cfg_aid = getattr(config, "athlete_id", None)
+        if cfg_aid is not None:
+            try:
+                return int(cfg_aid)
+            except (ValueError, TypeError):
+                pass
+        return None
+
     # Mutation gating flags
     allow_profile_write = os.environ.get("KINETIQO_MCP_ALLOW_PROFILE_WRITE", "0").strip() == "1"
     allow_sync = os.environ.get("KINETIQO_MCP_ALLOW_SYNC", "0").strip() == "1"
@@ -103,7 +121,7 @@ def create_mcp_server(
         sort_order: str = "desc",
     ) -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = getattr(config, "athlete_id", None)
             return activities.kinetiqo_search_activities(
                 repo=r,
                 athlete_id=athlete_id,
@@ -251,9 +269,10 @@ def create_mcp_server(
         sport_types: Optional[List[str]] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        date_preset: Optional[str] = None,
     ) -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return telemetry.kinetiqo_get_personal_records(
                 repo=r,
                 athlete_id=athlete_id,
@@ -261,6 +280,7 @@ def create_mcp_server(
                 sport_types=sport_types,
                 start_date=start_date,
                 end_date=end_date,
+                date_preset=date_preset,
             )
 
     @server.tool(name="kinetiqo_analyze_workout_structure", description="Analyze NP, IF, TSS, sustained blocks, and sprint surges.")
@@ -306,7 +326,7 @@ def create_mcp_server(
     @server.tool(name="kinetiqo_get_ftp_history", description="Retrieve configured FTP and historical 20-min breakthrough efforts.")
     def get_ftp_history() -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return physiology.kinetiqo_get_ftp_history(repo=r, athlete_id=athlete_id)
 
     @server.tool(name="kinetiqo_get_vo2max_trend", description="Estimate VO2max trends via Storer-Davis 5m MAP and Coggan FTP.")
@@ -317,7 +337,7 @@ def create_mcp_server(
     @server.tool(name="kinetiqo_get_power_skills", description="Benchmark power skills across durations (5s, 30s, 1m, 5m, 10m, 20m, 1h).")
     def get_power_skills() -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return physiology.kinetiqo_get_power_skills(repo=r, athlete_id=athlete_id)
 
     @server.tool(name="kinetiqo_get_training_load_trends", description="Retrieve rolling 7d/28d training load and Acute:Chronic Workload Ratio.")
@@ -332,7 +352,7 @@ def create_mcp_server(
         sport_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return physiology.kinetiqo_get_weekly_training_profile(
                 repo=r,
                 athlete_id=athlete_id,
@@ -361,13 +381,13 @@ def create_mcp_server(
     @server.tool(name="kinetiqo_get_verified_koms", description="Retrieve verified King of the Mountains (KOM/QOM) crowns.")
     def get_verified_koms() -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return achievements.kinetiqo_get_verified_koms(repo=r, athlete_id=athlete_id)
 
     @server.tool(name="kinetiqo_get_segment_trophies", description="Retrieve top-10 segment ribbons breakdown.")
     def get_segment_trophies() -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return achievements.kinetiqo_get_segment_trophies(repo=r, athlete_id=athlete_id)
 
     @server.tool(name="kinetiqo_get_fondo_milestones", description="Retrieve Gran Fondo and endurance distance milestones.")
@@ -378,14 +398,14 @@ def create_mcp_server(
     @server.tool(name="kinetiqo_get_training_goals", description="Retrieve active distance and elevation goals and current progress.")
     def get_training_goals() -> Dict[str, Any]:
         with get_repo() as r:
-            athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+            athlete_id = _resolve_athlete_id(r) or 1
             return achievements.kinetiqo_get_training_goals(repo=r, athlete_id=athlete_id)
 
     if allow_profile_write:
         @server.tool(name="kinetiqo_update_training_goals", description="Update athlete distance/elevation goal (requires KINETIQO_MCP_ALLOW_PROFILE_WRITE=1).")
         def update_training_goals(period: str, goal_type: str, target: float, metric: str = "distance") -> Dict[str, Any]:
             with get_repo() as r:
-                athlete_id = int(getattr(config, "athlete_id", 1) or 1)
+                athlete_id = _resolve_athlete_id(r) or 1
                 return achievements.kinetiqo_update_training_goals(
                     repo=r,
                     athlete_id=athlete_id,
