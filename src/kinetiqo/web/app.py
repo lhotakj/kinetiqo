@@ -79,6 +79,7 @@ from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
+from kinetiqo.chat.providers.vercel import VercelChatProvider
 
 
 
@@ -2656,6 +2657,104 @@ def chat_openrouter_models_api():
     current_models.append(model_info)
     cfg['models'] = current_models
     repository.save_provider_config(athlete_id, 'openrouter', cfg)
+    return jsonify({'models': current_models}), 201
+
+
+@app.route('/api/settings/ai/vercel', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_vercel_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'vercel') is not None
+        config_data = repository.get_provider_config(athlete_id, 'vercel')
+        return jsonify({
+            'configured': has_key,
+            'models': config_data.get('models', [])
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'vercel')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'vercel')
+        repository.save_provider_key(
+            athlete_id,
+            'vercel',
+            encrypt_api_key(api_key.strip(), app.secret_key),
+            config=existing_config
+        )
+        return jsonify({'configured': True, 'models': existing_config.get('models', [])})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/vercel/models/validate', methods=['POST'])
+@login_required
+def chat_vercel_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Vercel AI Gateway API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = VercelChatProvider(api_key)
+        model_info = provider.validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("Vercel AI Gateway model validation failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/vercel/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_vercel_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Vercel AI Gateway API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
+
+    cfg = repository.get_provider_config(athlete_id, 'vercel')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = new_models
+        repository.save_provider_config(athlete_id, 'vercel', cfg)
+        return jsonify({'models': new_models})
+
+    # POST - add model
+    # If model is already present, return current list
+    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
+        return jsonify({'models': current_models})
+
+    # Validate against Vercel to get accurate metadata
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = VercelChatProvider(api_key)
+        model_info = provider.validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'vercel', cfg)
     return jsonify({'models': current_models}), 201
 
 

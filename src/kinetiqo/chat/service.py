@@ -147,6 +147,7 @@ class ChatService:
                 "gemini": "Google Gemini",
                 "openrouter": "OpenRouter AI",
                 "ollama": "Ollama (Local AI)",
+                "vercel": "Vercel AI Gateway",
             }
             for prov in self.configured_providers(athlete_id):
                 try:
@@ -326,7 +327,7 @@ class ChatService:
         if not encrypted_key:
             raise ChatConfigurationError()
         api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
-        if provider == "openrouter":
+        if provider in ("openrouter", "vercel"):
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)
 

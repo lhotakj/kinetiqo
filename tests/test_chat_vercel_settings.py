@@ -1,0 +1,157 @@
+"""Mocked unit tests for Vercel AI Gateway and AI settings endpoints in web app."""
+
+import unittest
+from unittest.mock import MagicMock, patch
+
+from kinetiqo.chat.encryption import encrypt_api_key
+from kinetiqo.web.app import app
+from kinetiqo.web.auth import users
+
+
+class TestVercelSettingsEndpoints(unittest.TestCase):
+    def setUp(self):
+        self._orig_testing = app.config.get("TESTING")
+        self._orig_csrf = app.config.get("WTF_CSRF_ENABLED")
+        app.config["TESTING"] = True
+        app.config["WTF_CSRF_ENABLED"] = False
+        self.client = app.test_client()
+        username = next(iter(users))
+        with self.client.session_transaction() as sess:
+            sess["_user_id"] = username
+            sess["_fresh"] = True
+
+    def tearDown(self):
+        if self._orig_testing is not None:
+            app.config["TESTING"] = self._orig_testing
+        if self._orig_csrf is not None:
+            app.config["WTF_CSRF_ENABLED"] = self._orig_csrf
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    def test_get_vercel_settings_unconfigured(self, mock_service_fn, mock_user_id):
+        mock_repo = MagicMock()
+        mock_repo.get_provider_key.return_value = None
+        mock_repo.get_provider_config.return_value = {}
+        mock_service = MagicMock(repository=mock_repo)
+        mock_service_fn.return_value = mock_service
+
+        resp = self.client.get("/api/settings/ai/vercel")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertFalse(data["configured"])
+        self.assertEqual(data["models"], [])
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    def test_save_and_remove_vercel_key(self, mock_service_fn, mock_user_id):
+        mock_repo = MagicMock()
+        mock_repo.get_provider_config.return_value = {"models": [{"id": "m1"}]}
+        mock_service = MagicMock(repository=mock_repo)
+        mock_service_fn.return_value = mock_service
+
+        # Save key
+        save_resp = self.client.post(
+            "/api/settings/ai/vercel",
+            json={"api_key": "vcl_testkey123"},
+        )
+        self.assertEqual(save_resp.status_code, 200)
+        data = save_resp.get_json()
+        self.assertTrue(data["configured"])
+        mock_repo.save_provider_key.assert_called_once()
+
+        # Delete key
+        del_resp = self.client.delete("/api/settings/ai/vercel")
+        self.assertEqual(del_resp.status_code, 204)
+        mock_repo.remove_provider_key.assert_called_once_with("12345", "vercel")
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    @patch("kinetiqo.web.app.VercelChatProvider")
+    def test_validate_vercel_model_endpoint(self, mock_provider_cls, mock_service_fn, mock_user_id):
+        mock_repo = MagicMock()
+        mock_repo.get_provider_key.return_value = encrypt_api_key("vcl-key", app.secret_key)
+        mock_service = MagicMock(repository=mock_repo)
+        mock_service_fn.return_value = mock_service
+
+        mock_provider_instance = MagicMock()
+        mock_provider_instance.validate_model.return_value = {
+            "id": "moonshotai/kimi-k2.6",
+            "name": "Kimi K2.6",
+            "context_length": 262000,
+            "supports_tools": True,
+        }
+        mock_provider_cls.return_value = mock_provider_instance
+
+        resp = self.client.post(
+            "/api/settings/ai/vercel/models/validate",
+            json={"model_id": "moonshotai/kimi-k2.6"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["valid"])
+        self.assertEqual(data["model"]["id"], "moonshotai/kimi-k2.6")
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    @patch("kinetiqo.web.app.VercelChatProvider")
+    def test_add_and_delete_vercel_model(self, mock_provider_cls, mock_service_fn, mock_user_id):
+        mock_repo = MagicMock()
+        mock_repo.get_provider_key.return_value = encrypt_api_key("vcl-key", app.secret_key)
+        mock_repo.get_provider_config.return_value = {"models": []}
+        mock_service = MagicMock(repository=mock_repo)
+        mock_service_fn.return_value = mock_service
+
+        mock_provider_instance = MagicMock()
+        mock_provider_instance.validate_model.return_value = {
+            "id": "moonshotai/kimi-k2.6",
+            "name": "Kimi K2.6",
+            "context_length": 262000,
+            "supports_tools": True,
+        }
+        mock_provider_cls.return_value = mock_provider_instance
+
+        # 1. Add model
+        add_resp = self.client.post(
+            "/api/settings/ai/vercel/models",
+            json={"model_id": "moonshotai/kimi-k2.6"},
+        )
+        self.assertEqual(add_resp.status_code, 201)
+        add_data = add_resp.get_json()
+        self.assertEqual(len(add_data["models"]), 1)
+        self.assertEqual(add_data["models"][0]["id"], "moonshotai/kimi-k2.6")
+        mock_repo.save_provider_config.assert_called_once()
+
+        # 2. Delete model
+        mock_repo.get_provider_config.return_value = {
+            "models": [{"id": "moonshotai/kimi-k2.6"}]
+        }
+        del_resp = self.client.delete(
+            "/api/settings/ai/vercel/models",
+            json={"model_id": "moonshotai/kimi-k2.6"},
+        )
+        self.assertEqual(del_resp.status_code, 200)
+        del_data = del_resp.get_json()
+        self.assertEqual(del_data["models"], [])
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    def test_chat_models_grouped_by_provider_includes_vercel(self, mock_service_fn, mock_user_id):
+        mock_service = MagicMock()
+        mock_service.models.return_value = [
+            {"provider": "gemini", "display_name": "Google Gemini", "models": [{"id": "gemini-3.1-flash-lite"}]},
+            {"provider": "openrouter", "display_name": "OpenRouter AI", "models": [{"id": "anthropic/claude-3.5-sonnet"}]},
+            {"provider": "vercel", "display_name": "Vercel AI Gateway", "models": [{"id": "moonshotai/kimi-k2.6"}]},
+        ]
+        mock_service_fn.return_value = mock_service
+
+        resp = self.client.get("/api/chat/models?provider=all")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("providers", data)
+        self.assertEqual(len(data["providers"]), 3)
+        self.assertEqual(data["providers"][2]["provider"], "vercel")
+        self.assertEqual(data["providers"][2]["display_name"], "Vercel AI Gateway")
+
+
+if __name__ == "__main__":
+    unittest.main()

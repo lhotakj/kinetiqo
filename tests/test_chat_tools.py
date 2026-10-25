@@ -96,6 +96,10 @@ class TestChatTools(unittest.TestCase):
         self.assertIn("description", first_tool["function"])
         self.assertEqual(first_tool["function"]["parameters"]["type"], "object")
 
+        vercel_tools = get_chat_tools(provider="vercel", force_refresh=True)
+        self.assertGreater(len(vercel_tools), 20)
+        self.assertEqual(vercel_tools[0]["type"], "function")
+
     def test_execute_chat_tool_blocks_mutating_tools(self):
         repo = MagicMock()
         payload, elapsed = execute_chat_tool(repo, "kinetiqo_trigger_sync", {"sync_type": "full"})

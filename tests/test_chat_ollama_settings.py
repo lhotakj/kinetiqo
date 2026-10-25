@@ -10,6 +10,8 @@ from kinetiqo.web.auth import users
 
 class TestOllamaSettingsEndpoints(unittest.TestCase):
     def setUp(self):
+        self._orig_testing = app.config.get("TESTING")
+        self._orig_csrf = app.config.get("WTF_CSRF_ENABLED")
         app.config["TESTING"] = True
         app.config["WTF_CSRF_ENABLED"] = False
         self.client = app.test_client()
@@ -17,6 +19,12 @@ class TestOllamaSettingsEndpoints(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["_user_id"] = username
             sess["_fresh"] = True
+
+    def tearDown(self):
+        if self._orig_testing is not None:
+            app.config["TESTING"] = self._orig_testing
+        if self._orig_csrf is not None:
+            app.config["WTF_CSRF_ENABLED"] = self._orig_csrf
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")

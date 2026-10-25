@@ -95,6 +95,10 @@ class TestChatService(unittest.TestCase):
         self.assertEqual(provider.stream.call_args.args[0], "gemini-3.1-flash-lite")
         self.repository.update_session.assert_called_with("athlete", "session", model_id="gemini-3.1-flash-lite")
 
+    def test_create_session_uses_provider_default_model(self):
+        self.service.create_session("athlete", provider="vercel")
+        self.repository.create_session.assert_called_with("athlete", "vercel", "moonshotai/kimi-k2.6")
+
     @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
     @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
     def test_stream_turn_switches_provider_when_explicitly_requested(self, registry, decrypt):

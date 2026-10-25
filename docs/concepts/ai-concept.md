@@ -1,8 +1,8 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Google Gemini and OpenRouter AI adapters implemented with live validation and dynamic tool calling)  
+> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, and Vercel AI Gateway adapters implemented with live validation and dynamic tool calling)  
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
-> **Supported providers:** Google Gemini, OpenRouter AI.  
+> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Ollama (Local AI).  
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
 > **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
 > **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
@@ -64,6 +64,7 @@ A user can:
 - Provider-neutral chat domain model and multi-provider adapter interface.
 - **Google Gemini Provider**: API key encryption, automatic model discovery, text streaming, supported multimodal inputs, usage extraction, and error mapping.
 - **OpenRouter AI Provider**: OpenAI-compatible REST completions gateway supporting arbitrary models (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, Nemotron, etc.), user-managed free-text model registration, live model validation (`GET /api/v1/model/{author}/{slug}`), and a responsive management table with `+` and `-` actions in Settings.
+- **Vercel AI Gateway Provider**: OpenAI-compatible edge gateway (`https://ai-gateway.vercel.sh/v1`) providing low-latency routing to leading models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic, OpenAI, etc.), free-text model registration, live model validation (`GET /v1/models/{model_id}` and `/v1/models`), fuzzy suggestion matching, and responsive management table with `+` and `-` actions in Settings.
 - Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
 - Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
 - `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
@@ -471,10 +472,12 @@ Use an explicit static registry, not dynamic imports from user input:
 PROVIDER_REGISTRY = {
     "gemini": GeminiChatProvider,
     "openrouter": OpenRouterChatProvider,
+    "vercel": VercelChatProvider,
+    "ollama": OllamaChatProvider,
 }
 ```
 
-The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Both Gemini and OpenRouter adapters are first-class citizens in Kinetiqo v3.0.
+The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, and Vercel AI Gateway adapters are first-class citizens in Kinetiqo v3.0.
 
 ### 6.3 Error taxonomy
 
@@ -638,8 +641,34 @@ To support per-provider custom configurations (such as OpenRouter's enabled mode
     <option value="openrouter:anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
     <option value="openrouter:deepseek/deepseek-chat">DeepSeek V3</option>
   </optgroup>
+  <optgroup label="Vercel AI Gateway">
+    <option value="vercel:moonshotai/kimi-k2.6">Kimi K2.6</option>
+    <option value="vercel:meta/llama-3.3-70b">Llama 3.3 70B</option>
+  </optgroup>
   ```
-- Chat sessions persist both `provider` (`gemini` or `openrouter`) and `model_id`.
+- Chat sessions persist both `provider` (`gemini`, `openrouter`, or `vercel`) and `model_id`.
+
+### 8.6 Vercel AI Gateway Provider Implementation
+Vercel AI Gateway (`https://ai-gateway.vercel.sh/v1`) is an OpenAI-compatible edge gateway unifying access to leading frontier and open-weight models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic Claude, OpenAI GPT-4o, etc.).
+
+1. **Protocol & Authentication**:
+   - Endpoint: `https://ai-gateway.vercel.sh/v1/chat/completions` (OpenAI-compatible REST format).
+   - Authentication: `Authorization: Bearer <VERCEL_API_KEY>`.
+   - Headers: `Content-Type: application/json`, `User-Agent: Kinetiqo-Fitness-AI`.
+   - Streaming: SSE (`stream: true`), parsing standard OpenAI chunk deltas with multi-turn tool calling.
+2. **Live Model Validation & Catalog Lookup**:
+   - Direct lookup: `GET https://ai-gateway.vercel.sh/v1/models/{model_id}`.
+   - Catalog fallback & suggestions: `GET https://ai-gateway.vercel.sh/v1/models`.
+   - Extracts `context_window` (up to 1M tokens), tool-calling support (`tools` in `supported_parameters` or `tool-use` in `tags`), vision capability (`image` in modalities or `vision` in tags), and model descriptions.
+   - Rejects non-generative embedding models (`type == "embedding"` or `"embed"` in model ID).
+   - Suggests canonical provider slugs if prefix was omitted (e.g., entering `kimi-k2.6` yields suggestion `moonshotai/kimi-k2.6`).
+3. **Web API Endpoints**:
+   - `GET /api/settings/ai/vercel`: Returns configured status and list of enabled models.
+   - `POST /api/settings/ai/vercel`: Encrypts and saves API key.
+   - `DELETE /api/settings/ai/vercel`: Removes key and associated models.
+   - `POST /api/settings/ai/vercel/models/validate`: Real-time validation returning model parameters.
+   - `POST /api/settings/ai/vercel/models`: Validates and appends model to athlete configuration.
+   - `DELETE /api/settings/ai/vercel/models`: Removes model from configuration.
 
 ---
 
@@ -800,8 +829,10 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | POST | `/api/chat/sessions/<id>/cancel` | Cancel the in-flight turn for that session (idempotent; `200` even if nothing was running). |
 | GET | `/api/chat/models?provider=gemini` | Available models for the configured provider (server cache, TTL). |
 | GET | `/api/settings/ai/providers` | Summary of configured AI providers and enabled model counts. |
-| POST | `/api/settings/ai/openrouter/validate-model` | Validate an OpenRouter model slug via `GET /api/v1/model/...` before adding. |
+| POST | `/api/settings/ai/openrouter/models/validate` | Validate an OpenRouter model slug via `GET /api/v1/model/...` before adding. |
 | POST/DELETE | `/api/settings/ai/openrouter/models` | Add (`+`) or remove (`–`) models from athlete's OpenRouter configuration. |
+| POST | `/api/settings/ai/vercel/models/validate` | Validate a Vercel AI Gateway model identifier via `GET /v1/models/...` before adding. |
+| POST/DELETE | `/api/settings/ai/vercel/models` | Add (`+`) or remove (`–`) models from athlete's Vercel configuration. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 
 Request limits: message content max 32 KB of text; enforce with explicit validation errors, not truncation.
