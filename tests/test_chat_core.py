@@ -377,5 +377,14 @@ class TestGeminiDiagnostics(unittest.TestCase):
         self.assertEqual(len(text_events), 1)
         self.assertEqual(text_events[0].text, "Your best year was 2025.")
 
+    def test_build_system_instruction_calendar_anchoring(self):
+        instruction = build_system_instruction()
+        self.assertIn("DATE & TIME RECKONING", instruction)
+        self.assertIn("'This Week' (current ISO calendar week", instruction)
+        self.assertIn("Monday", instruction)
+        self.assertIn("Sunday", instruction)
+        self.assertIn("TOOL DATE SIMPLIFICATION:", instruction)
+        self.assertIn("date_preset='this_week'", instruction)
+
 
 

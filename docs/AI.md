@@ -71,7 +71,8 @@ Kinetiqo Flask Application Server
        │
        ├── Provider Registry
        │     ├── Google Gemini Adapter (gemini-3.1-flash-lite, gemini-2.5-flash, etc.)
-       │     └── OpenRouter AI Adapter (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, etc.)
+       │     ├── OpenRouter AI Adapter (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, etc.)
+       │     └── Ollama / Local AI Adapter (Qwen, Llama, Mistral on your own hardware)
        │
        └── In-Process FastMCP Tool Layer
              └── Local Relational Database (PostgreSQL / MySQL / Firebird)
@@ -88,9 +89,15 @@ Kinetiqo Flask Application Server
 - **Live Model Validation**: Automatically validates model IDs against OpenRouter's metadata API, fetching context lengths and capabilities.
 - **Flexible Management**: Add (`+`) or remove (`-`) models on the fly in Settings.
 
-### 4.3 Dynamic Mid-Session Provider & Model Switching
+### 4.3 Ollama (Local Hardware AI)
+- **100% Private On-Premise Inference**: Connect to models running on your own PC or homelab server via Ollama's OpenAI-compatible API.
+- **Automatic Model Discovery**: Detects all locally installed models (`qwen3:1.7b`, `qwen2.5:7b-instruct`, `llama3.1:8b`, etc.) without manual configuration.
+- **Optional API Token**: No API key is required on your local network. An optional token field is available if Ollama is hosted behind a reverse proxy.
+- **Remote Host Setup**: To connect across machines on your LAN, set `OLLAMA_HOST=0.0.0.0:11434` on the Ollama PC and provide its local IP (e.g. `http://192.168.1.150:11434`).
+
+### 4.4 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
-- If a quota or rate limit is reached on OpenRouter, simply switch the selector to Google Gemini (or vice versa); Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
+- If a quota or rate limit is reached on OpenRouter, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
 ---
 
@@ -115,10 +122,11 @@ Kinetiqo Flask Application Server
 ## 6. Configuration in Settings (`/settings`)
 
 1. Navigate to **Settings** (`/settings`) → **AI & API Providers**.
-2. Click **"+ Add AI Provider"** and select **Google Gemini** or **OpenRouter AI**.
-3. Paste your personal API key:
-   - For Gemini: API key is validated and models are automatically discovered.
-   - For OpenRouter: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
+2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, or **Ollama (Local AI)**.
+3. Configure the provider:
+   - **For Gemini**: Paste your API key; models are automatically discovered.
+   - **For OpenRouter**: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
+   - **For Ollama**: Enter your Ollama server URL (e.g. `http://localhost:11434` or `http://192.168.1.150:11434`). Test the connection to auto-discover all pulled models. An API key is optional.
 4. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
 
 ## 7. Free models

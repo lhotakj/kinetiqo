@@ -964,3 +964,44 @@ Use `unittest.mock.patch` with class-level patches following `tests/test_sync_lo
 - `tests/test_chat_provider_openrouter.py`: Mocked tests for OpenRouter validation, streaming, tool execution, and error handling.
 - `tests/test_chat_openrouter_settings.py`: Mocked tests for multi-provider settings endpoints.
 - Run full test suite: `cmd /c "set PYTHONPATH=src && uv run --with-requirements requirements.txt python -m unittest discover -s tests -v"`.
+
+---
+
+## 12. Local Hardware & Ollama Provider Architecture
+
+To support athletes running models entirely on their own local hardware (via **Ollama**, **vLLM**, or **LocalAI**) with zero external cloud dependencies:
+
+### 12.1 Core Characteristics
+- **Provider Key**: `ollama`.
+- **Target Protocol**: Ollama's native **OpenAI-compatible REST API** (`/v1/chat/completions` and `/v1/models` or `/api/tags`).
+- **Base URL**: Configurable by athlete (default: `http://localhost:11434` for same-host setups, or LAN IP e.g. `http://192.168.1.150:11434` when running on a separate machine).
+- **Authentication**: Optional. When empty or unset, requests omit `Authorization` or supply dummy `Bearer ollama`, as local Ollama instances require no key by default. If the athlete places Ollama behind a reverse proxy (Caddy, Nginx, Cloudflare Access) with Basic/Bearer auth, an optional API key can be provided and stored using standard AES-256-GCM encryption.
+- **Model Auto-Discovery**: Automatically enumerates locally installed models via `GET {base_url}/api/tags` or `GET {base_url}/v1/models` (e.g. `qwen3:1.7b`, `qwen2.5:7b-instruct`, `llama3.1:8b-instruct`), eliminating manual model typing.
+- **Tool Calling**: Uses OpenAI-compatible `tools: [{"type": "function", "function": ...}]` schema via `to_openai_schema()`.
+
+### 12.2 LAN Configuration Requirements (Remote Hardware)
+When running Ollama on a secondary PC/server on the local network:
+1. **Network Binding**: Ollama binds to `127.0.0.1` by default. To listen on the LAN, the environment variable `OLLAMA_HOST=0.0.0.0:11434` must be set on the host machine.
+2. **Firewall**: Inbound TCP port 11434 must be allowed through the host firewall (e.g., Windows Defender Firewall / ufw).
+
+### 12.3 Model Size & Tool Calling Guidance
+- **1.5B–3B Models** (e.g., `qwen3:1.7b`, `llama3.2:3b`): Lightweight, highly responsive, but may have limited instruction-following capability for intricate 31-tool JSON schemas.
+- **7B–14B Models** (e.g., `qwen2.5:7b-instruct`, `llama3.1:8b-instruct`, `mistral:7b`): Strongly recommended for structured multi-turn tool calling, telemetry analytics, and training plan reasoning.
+
+### 12.4 Database Persistence (`chat_provider_keys`)
+- `provider`: `"ollama"`
+- `api_key_enc`: Encrypted optional API key (or empty string)
+- `config_json`:
+  ```json
+  {
+    "base_url": "http://192.168.1.150:11434",
+    "models": [
+      {
+        "id": "qwen3:1.7b",
+        "name": "qwen3:1.7b",
+        "context_length": 32768,
+        "supports_tools": true
+      }
+    ]
+  }
+  ```

@@ -160,6 +160,15 @@ class TestMCPServer(unittest.TestCase):
         self.assertEqual(payload.get("data_status"), "complete")
         self.assertIn("activities", payload.get("data", {}))
         self.assertIn("pagination", payload.get("data", {}))
+        call_kwargs = self.mock_repo.search_activities.call_args[1]
+        self.assertEqual(call_kwargs.get("athlete_id"), 1)
+
+        # When config has no athlete_id, search_activities passes None
+        cfg_none = MagicMock(spec=[])
+        server_none = create_mcp_server(cfg_none, repo_factory=lambda: self.mock_repo)
+        asyncio.run(server_none.call_tool("kinetiqo_search_activities", {}))
+        call_kwargs_none = self.mock_repo.search_activities.call_args[1]
+        self.assertIsNone(call_kwargs_none.get("athlete_id"))
 
     def test_cli_mcp_command_and_logging_redirection(self):
         """Test Click CLI 'kinetiqo mcp' command launches STDIO server and redirects logs to stderr."""

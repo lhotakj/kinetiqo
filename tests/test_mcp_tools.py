@@ -69,6 +69,24 @@ class TestMCPTools(unittest.TestCase):
         self.assertTrue(called_filters["start_date"].startswith("2026-10-24T00:00:00"))
         self.assertTrue(called_filters["end_date"].startswith("2026-10-25T23:59:59"))
 
+        # Preset test: 'this_week'
+        activities.kinetiqo_search_activities(self.mock_repo, athlete_id=None, date_preset="this_week")
+        call_kwargs = self.mock_repo.search_activities.call_args[1]
+        self.assertIsNone(call_kwargs["athlete_id"])
+        called_filters = call_kwargs["filters"]
+        self.assertIn("start_date", called_filters)
+        self.assertIn("end_date", called_filters)
+        self.assertTrue(called_filters["start_date"].endswith("T00:00:00+00:00"))
+        self.assertTrue(called_filters["end_date"].endswith("T23:59:59+00:00"))
+
+        # start_date='this_week' with matching end_date='this_week'
+        activities.kinetiqo_search_activities(self.mock_repo, start_date="this_week", end_date="this_week")
+        call_kwargs = self.mock_repo.search_activities.call_args[1]
+        self.assertIsNone(call_kwargs["athlete_id"])
+        called_filters = call_kwargs["filters"]
+        self.assertTrue(called_filters["start_date"].endswith("T00:00:00+00:00"))
+        self.assertTrue(called_filters["end_date"].endswith("T23:59:59+00:00"))
+
     def test_search_activities_all_telemetry_filters(self):
         self.mock_repo.search_activities.return_value = (
             [
