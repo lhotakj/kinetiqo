@@ -13,6 +13,12 @@
 **Kinetiqo AI Chat** brings conversational intelligence directly to self-hosted endurance telemetry. Instead of relying on generic public fitness models with hypothetical training numbers, Kinetiqo connects language models directly to your real activity history, power duration curves, Banister impulse-response freshness models, and athlete milestones through a strictly gated, read-only **Model Context Protocol (MCP)** tool layer.
 
 Athletes can ask nuanced training questions in plain language:
+- *"What are my Z1, Z2, Z3 ... power and heart rate zones?"*
+- *"When did I really do VO2max training?"*
+- *"What does VO2max training mean for me and how should I train for best VO2max?"*
+- *"In three consecutive biking activities find same/peak wattage output."*
+- *"In the last 2 weeks what was my average cadence?"*
+- *"What is my usual warm up time before I hit max watts in the last year?"*
 - *"Analyze my fatigue over the last 3 weeks — am I digging a hole or over-reaching productively?"*
 - *"What is my current VO₂max trend based on 5-minute MAP power intervals?"*
 - *"Compare my aerobic decoupling and cadence between indoor turbo trainer sessions and outdoor road rides."*
@@ -78,9 +84,13 @@ Kinetiqo Flask Application Server
 
 ### 4.2 OpenRouter AI
 - OpenAI-compatible gateway unlocking access to hundreds of cutting-edge open and proprietary models.
-- **Custom Curated Model List**: Enter any OpenRouter model identifier (e.g. `anthropic/claude-3.5-sonnet`, `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-chat`, `nvidia/nemotron-3.5-embed-1b:free`).
+- **Custom Curated Model List**: Enter any OpenRouter model identifier (e.g. `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-chat`, `google/gemma-4-26b-a4b-it:free`, `nvidia/nemotron-3.5-lightning:free`).
 - **Live Model Validation**: Automatically validates model IDs against OpenRouter's metadata API, fetching context lengths and capabilities.
 - **Flexible Management**: Add (`+`) or remove (`-`) models on the fly in Settings.
+
+### 4.3 Dynamic Mid-Session Provider & Model Switching
+- Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
+- If a quota or rate limit is reached on OpenRouter, simply switch the selector to Google Gemini (or vice versa); Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
 ---
 
@@ -110,3 +120,11 @@ Kinetiqo Flask Application Server
    - For Gemini: API key is validated and models are automatically discovered.
    - For OpenRouter: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
 4. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
+
+## 7. Free models
+
+If you want verified 100% free models currently active on OpenRouter:
+- `google/gemma-4-26b-a4b-it:free` (262k context, tools + multimodal vision support)
+- `nvidia/nemotron-3.5-lightning:free` (131k context, tools support)
+
+If you want DeepSeek: `deepseek/deepseek-chat`

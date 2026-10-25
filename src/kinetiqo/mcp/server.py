@@ -60,19 +60,47 @@ def create_mcp_server(
     # ==========================================
     # Group A: Activity Discovery & Query Engine
     # ==========================================
-    @server.tool(name="kinetiqo_search_activities", description="Search & filter activities with keyset pagination. For cycling/biking, sport_types can be ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'] or ['cycling'].")
+    @server.tool(
+        name="kinetiqo_search_activities",
+        description=(
+            "Search and filter activities with comprehensive telemetry criteria and deterministic keyset pagination. "
+            "Supports flexible dates (e.g. '2026', '2026-08', '24.10.2026', 'yesterday', 'this_week', 'this_month', 'this_year', '7_days', '30_days', 'all_time'), "
+            "name keywords, sport types (e.g. ['cycling'], ['running']), distance, elevation, moving time, watts, heartrate, speed, suffer score, gear, PRs, and trophies."
+        ),
+    )
     def search_activities(
         query: Optional[str] = None,
         sport_types: Optional[List[str]] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        date_preset: Optional[str] = None,
         min_distance_km: Optional[float] = None,
         max_distance_km: Optional[float] = None,
         min_elevation_m: Optional[float] = None,
         max_elevation_m: Optional[float] = None,
+        min_moving_time_min: Optional[float] = None,
+        max_moving_time_min: Optional[float] = None,
+        min_watts: Optional[float] = None,
+        max_watts: Optional[float] = None,
+        min_max_watts: Optional[float] = None,
+        max_max_watts: Optional[float] = None,
+        min_heartrate: Optional[float] = None,
+        max_heartrate: Optional[float] = None,
+        has_heartrate: Optional[bool] = None,
+        has_power: Optional[bool] = None,
+        min_speed_kmh: Optional[float] = None,
+        max_speed_kmh: Optional[float] = None,
+        min_suffer_score: Optional[int] = None,
+        max_suffer_score: Optional[int] = None,
+        min_pr_count: Optional[int] = None,
+        gear_id: Optional[str] = None,
+        workout_type: Optional[int] = None,
+        has_trophies: Optional[bool] = None,
+        koms_only: Optional[bool] = None,
         cursor: Optional[str] = None,
         limit: int = 20,
         sort_by: str = "start_date",
+        sort_order: str = "desc",
     ) -> Dict[str, Any]:
         with get_repo() as r:
             athlete_id = int(getattr(config, "athlete_id", 1) or 1)
@@ -83,13 +111,34 @@ def create_mcp_server(
                 sport_types=sport_types,
                 start_date=start_date,
                 end_date=end_date,
+                date_preset=date_preset,
                 min_distance_km=min_distance_km,
                 max_distance_km=max_distance_km,
                 min_elevation_m=min_elevation_m,
                 max_elevation_m=max_elevation_m,
+                min_moving_time_min=min_moving_time_min,
+                max_moving_time_min=max_moving_time_min,
+                min_watts=min_watts,
+                max_watts=max_watts,
+                min_max_watts=min_max_watts,
+                max_max_watts=max_max_watts,
+                min_heartrate=min_heartrate,
+                max_heartrate=max_heartrate,
+                has_heartrate=has_heartrate,
+                has_power=has_power,
+                min_speed_kmh=min_speed_kmh,
+                max_speed_kmh=max_speed_kmh,
+                min_suffer_score=min_suffer_score,
+                max_suffer_score=max_suffer_score,
+                min_pr_count=min_pr_count,
+                gear_id=gear_id,
+                workout_type=workout_type,
+                has_trophies=has_trophies,
+                koms_only=koms_only,
                 cursor=cursor,
                 limit=limit,
                 sort_by=sort_by,
+                sort_order=sort_order,
             )
 
     @server.tool(name="kinetiqo_get_activity_details", description="Retrieve comprehensive activity metadata and sensor coverage.")
@@ -97,11 +146,15 @@ def create_mcp_server(
         with get_repo() as r:
             return activities.kinetiqo_get_activity_details(repo=r, activity_id=activity_id)
 
-    @server.tool(name="kinetiqo_get_activity_totals", description="Compute aggregated distance, elevation, moving time, and count. For riding/cycling, specify all biking types: ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'EMountainBikeRide', 'Velomobile', 'Handcycle'] or ['cycling']. Omit for all sports.")
+    @server.tool(
+        name="kinetiqo_get_activity_totals",
+        description="Compute aggregated distance, elevation, moving time, and count. Supports flexible dates and presets (e.g. 'this_year', 'last_month', '2026'). For riding/cycling, specify all biking types or ['cycling']. Omit for all sports.",
+    )
     def get_activity_totals(
         sport_types: Optional[List[str]] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        date_preset: Optional[str] = None,
     ) -> Dict[str, Any]:
         with get_repo() as r:
             return activities.kinetiqo_get_activity_totals(
@@ -109,6 +162,7 @@ def create_mcp_server(
                 sport_types=sport_types,
                 start_date=start_date,
                 end_date=end_date,
+                date_preset=date_preset,
             )
 
     @server.tool(name="kinetiqo_compare_activities", description="Compare 2 to 5 activities side-by-side.")

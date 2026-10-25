@@ -1,9 +1,13 @@
 """Utility functions for Kinetiqo MCP: downsampling, unit conversions, and time handling."""
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+import calendar
+from datetime import date, datetime, timedelta, timezone
 import logging
 import math
+import re
+from typing import Any, Dict, List, Optional, Tuple
+
+import dateutil.parser
 
 logger = logging.getLogger("kinetiqo.mcp.utils")
 
@@ -261,5 +265,225 @@ def normalize_sport_types(sport_types: Optional[List[str]]) -> Optional[List[str
     # Deduplicate while preserving order
     seen = set()
     return [x for x in normalized if not (x in seen or seen.add(x))]
+
+
+def parse_flexible_date(
+    val: Any,
+    is_end: bool = False,
+    now: Optional[datetime] = None,
+) -> Optional[str]:
+    """Parse a date or datetime string in virtually any human or ISO format into an ISO-8601 string.
+
+    Supports:
+      - Relative presets: 'today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month',
+        'this_year', 'last_year', '7_days', '14_days', '30_days', 'last_12_months', 'all_time'
+      - 4-digit years: '2026' -> start: 2026-01-01 00:00:00, end: 2026-12-31 23:59:59
+      - Year-Month: '2026-08', '2026/08', 'Aug 2026', 'August 2026'
+      - Full dates: '2026-08-15', '15.08.2026', '08/15/2026', '15 Aug 2026', 'August 15, 2026'
+        (If no time is provided and is_end=True, sets time to 23:59:59 to cover the full day)
+      - Full ISO datetimes: '2026-08-15T14:30:00Z', etc.
+    """
+    if not val:
+        return None
+    if isinstance(val, (datetime, date)):
+        if isinstance(val, datetime):
+            if val.tzinfo is None:
+                val = val.replace(tzinfo=timezone.utc)
+            return val.isoformat()
+        return datetime(
+            val.year, val.month, val.day,
+            23 if is_end else 0,
+            59 if is_end else 0,
+            59 if is_end else 0,
+            tzinfo=timezone.utc,
+        ).isoformat()
+
+    s = str(val).strip()
+    if not s or s.lower() in ("all_time", "all", "none"):
+        return None
+
+    now = now or datetime.now(timezone.utc)
+    s_lower = s.lower().replace("-", "_").replace(" ", "_")
+
+    if s_lower in ("today", "now"):
+        return (
+            now.replace(hour=23, minute=59, second=59, microsecond=0)
+            if is_end
+            else now.replace(hour=0, minute=0, second=0, microsecond=0)
+        ).isoformat()
+
+    if s_lower == "yesterday":
+        y = now - timedelta(days=1)
+        return (
+            y.replace(hour=23, minute=59, second=59, microsecond=0)
+            if is_end
+            else y.replace(hour=0, minute=0, second=0, microsecond=0)
+        ).isoformat()
+
+    if s_lower in ("this_week", "current_week"):
+        monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (
+            (monday + timedelta(days=6, hours=23, minutes=59, seconds=59)).isoformat()
+            if is_end
+            else monday.isoformat()
+        )
+
+    if s_lower in ("last_week", "prev_week"):
+        monday = (now - timedelta(days=now.weekday() + 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (
+            (monday + timedelta(days=6, hours=23, minutes=59, seconds=59)).isoformat()
+            if is_end
+            else monday.isoformat()
+        )
+
+    if s_lower in ("this_month", "current_month"):
+        start = datetime(now.year, now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
+        last_d = calendar.monthrange(now.year, now.month)[1]
+        end = datetime(now.year, now.month, last_d, 23, 59, 59, tzinfo=timezone.utc)
+        return end.isoformat() if is_end else start.isoformat()
+
+    if s_lower in ("last_month", "prev_month"):
+        pm = now.month - 1 if now.month > 1 else 12
+        py = now.year if now.month > 1 else now.year - 1
+        start = datetime(py, pm, 1, 0, 0, 0, tzinfo=timezone.utc)
+        last_d = calendar.monthrange(py, pm)[1]
+        end = datetime(py, pm, last_d, 23, 59, 59, tzinfo=timezone.utc)
+        return end.isoformat() if is_end else start.isoformat()
+
+    if s_lower in ("this_year", "current_year"):
+        return (
+            datetime(now.year, 12, 31, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+            if is_end
+            else datetime(now.year, 1, 1, 0, 0, 0, tzinfo=timezone.utc).isoformat()
+        )
+
+    if s_lower in ("last_year", "prev_year"):
+        return (
+            datetime(now.year - 1, 12, 31, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+            if is_end
+            else datetime(now.year - 1, 1, 1, 0, 0, 0, tzinfo=timezone.utc).isoformat()
+        )
+
+    if s_lower in ("7_days", "last_7_days"):
+        return (
+            now.isoformat()
+            if is_end
+            else (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        )
+
+    if s_lower in ("14_days", "last_14_days"):
+        return (
+            now.isoformat()
+            if is_end
+            else (now - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        )
+
+    if s_lower in ("30_days", "last_30_days"):
+        return (
+            now.isoformat()
+            if is_end
+            else (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        )
+
+    if s_lower in ("year", "last_12_months", "12_months"):
+        return (
+            now.isoformat()
+            if is_end
+            else (now - timedelta(days=365)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        )
+
+    # Dynamic relative periods: e.g. "last_2weeks", "2weeks", "last_2_weeks", "3_weeks", "10_days", "3_months"
+    rel_match = re.match(r"^(?:last_)?(\d+)_?(day|days|week|weeks|month|months|year|years)$", s_lower)
+    if rel_match:
+        n = int(rel_match.group(1))
+        unit = rel_match.group(2)
+        if unit.startswith("day"):
+            days = n
+        elif unit.startswith("week"):
+            days = n * 7
+        elif unit.startswith("month"):
+            days = n * 30
+        else:
+            days = n * 365
+        return (
+            now.isoformat()
+            if is_end
+            else (now - timedelta(days=days)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        )
+
+    # 4-digit year: e.g. 2026
+    if re.match(r"^\d{4}$", s):
+        y = int(s)
+        return (
+            datetime(y, 12, 31, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+            if is_end
+            else datetime(y, 1, 1, 0, 0, 0, tzinfo=timezone.utc).isoformat()
+        )
+
+    # Year-month: e.g. 2026-08 or 2026/08
+    ym_match = re.match(r"^(\d{4})[-/](\d{1,2})$", s)
+    if ym_match:
+        y, m = int(ym_match.group(1)), int(ym_match.group(2))
+        last_d = calendar.monthrange(y, m)[1]
+        return (
+            datetime(y, m, last_d, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+            if is_end
+            else datetime(y, m, 1, 0, 0, 0, tzinfo=timezone.utc).isoformat()
+        )
+
+    # General / human string parsing via dateutil
+    try:
+        dayfirst = bool(re.search(r"^\d{1,2}\.\d{1,2}\.\d{4}", s))
+        dt = dateutil.parser.parse(s, fuzzy=True, dayfirst=dayfirst)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        has_time = bool(re.search(r"\d{1,2}:\d{2}", s))
+        if not has_time:
+            if is_end:
+                dt = dt.replace(hour=23, minute=59, second=59, microsecond=0)
+            else:
+                dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        return dt.isoformat()
+    except Exception as e:
+        logger.debug("Flexible date parsing failed for '%s': %s", s, e)
+        return s
+
+
+def resolve_date_range(
+    start_date: Any = None,
+    end_date: Any = None,
+    preset: Any = None,
+    now: Optional[datetime] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Resolve start_date, end_date, or a preset into canonical ISO start/end strings.
+
+    If start_date is a preset like 'this_year' or 'last 2weeks' and end_date is None,
+    automatically computes the matching start and end boundaries.
+    """
+    now = now or datetime.now(timezone.utc)
+    if preset:
+        start_str = parse_flexible_date(preset, is_end=False, now=now)
+        end_str = parse_flexible_date(preset, is_end=True, now=now)
+        return start_str, end_str
+
+    # Check if start_date itself is a preset or lone year/month
+    if start_date and not end_date:
+        s_clean = str(start_date).strip().lower().replace("-", "_").replace(" ", "_")
+        if (
+            s_clean in (
+                "today", "yesterday", "this_week", "last_week", "this_month", "last_month",
+                "this_year", "last_year", "7_days", "14_days", "30_days", "year", "last_12_months",
+            )
+            or re.match(r"^(?:last_)?\d+_?(?:day|days|week|weeks|month|months|year|years)$", s_clean)
+            or re.match(r"^\d{4}$", str(start_date).strip())
+            or re.match(r"^(\d{4})[-/](\d{1,2})$", str(start_date).strip())
+        ):
+            start_str = parse_flexible_date(start_date, is_end=False, now=now)
+            end_str = parse_flexible_date(start_date, is_end=True, now=now)
+            return start_str, end_str
+
+    parsed_start = parse_flexible_date(start_date, is_end=False, now=now) if start_date else None
+    parsed_end = parse_flexible_date(end_date, is_end=True, now=now) if end_date else None
+    return parsed_start, parsed_end
 
 

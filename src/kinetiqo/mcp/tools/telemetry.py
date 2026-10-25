@@ -316,15 +316,127 @@ def kinetiqo_analyze_workout_structure(
                         surges.append({"start_s": surge_start, "duration_s": dur, "peak_watts": round(peak, 1)})
                     surge_start = None
 
+        max_w = max(watts_stream) if watts_stream else 0.0
+        peak_idx = watts_stream.index(max_w) if max_w > 0 else None
+
+        # Coggan 7-Zone power distribution & VO2max workout structure analysis
+        zone_dist = {}
+        vo2max_analysis = None
+        if ftp > 0:
+            z_counts = {"Z1": 0, "Z2": 0, "Z3": 0, "Z4": 0, "Z5": 0, "Z6": 0, "Z7": 0}
+            z_bounds = [
+                ("Z1", 0.0, 0.55 * ftp),
+                ("Z2", 0.55 * ftp, 0.75 * ftp),
+                ("Z3", 0.75 * ftp, 0.90 * ftp),
+                ("Z4", 0.90 * ftp, 1.05 * ftp),
+                ("Z5", 1.05 * ftp, 1.20 * ftp),
+                ("Z6", 1.20 * ftp, 1.50 * ftp),
+                ("Z7", 1.50 * ftp, float("inf")),
+            ]
+            for w in watts_stream:
+                for z_name, z_low, z_high in z_bounds:
+                    if z_low <= w < z_high:
+                        z_counts[z_name] += 1
+                        break
+
+            tot_s = max(1, len(watts_stream))
+            zone_dist = {
+                k: {
+                    "time_s": cnt,
+                    "time_min": round(cnt / 60.0, 1),
+                    "pct": round(cnt / tot_s * 100.0, 1),
+                }
+                for k, cnt in z_counts.items()
+            }
+
+            # Sustained Zone 5 intervals (>= 90s contiguous @ >= 106% FTP, allowing <= 10s dips)
+            z5_intervals = []
+            z5_low = 1.05 * ftp
+            in_z5 = False
+            int_start = 0
+            dip_count = 0
+            for idx, w in enumerate(watts_stream):
+                if w >= z5_low:
+                    if not in_z5:
+                        in_z5 = True
+                        int_start = idx
+                    dip_count = 0
+                else:
+                    if in_z5:
+                        dip_count += 1
+                        if dip_count > 10:
+                            dur = (idx - dip_count) - int_start
+                            if dur >= 90:
+                                chunk = watts_stream[int_start:idx - dip_count]
+                                avg_int_w = round(sum(chunk) / max(1, len(chunk)), 1)
+                                z5_intervals.append({
+                                    "start_s": int_start,
+                                    "start_min": round(int_start / 60.0, 1),
+                                    "duration_s": dur,
+                                    "duration_min": round(dur / 60.0, 1),
+                                    "average_watts": avg_int_w,
+                                    "pct_ftp": round(avg_int_w / ftp * 100.0, 1),
+                                })
+                            in_z5 = False
+                            dip_count = 0
+            if in_z5:
+                dur = len(watts_stream) - int_start
+                if dur >= 90:
+                    chunk = watts_stream[int_start:]
+                    avg_int_w = round(sum(chunk) / max(1, len(chunk)), 1)
+                    z5_intervals.append({
+                        "start_s": int_start,
+                        "start_min": round(int_start / 60.0, 1),
+                        "duration_s": dur,
+                        "duration_min": round(dur / 60.0, 1),
+                        "average_watts": avg_int_w,
+                        "pct_ftp": round(avg_int_w / ftp * 100.0, 1),
+                    })
+
+            z5_time_s = z_counts["Z5"]
+            z5_time_min = round(z5_time_s / 60.0, 1)
+            is_genuine = (z5_time_min >= 8.0) or (len(z5_intervals) >= 3)
+
+            if is_genuine:
+                reason = (
+                    f"Genuine VO2max workout: accumulated {z5_time_min} minutes in Zone 5 (106-120% FTP) "
+                    f"with {len(z5_intervals)} sustained interval repeats."
+                )
+            elif z5_time_min >= 3.0:
+                reason = (
+                    f"Borderline / Mixed effort: {z5_time_min} minutes in Zone 5, but below the standard "
+                    f"effective volume (>=8-10 min) for dedicated VO2max ceiling expansion."
+                )
+            else:
+                reason = (
+                    f"Not a VO2max workout: only {z5_time_min} minutes in Zone 5. "
+                    f"Efforts were predominantly endurance, tempo, threshold, or brief sprint bursts."
+                )
+
+            vo2max_analysis = {
+                "vo2max_time_s": z5_time_s,
+                "vo2max_time_min": z5_time_min,
+                "vo2max_pct_time": round(z5_time_s / tot_s * 100.0, 1),
+                "sustained_z5_intervals_count": len(z5_intervals),
+                "sustained_z5_intervals": z5_intervals[:10],
+                "is_genuine_vo2max_workout": is_genuine,
+                "classification_reason": reason,
+            }
+
         data = {
             "activity_id": str(activity_id),
             "name": act.get("name"),
             "moving_time_s": mov_s,
             "average_watts": float(act.get("average_watts") or 0.0),
+            "max_watts": round(max_w, 1) if max_w > 0 else None,
+            "time_to_max_watts_s": peak_idx,
+            "time_to_max_watts_min": round(peak_idx / 60.0, 1) if peak_idx is not None else None,
             "normalized_power_w": round(np_w, 1) if np_w else None,
             "ftp_used": ftp if ftp > 0 else None,
             "intensity_factor": round(if_val, 3) if if_val else None,
             "training_stress_score": round(tss_val, 1) if tss_val else None,
+            "power_zones_distribution": zone_dist if zone_dist else None,
+            "vo2max_analysis": vo2max_analysis,
             "sprint_surges_count": len(surges),
             "sprint_surges": surges[:10],
         }

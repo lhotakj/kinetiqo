@@ -23,13 +23,6 @@ logger = logging.getLogger("kinetiqo.chat.openrouter")
 
 DEFAULT_OPENROUTER_MODELS = (
     {
-        "id": "anthropic/claude-3.5-sonnet",
-        "name": "Anthropic: Claude 3.5 Sonnet",
-        "context_length": 200000,
-        "supports_tools": True,
-        "supports_vision": True,
-    },
-    {
         "id": "meta-llama/llama-3.3-70b-instruct",
         "name": "Meta: Llama 3.3 70B Instruct",
         "context_length": 131072,
@@ -44,17 +37,31 @@ DEFAULT_OPENROUTER_MODELS = (
         "supports_vision": False,
     },
     {
-        "id": "mistralai/mistral-large-2411",
-        "name": "Mistral: Mistral Large 2411",
-        "context_length": 128000,
+        "id": "qwen/qwen-2.5-72b-instruct",
+        "name": "Qwen: Qwen 2.5 72B Instruct",
+        "context_length": 131072,
         "supports_tools": True,
         "supports_vision": False,
     },
     {
-        "id": "nvidia/nemotron-3.5-embed-1b:free",
-        "name": "Nvidia: Nemotron 3.5 1B (Free)",
+        "id": "google/gemma-4-26b-a4b-it:free",
+        "name": "Google: Gemma 4 26B A4B (Free)",
+        "context_length": 262144,
+        "supports_tools": True,
+        "supports_vision": True,
+    },
+    {
+        "id": "nvidia/nemotron-3.5-lightning:free",
+        "name": "NVIDIA: Nemotron 3.5 Lightning (Free)",
         "context_length": 131072,
-        "supports_tools": False,
+        "supports_tools": True,
+        "supports_vision": False,
+    },
+    {
+        "id": "mistralai/mistral-large",
+        "name": "Mistral: Mistral Large",
+        "context_length": 128000,
+        "supports_tools": True,
         "supports_vision": False,
     },
 )
@@ -62,7 +69,7 @@ DEFAULT_OPENROUTER_MODELS = (
 
 class OpenRouterChatProvider(BaseChatProvider):
     provider_name = "openrouter"
-    default_model = "anthropic/claude-3.5-sonnet"
+    default_model = "meta-llama/llama-3.3-70b-instruct"
     preferred_models = tuple(m["id"] for m in DEFAULT_OPENROUTER_MODELS)
 
     def __init__(
@@ -97,7 +104,15 @@ class OpenRouterChatProvider(BaseChatProvider):
             logger.warning("OpenRouter upstream error: http_status=%d", response.status_code)
             raise ChatProviderUnavailableError()
         if not response.is_success:
-            logger.warning("OpenRouter error response: http_status=%d", response.status_code)
+            err_body = ""
+            try:
+                if hasattr(response, "read"):
+                    err_body = response.read().decode("utf-8", errors="replace")
+                elif hasattr(response, "text"):
+                    err_body = response.text
+            except Exception:
+                pass
+            logger.warning("OpenRouter error response: http_status=%d body=%s", response.status_code, err_body[:500])
             raise ChatProviderResponseError()
 
     def validate_model(self, model_id: str) -> dict[str, Any]:
@@ -106,30 +121,69 @@ class OpenRouterChatProvider(BaseChatProvider):
         if not clean_id:
             raise ValueError("Model ID cannot be empty.")
 
-        with self.client_factory(timeout=httpx.Timeout(15.0, connect=8.0)) as client:
-            # 1. Try single model endpoint: GET /api/v1/model/{author}/{slug}
-            single_url = f"{_BASE_URL}/model/{clean_id}"
-            try:
-                resp = client.get(single_url, headers=self._headers())
-                if resp.status_code == 200:
-                    payload = resp.json()
-                    item = payload.get("data") or payload
-                    if isinstance(item, dict) and item.get("id"):
-                        return self._parse_model_item(item)
-            except Exception as e:
-                logger.debug("Single model endpoint check failed for '%s': %s", clean_id, e)
+        clean_lower = clean_id.lower()
+        if "embed" in clean_lower:
+            raise ValueError(
+                f"'{clean_id}' is an embedding model, not a generative chat model. "
+                "OpenRouter requires chat instruction models (such as meta-llama/llama-3.3-70b-instruct, deepseek/deepseek-chat, or google/gemma-4-26b-a4b-it:free) for AI Chat."
+            )
 
-            # 2. Fallback: Search /api/v1/models catalog
+        with self.client_factory(timeout=httpx.Timeout(15.0, connect=8.0)) as client:
             cat_url = f"{_BASE_URL}/models"
             resp = client.get(cat_url, headers=self._headers())
             self._raise_for_status(resp)
             payload = resp.json()
-            models = payload.get("data") or []
-            clean_lower = clean_id.lower()
+            data_val = payload.get("data")
+            if isinstance(data_val, list):
+                models = data_val
+            elif isinstance(data_val, dict):
+                models = [data_val]
+            elif isinstance(payload, list):
+                models = payload
+            else:
+                models = []
+
+            # 1. Exact match (case-insensitive)
             for item in models:
                 mid = (item.get("id") or "").lower()
                 if mid == clean_lower:
-                    return self._parse_model_item(item)
+                    parsed = self._parse_model_item(item)
+                    if parsed.get("is_embedding"):
+                        raise ValueError(
+                            f"'{clean_id}' is an embedding model and cannot be used for text chat. Please choose a generative chat model."
+                        )
+                    return parsed
+
+            # 2. Check if a suffix (like :free or other variant) was specified and base model exists
+            if ":" in clean_lower:
+                base_part = clean_lower.split(":", 1)[0]
+                for item in models:
+                    mid = (item.get("id") or "").lower()
+                    if mid == base_part:
+                        matched_id = item.get("id", base_part)
+                        err = LookupError(
+                            f"Model '{clean_id}' was not found in OpenRouter. "
+                            f"OpenRouter does not currently offer a free tier (:free) for this model, but the base model '{matched_id}' is available."
+                        )
+                        setattr(err, "suggestion", matched_id)
+                        raise err
+
+            # 3. Fuzzy / partial candidate suggestions
+            candidates = [
+                item.get("id")
+                for item in models
+                if item.get("id") and (
+                    clean_lower in item.get("id", "").lower()
+                    or item.get("id", "").lower() in clean_lower
+                )
+            ]
+            if candidates:
+                best_suggestion = candidates[0]
+                err = LookupError(
+                    f"Model '{clean_id}' was not found in OpenRouter. Did you mean '{best_suggestion}'?"
+                )
+                setattr(err, "suggestion", best_suggestion)
+                raise err
 
         raise LookupError(f"Model '{clean_id}' was not found in OpenRouter.")
 
@@ -142,25 +196,32 @@ class OpenRouterChatProvider(BaseChatProvider):
         modality = arch.get("modality", "")
         supports_vision = "image" in modality.lower() or "multimodal" in modality.lower()
         pricing = item.get("pricing") or {}
+        supported_params = item.get("supported_parameters") or []
+        # If supported_parameters is present, check for 'tools'; embedding models have no tools support
+        is_embedding = "embed" in mid.lower() or "embedding" in modality.lower()
+        supports_tools = ("tools" in supported_params or not supported_params) and not is_embedding
         return {
             "id": mid,
             "name": name,
             "display_name": name,
             "context_length": context_len,
-            "supports_tools": True,
+            "supports_tools": supports_tools,
             "supports_vision": supports_vision,
             "pricing": pricing,
         }
 
     def list_models(self) -> list[ChatProviderModel]:
-        """Return configured models for this athlete, or curated defaults."""
+        """Return configured models for this athlete, or curated defaults (excluding embedding models)."""
         raw_list = self.configured_models if self.configured_models else list(DEFAULT_OPENROUTER_MODELS)
         result = []
         for m in raw_list:
+            mid = m.get("id", "")
+            if "embed" in mid.lower() or m.get("is_embedding"):
+                continue
             result.append(
                 ChatProviderModel(
-                    id=m["id"],
-                    display_name=m.get("name") or m["id"],
+                    id=mid,
+                    display_name=m.get("name") or mid,
                     supports_tools=m.get("supports_tools", True),
                     supports_vision=m.get("supports_vision", False),
                 )
@@ -193,6 +254,12 @@ class OpenRouterChatProvider(BaseChatProvider):
                 any_text_streamed = False
                 seen_tool_signatures: list[str] = []
 
+                # Check if this model supports tools
+                model_meta = next((m for m in self.configured_models if m.get("id") == model_id), None)
+                model_supports_tools = model_meta.get("supports_tools", True) if model_meta else True
+                if "embed" in model_id.lower():
+                    model_supports_tools = False
+
                 for turn_idx in range(max_turns):
                     body: dict[str, Any] = {
                         "model": model_id,
@@ -200,7 +267,7 @@ class OpenRouterChatProvider(BaseChatProvider):
                         "stream": True,
                         "stream_options": {"include_usage": True},
                     }
-                    if tools:
+                    if tools and model_supports_tools:
                         body["tools"] = tools
                         if turn_idx >= (max_turns - 1):
                             body["tool_choice"] = "none"

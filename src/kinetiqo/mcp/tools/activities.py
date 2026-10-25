@@ -10,7 +10,7 @@ from kinetiqo.mcp.contracts import (
     ERROR_INVALID_ARGUMENT,
     ERROR_NOT_FOUND,
 )
-from kinetiqo.mcp.utils import normalize_sport_types
+from kinetiqo.mcp.utils import normalize_sport_types, resolve_date_range
 
 
 def kinetiqo_search_activities(
@@ -20,35 +20,104 @@ def kinetiqo_search_activities(
     sport_types: Optional[List[str]] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    date_preset: Optional[str] = None,
     min_distance_km: Optional[float] = None,
     max_distance_km: Optional[float] = None,
     min_elevation_m: Optional[float] = None,
     max_elevation_m: Optional[float] = None,
+    min_moving_time_min: Optional[float] = None,
+    max_moving_time_min: Optional[float] = None,
+    min_watts: Optional[float] = None,
+    max_watts: Optional[float] = None,
+    min_max_watts: Optional[float] = None,
+    max_max_watts: Optional[float] = None,
+    min_heartrate: Optional[float] = None,
+    max_heartrate: Optional[float] = None,
+    has_heartrate: Optional[bool] = None,
+    has_power: Optional[bool] = None,
+    min_speed_kmh: Optional[float] = None,
+    max_speed_kmh: Optional[float] = None,
+    min_suffer_score: Optional[int] = None,
+    max_suffer_score: Optional[int] = None,
+    min_pr_count: Optional[int] = None,
+    gear_id: Optional[str] = None,
+    workout_type: Optional[int] = None,
+    has_trophies: Optional[bool] = None,
+    koms_only: Optional[bool] = None,
     cursor: Optional[str] = None,
     limit: int = 20,
     sort_by: str = "start_date",
+    sort_order: str = "desc",
 ) -> Dict[str, Any]:
-    """Search and filter activities using multiple criteria with deterministic keyset pagination."""
+    """Search and filter activities using comprehensive telemetry criteria with deterministic keyset pagination."""
     limit = max(1, min(limit, 100))
     norm_sport_types = normalize_sport_types(sport_types)
-    filters: Dict[str, Any] = {"sort_by": sort_by}
+    filters: Dict[str, Any] = {"sort_by": sort_by, "sort_order": sort_order}
 
     if query:
-        filters["query"] = query.strip()
+        clean_query = query.strip()
+        filters["query"] = clean_query
+        filters["keyword"] = clean_query
     if norm_sport_types:
         filters["sport_types"] = norm_sport_types
-    if start_date:
-        filters["start_date"] = start_date
-    if end_date:
-        filters["end_date"] = end_date
+
+    resolved_start, resolved_end = resolve_date_range(start_date=start_date, end_date=end_date, preset=date_preset)
+    if resolved_start:
+        filters["start_date"] = resolved_start
+    if resolved_end:
+        filters["end_date"] = resolved_end
+
     if min_distance_km is not None:
+        filters["min_distance_km"] = min_distance_km
         filters["min_distance"] = min_distance_km * 1000.0
     if max_distance_km is not None:
+        filters["max_distance_km"] = max_distance_km
         filters["max_distance"] = max_distance_km * 1000.0
     if min_elevation_m is not None:
+        filters["min_elevation_m"] = min_elevation_m
         filters["min_elevation"] = min_elevation_m
     if max_elevation_m is not None:
+        filters["max_elevation_m"] = max_elevation_m
         filters["max_elevation"] = max_elevation_m
+
+    if min_moving_time_min is not None:
+        filters["min_moving_time_min"] = min_moving_time_min
+    if max_moving_time_min is not None:
+        filters["max_moving_time_min"] = max_moving_time_min
+    if min_watts is not None:
+        filters["min_watts"] = min_watts
+    if max_watts is not None:
+        filters["max_watts"] = max_watts
+    if min_max_watts is not None:
+        filters["min_max_watts"] = min_max_watts
+    if max_max_watts is not None:
+        filters["max_max_watts"] = max_max_watts
+    if min_heartrate is not None:
+        filters["min_heartrate"] = min_heartrate
+    if max_heartrate is not None:
+        filters["max_heartrate"] = max_heartrate
+    if has_heartrate is not None:
+        filters["has_heartrate"] = has_heartrate
+    if has_power is not None:
+        filters["has_power"] = has_power
+    if min_speed_kmh is not None:
+        filters["min_speed_kmh"] = min_speed_kmh
+    if max_speed_kmh is not None:
+        filters["max_speed_kmh"] = max_speed_kmh
+    if min_suffer_score is not None:
+        filters["min_suffer_score"] = min_suffer_score
+    if max_suffer_score is not None:
+        filters["max_suffer_score"] = max_suffer_score
+    if min_pr_count is not None:
+        filters["min_pr_count"] = min_pr_count
+    if gear_id:
+        filters["gear_id"] = gear_id
+    if workout_type is not None:
+        filters["workout_type"] = workout_type
+    if has_trophies is not None:
+        filters["has_trophies"] = has_trophies
+    if koms_only is not None:
+        filters["koms_only"] = koms_only
 
     try:
         rows, next_cursor, has_more = repo.search_activities(
@@ -67,22 +136,44 @@ def kinetiqo_search_activities(
         mov_s = int(r.get("moving_time") or 0)
         elev_m = float(r.get("total_elevation_gain") or r.get("elevation_gain") or 0.0)
         watts = float(r["average_watts"]) if r.get("average_watts") is not None else None
+        max_w = float(r["max_watts"]) if r.get("max_watts") is not None else None
+        avg_hr = float(r["average_heartrate"]) if r.get("average_heartrate") is not None else None
+        max_hr = float(r["max_heartrate"]) if r.get("max_heartrate") is not None else None
+        avg_cadence = float(r["average_cadence"]) if r.get("average_cadence") is not None else None
+        w_watts = float(r["weighted_average_watts"]) if r.get("weighted_average_watts") is not None else None
+        calories = float(r["calories"]) if r.get("calories") is not None else None
         suffer = int(r["suffer_score"]) if r.get("suffer_score") is not None else None
+        raw_speed = float(r.get("average_speed") or 0.0)
+        speed_kmh = round(raw_speed * 3.6, 2) if raw_speed > 0 else (round(dist_m / mov_s * 3.6, 2) if mov_s > 0 else 0.0)
 
         start_dt = r.get("start_date")
         start_str = start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt or "")
 
-        activities.append({
+        act_data = {
             "activity_id": act_id,
             "name": str(r.get("name") or "Unnamed Activity"),
             "start_date": start_str,
-            "sport": str(r.get("sport_type") or r.get("type") or "Unknown"),
+            "sport": str(r.get("sport_type") or r.get("sport") or r.get("type") or "Unknown"),
             "distance_km": round(dist_m / 1000.0, 2),
             "moving_time_s": mov_s,
             "elevation_gain_m": round(elev_m, 1),
+            "average_speed_kmh": speed_kmh,
             "average_watts": watts,
+            "max_watts": max_w,
+            "weighted_average_watts": w_watts,
+            "average_cadence": avg_cadence,
+            "average_heartrate": avg_hr,
+            "max_heartrate": max_hr,
+            "calories": calories,
             "suffer_score": suffer,
-        })
+        }
+        if r.get("gear_id"):
+            act_data["gear_id"] = str(r["gear_id"])
+        if r.get("trophies"):
+            act_data["trophies"] = r["trophies"]
+        if r.get("pr_count"):
+            act_data["pr_count"] = int(r["pr_count"])
+        activities.append(act_data)
 
     payload = {
         "activities": activities,
@@ -153,12 +244,14 @@ def kinetiqo_get_activity_totals(
     sport_types: Optional[List[str]] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    date_preset: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compute aggregated distance, elevation, moving time, and count."""
     norm_sports = normalize_sport_types(sport_types)
+    resolved_start, resolved_end = resolve_date_range(start_date=start_date, end_date=end_date, preset=date_preset)
     try:
-        totals = repo.get_activities_totals(types=norm_sports, start_date=start_date, end_date=end_date)
-        count = repo.count_activities(types=norm_sports, start_date=start_date, end_date=end_date)
+        totals = repo.get_activities_totals(types=norm_sports, start_date=resolved_start, end_date=resolved_end)
+        count = repo.count_activities(types=norm_sports, start_date=resolved_start, end_date=resolved_end)
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating activity totals: {e}")
 
@@ -227,13 +320,13 @@ def kinetiqo_compare_periods(
     align: str = "elapsed_days",
 ) -> Dict[str, Any]:
     """Compare two fair training periods with equal elapsed-day alignment."""
-    start_a, end_a = period_a.get("start_date"), period_a.get("end_date")
-    start_b, end_b = period_b.get("start_date"), period_b.get("end_date")
+    start_a, end_a = resolve_date_range(start_date=period_a.get("start_date"), end_date=period_a.get("end_date"), preset=period_a.get("preset"))
+    start_b, end_b = resolve_date_range(start_date=period_b.get("start_date"), end_date=period_b.get("end_date"), preset=period_b.get("preset"))
 
     if not (start_a and end_a and start_b and end_b):
         return create_error_envelope(
             ERROR_INVALID_ARGUMENT,
-            "Both period_a and period_b must provide 'start_date' and 'end_date' (YYYY-MM-DD)",
+            "Both period_a and period_b must provide valid start and end dates or presets",
         )
 
     norm_sports = normalize_sport_types(sport_types)

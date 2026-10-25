@@ -58,11 +58,18 @@ def build_system_instruction() -> str:
         f"  * VI (Variability Index): NP / Avg Power. Steady TT/triathlon: 1.00–1.05; rolling/crits: >1.20.\n"
         f"  * Aerobic Decoupling (Pw:HR): Efficiency Factor (watts/HR) drift from 1st half to 2nd half. <5% indicates stable aerobic endurance base; >5% indicates cardiac drift due to fatigue, heat, or dehydration.\n"
         f"- Tool Routing Accuracy:\n"
+        f"  * For finding activities by title, name, keyword, person, or location -> invoke `kinetiqo_search_activities` with query='<keyword>'. When searching for rides with someone, include all cycling types (or omit sport_types to search across all activities).\n"
+        f"  * For training zones (e.g. 'what are my z1, z2, z3 ... zones' or 'what is my Z2 power') -> invoke `kinetiqo_get_ftp_history`. It provides `power_zones_coggan` (Z1 Active Recovery to Z7 Neuromuscular Power with exact Watts, W/kg, and descriptions) and `heart_rate_zones` (Z1-Z5 with BPM boundaries). Present every zone in a clear, formatted Markdown breakdown with exact personal wattage ranges and physiological objectives.\n"
+        f"  * For determining when the athlete really did VO2max training (e.g. 'when did I really do vo2max training?') -> explain that genuine VO2max training requires accumulating sustained time in Zone 5 (106%–120% FTP, e.g. 15–25 min total via 3–8 min intervals or 30/30s micro-bursts), distinct from isolated sprint spikes or steady tempo. Invoke `kinetiqo_get_vo2max_trend` (which lists activities with top 5m MAP power) and `kinetiqo_search_activities(has_power=True)`, then inspect candidate sessions using `kinetiqo_analyze_workout_structure`. Review `vo2max_analysis` (`vo2max_time_min`, `sustained_z5_intervals`, `is_genuine_vo2max_workout`, `classification_reason`) to report the exact dates and workouts where genuine VO2max interval blocks were completed vs sessions with only brief surges.\n"
+        f"  * For VO2max training meaning and actionable coaching (e.g. 'what a vo2max training means for me? How should I train for best vo2max') -> invoke `kinetiqo_get_ftp_history` and/or `kinetiqo_get_vo2max_trend` to obtain the athlete's exact FTP and weight. Explain that VO2max is their physiological aerobic ceiling (maximal oxygen uptake in ml/kg/min). Ground your advice in their personal numbers: state their exact Zone 5 target range (106%–120% FTP in Watts and W/kg). Prescribe evidence-based protocols: (1) Long intervals (4–5 × 4–5 min @ 108–115% FTP with 3–4 min recovery in Z1), (2) Micro-bursts (30s ON @ 115–125% FTP / 30s OFF @ 50% FTP, 2–3 sets of 8–10 reps), (3) High cadence (95–105+ RPM) to maximize cardiovascular stroke volume and spare muscular glycogen, and (4) Polarized 80/20 balance with 1–2 VO2max sessions weekly and 48–72h recovery between hard days.\n"
+        f"  * For consecutive activities (e.g. 'in three consecutive biking activities find same/peak wattage output') -> invoke `kinetiqo_search_activities` with sport_types, sort_by='start_date', sort_order='desc' (or 'asc') and limit=3 (or requested count). Compare their returned metrics (such as average_watts, max_watts, average_cadence, average_speed_kmh, distance_km).\n"
+        f"  * For period averages of cadence, heart rate, or wattage (e.g. 'in last 2weeks what was my average cadence') -> invoke `kinetiqo_search_activities` with the date range (e.g. start_date='last 2weeks' or date_preset='14_days') and sport types. Calculate the overall average across the returned activities that recorded that telemetry (weighted by moving time or simple mean), reporting both the average and how many activities were included.\n"
+        f"  * For warm-up time, time-to-peak-power, or when max watts occur (e.g. 'what is my usual warm up time before I hit max watts in last year') -> query activities in that timeframe with power meter telemetry (`kinetiqo_search_activities(date_preset='last_year', has_power=True, limit=5)`), then inspect their workout structures via `kinetiqo_analyze_workout_structure(activity_id=...)` (which provides `time_to_max_watts_min` and `time_to_max_watts_s`) or `kinetiqo_get_activity_streams(activity_id=..., stream_types=['watts'])` to determine the typical warm-up duration before peak efforts.\n"
         f"  * For CTL, ATL, TSB, freshness, form, recovery -> invoke `kinetiqo_get_fitness_and_freshness`.\n"
         f"  * For FTP history, threshold power, 20m breakthroughs -> invoke `kinetiqo_get_ftp_history`.\n"
         f"  * For power curve, Mean Maximal Power (MMP) -> invoke `kinetiqo_calculate_power_curve`.\n"
         f"  * For benchmark power records across durations (5s to 1h) -> invoke `kinetiqo_get_personal_records` or `kinetiqo_get_power_skills`.\n"
-        f"  * For workout structure, NP, IF, TSS, sustained blocks, sprint surges -> invoke `kinetiqo_analyze_workout_structure`.\n"
+        f"  * For workout structure, NP, IF, TSS, sustained blocks, sprint surges, power zones distribution, and VO2max interval analysis -> invoke `kinetiqo_analyze_workout_structure`.\n"
         f"  * For aerobic decoupling, split pacing, cardiac drift -> invoke `kinetiqo_analyze_pacing`.\n"
         f"  * For cadence, heart rate, power streams -> invoke `kinetiqo_get_activity_streams`.\n"
         f"  * For weekly training volume, ramp rate, habits -> invoke `kinetiqo_get_weekly_training_profile` or `kinetiqo_get_training_load_trends`.\n"
@@ -121,7 +128,14 @@ class ChatService:
         adapter = self._provider(athlete_id, provider)
         return [model.__dict__ for model in adapter.list_models()]
 
-    def stream_turn(self, athlete_id: str, session_id: str, content: str, model_id: str | None = None) -> tuple[Any, Iterator[StreamEvent]]:
+    def stream_turn(
+        self,
+        athlete_id: str,
+        session_id: str,
+        content: str,
+        model_id: str | None = None,
+        provider: str | None = None,
+    ) -> tuple[Any, Iterator[StreamEvent]]:
         if not isinstance(content, str) or not content.strip():
             raise ValueError("A message is required.")
         if len(content) > MAX_MESSAGE_CHARS:
@@ -130,10 +144,47 @@ class ChatService:
         if not chat_session:
             raise LookupError("Conversation not found.")
 
-        adapter = self._provider(athlete_id, chat_session.provider)
+        raw_configured = self.configured_providers(athlete_id)
+        configured = list(raw_configured) if isinstance(raw_configured, (list, tuple, set)) else [chat_session.provider]
+
+        target_provider: str | None = None
+        if provider:
+            try:
+                self._provider_class(provider)
+                if provider in configured or self.repository.get_provider_key(athlete_id, provider):
+                    target_provider = provider
+            except Exception:
+                pass
+
+        if not target_provider:
+            curr_prov = chat_session.provider
+            curr_models: set[str] = set()
+            try:
+                curr_adapter = self._provider(athlete_id, curr_prov)
+                curr_models = {item.id for item in curr_adapter.list_models()}
+            except Exception:
+                curr_models = set()
+
+            if model_id and model_id not in curr_models:
+                for other_prov in configured:
+                    if other_prov == curr_prov:
+                        continue
+                    try:
+                        self._provider_class(other_prov)
+                        other_adapter = self._provider(athlete_id, other_prov)
+                        if any(item.id == model_id for item in other_adapter.list_models()):
+                            target_provider = other_prov
+                            break
+                    except Exception:
+                        continue
+
+            if not target_provider:
+                target_provider = curr_prov
+
+        adapter = self._provider(athlete_id, target_provider)
         deprecated = getattr(adapter, "deprecated_models", frozenset())
         default_model = getattr(adapter, "default_model", "default")
-        requested_model = model_id or chat_session.model_id
+        requested_model = model_id or (chat_session.model_id if target_provider == chat_session.provider else default_model)
         if requested_model in deprecated:
             requested_model = default_model
 
@@ -142,15 +193,20 @@ class ChatService:
 
         available_models = adapter.list_models()
         if not available_models:
-            raise ChatConfigurationError(f"Provider '{chat_session.provider}' returned no text-generation models for this API key.")
+            raise ChatConfigurationError(f"Provider '{target_provider}' returned no text-generation models for this API key.")
         available_ids = {item.id for item in available_models}
         selected_model = requested_model if (requested_model in available_ids and requested_model not in deprecated) else available_models[0].id
         if selected_model != requested_model:
             logger.warning("Chat substituted unavailable model: requested=%s selected=%s", requested_model, selected_model)
-        self.repository.update_session(athlete_id, session_id, model_id=selected_model)
-        assistant = self.repository.add_message(athlete_id, session_id, "assistant", "", "interrupted", chat_session.provider, selected_model)
 
-        chat_tools = get_chat_tools(provider=chat_session.provider, config=self.config, repo_factory=lambda: self.repository.source_repository)
+        if target_provider != chat_session.provider:
+            self.repository.update_session(athlete_id, session_id, provider=target_provider, model_id=selected_model)
+        else:
+            self.repository.update_session(athlete_id, session_id, model_id=selected_model)
+
+        assistant = self.repository.add_message(athlete_id, session_id, "assistant", "", "interrupted", target_provider, selected_model)
+
+        chat_tools = get_chat_tools(provider=target_provider, config=self.config, repo_factory=lambda: self.repository.source_repository)
         provenance_records: list[dict[str, Any]] = []
 
         def execute_tool(name: str, args: dict[str, Any]) -> tuple[dict[str, Any], int]:

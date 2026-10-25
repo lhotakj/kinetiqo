@@ -2393,7 +2393,11 @@ def _chat_user_id() -> str:
 def _chat_error(error: Exception, status: int = 400):
     code = getattr(error, 'error_code', 'invalid_request')
     message = getattr(error, 'user_message', str(error))
-    return jsonify({'error': {'code': code, 'message': message}}), status
+    payload = {'code': code, 'message': message}
+    suggestion = getattr(error, 'suggestion', None)
+    if suggestion:
+        payload['suggestion'] = suggestion
+    return jsonify({'error': payload}), status
 
 
 @app.route('/chat', methods=['GET'])
@@ -2451,7 +2455,7 @@ def chat_session_api(session_id: str):
     if title is not None and (not isinstance(title, str) or not title.strip() or len(title.strip()) > 120):
         return _chat_error(ValueError('Conversation titles must be 1 to 120 characters.'), 422)
     try:
-        repository.update_session(athlete_id, session_id, title=title.strip() if title else None, model_id=data.get('model_id'))
+        repository.update_session(athlete_id, session_id, title=title.strip() if title else None, provider=data.get('provider'), model_id=data.get('model_id'))
         item = repository.get_session(athlete_id, session_id)
         return jsonify({'session': item.__dict__})
     except LookupError:
@@ -2469,14 +2473,17 @@ def chat_messages_api(session_id: str):
         return jsonify({'messages': [item.__dict__ for item in service.repository.list_messages(athlete_id, session_id)]})
     data = request.get_json(silent=True) or {}
     try:
-        user_message, events = service.stream_turn(athlete_id, session_id, data.get('content', ''), data.get('model_id'))
+        user_message, events = service.stream_turn(
+            athlete_id,
+            session_id,
+            data.get('content', ''),
+            data.get('model_id'),
+            data.get('provider'),
+        )
     except LookupError:
         return Response(status=404)
     except (ValueError, ChatError, ChatEncryptionError) as exc:
         return _chat_error(exc, 422)
-
-    chat_session = service.repository.get_session(athlete_id, session_id)
-    session_provider = chat_session.provider if chat_session else 'gemini'
 
     def encode(name: str, payload: dict) -> str:
         return f'event: {name}\ndata: {json_module.dumps(payload, separators=(",", ":"), default=str)}\n\n'
@@ -2494,7 +2501,10 @@ def chat_messages_api(session_id: str):
                     yield encode('tool_result', {'tool': event.tool})
                 elif event.type == 'usage':
                     yield encode('usage', {'input_tokens': event.input_tokens, 'output_tokens': event.output_tokens})
-            yield encode('completed', {'model_id': data.get('model_id'), 'provider': session_provider})
+            chat_sess = service.repository.get_session(athlete_id, session_id)
+            final_model = (chat_sess.model_id if chat_sess else None) or data.get('model_id')
+            final_provider = (chat_sess.provider if chat_sess else None) or data.get('provider') or 'gemini'
+            yield encode('completed', {'model_id': final_model, 'provider': final_provider})
         except ChatError as exc:
             yield encode('error', {'code': exc.error_code, 'message': exc.user_message})
         except Exception:
@@ -2575,7 +2585,7 @@ def chat_openrouter_settings_api():
             athlete_id,
             'openrouter',
             encrypt_api_key(api_key.strip(), app.secret_key),
-            config_json=json_module.dumps(existing_config)
+            config=existing_config
         )
         return jsonify({'configured': True, 'models': existing_config.get('models', [])})
     except ChatEncryptionError as exc:

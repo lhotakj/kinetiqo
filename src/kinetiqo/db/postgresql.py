@@ -1229,10 +1229,22 @@ class PostgresqlRepository(DatabaseRepository):
 
         sort_field_map = {
             "date": "start_date",
+            "start_date": "start_date",
             "distance": "distance",
             "elevation": "total_elevation_gain",
+            "total_elevation_gain": "total_elevation_gain",
             "moving_time": "moving_time",
             "average_watts": "average_watts",
+            "watts": "average_watts",
+            "max_watts": "max_watts",
+            "speed": "average_speed",
+            "average_speed": "average_speed",
+            "max_speed": "max_speed",
+            "heartrate": "average_heartrate",
+            "average_heartrate": "average_heartrate",
+            "max_heartrate": "max_heartrate",
+            "suffer_score": "suffer_score",
+            "calories": "calories",
         }
         sort_by = filters.get("sort_by", "date")
         sort_col = sort_field_map.get(sort_by, "start_date")
@@ -1260,29 +1272,47 @@ class PostgresqlRepository(DatabaseRepository):
             where_clauses.append("start_date <= %s")
             params.append(filters["end_date"])
 
-        if filters.get("min_distance_km") is not None:
+        min_dist_km = filters.get("min_distance_km")
+        if min_dist_km is None and filters.get("min_distance") is not None:
+            min_dist_km = float(filters["min_distance"]) / 1000.0
+        if min_dist_km is not None:
             where_clauses.append("distance >= %s")
-            params.append(float(filters["min_distance_km"]) * 1000.0)
+            params.append(float(min_dist_km) * 1000.0)
 
-        if filters.get("max_distance_km") is not None:
+        max_dist_km = filters.get("max_distance_km")
+        if max_dist_km is None and filters.get("max_distance") is not None:
+            max_dist_km = float(filters["max_distance"]) / 1000.0
+        if max_dist_km is not None:
             where_clauses.append("distance <= %s")
-            params.append(float(filters["max_distance_km"]) * 1000.0)
+            params.append(float(max_dist_km) * 1000.0)
 
-        if filters.get("min_elevation_m") is not None:
+        min_elev = filters.get("min_elevation_m") if filters.get("min_elevation_m") is not None else filters.get("min_elevation")
+        if min_elev is not None:
             where_clauses.append("total_elevation_gain >= %s")
-            params.append(float(filters["min_elevation_m"]))
+            params.append(float(min_elev))
 
-        if filters.get("max_elevation_m") is not None:
+        max_elev = filters.get("max_elevation_m") if filters.get("max_elevation_m") is not None else filters.get("max_elevation")
+        if max_elev is not None:
             where_clauses.append("total_elevation_gain <= %s")
-            params.append(float(filters["max_elevation_m"]))
+            params.append(float(max_elev))
 
-        if filters.get("min_moving_time_min") is not None:
+        min_mov_s = filters.get("min_moving_time_s")
+        if min_mov_s is None and filters.get("min_moving_time") is not None:
+            min_mov_s = int(filters["min_moving_time"])
+        if min_mov_s is None and filters.get("min_moving_time_min") is not None:
+            min_mov_s = int(float(filters["min_moving_time_min"]) * 60)
+        if min_mov_s is not None:
             where_clauses.append("moving_time >= %s")
-            params.append(int(float(filters["min_moving_time_min"]) * 60))
+            params.append(int(min_mov_s))
 
-        if filters.get("max_moving_time_min") is not None:
+        max_mov_s = filters.get("max_moving_time_s")
+        if max_mov_s is None and filters.get("max_moving_time") is not None:
+            max_mov_s = int(filters["max_moving_time"])
+        if max_mov_s is None and filters.get("max_moving_time_min") is not None:
+            max_mov_s = int(float(filters["max_moving_time_min"]) * 60)
+        if max_mov_s is not None:
             where_clauses.append("moving_time <= %s")
-            params.append(int(float(filters["max_moving_time_min"]) * 60))
+            params.append(int(max_mov_s))
 
         if filters.get("min_watts") is not None:
             where_clauses.append("average_watts >= %s")
@@ -1292,9 +1322,73 @@ class PostgresqlRepository(DatabaseRepository):
             where_clauses.append("average_watts <= %s")
             params.append(float(filters["max_watts"]))
 
-        if filters.get("keyword"):
+        if filters.get("min_max_watts") is not None:
+            where_clauses.append("max_watts >= %s")
+            params.append(float(filters["min_max_watts"]))
+
+        if filters.get("max_max_watts") is not None:
+            where_clauses.append("max_watts <= %s")
+            params.append(float(filters["max_max_watts"]))
+
+        if filters.get("has_power") is not None:
+            if bool(filters["has_power"]):
+                where_clauses.append("(device_watts = TRUE OR average_watts > 0)")
+            else:
+                where_clauses.append("(device_watts = FALSE OR device_watts IS NULL)")
+
+        if filters.get("min_heartrate") is not None:
+            where_clauses.append("average_heartrate >= %s")
+            params.append(float(filters["min_heartrate"]))
+
+        if filters.get("max_heartrate") is not None:
+            where_clauses.append("average_heartrate <= %s")
+            params.append(float(filters["max_heartrate"]))
+
+        if filters.get("has_heartrate") is not None:
+            if bool(filters["has_heartrate"]):
+                where_clauses.append("(has_heartrate = TRUE OR average_heartrate > 0)")
+            else:
+                where_clauses.append("(has_heartrate = FALSE OR has_heartrate IS NULL)")
+
+        if filters.get("min_speed_kmh") is not None:
+            where_clauses.append("average_speed >= %s")
+            params.append(float(filters["min_speed_kmh"]) / 3.6)
+
+        if filters.get("max_speed_kmh") is not None:
+            where_clauses.append("average_speed <= %s")
+            params.append(float(filters["max_speed_kmh"]) / 3.6)
+
+        if filters.get("min_suffer_score") is not None:
+            where_clauses.append("suffer_score >= %s")
+            params.append(int(float(filters["min_suffer_score"])))
+
+        if filters.get("max_suffer_score") is not None:
+            where_clauses.append("suffer_score <= %s")
+            params.append(int(float(filters["max_suffer_score"])))
+
+        if filters.get("min_pr_count") is not None:
+            where_clauses.append("pr_count >= %s")
+            params.append(int(filters["min_pr_count"]))
+
+        if filters.get("gear_id"):
+            where_clauses.append("gear_id = %s")
+            params.append(str(filters["gear_id"]).strip())
+
+        if filters.get("workout_type") is not None:
+            where_clauses.append("workout_type = %s")
+            params.append(int(filters["workout_type"]))
+
+        if filters.get("has_trophies"):
+            where_clauses.append("(trophies IS NOT NULL AND trophies != '' AND trophies != '{}')")
+
+        if filters.get("koms_only"):
+            where_clauses.append("trophies LIKE %s")
+            params.append('%"1":%')
+
+        keyword = filters.get("keyword") or filters.get("query")
+        if keyword:
             where_clauses.append("name ILIKE %s")
-            params.append(f"%{filters['keyword']}%")
+            params.append(f"%{keyword}%")
 
         if cursor:
             decoded = decode_cursor(cursor)

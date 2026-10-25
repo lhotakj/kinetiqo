@@ -132,17 +132,32 @@ The table below provides the authoritative master index of all 35 Kinetiqo MCP t
 Tools designed to help the LLM filter, search, compare, and summarize the athlete's activity catalog.
 
 #### 1. `kinetiqo_search_activities` [P0 / MVP]
-* **Description**: Search and filter activities using multiple criteria (sport types, date range, distance, elevation, moving time, keywords) with deterministic keyset pagination.
+* **Description**: Search and filter activities using comprehensive telemetry criteria (sport types, date range, date presets, distance, elevation, moving time, watts, heartrate, speed, suffer score, gear, trophies, keywords) with deterministic keyset pagination.
 * **Inputs**:
   * `query` (optional string, at most 200 characters): Case-insensitive activity **name** search; descriptions are not stored in the current activities schema.
-  * `sport_types` (optional array of strings): e.g. `["Ride", "VirtualRide", "GravelRide", "Run", "Walk"]`.
-  * `start_date` / `end_date` (optional ISO strings): Date boundary filters.
-  * `min_distance_km` / `max_distance_km` (optional numbers): Distance bounds.
-  * `min_elevation_m` / `max_elevation_m` (optional numbers): Elevation gain bounds.
+  * `sport_types` (optional array of strings): e.g. `["Ride", "VirtualRide", "GravelRide", "Run", "Walk"]` or broad categories `["cycling"]`, `["running"]`.
+  * `start_date` / `end_date` (optional strings): Flexible date boundary filters supporting ISO timestamps, single years (`"2026"`), year-months (`"2026-08"`), European dates (`"24.10.2026"`), US dates (`"10/24/2026"`), and human date strings.
+  * `date_preset` (optional string): Named time presets matching web UI (`"today"`, `"yesterday"`, `"this_week"`, `"last_week"`, `"7_days"`, `"14_days"`, `"this_month"`, `"last_month"`, `"this_year"`, `"last_year"`, `"year"`, `"all_time"`).
+  * `min_distance_km` / `max_distance_km` (optional numbers): Distance bounds in km.
+  * `min_elevation_m` / `max_elevation_m` (optional numbers): Elevation gain bounds in meters.
+  * `min_moving_time_min` / `max_moving_time_min` (optional numbers): Moving duration bounds in minutes.
+  * `min_watts` / `max_watts` (optional numbers): Average power bounds in Watts.
+  * `min_max_watts` / `max_max_watts` (optional numbers): Maximum power (peak sprint) bounds in Watts.
+  * `min_heartrate` / `max_heartrate` (optional numbers): Average heart rate bounds in bpm.
+  * `has_heartrate` (optional boolean): Filter for activities with recorded heart rate telemetry.
+  * `has_power` (optional boolean): Filter for activities with recorded power meter telemetry.
+  * `min_speed_kmh` / `max_speed_kmh` (optional numbers): Average speed bounds in km/h.
+  * `min_suffer_score` / `max_suffer_score` (optional integers): Suffer score bounds.
+  * `min_pr_count` (optional integer): Minimum number of personal records achieved.
+  * `gear_id` (optional string): Athlete equipment / bike ID.
+  * `workout_type` (optional integer): Strava workout type enum.
+  * `has_trophies` (optional boolean): Filter for activities with verified segment trophies / ribbons.
+  * `koms_only` (optional boolean): Filter exclusively for activities with verified 1st place KOM / CR placements.
   * `cursor` (optional string): Opaque base64 cursor from previous response for keyset pagination.
   * `limit` (integer, default `20`, max `100`): Maximum results to return per page.
-  * `sort_by` (string, default `"start_date"`): `start_date`, `distance`, `elevation`, `moving_time`, `average_watts`.
-* **Output**: Compact JSON envelope with `data.activities` containing items with `activity_id`, `name`, `start_date`, `sport`, `distance_km`, `moving_time_s`, `elevation_gain_m`, `average_watts`, `suffer_score`, and `data.pagination` (`next_cursor`, `has_more`, `total_matched`). Repository search with these bounds and name matching must be added across all three backends.
+  * `sort_by` (string, default `"start_date"`): `start_date`, `distance`, `elevation`, `moving_time`, `average_watts`, `max_watts`, `speed`, `heartrate`, `suffer_score`, `calories`.
+  * `sort_order` (string, default `"desc"`): `"desc"` or `"asc"`.
+* **Output**: Compact JSON envelope with `data.activities` containing items with `activity_id`, `name`, `start_date`, `sport`, `distance_km`, `moving_time_s`, `elevation_gain_m`, `average_speed_kmh`, `average_watts`, `max_watts`, `average_heartrate`, `max_heartrate`, `suffer_score`, `gear_id`, `trophies`, `pr_count`, and `data.pagination` (`next_cursor`, `has_more`, `count`). Supported consistently across PostgreSQL, MySQL, and Firebird.
 
 #### 2. `kinetiqo_get_activity_details` [P0 / MVP]
 * **Description**: Retrieve comprehensive metadata for a specific activity by ID.
@@ -231,8 +246,9 @@ Tools that leverage previously synced local telemetry without consuming Strava A
   * `ftp` (optional number): Athlete FTP override (defaults to DB profile FTP).
 * **Output**:
   * Classification (e.g. `"Endurance with Threshold blocks"`).
-  * Normalized Power (`np_w`) & % FTP.
-  * Intensity Factor (`intensity_factor`) and Training Stress Score (`tss`).
+  * Normalized Power (`normalized_power_w`) & % FTP.
+  * Maximum Power (`max_watts`), time from start to maximum power (`time_to_max_watts_s`, `time_to_max_watts_min`) for warmup and pacing discovery.
+  * Intensity Factor (`intensity_factor`) and Training Stress Score (`training_stress_score`).
   * Sustained Blocks: List of blocks (duration in min, average watts, % FTP, start time).
   * Short Surges: High-intensity efforts (1–3 min @ >105% FTP).
   * Sprint Peaks: Verified ≥1000 W peaks when power coverage supports them; deterministic numbers, with optional presentation labels separate from measurement.

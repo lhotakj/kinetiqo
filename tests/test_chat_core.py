@@ -95,6 +95,73 @@ class TestChatService(unittest.TestCase):
         self.assertEqual(provider.stream.call_args.args[0], "gemini-3.1-flash-lite")
         self.repository.update_session.assert_called_with("athlete", "session", model_id="gemini-3.1-flash-lite")
 
+    @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
+    @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
+    def test_stream_turn_switches_provider_when_explicitly_requested(self, registry, decrypt):
+        session = MagicMock(provider="openrouter", model_id="meta-llama/llama-3.3-70b-instruct")
+        user = ChatMessage("user-id", "session", "athlete", "user", "hello", 1, "complete", datetime.now(timezone.utc))
+        assistant = ChatMessage("assistant-id", "session", "athlete", "assistant", "", 2, "interrupted", datetime.now(timezone.utc))
+        self.repository.get_session.return_value = session
+        self.repository.add_message.side_effect = [user, assistant]
+        self.repository.list_messages.return_value = []
+        self.repository.list_configured_providers.return_value = ["openrouter", "gemini"]
+        self.repository.get_provider_key.return_value = "ciphertext"
+        self.repository.get_provider_config.return_value = {}
+
+        gemini_provider = MagicMock()
+        gemini_provider.list_models.return_value = [ChatProviderModel("gemini-3.1-flash-lite", "Flash Lite")]
+        gemini_provider.stream.return_value = iter([])
+
+        registry.__getitem__.side_effect = lambda key: MagicMock(return_value=gemini_provider) if key == "gemini" else MagicMock()
+
+        _, events = self.service.stream_turn(
+            "athlete", "session", "hello", model_id="gemini-3.1-flash-lite", provider="gemini"
+        )
+        list(events)
+
+        gemini_provider.stream.assert_called_once()
+        self.assertEqual(gemini_provider.stream.call_args.args[0], "gemini-3.1-flash-lite")
+        self.repository.update_session.assert_called_with("athlete", "session", provider="gemini", model_id="gemini-3.1-flash-lite")
+        self.assertEqual(self.repository.add_message.call_args_list[1].args[5], "gemini")
+
+    @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
+    @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
+    def test_stream_turn_switches_provider_automatically_when_model_belongs_to_different_provider(self, registry, decrypt):
+        session = MagicMock(provider="openrouter", model_id="meta-llama/llama-3.3-70b-instruct")
+        user = ChatMessage("user-id", "session", "athlete", "user", "hello", 1, "complete", datetime.now(timezone.utc))
+        assistant = ChatMessage("assistant-id", "session", "athlete", "assistant", "", 2, "interrupted", datetime.now(timezone.utc))
+        self.repository.get_session.return_value = session
+        self.repository.add_message.side_effect = [user, assistant]
+        self.repository.list_messages.return_value = []
+        self.repository.list_configured_providers.return_value = ["openrouter", "gemini"]
+        self.repository.get_provider_key.return_value = "ciphertext"
+        self.repository.get_provider_config.return_value = {}
+
+        openrouter_provider = MagicMock()
+        openrouter_provider.list_models.return_value = [ChatProviderModel("meta-llama/llama-3.3-70b-instruct", "Llama 3.3")]
+
+        gemini_provider = MagicMock()
+        gemini_provider.list_models.return_value = [ChatProviderModel("gemini-3.1-flash-lite", "Flash Lite")]
+        gemini_provider.stream.return_value = iter([])
+
+        def get_prov(name):
+            if name == "gemini":
+                return MagicMock(return_value=gemini_provider)
+            return MagicMock(return_value=openrouter_provider)
+
+        registry.__getitem__.side_effect = get_prov
+
+        # Notice: provider is NOT passed; only model_id is passed
+        _, events = self.service.stream_turn(
+            "athlete", "session", "hello", model_id="gemini-3.1-flash-lite"
+        )
+        list(events)
+
+        gemini_provider.stream.assert_called_once()
+        self.assertEqual(gemini_provider.stream.call_args.args[0], "gemini-3.1-flash-lite")
+        self.repository.update_session.assert_called_with("athlete", "session", provider="gemini", model_id="gemini-3.1-flash-lite")
+        self.assertEqual(self.repository.add_message.call_args_list[1].args[5], "gemini")
+
     def test_message_limit_is_enforced(self):
         with self.assertRaises(ValueError):
             self.service.stream_turn("athlete", "session", "x" * (32 * 1024 + 1))
@@ -148,9 +215,12 @@ class TestChatRepository(unittest.TestCase):
             with self.subTest(dialect=dialect):
                 backend = MagicMock()
                 cursor = backend.conn.cursor.return_value
+                cursor.fetchone.return_value = None
                 repository = ChatRepository(backend, dialect)
-                repository.save_provider_key("athlete", "gemini", "encrypted")
-                insert_parameters = cursor.execute.call_args_list[1].args[1]
+                repository.save_provider_key("athlete", "gemini", "encrypted", config={})
+                insert_calls = [call for call in cursor.execute.call_args_list if "INSERT INTO chat_provider_keys" in call.args[0]]
+                self.assertTrue(len(insert_calls) > 0)
+                insert_parameters = insert_calls[0].args[1]
                 self.assertEqual(insert_parameters[4], expected)
                 backend.conn.commit.assert_called_once()
 
@@ -225,7 +295,7 @@ class TestGeminiDiagnostics(unittest.TestCase):
         client = MagicMock()
         resp1 = MagicMock(status_code=200)
         resp1.iter_lines.return_value = [
-            'data: {"candidates": [{"content": {"role": "model", "parts": [{"functionCall": {"name": "kinetiqo_get_activity_totals", "args": {"sport_types": ["Ride"]}}}]}}]}'
+            'data: {"candidates": [{"content": {"role": "model", "parts": [{"thoughtSignature": "sig_xyz789", "functionCall": {"name": "kinetiqo_get_activity_totals", "args": {"sport_types": ["Ride"]}, "id": "call_abc123"}}]}}]}'
         ]
         resp2 = MagicMock(status_code=200)
         resp2.iter_lines.return_value = [
@@ -243,7 +313,7 @@ class TestGeminiDiagnostics(unittest.TestCase):
         events = list(provider.stream(
             "gemini-2.5-flash",
             "system rules",
-            [],
+            [{"role": "user", "content": "Previous prompt"}, {"role": "user", "content": "Duplicate user turn"}],
             "Show ride totals",
             tools=[{"name": "kinetiqo_get_activity_totals", "description": "Totals", "parameters": {}}],
             tool_executor=tool_executor,
@@ -255,11 +325,18 @@ class TestGeminiDiagnostics(unittest.TestCase):
         self.assertEqual(events[0].tool, "kinetiqo_get_activity_totals")
         self.assertEqual(events[2].text, "You rode 120km.")
 
-        # Verify second call included the function response in contents
+        # Verify second call included the function response in contents with matching id
         second_call_body = client.stream.call_args_list[1].kwargs["json"]
         last_turn = second_call_body["contents"][-1]
-        self.assertEqual(last_turn["role"], "function")
+        self.assertEqual(last_turn["role"], "user")
         self.assertEqual(last_turn["parts"][0]["functionResponse"]["name"], "kinetiqo_get_activity_totals")
+        self.assertEqual(last_turn["parts"][0]["functionResponse"]["id"], "call_abc123")
+
+        # Verify model turn has functionCall with matching id and preserved thoughtSignature
+        model_turn = second_call_body["contents"][-2]
+        self.assertEqual(model_turn["role"], "model")
+        self.assertEqual(model_turn["parts"][0]["functionCall"]["id"], "call_abc123")
+        self.assertEqual(model_turn["parts"][0]["thoughtSignature"], "sig_xyz789")
 
     def test_stream_forces_synthesis_after_consecutive_tool_calls(self):
         client = MagicMock()

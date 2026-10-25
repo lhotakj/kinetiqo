@@ -207,6 +207,15 @@ When writing or modifying MCP tools, chat helpers, or AI integrations, you must 
   1. Wrap streaming generators with `Response(stream_with_context(generate()), mimetype='text/event-stream')` to keep the application context active until the stream finishes.
   2. In `PostgresqlRepository._ensure_connected()`, if `self.conn is None`, connect cleanly without emitting false-alarm "connection lost" warnings.
 
+---
+
+### Gotcha 10: Activity Search Keyword vs Query Discrepancy
+- **The Bug**: `kinetiqo_search_activities` accepts `query: Optional[str]`, but database repositories historically checked `filters.get("keyword")`. This caused title/keyword searches (e.g. searching for activities with specific names, routes, or people like "Jonas") to be completely omitted from the SQL WHERE clause. The repository fell back to returning the first `limit` rows (the 20 most recent activities) without name filtering, leading AI models to conclude zero matching records exist.
+- **The Protocol**:
+  1. In `kinetiqo_search_activities`, assign both `filters["query"]` and `filters["keyword"]`.
+  2. In `search_activities` across all concrete repository backends (PostgreSQL, MySQL, Firebird), check `keyword = filters.get("keyword") or filters.get("query")`.
+  3. Support both `min_distance` (meters) and `min_distance_km` (kilometers), as well as `min_elevation` and `min_elevation_m`.
+
 
 
 ---
@@ -257,10 +266,11 @@ When writing or modifying MCP tools, chat helpers, or AI integrations, you must 
 
 When implementing or extending AI provider adapters:
 
-### 4.1 Gemini Function Declarations
+### 4.1 Gemini Function Declarations & Multi-Turn Protocol
 - Uses uppercase types: `STRING`, `INTEGER`, `NUMBER`, `BOOLEAN`, `ARRAY`, `OBJECT`.
 - Handles `anyOf: [type, null]` Pydantic schemas by unwrapping the non-null type branch.
 - Formatted via `to_gemini_schema(prop)` in `src/kinetiqo/chat/tools.py`.
+- **Function Response Role Mandate**: In multi-turn chat turns, Gemini API strictly requires `"role": "user"` for content objects containing `functionResponse`. Passing `"role": "function"` or `"role": "tool"` causes an immediate HTTP 400 `INVALID_ARGUMENT`. Model turns preceding the response must cleanly contain only the `functionCall` parts without empty text or thought tokens.
 
 ### 4.2 OpenAI / OpenRouter / Mistral Function Declarations
 - Uses standard JSON Schema with lowercase types: `string`, `integer`, `number`, `boolean`, `array`, `object`.

@@ -148,6 +148,26 @@ class TestPostgresqlMcpExtensions(unittest.TestCase):
         self.assertIn(10000.0, params)
         self.assertIn(100000.0, params)
 
+    def test_search_activities_with_query_filter_and_meters(self):
+        self.mock_cur.fetchall.return_value = []
+        self.repo.search_activities(
+            athlete_id=1,
+            filters={
+                "query": "Jonas",
+                "min_distance": 5000.0,
+                "max_distance": 25000.0,
+                "min_elevation": 50.0,
+            },
+            limit=20,
+        )
+        sql, params = self.mock_cur.execute.call_args[0]
+        self.assertIn("name ILIKE %s", sql)
+        self.assertIn("%Jonas%", params)
+        self.assertIn("distance >= %s", sql)
+        self.assertIn(5000.0, params)
+        self.assertIn("total_elevation_gain >= %s", sql)
+        self.assertIn(50.0, params)
+
     def test_get_stream_coverage(self):
         self.mock_cur.fetchone.return_value = {
             "total_points": 3600,

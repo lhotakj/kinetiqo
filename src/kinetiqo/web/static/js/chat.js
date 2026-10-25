@@ -155,27 +155,46 @@
         scrollToBottom();
     };
 
+    const modelNamesMap = new Map();
+
     const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replace(/_/g, ' ');
 
     const refreshSeparators = (footer) => {
         const provSlot = footer.querySelector('.chat-provenance-slot');
+        const modelBadge = footer.querySelector('.chat-model-badge');
         const badge = footer.querySelector('.chat-tokens-badge');
         const downloadBtn = footer.querySelector('.chat-download-btn');
+
         const sepProv = footer.querySelector('.chat-footer-sep-prov');
+        const sepModel = footer.querySelector('.chat-footer-sep-model');
         const sepTokens = footer.querySelector('.chat-footer-sep-tokens');
 
         const hasProv = Boolean(provSlot && provSlot.children.length > 0);
+        const hasModel = Boolean(modelBadge && modelBadge.textContent.trim().length > 0);
         const hasTokens = Boolean(badge && badge.textContent.trim().length > 0);
-        const hasDownload = Boolean(downloadBtn);
+        const hasDownload = Boolean(downloadBtn && !downloadBtn.classList.contains('hidden'));
 
         if (sepProv) {
-            const showSepProv = hasProv && (hasTokens || hasDownload);
-            sepProv.classList.toggle('hidden', !showSepProv);
+            sepProv.classList.toggle('hidden', !(hasProv && (hasModel || hasTokens || hasDownload)));
+        }
+        if (sepModel) {
+            sepModel.classList.toggle('hidden', !(hasModel && (hasTokens || hasDownload)));
         }
         if (sepTokens) {
-            const showSepTokens = hasTokens && hasDownload;
-            sepTokens.classList.toggle('hidden', !showSepTokens);
+            sepTokens.classList.toggle('hidden', !(hasTokens && hasDownload));
         }
+    };
+
+    const updateFooterModel = (article, modelId) => {
+        if (!modelId) return;
+        article._modelId = modelId;
+        const footer = ensureFooter(article);
+        const modelBadge = footer.querySelector('.chat-model-badge');
+        if (!modelBadge) return;
+        const displayName = modelNamesMap.get(modelId) || modelId;
+        modelBadge.textContent = displayName;
+        modelBadge.title = `Model: ${modelId}`;
+        refreshSeparators(footer);
     };
 
     const appendProvenance = (article, rawProvenance) => {
@@ -247,11 +266,22 @@
             provSlot.className = 'chat-provenance-slot';
             row.appendChild(provSlot);
 
-            // Separator between provenance and tokens (or download)
+            // Separator between provenance and model
             const sepProv = document.createElement('span');
             sepProv.className = 'chat-footer-sep-prov hidden text-gray-300 dark:text-zinc-600 select-none';
             sepProv.textContent = '·';
             row.appendChild(sepProv);
+
+            // Model name badge (same style, font size, and color as tokens badge)
+            const modelBadge = document.createElement('span');
+            modelBadge.className = 'chat-model-badge text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
+            row.appendChild(modelBadge);
+
+            // Separator between model and tokens (or download)
+            const sepModel = document.createElement('span');
+            sepModel.className = 'chat-footer-sep-model hidden text-gray-300 dark:text-zinc-600 select-none';
+            sepModel.textContent = '·';
+            row.appendChild(sepModel);
 
             // Tokens & duration badge (same font, style, size, color as Data used)
             const badge = document.createElement('span');
@@ -341,7 +371,7 @@
         refreshSeparators(footer);
     };
 
-    const messageNode = (role, content = '', toolProvenance = null, inputTokens = null, outputTokens = null) => {
+    const messageNode = (role, content = '', toolProvenance = null, inputTokens = null, outputTokens = null, modelId = null) => {
         const article = document.createElement('article');
         article.dataset.role = role;
 
@@ -380,6 +410,9 @@
         }
         if (role === 'assistant') {
             ensureFooter(article);
+            if (modelId) {
+                updateFooterModel(article, modelId);
+            }
             if (inputTokens || outputTokens) {
                 updateFooterInfo(article, inputTokens, outputTokens);
             }
@@ -395,7 +428,7 @@
 
     const showMessages = (list) => {
         messages.replaceChildren();
-        list.forEach((item) => messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens));
+        list.forEach((item) => messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens, item.model_id));
         promptHistory = list.filter(m => m.role === 'user').map(m => m.content);
         historyIndex = -1;
         currentDraft = '';
@@ -447,10 +480,13 @@
             const optgroup = document.createElement('optgroup');
             optgroup.label = group.display_name || group.provider;
             (group.models || []).forEach((item) => {
+                if (item.enabled === false) return;
+                const modelName = item.display_name || item.name || item.id;
+                modelNamesMap.set(item.id, modelName);
                 const option = document.createElement('option');
                 option.value = item.id;
                 option.dataset.provider = group.provider;
-                option.textContent = item.display_name || item.name || item.id;
+                option.textContent = modelName;
                 optgroup.appendChild(option);
                 flatModels.push({ ...item, provider: group.provider });
             });
@@ -475,17 +511,33 @@
         model.value = preferred.id;
         localStorage.setItem('kinetiqo_chat_model', preferred.id);
         updateActiveModelDisplay();
+
+        // Refresh model badges in already-rendered messages
+        document.querySelectorAll('.chat-msg-assistant').forEach((art) => {
+            if (art._modelId) updateFooterModel(art, art._modelId);
+        });
     };
+
+    let sessionsCache = [];
 
     model.addEventListener('change', () => {
         localStorage.setItem('kinetiqo_chat_model', model.value);
         updateActiveModelDisplay();
+        if (sessionId) {
+            request(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ provider: getSelectedProvider(), model_id: model.value })
+            }).catch((err) => {
+                console.warn('Failed to persist session model change:', err);
+            });
+        }
     });
 
     const loadSessions = async () => {
         const payload = await request('/api/chat/sessions');
+        sessionsCache = payload.sessions || [];
         sessions.replaceChildren();
-        payload.sessions.forEach((item) => {
+        sessionsCache.forEach((item) => {
             const itemDiv = document.createElement('div');
             const isActive = item.session_id === sessionId;
             itemDiv.className = `chat-session-item group ${isActive ? 'active' : ''}`;
@@ -545,6 +597,13 @@
         sessionId = id;
         history.replaceState(null, '', `/chat/${encodeURIComponent(id)}`);
         await loadSessions();
+        const currentSession = sessionsCache.find((s) => s.session_id === id);
+        if (currentSession && currentSession.model_id) {
+            if ([...model.options].some((opt) => opt.value === currentSession.model_id)) {
+                model.value = currentSession.model_id;
+                updateActiveModelDisplay();
+            }
+        }
         const payload = await request(`/api/chat/sessions/${encodeURIComponent(id)}/messages`);
         showMessages(payload.messages);
     };
@@ -661,10 +720,12 @@
             send.disabled = true;
             send.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="16" height="16" class="inline-block">';
             status.classList.add('hidden');
+            const chosenProvider = getSelectedProvider();
+            const chosenModelId = model.value;
             const response = await fetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ content, model_id: model.value })
+                body: JSON.stringify({ content, model_id: chosenModelId, provider: chosenProvider })
             });
             if (!response.ok || !response.body) {
                 const errData = await response.json().catch(() => ({}));
@@ -672,7 +733,7 @@
             }
             input.value = '';
             messageNode('user', content);
-            const answer = messageNode('assistant');
+            const answer = messageNode('assistant', '', null, null, null, chosenModelId);
             ensureFooter(answer);
             const answerText = answer.querySelector('.chat-text');
             empty.classList.add('hidden');
@@ -725,6 +786,11 @@
                     } else if (eventType === 'usage') {
                         updateFooterInfo(answer, payload.input_tokens, payload.output_tokens);
                         scrollToBottom();
+                    } else if (eventType === 'completed') {
+                        if (payload.model_id) {
+                            updateFooterModel(answer, payload.model_id);
+                            scrollToBottom();
+                        }
                     } else if (eventType === 'text_delta') {
                         if (thinkingEl) {
                             thinkingEl.remove();
@@ -748,6 +814,11 @@
                             toolStatusEl = null;
                         }
                         answerText.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2"><span class="font-bold text-red-500 text-sm leading-none">⚠️</span><span>${escapeHtml(payload.message)}</span></div>`;
+                        const downloadBtn = answer.querySelector('.chat-download-btn');
+                        if (downloadBtn) {
+                            downloadBtn.classList.add('hidden');
+                            refreshSeparators(ensureFooter(answer));
+                        }
                         setStatus(payload.message, true);
                     }
                 });

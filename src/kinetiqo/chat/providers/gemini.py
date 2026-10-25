@@ -86,8 +86,22 @@ class GeminiChatProvider(BaseChatProvider):
         tools: list[dict[str, Any]] | None = None,
         tool_executor: Any = None,
     ) -> Iterator[StreamEvent]:
-        contents: list[dict[str, Any]] = [{"role": "user" if item["role"] == "user" else "model", "parts": [{"text": item["content"]}]} for item in history]
-        contents.append({"role": "user", "parts": [{"text": prompt}]})
+        contents: list[dict[str, Any]] = []
+        for item in history:
+            role = "user" if item["role"] == "user" else "model"
+            text = item.get("content", "").strip()
+            if not text:
+                continue
+            if contents and contents[-1]["role"] == role:
+                contents[-1]["parts"].append({"text": text})
+            else:
+                contents.append({"role": role, "parts": [{"text": text}]})
+
+        if contents and contents[-1]["role"] == "user":
+            contents[-1]["parts"].append({"text": prompt})
+        else:
+            contents.append({"role": "user", "parts": [{"text": prompt}]})
+
         url = f"{_BASE_URL}/models/{model_id}:streamGenerateContent?alt=sse"
         logger.debug("Gemini stream starting: model=%s history_messages=%d tools_provided=%d", model_id, len(history), len(tools or []))
         try:
@@ -134,20 +148,31 @@ class GeminiChatProvider(BaseChatProvider):
                                 candidate_parts = candidate.get("content", {}).get("parts", [])
                                 for part in candidate_parts:
                                     if "functionCall" in part:
-                                        turn_function_calls.append(part["functionCall"])
-                                        turn_model_parts.append(part)
+                                        p = dict(part)
+                                        fn_call = dict(p["functionCall"])
+                                        call_id = fn_call.get("id") or p.get("id")
+                                        if call_id and "id" not in fn_call:
+                                            fn_call["id"] = call_id
+                                        p["functionCall"] = fn_call
+                                        sig = p.get("thoughtSignature") or p.get("thought_signature")
+                                        if sig:
+                                            p["thoughtSignature"] = sig
+                                            p["thought_signature"] = sig
+                                        turn_function_calls.append(fn_call)
+                                        turn_model_parts.append(p)
                                     elif "text" in part and isinstance(part["text"], str):
                                         text_str = part["text"]
                                         turn_text_chunks.append(text_str)
-                                        turn_model_parts.append(part)
+                                        turn_model_parts.append(dict(part))
                             usage = data.get("usageMetadata", {})
                             if usage:
                                 last_usage = usage
 
                     # If model invoked one or more tools, execute them and continue to next turn
                     if turn_function_calls and tool_executor is not None and turn_idx < (max_turns - 1):
-                        executed_results: list[tuple[str, Any]] = []
+                        executed_results: list[tuple[str, Any, str | None]] = []
                         for call in turn_function_calls:
+                            call_id = call.get("id")
                             fn_name = call.get("name", "")
                             fn_args = call.get("args") or {}
                             sig = f"{fn_name}:{json.dumps(fn_args, sort_keys=True, default=str)}"
@@ -157,21 +182,24 @@ class GeminiChatProvider(BaseChatProvider):
                             # Guard against repetitive identical queries
                             if seen_tool_signatures.count(sig) >= 3 and isinstance(result_data, dict):
                                 result_data["_directive"] = "You have queried this identical data multiple times. Do not call this tool again with identical parameters; synthesize your answer now."
-                            executed_results.append((fn_name, result_data))
+                            executed_results.append((fn_name, result_data, call_id))
                             yield StreamEvent("tool_result", tool=fn_name, tool_data=result_data)
 
                         contents.append({"role": "model", "parts": turn_model_parts})
+
+                        response_parts: list[dict[str, Any]] = []
+                        for fn_name, res, call_id in executed_results:
+                            resp_item: dict[str, Any] = {
+                                "name": fn_name,
+                                "response": res if isinstance(res, dict) else {"result": res},
+                            }
+                            if call_id:
+                                resp_item["id"] = call_id
+                            response_parts.append({"functionResponse": resp_item})
+
                         contents.append({
-                            "role": "function",
-                            "parts": [
-                                {
-                                    "functionResponse": {
-                                        "name": fn_name,
-                                        "response": res if isinstance(res, dict) else {"result": res},
-                                    }
-                                }
-                                for fn_name, res in executed_results
-                            ],
+                            "role": "user",
+                            "parts": response_parts,
                         })
                         logger.info("Gemini turn %d executed %d tool calls; looping", turn_idx + 1, len(executed_results))
                         continue
@@ -264,6 +292,8 @@ class GeminiChatProvider(BaseChatProvider):
             provider_status,
             request_id[:128],
         )
+        if provider_message:
+            logger.info("Gemini API rejected detail: status=%s message=%s", provider_status, provider_message[:512])
         if response.status_code in (401, 403):
             raise ChatAuthenticationError("The Gemini API key was rejected or has expired. Please verify your API key in Settings.")
         if response.status_code == 429:
@@ -275,5 +305,7 @@ class GeminiChatProvider(BaseChatProvider):
         if response.status_code >= 400:
             if "token" in provider_message.lower() or "context" in provider_message.lower():
                 raise ChatProviderResponseError(f"Model token or context limit reached: {provider_message}")
+            if provider_message:
+                raise ChatProviderResponseError(f"Gemini API error ({provider_status}): {provider_message}")
             raise ChatProviderResponseError()
 

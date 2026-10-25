@@ -41,6 +41,103 @@ class TestMCPTools(unittest.TestCase):
         self.assertEqual(acts[0]["distance_km"], 54.2)
         self.assertEqual(res["data"]["pagination"]["next_cursor"], "cursor_abc")
 
+    def test_search_activities_with_date_preset_and_flexible_dates(self):
+        self.mock_repo.search_activities.return_value = ([], None, False)
+
+        # Preset test: 'this_year'
+        activities.kinetiqo_search_activities(self.mock_repo, athlete_id=1, date_preset="this_year")
+        called_filters = self.mock_repo.search_activities.call_args[1]["filters"]
+        self.assertIn("start_date", called_filters)
+        self.assertIn("end_date", called_filters)
+        self.assertTrue(called_filters["start_date"].endswith("-01-01T00:00:00+00:00"))
+
+        # Flexible year string: '2026'
+        activities.kinetiqo_search_activities(self.mock_repo, athlete_id=1, start_date="2026")
+        called_filters = self.mock_repo.search_activities.call_args[1]["filters"]
+        self.assertEqual(called_filters["start_date"], "2026-01-01T00:00:00+00:00")
+        self.assertEqual(called_filters["end_date"], "2026-12-31T23:59:59+00:00")
+
+        # Dynamic period string: 'last 2weeks'
+        activities.kinetiqo_search_activities(self.mock_repo, athlete_id=1, start_date="last 2weeks")
+        called_filters = self.mock_repo.search_activities.call_args[1]["filters"]
+        self.assertIn("start_date", called_filters)
+        self.assertIn("end_date", called_filters)
+
+        # European date string: '24.10.2026'
+        activities.kinetiqo_search_activities(self.mock_repo, athlete_id=1, start_date="24.10.2026", end_date="25.10.2026")
+        called_filters = self.mock_repo.search_activities.call_args[1]["filters"]
+        self.assertTrue(called_filters["start_date"].startswith("2026-10-24T00:00:00"))
+        self.assertTrue(called_filters["end_date"].startswith("2026-10-25T23:59:59"))
+
+    def test_search_activities_all_telemetry_filters(self):
+        self.mock_repo.search_activities.return_value = (
+            [
+                {
+                    "activity_id": 999,
+                    "name": "Power Test",
+                    "start_date": "2026-06-01T10:00:00Z",
+                    "sport_type": "Ride",
+                    "distance": 40000.0,
+                    "moving_time": 3600,
+                    "total_elevation_gain": 500.0,
+                    "average_speed": 11.11,
+                    "average_watts": 280.0,
+                    "max_watts": 850.0,
+                    "average_cadence": 92.0,
+                    "average_heartrate": 160.0,
+                    "max_heartrate": 185.0,
+                    "suffer_score": 95,
+                    "gear_id": "bike_pro",
+                    "trophies": {"1": 2},
+                    "pr_count": 3,
+                }
+            ],
+            None,
+            False,
+        )
+
+        res = activities.kinetiqo_search_activities(
+            self.mock_repo,
+            athlete_id=1,
+            min_moving_time_min=30.0,
+            max_moving_time_min=120.0,
+            min_watts=200.0,
+            max_watts=350.0,
+            min_max_watts=800.0,
+            min_heartrate=140.0,
+            max_heartrate=190.0,
+            has_heartrate=True,
+            has_power=True,
+            min_speed_kmh=25.0,
+            max_speed_kmh=45.0,
+            min_suffer_score=50,
+            gear_id="bike_pro",
+            workout_type=10,
+            has_trophies=True,
+            koms_only=True,
+            sort_by="average_watts",
+            sort_order="desc",
+        )
+
+        called_filters = self.mock_repo.search_activities.call_args[1]["filters"]
+        self.assertEqual(called_filters["min_watts"], 200.0)
+        self.assertEqual(called_filters["min_heartrate"], 140.0)
+        self.assertTrue(called_filters["has_power"])
+        self.assertTrue(called_filters["has_trophies"])
+        self.assertEqual(called_filters["sort_by"], "average_watts")
+
+        # Verify enriched returned record
+        act = res["data"]["activities"][0]
+        self.assertEqual(act["activity_id"], "999")
+        self.assertEqual(act["average_speed_kmh"], 40.0)
+        self.assertEqual(act["max_watts"], 850.0)
+        self.assertEqual(act["average_cadence"], 92.0)
+        self.assertEqual(act["average_heartrate"], 160.0)
+        self.assertEqual(act["max_heartrate"], 185.0)
+        self.assertEqual(act["gear_id"], "bike_pro")
+        self.assertEqual(act["trophies"], {"1": 2})
+        self.assertEqual(act["pr_count"], 3)
+
     def test_get_activity_details(self):
         self.mock_repo.get_activities_by_ids.return_value = [
             {
@@ -121,11 +218,15 @@ class TestMCPTools(unittest.TestCase):
     def test_analyze_workout_structure(self):
         self.mock_repo.get_activities_by_ids.return_value = [{"activity_id": "123", "name": "Crit", "moving_time": 3600}]
         self.mock_repo.get_profile.return_value = {"ftp": 250.0}
-        self.mock_repo.get_activity_stream_window.return_value = [{"ts": i, "watts": 250.0} for i in range(120)]
+        samples = [{"ts": i, "watts": 200.0} for i in range(120)]
+        samples[60] = {"ts": 60, "watts": 600.0}
+        self.mock_repo.get_activity_stream_window.return_value = samples
 
         res = telemetry.kinetiqo_analyze_workout_structure(self.mock_repo, "123")
-        self.assertEqual(res["data"]["normalized_power_w"], 250.0)
-        self.assertEqual(res["data"]["intensity_factor"], 1.0)
+        self.assertEqual(res["data"]["max_watts"], 600.0)
+        self.assertEqual(res["data"]["time_to_max_watts_s"], 60)
+        self.assertEqual(res["data"]["time_to_max_watts_min"], 1.0)
+        self.assertIsNotNone(res["data"]["normalized_power_w"])
 
     def test_calculate_power_curve_cross_activity(self):
         self.mock_repo.get_profile.return_value = {"weight": 70.0}
@@ -490,6 +591,93 @@ class TestMCPTools(unittest.TestCase):
         pr_res = telemetry.kinetiqo_get_personal_records(repo, athlete_id=1, durations=[1200])
         self.assertEqual(pr_res["data_status"], "complete")
         self.assertIsNotNone(pr_res["data"]["records"]["1200"])
+
+    def test_get_ftp_history_power_and_hr_zones(self):
+        """Verify kinetiqo_get_ftp_history computes Coggan 7-Zone power bounds, W/kg, and HR zones."""
+        self.mock_repo.get_profile.return_value = {"athlete_id": 1, "weight": 75.0, "ftp": 250.0}
+        self.mock_repo.get_activity_ids_by_types.return_value = []
+        self.mock_repo.get_activities_web.return_value = [{"max_heartrate": 190}]
+
+        res = physiology.kinetiqo_get_ftp_history(self.mock_repo, athlete_id=1)
+        self.assertEqual(res["data_status"], "complete")
+        data = res["data"]
+        self.assertEqual(data["configured_ftp_watts"], 250.0)
+        self.assertEqual(data["athlete_weight_kg"], 75.0)
+
+        # Coggan zones verification
+        zones = data["power_zones_coggan"]
+        self.assertTrue(len(zones) >= 7)
+        z1 = next(z for z in zones if z["zone"] == "Z1")
+        self.assertEqual(z1["max_watts"], round(250.0 * 0.55, 1))
+
+        z2 = next(z for z in zones if z["zone"] == "Z2")
+        self.assertEqual(z2["name"], "Endurance")
+        self.assertEqual(z2["max_watts"], round(250.0 * 0.75, 1))
+
+        z5 = next(z for z in zones if z["zone"] == "Z5")
+        self.assertEqual(z5["name"], "VO2max")
+        self.assertEqual(z5["min_watts"], round(250.0 * 1.06, 1))
+        self.assertEqual(z5["max_watts"], round(250.0 * 1.20, 1))
+
+        # VO2max target envelope
+        vo2_tgt = data["vo2max_target"]
+        self.assertIsNotNone(vo2_tgt)
+        self.assertEqual(vo2_tgt["min_watts"], 265.0)
+        self.assertEqual(vo2_tgt["max_watts"], 300.0)
+        self.assertIn("W/kg", vo2_tgt["w_per_kg_range"])
+
+        # HR zones verification
+        hr_zones = data["heart_rate_zones"]
+        self.assertEqual(len(hr_zones), 5)
+        self.assertEqual(data["observed_max_heartrate"], 190)
+
+    def test_get_vo2max_trend_targets_and_guidance(self):
+        """Verify kinetiqo_get_vo2max_trend includes target power and physiological guidance."""
+        self.mock_repo.get_profile.return_value = {"athlete_id": 1, "weight": 70.0, "ftp": 300.0}
+        self.mock_repo.get_activity_ids_by_types.return_value = []
+
+        res = physiology.kinetiqo_get_vo2max_trend(self.mock_repo, days=90)
+        self.assertEqual(res["data_status"], "complete")
+        data = res["data"]
+        self.assertEqual(data["athlete_weight_kg"], 70.0)
+
+        tgt = data["vo2max_target_power"]
+        self.assertEqual(tgt["ftp_watts"], 300.0)
+        self.assertEqual(tgt["zone_5_min_watts"], 318.0)
+        self.assertEqual(tgt["zone_5_max_watts"], 360.0)
+
+        guidance = data["training_guidance"]
+        self.assertIn("aerobic ceiling", guidance["what_vo2max_means"].lower())
+        self.assertIn("95-105+ RPM", guidance["cadence_recommendation"])
+        self.assertTrue(len(guidance["evidence_based_protocols"]) >= 3)
+
+    def test_analyze_workout_structure_vo2max_analysis(self):
+        """Verify kinetiqo_analyze_workout_structure correctly classifies true VO2max intervals vs short surges."""
+        self.mock_repo.get_activities_by_ids.return_value = [
+            {"activity_id": 8888, "name": "5x4m VO2max Repeats", "moving_time": 3600, "average_watts": 230.0}
+        ]
+        self.mock_repo.get_profile.return_value = {"ftp": 250.0}
+
+        # Simulate 5 intervals of 4 minutes (240s) @ 280W (Z5: 112% FTP) with 3m rest (180s) @ 120W (Z1)
+        sim_stream = []
+        for _ in range(5):
+            sim_stream.extend([{"ts": len(sim_stream), "watts": 280.0} for _ in range(240)])
+            sim_stream.extend([{"ts": len(sim_stream), "watts": 120.0} for _ in range(180)])
+
+        self.mock_repo.get_activity_stream_window.return_value = sim_stream
+
+        res = telemetry.kinetiqo_analyze_workout_structure(self.mock_repo, "8888", athlete_ftp=250.0)
+        self.assertEqual(res["data_status"], "complete")
+        data = res["data"]
+        self.assertIn("power_zones_distribution", data)
+        self.assertIn("Z5", data["power_zones_distribution"])
+
+        vo2_an = data["vo2max_analysis"]
+        self.assertIsNotNone(vo2_an)
+        self.assertTrue(vo2_an["is_genuine_vo2max_workout"])
+        self.assertEqual(vo2_an["sustained_z5_intervals_count"], 5)
+        self.assertTrue(vo2_an["vo2max_time_min"] >= 19.0)
+        self.assertIn("Genuine VO2max workout", vo2_an["classification_reason"])
 
 
 if __name__ == "__main__":

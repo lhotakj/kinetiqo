@@ -210,32 +210,20 @@ class ChatRepository:
         finally:
             cur.close()
 
-    def list_configured_providers(self, athlete_id: str) -> list[dict[str, Any]]:
+    def list_configured_providers(self, athlete_id: str) -> list[str]:
         p = self.placeholder
         rows = self._all(
-            f"SELECT provider, api_key_enc, config_json, enabled FROM chat_provider_keys WHERE athlete_id = {p}",
+            f"SELECT provider, api_key_enc, enabled FROM chat_provider_keys WHERE athlete_id = {p}",
             (athlete_id,),
         )
         result = []
         for row in rows:
             provider = row[0]
             key_enc = row[1]
-            raw_cfg = row[2]
-            enabled = bool(row[3])
+            enabled = bool(row[2])
             has_key = bool(key_enc and len(str(key_enc).strip()) > 0)
-            cfg = {}
-            if raw_cfg:
-                raw_str = raw_cfg.read() if hasattr(raw_cfg, "read") else str(raw_cfg)
-                try:
-                    cfg = json.loads(raw_str)
-                except Exception:
-                    cfg = {}
-            result.append({
-                "provider": provider,
-                "configured": has_key,
-                "enabled": enabled,
-                "config": cfg,
-            })
+            if has_key and enabled:
+                result.append(provider)
         return result
 
     def remove_provider_key(self, athlete_id: str, provider: str) -> None:

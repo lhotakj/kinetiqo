@@ -91,8 +91,43 @@ def kinetiqo_get_fitness_and_freshness(
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating fitness and freshness: {e}")
 
 
+def compute_coggan_zones(ftp: float, weight_kg: float = 0.0) -> List[Dict[str, Any]]:
+    """Compute Coggan 7-Zone power model boundaries, percentages, and W/kg from athlete FTP."""
+    zones_def = [
+        ("Z1", "Active Recovery", 0, 55, "< 55% FTP", "Easy recovery spinning, post-interval recovery, promotes circulation with minimal fatigue."),
+        ("Z2", "Endurance", 56, 75, "56% - 75% FTP", "All-day aerobic base pace, builds mitochondrial density and lipid oxidation capacity."),
+        ("Z3", "Tempo", 76, 90, "76% - 90% FTP", "Rhythmic aerobic endurance, sustainable for 1-3 hours, conversation in broken sentences."),
+        ("Sweet Spot", "Sweet Spot Sub-Zone", 88, 94, "88% - 94% FTP", "High aerobic stimulus with manageable neuro-muscular strain; optimal base training efficiency."),
+        ("Z4", "Lactate Threshold", 91, 105, "91% - 105% FTP", "FTP maintenance and raising, 10-30 min intervals, onset of blood lactate accumulation."),
+        ("Z5", "VO2max", 106, 120, "106% - 120% FTP", "Maximal aerobic ceiling expansion, 3-8 min intervals or 30/30s micro-intervals, high cadence (>95 RPM)."),
+        ("Z6", "Anaerobic Capacity", 121, 150, "121% - 150% FTP", "Short intense efforts (30s to 2 min), severe glycolytic acidosis."),
+        ("Z7", "Neuromuscular Power", 151, None, "> 150% FTP", "Maximal sprint efforts (< 15-20 seconds), maximum motor unit recruitment, non-aerobic."),
+    ]
+    res = []
+    for code, name, min_pct, max_pct, pct_range, desc in zones_def:
+        min_w = round(ftp * (min_pct / 100.0), 1) if min_pct > 0 else 0.0
+        max_w = round(ftp * (max_pct / 100.0), 1) if max_pct is not None else None
+        min_w_kg = round(min_w / weight_kg, 2) if (weight_kg > 0 and min_w > 0) else (0.0 if weight_kg > 0 else None)
+        max_w_kg = round(max_w / weight_kg, 2) if (weight_kg > 0 and max_w is not None) else None
+        range_str = f"{min_w:.0f}W - {max_w:.0f}W" if max_w is not None else f">{min_w:.0f}W"
+        w_kg_str = f"{min_w_kg:.2f} - {max_w_kg:.2f} W/kg" if (min_w_kg is not None and max_w_kg is not None) else (f">{min_w_kg:.2f} W/kg" if min_w_kg is not None else None)
+        res.append({
+            "zone": code,
+            "name": name,
+            "pct_ftp_range": pct_range,
+            "min_watts": min_w,
+            "max_watts": max_w,
+            "watts_range": range_str,
+            "min_w_per_kg": min_w_kg,
+            "max_w_per_kg": max_w_kg,
+            "w_per_kg_range": w_kg_str,
+            "description": desc,
+        })
+    return res
+
+
 def kinetiqo_get_ftp_history(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
-    """Retrieve configured athlete FTP and historical 95% of 20-min power breakthroughs."""
+    """Retrieve configured athlete FTP, Coggan 7-Zone boundaries, heart rate zones, and historical 20-min power breakthroughs."""
     try:
         try:
             profile = repo.get_profile() or {}
@@ -142,9 +177,61 @@ def kinetiqo_get_ftp_history(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
 
             breakthroughs.sort(key=lambda x: x["date"], reverse=True)
 
+        effective_ftp = configured_ftp if configured_ftp > 0 else (breakthroughs[0]["estimated_ftp_watts"] if breakthroughs else 0.0)
+        coggan_zones = compute_coggan_zones(effective_ftp, weight_kg) if effective_ftp > 0 else []
+
+        vo2max_target = None
+        if effective_ftp > 0:
+            z5_min = round(effective_ftp * 1.06, 1)
+            z5_max = round(effective_ftp * 1.20, 1)
+            vo2max_target = {
+                "zone": "Z5",
+                "name": "VO2max",
+                "pct_ftp_range": "106% - 120% FTP",
+                "min_watts": z5_min,
+                "max_watts": z5_max,
+                "watts_range": f"{z5_min:.0f}W - {z5_max:.0f}W",
+                "w_per_kg_range": f"{round(z5_min / weight_kg, 2)} - {round(z5_max / weight_kg, 2)} W/kg" if weight_kg > 0 else None,
+                "cadence_recommendation": "High cadence (95-105+ RPM) to maximize cardiac stroke volume while sparing peripheral muscular torque.",
+                "evidence_based_protocols": [
+                    "Long intervals: 4-5 x 4-5 min @ 108-115% FTP with 3-4 min active recovery in Z1 (1:1 or 2:1 ratio)",
+                    "Micro-bursts: 30s ON @ 115-125% FTP / 30s OFF @ 50% FTP (2-3 sets of 8-10 reps)",
+                    "Target accumulated time in Zone 5: 15-25 minutes per session",
+                    "Weekly frequency: 1-2 sessions weekly within a polarized 80/20 distribution with 48-72h recovery between sessions",
+                ],
+            }
+
+        # Check observed max heart rate across activities for 5-zone HR
+        max_hr = 0
+        try:
+            if hasattr(repo, "get_activities_web"):
+                acts_hr = repo.get_activities_web(limit=50, sort_by="max_heartrate", sort_order="DESC") or []
+                for a in acts_hr:
+                    mhr = int(a.get("max_heartrate") or 0)
+                    if 100 <= mhr <= 230:
+                        max_hr = max(max_hr, mhr)
+        except Exception:
+            pass
+
+        hr_zones = []
+        if max_hr > 0:
+            hr_zones = [
+                {"zone": "Z1", "name": "Active Recovery", "pct_max_hr": "< 60%", "min_bpm": 0, "max_bpm": round(max_hr * 0.60), "description": "Very light aerobic, promotes recovery and blood flow."},
+                {"zone": "Z2", "name": "Aerobic / Endurance", "pct_max_hr": "60% - 70%", "min_bpm": round(max_hr * 0.60) + 1, "max_bpm": round(max_hr * 0.70), "description": "All-day endurance base, burns fat, conversation pace."},
+                {"zone": "Z3", "name": "Tempo", "pct_max_hr": "70% - 80%", "min_bpm": round(max_hr * 0.70) + 1, "max_bpm": round(max_hr * 0.80), "description": "Aerobic fitness, brisk pace, speaking in short sentences."},
+                {"zone": "Z4", "name": "Lactate Threshold", "pct_max_hr": "80% - 90%", "min_bpm": round(max_hr * 0.80) + 1, "max_bpm": round(max_hr * 0.90), "description": "Hard sustained effort, heavy breathing, lactate accumulation threshold."},
+                {"zone": "Z5", "name": "VO2max / Maximum", "pct_max_hr": "90% - 100%", "min_bpm": round(max_hr * 0.90) + 1, "max_bpm": max_hr, "description": "Maximal cardiovascular capacity, panting, sustained for only a few minutes."},
+            ]
+
         data = {
             "configured_ftp_watts": configured_ftp if configured_ftp > 0 else None,
             "athlete_weight_kg": weight_kg if weight_kg > 0 else None,
+            "effective_ftp_watts": effective_ftp if effective_ftp > 0 else None,
+            "is_ftp_estimated": configured_ftp <= 0 and effective_ftp > 0,
+            "power_zones_coggan": coggan_zones,
+            "vo2max_target": vo2max_target,
+            "heart_rate_zones": hr_zones,
+            "observed_max_heartrate": max_hr if max_hr > 0 else None,
             "historical_20m_breakthroughs": breakthroughs[:20],
         }
         return create_envelope(data, source="calculated")
@@ -153,7 +240,7 @@ def kinetiqo_get_ftp_history(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
 
 
 def kinetiqo_get_vo2max_trend(repo: Any, days: int = 90) -> Dict[str, Any]:
-    """Compute Storer-Davis (5m MAP) and Coggan (FTP) estimated VO2max trends."""
+    """Compute Storer-Davis (5m MAP) and Coggan (FTP) estimated VO2max trends and actionable interval targets."""
     try:
         profile = repo.get_profile() or {}
         weight_kg = float(profile.get("weight") or 0.0)
@@ -205,9 +292,32 @@ def kinetiqo_get_vo2max_trend(repo: Any, days: int = 90) -> Dict[str, Any]:
 
             estimates.sort(key=lambda x: x["date"], reverse=True)
 
+        vo2_min_w = round(ftp * 1.06, 1) if ftp > 0 else None
+        vo2_max_w = round(ftp * 1.20, 1) if ftp > 0 else None
+        vo2_min_wkg = round(vo2_min_w / weight_kg, 2) if (vo2_min_w and weight_kg > 0) else None
+        vo2_max_wkg = round(vo2_max_w / weight_kg, 2) if (vo2_max_w and weight_kg > 0) else None
+
         data = {
             "athlete_weight_kg": weight_kg,
             "coggan_ftp_vo2max": coggan_vo2max,
+            "vo2max_target_power": {
+                "ftp_watts": ftp if ftp > 0 else None,
+                "zone_5_min_watts": vo2_min_w,
+                "zone_5_max_watts": vo2_max_w,
+                "watts_range": f"{vo2_min_w:.0f}W - {vo2_max_w:.0f}W" if (vo2_min_w and vo2_max_w) else None,
+                "w_per_kg_range": f"{vo2_min_wkg:.2f} - {vo2_max_wkg:.2f} W/kg" if (vo2_min_wkg and vo2_max_wkg) else None,
+            },
+            "training_guidance": {
+                "what_vo2max_means": "VO2max represents your physiological aerobic ceiling—the maximal volume of oxygen your cardiovascular system can transport to working muscles per minute (ml/kg/min). Training at VO2max expands cardiac stroke volume, blood plasma volume, capillary density, and mitochondrial aerobic enzymes.",
+                "target_zone": "Zone 5 (106% - 120% of FTP)",
+                "cadence_recommendation": "High cadence (95-105+ RPM) to minimize muscular torque fatigue and maximize cardiac output.",
+                "evidence_based_protocols": [
+                    "Long intervals: 4-5 x 4-5 min @ 108-115% FTP with 3-4 min active recovery in Z1 (1:1 or 2:1 ratio)",
+                    "Micro-bursts: 30s ON @ 115-125% FTP / 30s OFF @ 50% FTP (2-3 sets of 8-10 repetitions)",
+                    "Accumulated time in Zone 5: Target 15-25 minutes total per session",
+                    "Weekly frequency: 1-2 sessions weekly within a polarized 80/20 distribution (80% Zone 2 endurance base, 20% high intensity) with 48-72h recovery between sessions",
+                ],
+            },
             "recent_storer_davis_efforts": estimates[:15],
         }
         return create_envelope(data, source="calculated")

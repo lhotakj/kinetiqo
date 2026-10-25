@@ -1,6 +1,6 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Gemini adapter implemented and in testing; OpenRouter AI integration planned)  
+> **Status:** Active v3.0 (Google Gemini and OpenRouter AI adapters implemented with live validation and dynamic tool calling)  
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
 > **Supported providers:** Google Gemini, OpenRouter AI.  
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
@@ -72,6 +72,7 @@ A user can:
 - 31 read-only Kinetiqo telemetry tools through the in-process FastMCP layer, with strict mutating tool exclusion and `CYCLING_SPORT_TYPES` power filtering.
 - 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
 - "Data used" provenance indicator per assistant turn.
+- Dynamic mid-conversation provider and model switching: Changing the active model dropdown mid-conversation updates session provider and model metadata, re-routing turns and tool declarations to the new provider adapter seamlessly.
 - Unit tests, route tests, security tests, documentation (`docs/AI.md`), and synchronization skill.
 
 ### 2.2 Deliberate non-goals

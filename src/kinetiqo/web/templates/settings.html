@@ -281,87 +281,87 @@
             </div>
         </div>
 
-        <div class="p-6 space-y-6">
+        <div class="p-6 md:p-8 space-y-8">
             <!-- Gemini Provider Card -->
-            <div id="ai-provider-card-gemini" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/50 dark:bg-zinc-900/40 p-5">
-                <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-zinc-700 mb-4">
-                    <div class="flex items-center gap-2.5">
-                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 font-bold text-xs">G</span>
+            <div id="ai-provider-card-gemini" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+                <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/70 text-orange-600 dark:text-orange-400 font-bold text-xs shadow-xs">G</span>
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Google Gemini</h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Official Gemini API with auto-discovered models</p>
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Google Gemini</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Official Gemini API with auto-discovered generation models</p>
                         </div>
                     </div>
-                    <span id="gemini-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium">Loading…</span>
+                    <span id="gemini-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
                 </div>
-                <form id="gemini-key-form" class="flex flex-wrap items-end gap-3">
-                    <div class="flex-1 min-w-64">
-                        <label for="gemini-api-key" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Gemini API key</label>
-                        <input id="gemini-api-key" type="password" autocomplete="off" aria-label="Gemini API key" class="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white" placeholder="Enter Gemini API key">
+                <form id="gemini-key-form" class="flex flex-wrap items-end gap-3 pt-1">
+                    <div class="flex-1 min-w-72">
+                        <label for="gemini-api-key" class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Gemini API key</label>
+                        <input id="gemini-api-key" type="password" autocomplete="off" aria-label="Gemini API key" class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition" placeholder="Enter Gemini API key">
                     </div>
-                    <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">Save key</button>
-                    <button id="remove-gemini-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300">Remove key</button>
+                    <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
+                    <button id="remove-gemini-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
                 </form>
             </div>
 
             <!-- OpenRouter Provider Card -->
-            <div id="ai-provider-card-openrouter" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/50 dark:bg-zinc-900/40 p-5">
-                <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-zinc-700 mb-4">
-                    <div class="flex items-center gap-2.5">
-                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold text-xs">OR</span>
+            <div id="ai-provider-card-openrouter" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+                <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 font-bold text-xs shadow-xs">OR</span>
                         <div>
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">OpenRouter AI</h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Access hundreds of open & commercial models via openrouter.ai</p>
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-white">OpenRouter AI</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Access hundreds of open &amp; commercial models via openrouter.ai</p>
                         </div>
                     </div>
-                    <span id="openrouter-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium">Loading…</span>
+                    <span id="openrouter-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
                 </div>
                 <!-- OpenRouter Key Form -->
-                <form id="openrouter-key-form" class="flex flex-wrap items-end gap-3 mb-5">
-                    <div class="flex-1 min-w-64">
-                        <label for="openrouter-api-key" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">OpenRouter API key</label>
-                        <input id="openrouter-api-key" type="password" autocomplete="off" aria-label="OpenRouter API key" class="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white" placeholder="sk-or-v1-...">
+                <form id="openrouter-key-form" class="flex flex-wrap items-end gap-3 mb-8 pt-1">
+                    <div class="flex-1 min-w-72">
+                        <label for="openrouter-api-key" class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">OpenRouter API key</label>
+                        <input id="openrouter-api-key" type="password" autocomplete="off" aria-label="OpenRouter API key" class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition" placeholder="sk-or-v1-...">
                     </div>
-                    <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">Save key</button>
-                    <button id="remove-openrouter-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300">Remove key</button>
+                    <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
+                    <button id="remove-openrouter-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
                 </form>
 
                 <!-- Nested Configured Models Section -->
-                <div id="openrouter-models-section" class="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-700">
-                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <div>
-                            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">Configured Models</h4>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Add models from OpenRouter by entering their model identifier (e.g. <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-800">nvidia/nemotron-3.5-embed-1b:free</code>, <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-800">meta-llama/llama-3.3-70b-instruct</code>).</p>
-                        </div>
+                <div id="openrouter-models-section" class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                    <div class="mb-5">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">Configured Models</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Add models from OpenRouter by entering their model identifier (e.g. <button type="button" class="underline decoration-dotted font-mono text-[11px] text-gray-700 dark:text-gray-300 hover:text-orange-500 cursor-pointer" onclick="document.getElementById('openrouter-new-model-id').value='meta-llama/llama-3.3-70b-instruct'">meta-llama/llama-3.3-70b-instruct</button>, <button type="button" class="underline decoration-dotted font-mono text-[11px] text-gray-700 dark:text-gray-300 hover:text-orange-500 cursor-pointer" onclick="document.getElementById('openrouter-new-model-id').value='deepseek/deepseek-chat'">deepseek/deepseek-chat</button>, <button type="button" class="underline decoration-dotted font-mono text-[11px] text-gray-700 dark:text-gray-300 hover:text-orange-500 cursor-pointer" onclick="document.getElementById('openrouter-new-model-id').value='google/gemma-4-26b-a4b-it:free'">google/gemma-4-26b-a4b-it:free</button>, <button type="button" class="underline decoration-dotted font-mono text-[11px] text-gray-700 dark:text-gray-300 hover:text-orange-500 cursor-pointer" onclick="document.getElementById('openrouter-new-model-id').value='nvidia/nemotron-3.5-lightning:free'">nvidia/nemotron-3.5-lightning:free</button>).</p>
                     </div>
 
                     <!-- Add Model Input Row with + Button -->
-                    <div class="flex flex-wrap items-end gap-2 mb-4">
-                        <div class="flex-1 min-w-60">
-                            <label for="openrouter-new-model-id" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Model Identifier</label>
-                            <input id="openrouter-new-model-id" type="text" autocomplete="off" aria-label="OpenRouter Model Identifier" class="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white" placeholder="e.g. anthropic/claude-3.5-sonnet">
+                    <div class="p-4 rounded-xl bg-white dark:bg-zinc-800/80 border border-gray-200 dark:border-zinc-700 mb-5 shadow-2xs">
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div class="flex-1 min-w-64">
+                                <label for="openrouter-new-model-id" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Model Identifier</label>
+                                <input id="openrouter-new-model-id" type="text" autocomplete="off" aria-label="OpenRouter Model Identifier" class="w-full rounded-lg border border-gray-300 bg-gray-50 dark:bg-zinc-900 p-2.5 text-xs font-mono text-gray-900 dark:border-zinc-600 dark:text-white focus:bg-white dark:focus:bg-zinc-800 outline-none transition" placeholder="e.g. anthropic/claude-3.5-sonnet">
+                            </div>
+                            <button id="openrouter-add-model-btn" type="button" class="min-h-10 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer" title="Validate and add model">
+                                <span class="text-base font-bold leading-none">+</span>
+                                <span>Add model</span>
+                            </button>
                         </div>
-                        <button id="openrouter-add-model-btn" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3.5 py-2 text-xs font-medium text-white hover:bg-orange-600" title="Validate and add model">
-                            <span class="text-sm font-bold leading-none">+</span>
-                            <span>Add model</span>
-                        </button>
+                        <div id="openrouter-model-feedback" class="text-xs mt-3 pt-2 border-t border-gray-100 dark:border-zinc-700/60 hidden"></div>
                     </div>
-                    <div id="openrouter-model-feedback" class="text-xs mb-3 hidden"></div>
 
                     <!-- Configured Models Responsive Table -->
-                    <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-zinc-700">
+                    <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
-                            <thead class="bg-gray-100 dark:bg-zinc-800/80 text-gray-600 dark:text-gray-300 uppercase font-semibold">
+                            <thead class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
                                 <tr>
-                                    <th scope="col" class="px-4 py-2.5">Model Name &amp; ID</th>
-                                    <th scope="col" class="px-4 py-2.5">Context</th>
-                                    <th scope="col" class="px-4 py-2.5">Capabilities</th>
-                                    <th scope="col" class="px-4 py-2.5 text-right">Actions</th>
+                                    <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                    <th scope="col" class="px-5 py-3.5">Context</th>
+                                    <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="openrouter-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900/60 text-gray-800 dark:text-gray-200">
+                            <tbody id="openrouter-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="4" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
+                                    <td colspan="4" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1358,8 +1358,16 @@
                     body: JSON.stringify({ api_key: key })
                 })
                 .then(async (res) => {
-                    if (!res.ok) throw new Error((await res.json()).error?.message || 'Unable to save OpenRouter key');
-                    return res.json();
+                    let errMsg = `Unable to save OpenRouter key (HTTP ${res.status})`;
+                    try {
+                        const json = await res.json();
+                        if (json?.error?.message) errMsg = json.error.message;
+                        else if (res.ok) return json;
+                    } catch {
+                        // Response was not JSON (e.g., HTML 500 error page)
+                    }
+                    if (!res.ok) throw new Error(errMsg);
+                    return res;
                 })
                 .then((d) => {
                     openrouterInput.value = '';
@@ -1407,7 +1415,11 @@
                     });
                     const data = await res.json();
                     if (!res.ok) {
-                        throw new Error(data.error?.message || 'Failed to add model.');
+                        const err = new Error(data.error?.message || 'Failed to add model.');
+                        if (data.error?.suggestion) {
+                            err.suggestion = data.error.suggestion;
+                        }
+                        throw err;
                     }
                     openrouterNewModelInput.value = '';
                     renderOpenRouterModels(data.models || []);
@@ -1419,7 +1431,21 @@
                 } catch (err) {
                     if (openrouterModelFeedback) {
                         openrouterModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
-                        openrouterModelFeedback.textContent = err.message;
+                        openrouterModelFeedback.replaceChildren();
+                        const msgSpan = document.createElement('span');
+                        msgSpan.textContent = err.message + ' ';
+                        openrouterModelFeedback.appendChild(msgSpan);
+                        if (err.suggestion) {
+                            const sugBtn = document.createElement('button');
+                            sugBtn.type = 'button';
+                            sugBtn.className = 'inline-flex items-center px-2 py-0.5 ml-1 rounded font-mono text-[11px] bg-orange-100 hover:bg-orange-200 dark:bg-orange-950/70 dark:hover:bg-orange-900 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-700 transition cursor-pointer';
+                            sugBtn.textContent = `Use ${err.suggestion}`;
+                            sugBtn.addEventListener('click', () => {
+                                openrouterNewModelInput.value = err.suggestion;
+                                openrouterAddModelBtn.click();
+                            });
+                            openrouterModelFeedback.appendChild(sugBtn);
+                        }
                     }
                 } finally {
                     openrouterAddModelBtn.disabled = false;
