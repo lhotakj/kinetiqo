@@ -16,6 +16,7 @@ from kinetiqo.mcp.utils import (
     extract_activity_summaries,
     get_best_powers_for_durations,
     normalize_sport_types,
+    CYCLING_SPORT_TYPES,
 )
 from kinetiqo.analytics.power import (
     calculate_normalized_power,
@@ -143,7 +144,7 @@ def kinetiqo_calculate_power_curve(
 
     since_date = (date.today() - timedelta(days=lookback_days)).isoformat() if lookback_days else None
     try:
-        raw_acts = repo.get_activity_ids_by_types(types=["Ride", "VirtualRide", "GravelRide"], since_date=since_date, watts_only=True) or []
+        raw_acts = repo.get_activity_ids_by_types(types=list(CYCLING_SPORT_TYPES), since_date=since_date, watts_only=True) or []
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed fetching activity IDs: {e}")
 

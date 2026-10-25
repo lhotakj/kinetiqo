@@ -178,22 +178,42 @@
         </div>
     </div>
 
-    <!-- Authorization -->
+    <!-- Authorization & Athlete Profile -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Authorization</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage Strava API OAuth connection and requested permission scopes.</p>
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Authorization &amp; Athlete Profile</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage Strava API OAuth connection and manual athlete profile synchronization.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="status-profile-sync" class="text-xs font-medium opacity-0 transition-opacity duration-300"></span>
+            </div>
         </div>
-        <div class="p-6">
+        <div class="p-6 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
                     Need to refresh your Strava authorization? Reconnecting requests <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>
                     so the app can read your profile details, and <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>
                     so the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature can update activity descriptions.
                 </p>
-                <a href="{{ url_for('strava_reconnect') }}"
-                   class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition whitespace-nowrap">
-                    Reconnect with Strava
+                <div class="flex flex-wrap items-center gap-3">
+                    <button id="btn-sync-profile" type="button"
+                            class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white dark:bg-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-600 text-gray-700 dark:text-gray-200 text-sm font-medium border border-gray-300 dark:border-zinc-600 shadow-sm transition whitespace-nowrap min-w-[140px] h-[38px]">
+                        <span>Sync Profile</span>
+                    </button>
+                    <a href="{{ url_for('strava_reconnect') }}"
+                       class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition whitespace-nowrap h-[38px]">
+                        Reconnect with Strava
+                    </a>
+                </div>
+            </div>
+            <div id="athlete-profile-summary" class="text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-100 dark:border-zinc-700/60 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-4">
+                    <span>Athlete: <strong id="athlete-summary-name" class="font-medium text-gray-800 dark:text-gray-200">—</strong></span>
+                    <span>Weight: <strong id="athlete-summary-weight" class="font-medium text-gray-800 dark:text-gray-200">—</strong></span>
+                </div>
+                <a href="{{ url_for('profile_page') }}" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                    Edit Profile &amp; FTP &rarr;
                 </a>
             </div>
         </div>
@@ -1073,10 +1093,81 @@
         const gpsSelect = document.getElementById('gps-simplification-select');
         const statusGpsSimp = document.getElementById('status-gps-simplification');
 
+        function updateAthleteSummary(data) {
+            const nameEl = document.getElementById('athlete-summary-name');
+            const weightEl = document.getElementById('athlete-summary-weight');
+            if (nameEl) {
+                const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ');
+                nameEl.textContent = fullName || '—';
+            }
+            if (weightEl) {
+                weightEl.textContent = (data.weight && Number(data.weight) > 0) ? `${data.weight} kg` : '—';
+            }
+        }
+
+        const btnSyncProfile = document.getElementById('btn-sync-profile');
+        const statusProfileSync = document.getElementById('status-profile-sync');
+        if (btnSyncProfile) {
+            btnSyncProfile.addEventListener('click', function () {
+                const origHtml = btnSyncProfile.innerHTML;
+                btnSyncProfile.disabled = true;
+                btnSyncProfile.classList.add('opacity-60', 'cursor-wait');
+                btnSyncProfile.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16">';
+
+                if (statusProfileSync) {
+                    statusProfileSync.textContent = '';
+                    statusProfileSync.className = 'text-xs font-medium opacity-0 transition-opacity duration-300';
+                }
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+                fetch('/api/profile/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(async (response) => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to sync profile');
+                    }
+                    return data;
+                })
+                .then((data) => {
+                    if (data.profile) {
+                        updateAthleteSummary(data.profile);
+                    }
+                    if (statusProfileSync) {
+                        statusProfileSync.textContent = 'Synced ✓';
+                        statusProfileSync.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-100 transition-opacity duration-300';
+                        setTimeout(() => {
+                            statusProfileSync.classList.remove('opacity-100');
+                            statusProfileSync.classList.add('opacity-0');
+                        }, 3000);
+                    }
+                })
+                .catch((err) => {
+                    console.error('Profile sync error:', err);
+                    if (statusProfileSync) {
+                        statusProfileSync.textContent = err.message || 'Sync failed';
+                        statusProfileSync.className = 'text-xs text-red-500 font-medium opacity-100 transition-opacity duration-300';
+                    }
+                })
+                .finally(() => {
+                    btnSyncProfile.innerHTML = origHtml;
+                    btnSyncProfile.disabled = false;
+                    btnSyncProfile.classList.remove('opacity-60', 'cursor-wait');
+                });
+            });
+        }
+
         // Load profile settings
         fetch('/api/profile')
             .then(r => r.json())
             .then(data => {
+                updateAthleteSummary(data);
                 for (const field in updateStravaInputs) {
                     if (updateStravaInputs[field]) {
                         updateStravaInputs[field].value = data[field] || '';

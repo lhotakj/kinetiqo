@@ -13,7 +13,6 @@ from kinetiqo.config import Config
 from kinetiqo.db.factory import create_repository, get_version
 from kinetiqo.logging_utils import configure_logging, LOG_LEVEL_CHOICES
 from kinetiqo.profile_sync import (
-    seed_profile_from_strava,
     sync_all_profile_env_vars,
     resolve_refresh_token_from_db,
     wire_refresh_token_persistence,
@@ -213,35 +212,33 @@ def web(ctx, port, host, database):
     _prepare_db(ctx.obj.config, database)
     logger.info(f"Starting web server on {host}:{port}")
 
-    # Seed athlete profile from Strava before starting the web server
-    _seed_profile(ctx.obj.config)
+    # Sync environment variables to profile table (no external Strava call on startup)
+    _sync_profile_from_env(ctx.obj.config)
 
     from kinetiqo.web.app import app, set_config
     set_config(ctx.obj.config)
     app.run(debug=False, port=port, host=host, use_reloader=False)
 
 
-def _seed_profile(config):
-    """Fetch athlete profile from Strava and persist it in the database.
-
-    Runs once at web startup.  Failures are logged but never block the
-    web server from starting.
-    """
+def _sync_profile_from_env(config):
+    """Synchronize environment variables to database on startup without external Strava API calls."""
     repo = None
     try:
         repo = create_repository(config)
-        seed_profile_from_strava(config, repo)
         sync_all_profile_env_vars(config, repo)
         from kinetiqo.web.app import mark_startup_sync_done
         mark_startup_sync_done()
     except Exception as e:
-        logger.warning(f"Could not seed profile from Strava (non-fatal): {e}")
+        logger.warning(f"Startup profile sync from environment failed (non-fatal): {e}")
     finally:
         if repo:
             try:
                 repo.close()
             except Exception:
                 pass
+
+
+_seed_profile = _sync_profile_from_env  # Backward-compatibility alias
 
 
 @cli.command(help="Check database availability and schema")

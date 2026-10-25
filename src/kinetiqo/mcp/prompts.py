@@ -119,3 +119,98 @@ def register_mcp_prompts(mcp_server: Any) -> None:
             "   - State average rides per week and moving time.\n"
             "   - Present the day-of-week ride distribution, identifying favorite training days and rest days."
         )
+
+    @mcp_server.prompt("aerobic_decoupling_and_efficiency")
+    def aerobic_decoupling_and_efficiency(activity_id: str = "") -> str:
+        """Evaluate aerobic base endurance, Efficiency Factor (EF), and cardiac drift (Pw:HR decoupling)."""
+        act_clause = f"Activity #{activity_id}" if activity_id else "the athlete's latest steady endurance activity"
+        return (
+            f"You are the Kinetiqo Physiology Coach. Evaluate aerobic decoupling and efficiency for {act_clause}:\n\n"
+            "Workflow Instructions:\n"
+            "1. Fetch pacing splits and aerobic decoupling via `kinetiqo_analyze_pacing(activity_id=..., num_splits=2)`.\n"
+            "2. Check power and heart rate stream sensor coverage with `kinetiqo_get_data_coverage` and retrieve streams via `kinetiqo_get_activity_streams`.\n"
+            "3. Retrieve current fitness/fatigue baseline using `kinetiqo_get_fitness_and_freshness`.\n"
+            "4. Deliver an evidence-based aerobic efficiency report:\n"
+            "   - Report split 1 vs split 2 power (W), heart rate (bpm), and Efficiency Factor (EF = Watts / HR).\n"
+            "   - State the aerobic decoupling percentage (Pw:HR):\n"
+            "     * Decoupling < 5.0%: Excellent aerobic base. Heart rate remained stable relative to power output.\n"
+            "     * Decoupling >= 5.0%: Significant cardiac drift. Explain potential causes: dehydration, rising core temperature, thermal strain, or an aerobic duration exceeding current training foundation.\n"
+            "   - Provide practical guidance on whether to extend Zone 2 volume or focus on hydration/cooling."
+        )
+
+    @mcp_server.prompt("ftp_breakthrough_and_power_zones_audit")
+    def ftp_breakthrough_and_power_zones_audit() -> str:
+        """Audit configured FTP against historical 20-min peak efforts and generate personalized Coggan power training zones."""
+        return (
+            "You are the Kinetiqo Cycling Coach. Perform an FTP breakthrough audit and configure power training zones:\n\n"
+            "Workflow Instructions:\n"
+            "1. Fetch configured FTP and historical 20-minute breakthrough efforts using `kinetiqo_get_ftp_history`.\n"
+            "2. Benchmark peak power skills across durations (5s to 1h) via `kinetiqo_get_power_skills`.\n"
+            "3. Retrieve VO2max and power progression trends using `kinetiqo_get_vo2max_trend`.\n"
+            "4. Deliver a personalized power zones breakdown:\n"
+            "   - Compare the athlete's current configured FTP against their top recent 20-min peak efforts (estimated FTP ~ 95% of 20m power).\n"
+            "   - Recommend whether to adjust configured FTP up, down, or maintain current value.\n"
+            "   - Calculate and display the athlete's 7 Coggan training power zones based on active/recommended FTP:\n"
+            "     * Zone 1 - Active Recovery (< 55% FTP)\n"
+            "     * Zone 2 - Endurance (56% – 75% FTP)\n"
+            "     * Zone 3 - Tempo (76% – 90% FTP)\n"
+            "     * Sweet Spot Sub-Zone (88% – 94% FTP)\n"
+            "     * Zone 4 - Lactate Threshold (91% – 105% FTP)\n"
+            "     * Zone 5 - VO2max (106% – 120% FTP)\n"
+            "     * Zone 6 - Anaerobic Capacity (121% – 150% FTP)\n"
+            "     * Zone 7 - Neuromuscular (> 150% FTP / all-out sprint)\n"
+            "   - If KINETIQO_MCP_ALLOW_PROFILE_WRITE=1 is configured, offer to update the athlete's profile via `kinetiqo_update_athlete_profile`."
+        )
+
+    @mcp_server.prompt("training_stress_and_overreaching_check")
+    def training_stress_and_overreaching_check(lookback_weeks: int = 12) -> str:
+        """Audit training stress accumulation, ramp rate, Acute:Chronic Workload Ratio (ACWR), and overreaching risks."""
+        return (
+            f"You are the Kinetiqo Sports Scientist. Audit the athlete's training stress and overreaching risk over the last {lookback_weeks} weeks:\n\n"
+            "Workflow Instructions:\n"
+            "1. Fetch rolling 7d/28d workload and Acute:Chronic Workload Ratio via `kinetiqo_get_training_load_trends(weeks=" + str(lookback_weeks) + ")`.\n"
+            "2. Fetch daily CTL (Fitness), ATL (Fatigue), and TSB (Form) via `kinetiqo_get_fitness_and_freshness(period_days=" + str(lookback_weeks * 7) + ")`.\n"
+            "3. Synthesize an objective training load diagnostic:\n"
+            "   - State current Acute Training Load (ATL) and Chronic Training Load (CTL).\n"
+            "   - Evaluate the Acute:Chronic Workload Ratio (ACWR):\n"
+            "     * 0.8 to 1.3: Optimal 'sweet spot' with low relative injury/illness risk.\n"
+            "     * 1.3 to 1.5: Elevated training stress warning.\n"
+            "     * > 1.5: Danger zone — sudden spike in acute workload with elevated injury or non-functional overreaching risk.\n"
+            "   - Evaluate weekly CTL ramp rate: safe progression is typically 3–7 TSS/week. Ramp rates > 8–10 TSS/week warrant caution.\n"
+            "   - Assess current TSB Form (-10 to -30 is productive building; < -30 indicates excessive fatigue requiring an immediate recovery or deload block)."
+        )
+
+    @mcp_server.prompt("cadence_and_pedaling_efficiency_analysis")
+    def cadence_and_pedaling_efficiency_analysis(activity_id: str = "") -> str:
+        """Analyze cadence dynamics, torque grind vs high-RPM spin habits, and pedaling cadence under climbing/power loads."""
+        act_clause = f"Activity #{activity_id}" if activity_id else "the athlete's latest cycling activity"
+        return (
+            f"You are the Kinetiqo Biomechanics Specialist. Analyze pedaling cadence dynamics for {act_clause}:\n\n"
+            "Workflow Instructions:\n"
+            "1. Check sensor presence with `kinetiqo_get_data_coverage` to ensure cadence telemetry exists.\n"
+            "2. Retrieve cadence, power, heart rate, and altitude streams using `kinetiqo_get_activity_streams(stream_types=['cadence', 'watts', 'altitude'])`.\n"
+            "3. Retrieve workout structure (NP, sustained blocks, surges) via `kinetiqo_analyze_workout_structure`.\n"
+            "4. Provide a clear pedaling efficiency evaluation:\n"
+            "   - Report average and maximum cadence (RPM), excluding zero-cadence coasting samples.\n"
+            "   - Evaluate cadence distribution: compare cadence on flat sections vs steep gradients (climbing cadence drop).\n"
+            "   - Characterize pedaling style: natural spinner (88–98 RPM, saves neuromuscular glycogen by distributing load to cardiovascular system) vs grinder (70–82 RPM, higher muscular torque and tension).\n"
+            "   - Give recommendations on gearing selection or cadence drills if cadence drops severely under high wattage efforts."
+        )
+
+    @mcp_server.prompt("interval_session_quality_audit")
+    def interval_session_quality_audit(activity_id: str = "") -> str:
+        """Audit interval execution quality, work-to-rest consistency, Normalized Power, and power fade across repeats."""
+        act_clause = f"Activity #{activity_id}" if activity_id else "the athlete's latest structured interval session"
+        return (
+            f"You are the Kinetiqo High-Performance Coach. Conduct a quality audit of interval execution for {act_clause}:\n\n"
+            "Workflow Instructions:\n"
+            "1. Fetch workout structure (Normalized Power, IF, TSS, sustained blocks, sprint surges) using `kinetiqo_analyze_workout_structure`.\n"
+            "2. Retrieve telemetry streams (watts, heartrate, cadence) using `kinetiqo_get_activity_streams`.\n"
+            "3. Fetch athlete FTP and historical power benchmarks using `kinetiqo_get_ftp_history` and `kinetiqo_get_power_skills`.\n"
+            "4. Deliver an interval execution scorecard:\n"
+            "   - Intensity Factor (IF) and session TSS: verify if session achieved intended physiological stimulus.\n"
+            "   - Variability Index (VI = NP / Avg Power): quantify pacing smoothness vs surge volatility.\n"
+            "   - Repeat Consistency & Power Fade: assess whether wattage was sustained across early vs late repetitions or suffered premature fatigue/drop-off.\n"
+            "   - Recovery Interval Adherence: check whether heart rate and wattage dropped adequately during rest periods to facilitate subsequent work bouts."
+        )
+

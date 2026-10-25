@@ -16,6 +16,7 @@ from kinetiqo.mcp.utils import (
     get_best_power_for_single_duration,
     get_best_powers_for_durations,
     normalize_sport_types,
+    CYCLING_SPORT_TYPES,
 )
 from kinetiqo.analytics.fitness import calculate_ctl_atl_tsb
 from kinetiqo.web.vo2max import estimate_vo2max, estimate_vo2max_coggan, classify_vo2max
@@ -101,7 +102,7 @@ def kinetiqo_get_ftp_history(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
         weight_kg = float(profile.get("weight") or 0.0)
 
         raw_acts = repo.get_activity_ids_by_types(
-            types=["Ride", "VirtualRide", "GravelRide"],
+            types=list(CYCLING_SPORT_TYPES),
             watts_only=True,
         ) or []
 
@@ -234,7 +235,7 @@ def kinetiqo_get_power_skills(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:
             profile = repo.get_profile(athlete_id) or {}
         weight_kg = float(profile.get("weight") or 0.0)
 
-        raw_acts = repo.get_activity_ids_by_types(types=["Ride", "VirtualRide", "GravelRide"], watts_only=True) or []
+        raw_acts = repo.get_activity_ids_by_types(types=list(CYCLING_SPORT_TYPES), watts_only=True) or []
         summaries = extract_activity_summaries(raw_acts)
         str_ids = [s["id"] for s in summaries]
 
@@ -384,7 +385,7 @@ def kinetiqo_get_weekly_training_profile(
 ) -> Dict[str, Any]:
     """Compute multi-week training load profiles grouped by ISO calendar weeks, surfacing power, volume, and habits."""
     try:
-        types = normalize_sport_types(sport_types) or ["Ride", "VirtualRide", "GravelRide"]
+        types = normalize_sport_types(sport_types) or list(CYCLING_SPORT_TYPES)
         if year is not None:
             start_date = f"{year}-01-01"
             end_date = f"{year}-12-31"

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block head %}
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v7') }}" defer></script>
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v11') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
   main {
@@ -341,6 +341,154 @@
   html.dark .chat-text a {
     color: #fb923c;
   }
+  /* Composer responding frame animation with Kinetiqo logo brand colors */
+  @keyframes kinetiqo-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .chat-composer-card.composer-responding {
+    position: relative;
+    border-color: transparent !important;
+    overflow: hidden;
+  }
+  .chat-composer-card.composer-responding::before {
+    content: '';
+    position: absolute;
+    top: -150%;
+    left: -150%;
+    width: 400%;
+    height: 400%;
+    background: conic-gradient(
+      from 0deg,
+      #df3c57 0% 25%,
+      #e07d4b 25% 50%,
+      #efc65e 50% 75%,
+      #49ae9f 75% 100%
+    );
+    animation: kinetiqo-spin 3s linear infinite;
+    z-index: 0;
+  }
+  .chat-composer-card.composer-responding::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 14px;
+    background: #ffffff;
+    z-index: 1;
+  }
+  html.dark .chat-composer-card.composer-responding::after {
+    background: #262629;
+  }
+  .chat-composer-card.composer-responding > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Chat Session History Items (mimics main menu styles on hover/active) */
+  .chat-session-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 38px;
+    border-radius: 10px;
+    padding: 7px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    border: 1px solid transparent;
+    color: #374151;
+    background: transparent;
+  }
+  .chat-session-item:hover {
+    background-color: #E8E6E1;
+    color: #111827;
+  }
+  .chat-session-item.active {
+    background-color: #E8E6E1;
+    color: #111827;
+    font-weight: 600;
+    border-color: #d1d5db;
+  }
+  html.dark .chat-session-item {
+    color: #d4d4d8;
+  }
+  html.dark .chat-session-item:hover {
+    background-color: #404040 !important;
+    color: #f5f5f5 !important;
+  }
+  html.dark .chat-session-item.active {
+    background-color: #404040;
+    color: #f5f5f5;
+    font-weight: 600;
+    border-color: #52525b;
+  }
+  .chat-session-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .chat-session-delete {
+    opacity: 0;
+    margin-left: 6px;
+    padding: 3px;
+    border-radius: 6px;
+    color: #9ca3af;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+  }
+  .chat-session-item:hover .chat-session-delete {
+    opacity: 1;
+  }
+  .chat-session-delete:hover {
+    color: #ef4444;
+    background-color: rgba(239, 68, 68, 0.15);
+  }
+
+  /* Assistant message footer divider and layout */
+  .chat-msg-footer {
+    margin-top: 14px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid #e5e7eb !important;
+  }
+  html.dark .chat-msg-footer {
+    border-top: 1px solid #3f3f46 !important;
+  }
+  .chat-provenance-content {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    text-align: right;
+  }
+  .chat-provenance-list {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 6px 0 0 0 !important;
+  }
+  .chat-provenance-item {
+    background: transparent !important;
+    color: #6b7280 !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+  html.dark .chat-provenance-item {
+    color: #a1a1aa !important;
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -348,13 +496,9 @@
   <!-- Left Navigation Column: Latest Chats & Settings -->
   <aside class="chat-sidebar" aria-label="Chat Navigation">
     <div style="padding: 12px;">
-      <button id="new-chat" type="button" class="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm transition h-[40px] w-full flex items-center justify-center font-medium shadow-sm mb-2" title="Start a new chat conversation">
+      <button id="new-chat" type="button" class="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm font-small transition h-[40px] w-full flex items-center justify-center shadow-sm" title="Start a new chat conversation">
         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         <span>New chat</span>
-      </button>
-      <button id="clear-history" type="button" class="px-3 py-2 bg-gray-500 hover:bg-red-600 text-white rounded text-sm transition h-[40px] w-full flex items-center justify-center font-medium shadow-sm" title="Clear all chat history">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
-        <span>Clear history</span>
       </button>
       <div style="margin-top: 14px; padding: 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280;" class="dark:text-zinc-400">Recent Chats</div>
     </div>
@@ -368,13 +512,10 @@
           <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
         </select>
       </div>
-      <a href="{{ url_for('settings') }}" style="display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 500; color: #4b5563; text-decoration: none; transition: background 0.15s;" class="hover:bg-warm-200 dark:text-zinc-300 dark:hover:bg-zinc-700">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-        </svg>
-        <span>AI & API Settings</span>
-      </a>
+      <button id="clear-history" type="button" class="px-3 py-2 bg-gray-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[38px] w-full flex items-center justify-center shadow-sm" title="Clear all chat history">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+        <span>Clear history</span>
+      </button>
     </div>
   </aside>
 
@@ -391,8 +532,8 @@
           <div class="chat-hero-icon">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
           </div>
-          <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 6px;" class="dark:text-white">How can I help with your training?</h2>
-          <p style="margin: 0 auto; max-width: 540px; font-size: 13px; color: #4b5563; line-height: 1.5;" class="dark:text-gray-400">I have direct read-only access to your Kinetiqo database to analyze workouts, power curves, totals, fitness trends, and milestones.</p>
+          <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1.5">How can I help with your training?</h2>
+          <p class="mx-auto max-w-lg text-xs leading-relaxed text-gray-600 dark:text-gray-300">I have direct read-only access to your Kinetiqo database to analyze workouts, power curves, totals, fitness trends, and milestones.</p>
           <div class="chat-suggestions-grid">
             <button type="button" class="chat-suggestion chat-suggestion-chip">
               <span style="font-size: 16px; line-height: 1;">📊</span>

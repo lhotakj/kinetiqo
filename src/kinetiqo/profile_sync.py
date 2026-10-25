@@ -7,7 +7,7 @@ from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 logger = logging.getLogger("kinetiqo")
 
 
-def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
+def seed_profile_from_strava(config: Config, repo, force: bool = False) -> Optional[Dict[str, Any]]:
     """Fetch the athlete profile from Strava and persist it in *repo*.
 
     The helper keeps the existing database weight when Strava returns no weight
@@ -15,16 +15,15 @@ def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
     not return a valid athlete id.
 
     NOTE: When running under Flask testing mode (app.config['TESTING'] == True)
-    this function will skip the external Strava call and return None to avoid
-    seeding production-like data during unit tests. Tests that require a
-    seeded profile should explicitly mock this function or provide a fake repo.
+    this function will skip the external Strava call and return None unless force=True
+    is explicitly supplied (e.g. for user-initiated manual sync).
     """
     # Avoid seeding during Flask tests — current_app may not exist outside a
     # request context, so guard access with try/except.
     try:
         from flask import current_app
 
-        if getattr(current_app, "config", {}).get("TESTING", False):
+        if getattr(current_app, "config", {}).get("TESTING", False) and not force:
             logger.info("Skipping profile seeding from Strava in TESTING mode.")
             return None
     except Exception:

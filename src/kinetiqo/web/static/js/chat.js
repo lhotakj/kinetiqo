@@ -157,6 +157,27 @@
 
     const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replace(/_/g, ' ');
 
+    const refreshSeparators = (footer) => {
+        const provSlot = footer.querySelector('.chat-provenance-slot');
+        const badge = footer.querySelector('.chat-tokens-badge');
+        const downloadBtn = footer.querySelector('.chat-download-btn');
+        const sepProv = footer.querySelector('.chat-footer-sep-prov');
+        const sepTokens = footer.querySelector('.chat-footer-sep-tokens');
+
+        const hasProv = Boolean(provSlot && provSlot.children.length > 0);
+        const hasTokens = Boolean(badge && badge.textContent.trim().length > 0);
+        const hasDownload = Boolean(downloadBtn);
+
+        if (sepProv) {
+            const showSepProv = hasProv && (hasTokens || hasDownload);
+            sepProv.classList.toggle('hidden', !showSepProv);
+        }
+        if (sepTokens) {
+            const showSepTokens = hasTokens && hasDownload;
+            sepTokens.classList.toggle('hidden', !showSepTokens);
+        }
+    };
+
     const appendProvenance = (article, rawProvenance) => {
         let records = [];
         try {
@@ -165,45 +186,95 @@
             return;
         }
         if (!Array.isArray(records) || records.length === 0) return;
-        const details = document.createElement('details');
-        details.className = 'mt-3 border-t border-warm-200 pt-2 text-xs text-gray-500 dark:border-zinc-700 dark:text-gray-400';
-        const summary = document.createElement('summary');
-        summary.className = 'cursor-pointer font-medium hover:underline';
-        summary.textContent = `Data used (${records.length} local ${records.length === 1 ? 'query' : 'queries'})`;
-        details.appendChild(summary);
-        const ul = document.createElement('ul');
-        ul.className = 'mt-1.5 list-disc space-y-0.5 pl-4';
+
+        const footer = ensureFooter(article);
+        const slot = footer.querySelector('.chat-provenance-slot');
+        const contentBox = footer.querySelector('.chat-provenance-content');
+        const ul = contentBox?.querySelector('ul');
+        if (!slot || !contentBox || !ul) return;
+
+        slot.replaceChildren();
+        ul.replaceChildren();
+
+        const countText = `${records.length} local ${records.length === 1 ? 'query' : 'queries'}`;
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'chat-provenance-btn cursor-pointer inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 transition';
+        toggleBtn.title = 'View local data queries used';
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        toggleBtn.innerHTML = `
+            <span>Data used (${countText})</span>
+            <svg class="chat-provenance-chevron w-3 h-3 transition-transform duration-150 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        `;
+
         records.forEach((rec) => {
             const li = document.createElement('li');
+            li.className = 'chat-provenance-item';
             const toolName = formatToolName(rec.tool);
             const duration = rec.duration_ms ? ` (${rec.duration_ms}ms)` : '';
             li.textContent = `${toolName}${duration}`;
             ul.appendChild(li);
         });
-        details.appendChild(ul);
-        article.appendChild(details);
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isHidden = contentBox.classList.toggle('hidden');
+            toggleBtn.setAttribute('aria-expanded', (!isHidden).toString());
+            const chevron = toggleBtn.querySelector('.chat-provenance-chevron');
+            if (chevron) {
+                chevron.classList.toggle('rotate-180', !isHidden);
+            }
+            scrollToBottom();
+        });
+
+        slot.appendChild(toggleBtn);
+        refreshSeparators(footer);
     };
 
     const ensureFooter = (article) => {
         let footer = article.querySelector('.chat-msg-footer');
         if (!footer) {
             footer = document.createElement('div');
-            footer.className = 'chat-msg-footer mt-3 pt-2.5 border-t border-warm-100 dark:border-zinc-800 flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400 select-none';
+            footer.className = 'chat-msg-footer mt-4 pt-2.5 flex flex-col select-none';
 
-            // Left side: Download response button
-            const leftBox = document.createElement('div');
-            leftBox.className = 'chat-msg-footer-left flex items-center gap-2';
+            const row = document.createElement('div');
+            row.className = 'chat-footer-main-row flex items-center justify-end gap-2 text-xs text-gray-500 dark:text-zinc-400 flex-wrap';
 
+            // Provenance toggle slot
+            const provSlot = document.createElement('div');
+            provSlot.className = 'chat-provenance-slot';
+            row.appendChild(provSlot);
+
+            // Separator between provenance and tokens (or download)
+            const sepProv = document.createElement('span');
+            sepProv.className = 'chat-footer-sep-prov hidden text-gray-300 dark:text-zinc-600 select-none';
+            sepProv.textContent = '·';
+            row.appendChild(sepProv);
+
+            // Tokens & duration badge (same font, style, size, color as Data used)
+            const badge = document.createElement('span');
+            badge.className = 'chat-tokens-badge text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
+            row.appendChild(badge);
+
+            // Separator between tokens and download
+            const sepTokens = document.createElement('span');
+            sepTokens.className = 'chat-footer-sep-tokens hidden text-gray-300 dark:text-zinc-600 select-none';
+            sepTokens.textContent = '·';
+            row.appendChild(sepTokens);
+
+            // Download response button
             const downloadBtn = document.createElement('button');
             downloadBtn.type = 'button';
-            downloadBtn.className = 'chat-download-btn cursor-pointer inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 rounded hover:bg-black/5 dark:hover:bg-white/5 transition';
+            downloadBtn.className = 'chat-download-btn cursor-pointer inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 transition';
             downloadBtn.title = 'Download response as Markdown';
             downloadBtn.setAttribute('aria-label', 'Download response as Markdown');
             downloadBtn.innerHTML = `
-                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                <span>Download the response</span>
+                <span>Download response</span>
             `;
             downloadBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -220,18 +291,20 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             });
-            leftBox.appendChild(downloadBtn);
-            footer.appendChild(leftBox);
+            row.appendChild(downloadBtn);
 
-            // Right side: Tokens & duration badge
-            const rightBox = document.createElement('div');
-            rightBox.className = 'chat-msg-footer-right font-mono text-[11px] text-gray-400 dark:text-zinc-500';
-            const badge = document.createElement('span');
-            badge.className = 'chat-tokens-badge';
-            rightBox.appendChild(badge);
-            footer.appendChild(rightBox);
+            footer.appendChild(row);
+
+            // Collapsible provenance content list (no extra background, right-aligned)
+            const contentBox = document.createElement('div');
+            contentBox.className = 'chat-provenance-content hidden mt-2 text-xs text-right';
+            const ul = document.createElement('ul');
+            ul.className = 'chat-provenance-list space-y-1';
+            contentBox.appendChild(ul);
+            footer.appendChild(contentBox);
 
             article.appendChild(footer);
+            refreshSeparators(footer);
         }
         return footer;
     };
@@ -254,16 +327,18 @@
         if (currentOut !== null && currentOut !== undefined) parts.push(`${Number(currentOut).toLocaleString()} out`);
 
         if (parts.length > 0) {
-            let text = `⚡ Tokens: ${parts.join(' · ')}`;
+            let text = `Tokens: ${parts.join(' · ')}`;
             if (currentDur) {
                 text += ` · ${currentDur}`;
             }
             badge.textContent = text;
         } else if (currentDur) {
-            badge.textContent = `⚡ ${currentDur}`;
+            badge.textContent = currentDur;
         } else {
             badge.textContent = '';
         }
+
+        refreshSeparators(footer);
     };
 
     const messageNode = (role, content = '', toolProvenance = null, inputTokens = null, outputTokens = null) => {
@@ -273,6 +348,14 @@
         if (role === 'user') {
             article.className = 'chat-msg-user';
             article.style.cssText = 'margin-left: auto; max-width: 85%; border-radius: 16px 16px 4px 16px; background: #ea580c; color: white; padding: 12px 18px; font-size: 14px; line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06);';
+
+            const senderHeader = document.createElement('div');
+            senderHeader.className = 'chat-sender-header';
+            senderHeader.style.cssText = 'display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.92);';
+            const nameEl = document.createElement('span');
+            nameEl.textContent = userName || 'Athlete';
+            senderHeader.appendChild(nameEl);
+            article.appendChild(senderHeader);
         } else {
             article.className = 'chat-msg-assistant';
             const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
@@ -281,25 +364,6 @@
             const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
             article.style.cssText = `margin-right: auto; width: 100%; max-width: 100%; border-radius: 16px; background: ${bg}; color: ${color}; padding: 18px 22px; font-size: 14px; line-height: 1.6; word-break: break-word; border: 1px solid ${border}; box-shadow: 0 1px 3px rgba(0,0,0,0.04);`;
         }
-
-        const senderHeader = document.createElement('div');
-        senderHeader.className = 'chat-sender-header';
-        if (role === 'user') {
-            senderHeader.style.cssText = 'display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.92);';
-            const nameEl = document.createElement('span');
-            nameEl.textContent = userName || 'Athlete';
-            senderHeader.appendChild(nameEl);
-        } else {
-            senderHeader.style.cssText = 'display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 11px; font-weight: 600; color: #ea580c;';
-            const iconEl = document.createElement('span');
-            iconEl.textContent = '⚡';
-            iconEl.style.fontSize = '12px';
-            const nameEl = document.createElement('span');
-            nameEl.textContent = 'Kinetiqo AI';
-            senderHeader.appendChild(iconEl);
-            senderHeader.appendChild(nameEl);
-        }
-        article.appendChild(senderHeader);
 
         const textContainer = document.createElement('div');
         textContainer.className = 'chat-text';
@@ -378,25 +442,58 @@
         const payload = await request('/api/chat/sessions');
         sessions.replaceChildren();
         payload.sessions.forEach((item) => {
-            const button = document.createElement('button');
-            button.type = 'button';
+            const itemDiv = document.createElement('div');
             const isActive = item.session_id === sessionId;
-            button.className = isActive
-                ? 'min-h-10 w-full truncate rounded-xl px-3 py-2 text-left text-xs font-semibold bg-orange-100 text-orange-950 dark:bg-zinc-700 dark:text-white flex items-center gap-2 border border-orange-200 dark:border-zinc-600'
-                : 'min-h-10 w-full truncate rounded-xl px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-warm-200/80 dark:text-zinc-300 dark:hover:bg-zinc-750 flex items-center gap-2 transition';
-
-            const iconSpan = document.createElement('span');
-            iconSpan.className = 'opacity-70 text-xs shrink-0';
-            iconSpan.textContent = '💬';
-            button.appendChild(iconSpan);
+            itemDiv.className = `chat-session-item group ${isActive ? 'active' : ''}`;
+            itemDiv.setAttribute('role', 'button');
+            itemDiv.setAttribute('tabindex', '0');
+            itemDiv.title = item.title;
 
             const titleSpan = document.createElement('span');
-            titleSpan.className = 'truncate';
+            titleSpan.className = 'chat-session-title';
             titleSpan.textContent = item.title;
-            button.appendChild(titleSpan);
+            itemDiv.appendChild(titleSpan);
 
-            button.addEventListener('click', () => openSession(item.session_id));
-            sessions.appendChild(button);
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'chat-session-delete';
+            deleteBtn.title = 'Delete conversation';
+            deleteBtn.setAttribute('aria-label', `Delete conversation ${item.title}`);
+            deleteBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            `;
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                try {
+                    await request(`/api/chat/sessions/${encodeURIComponent(item.session_id)}`, { method: 'DELETE' });
+                    if (sessionId === item.session_id) {
+                        sessionId = null;
+                        history.replaceState(null, '', '/chat');
+                        messages.replaceChildren();
+                        promptHistory = [];
+                        historyIndex = -1;
+                        currentDraft = '';
+                        empty.classList.remove('hidden');
+                        status.classList.add('hidden');
+                    }
+                    await loadSessions();
+                } catch (err) {
+                    setStatus(err.message, true);
+                }
+            });
+            itemDiv.appendChild(deleteBtn);
+
+            itemDiv.addEventListener('click', () => openSession(item.session_id));
+            itemDiv.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openSession(item.session_id);
+                }
+            });
+            sessions.appendChild(itemDiv);
         });
     };
 
@@ -515,6 +612,7 @@
         const origSendHtml = send.innerHTML;
         const turnStartTime = performance.now();
         try {
+            composer.classList.add('composer-responding');
             if (!sessionId) await createSession();
             send.disabled = true;
             send.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="16" height="16" class="inline-block">';
@@ -622,10 +720,8 @@
             const totalDurationSec = `${((performance.now() - turnStartTime) / 1000).toFixed(1)}s`;
             updateFooterInfo(answer, null, null, totalDurationSec);
 
-            if (executedTools.length > 0 && !answer.querySelector('details')) {
+            if (executedTools.length > 0 && !answer.querySelector('.chat-provenance-btn')) {
                 appendProvenance(answer, executedTools);
-                const footer = answer.querySelector('.chat-msg-footer');
-                if (footer) answer.appendChild(footer);
                 scrollToBottom();
             }
             await loadSessions();
@@ -634,6 +730,7 @@
         } finally {
             send.disabled = false;
             send.innerHTML = origSendHtml;
+            composer.classList.remove('composer-responding');
         }
     });
 

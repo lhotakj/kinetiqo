@@ -226,6 +226,10 @@ def ensure_startup_profile_sync() -> None:
     if _startup_sync_done:
         return
 
+    if app.config.get("TESTING", False):
+        _startup_sync_done = True
+        return
+
     with _startup_sync_lock:
         if _startup_sync_done:
             return
@@ -2706,12 +2710,6 @@ def get_profile_api():
         repo = get_db()
         profile = repo.get_profile()
         if not profile:
-            try:
-                profile = seed_profile_from_strava(config, repo) or repo.get_profile()
-            except Exception as e:
-                logger.warning(f"Could not seed athlete profile from Strava: {e}")
-                profile = None
-        if not profile:
             default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0, 'gps_simplification': getattr(config, 'gps_simplification', 0)}
             default_profile.update(dict.fromkeys(UPDATE_STRAVA_FIELDS, ''))
             return jsonify(default_profile)
@@ -2728,6 +2726,52 @@ def get_profile_api():
     except Exception as e:
         logger.exception(f"Error fetching profile: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/profile/sync', methods=['POST'])
+@login_required
+def api_sync_profile_from_strava():
+    """Manually fetch and sync athlete profile data (name, weight) from Strava.
+
+    Returns:
+        flask.Response: JSON payload with success status and the updated profile,
+        or an error message with appropriate HTTP status code (e.g. 429 on rate limit).
+    """
+    try:
+        repo = get_db()
+        seeded = seed_profile_from_strava(config, repo, force=True)
+        profile = repo.get_profile() or seeded or {}
+        if not profile and not seeded:
+            return jsonify({'error': 'Strava returned an empty or invalid athlete profile.'}), 400
+
+        safe_profile = {k: v for k, v in profile.items() if k != 'refresh_token'}
+        if safe_profile.get('gps_simplification') is None:
+            safe_profile['gps_simplification'] = getattr(config, 'gps_simplification', 0)
+        else:
+            safe_profile['gps_simplification'] = int(safe_profile['gps_simplification'])
+
+        first_name = safe_profile.get('first_name', '')
+        last_name = safe_profile.get('last_name', '')
+        weight = safe_profile.get('weight', 0)
+        logger.info(f"Manual profile sync from Strava succeeded: {first_name} {last_name}, {weight} kg")
+        return jsonify({
+            'success': True,
+            'message': 'Profile synchronized from Strava successfully.',
+            'profile': safe_profile,
+        })
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else 500
+        if status_code == 429:
+            err_msg = "Strava rate limit exceeded (429 Too Many Requests). Please wait a few minutes before trying again."
+        elif status_code == 401:
+            err_msg = "Strava authorization failed (401 Unauthorized). Please reconnect your Strava account."
+        else:
+            err_msg = f"Strava API error ({status_code}): {e}"
+        logger.warning(f"Manual profile sync failed: {err_msg}")
+        return jsonify({'error': err_msg}), status_code
+    except Exception as e:
+        logger.warning(f"Manual profile sync failed: {e}")
+        return jsonify({'error': f"Failed to sync profile from Strava: {e}"}), 500
 
 
 @app.route('/api/profile', methods=['PUT', 'POST'])
