@@ -1,12 +1,12 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Ready for implementation (v3 — revised and hardened)
-> **Scope:** First production-ready release of an authenticated, persistent, multimodal, data-grounded AI chat integrated into Kinetiqo.
-> **Primary provider:** Google Gemini.
-> **Architecture:** Provider-neutral core; only the Gemini adapter ships in the first release.
-> **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird.
-> **Supersedes:** `docs/concepts/ai-concept.md` v2 on branch `mcp`. Replace that file with this document.
-> **Required project instructions:** Read and follow `AGENTS.md`, `SKILLS.md`, `README.md`, `docs/MCP.md`, `docs/DATABASE.md`, and the relevant existing web, settings, authentication, database, and MCP implementation before changing code. The source code and tests are authoritative when documentation differs.
+> **Status:** Active v3.0 (Gemini adapter implemented and in testing; OpenRouter AI integration planned)  
+> **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
+> **Supported providers:** Google Gemini, OpenRouter AI.  
+> **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
+> **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
+> **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
+> **Required project instructions:** Read and follow `AGENTS.md`, `SKILLS.md`, `README.md`, `docs/MCP.md`, `docs/DATABASE.md`, and `.agents/skills/sync-ai-documentation/SKILL.md`. The source code and tests are authoritative when documentation differs.
 
 ---
 
@@ -14,7 +14,7 @@
 
 Add an AI Chat page to Kinetiqo so an authenticated athlete can ask natural-language questions about their training and receive useful, data-grounded answers without configuring a separate AI client or MCP connection. The chat behaves like a first-class product feature — comparable in ergonomics to ChatGPT, Claude, and Gemini web UIs — while reusing Kinetiqo's own data, analytics, authentication, and MCP tool layer.
 
-The feature must reuse Kinetiqo's existing data, analytics, authentication, and MCP tool layer. It must not independently query Strava, duplicate analytics calculations in chat code, or become a second analytics engine.
+The feature reuses Kinetiqo's existing data, analytics, authentication, and MCP tool layer. It does not independently query Strava, duplicate analytics calculations in chat code, or become a second analytics engine.
 
 Example questions:
 
@@ -59,29 +59,27 @@ A user can:
 
 ## 2. Scope and explicit non-goals
 
-### 2.1 Included in first release
+### 2.1 Included in Kinetiqo v3.0
 
-- Provider-neutral chat domain model and adapter interface.
-- Gemini provider: key validation, model discovery, text streaming, supported image/PDF inputs, provider errors, and usage metadata where available.
-- Encrypted per-athlete provider keys (AES-256-GCM envelope).
-- Persistent conversations and messages for all three database backends.
-- `/chat` UI: conversation list, model selector, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, regenerate.
-- Upload and download of supported attachments, with server-side validation and safe storage.
-- Read-only Kinetiqo data tools through the existing MCP/tool service layer, with a chat-specific allowlist.
+- Provider-neutral chat domain model and multi-provider adapter interface.
+- **Google Gemini Provider**: API key encryption, automatic model discovery, text streaming, supported multimodal inputs, usage extraction, and error mapping.
+- **OpenRouter AI Provider**: OpenAI-compatible REST completions gateway supporting arbitrary models (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, Nemotron, etc.), user-managed free-text model registration, live model validation (`GET /api/v1/model/{author}/{slug}`), and a responsive management table with `+` and `-` actions in Settings.
+- Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
+- Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
+- `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
+- Brand color composer animation (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`) during live streaming.
+- Assistant message footer: 1px top divider (`#e5e7eb` / `#3f3f46`), unified right-aligned metadata row (`text-xs text-gray-500 dark:text-zinc-400 font-sans`), and transparent provenance list readable in both themes.
+- 31 read-only Kinetiqo telemetry tools through the in-process FastMCP layer, with strict mutating tool exclusion and `CYCLING_SPORT_TYPES` power filtering.
+- 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
 - "Data used" provenance indicator per assistant turn.
-- Unit tests, route tests, security tests, documentation, and deployment/configuration notes.
+- Unit tests, route tests, security tests, documentation (`docs/AI.md`), and synchronization skill.
 
-### 2.2 Not included in first release (deliberate non-goals)
+### 2.2 Deliberate non-goals
 
-- OpenAI, Anthropic, or Mistral provider implementations. The abstraction must make these addable without changing the chat service or persistence contract.
-- Voice input/output.
-- Shared or collaborative conversations; public chat links.
-- Autonomous background agents or scheduled AI actions.
-- Any chat-triggered Strava writes, profile writes, or synchronization.
-- Vector databases, embeddings, or a separate RAG index.
-- AI-generated images unless the chosen Gemini model and API response format explicitly support it and the implementation can safely persist and serve them. Text-only answers must not depend on image generation.
-- Message editing / branching UI (planned v1.1 — the data model must not preclude it; see §5.2).
-- Automatic conversation summarization unless implemented as an explicit, testable context-management feature. Never silently remove old history from the visible conversation.
+- Autonomous background agents or scheduled AI actions that write data without explicit athlete review.
+- Any chat-triggered Strava writes, profile writes, or database synchronization.
+- Vector databases, external embeddings, or a separate RAG index (telemetry is queried via live parameterized SQL tools).
+- AI-generated images (text, Markdown tables, and rendered telemetry artifact previews are supported).
 
 ---
 
@@ -471,10 +469,11 @@ Use an explicit static registry, not dynamic imports from user input:
 ```python
 PROVIDER_REGISTRY = {
     "gemini": GeminiChatProvider,
+    "openrouter": OpenRouterChatProvider,
 }
 ```
 
-The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Do not advertise unimplemented OpenAI/Anthropic/Mistral providers in the UI.
+The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Both Gemini and OpenRouter adapters are first-class citizens in Kinetiqo v3.0.
 
 ### 6.3 Error taxonomy
 
@@ -549,9 +548,103 @@ Build provider payloads from validated attachment descriptors and bytes resolved
 
 ---
 
-## 8. API key encryption and secret management
+## 8. OpenRouter AI Provider Implementation & Multi-Provider Architecture
 
-### 8.1 Encryption requirements
+OpenRouter (`https://openrouter.ai`) is an AI gateway providing unified, OpenAI-compatible access to hundreds of proprietary and open-weight models (Anthropic Claude, Meta Llama, DeepSeek, Mistral, Google Gemini, Nvidia Nemotron, Cohere, etc.). Integrating OpenRouter gives Kinetiqo athletes freedom of model choice without locking into a single AI ecosystem.
+
+### 8.1 Protocol & Authentication
+- **Endpoint**: `https://openrouter.ai/api/v1/chat/completions` (OpenAI-compatible REST format).
+- **Authentication**: `Authorization: Bearer <OPENROUTER_API_KEY>`
+- **Required Kinetiqo Headers**:
+  - `HTTP-Referer`: `https://github.com/lhotakj/kinetiqo`
+  - `X-Title`: `Kinetiqo`
+- **Streaming Protocol**: SSE (`stream: true`). Parses standard OpenAI chunk deltas:
+  ```json
+  data: {"id":"gen-123","choices":[{"delta":{"content":"Analysis...","tool_calls":[{"id":"call_1","type":"function","function":{"name":"kinetiqo_get_fitness_and_freshness","arguments":"{}"}}]}}],"usage":{"prompt_tokens":1200,"completion_tokens":350}}
+  ```
+- **Tool / Function Calling**: Uses OpenAI-formatted schemas generated via `get_chat_tools(provider="openai")` in `src/kinetiqo/chat/tools.py`.
+- **Continuation Turn**: Tool responses are injected into multi-turn messages with `role: "tool"`, `tool_call_id: call.id`, and JSON-serialized results.
+
+### 8.2 Free-Text Model Registration & Live API Validation
+OpenRouter hosts hundreds of models that are updated, added, or deprecated regularly. Rather than hardcoding static model lists, Kinetiqo implements a **curated free-text registration model**:
+
+1. **Free-Text Input**: The athlete enters any OpenRouter model identifier (e.g. `anthropic/claude-3.5-sonnet`, `deepseek/deepseek-chat`, `meta-llama/llama-3.3-70b-instruct`, `nvidia/nemotron-3.5-embed-1b:free`).
+2. **Live Server-Side Validation**:
+   - Validation endpoint: `GET https://openrouter.ai/api/v1/model/{author}/{slug}`
+   - OpenRouter automatically resolves aliases (e.g., `anthropic/claude-3-5-sonnet` maps to canonical slug) and variant suffixes (`:free`).
+   - If valid (HTTP 200), the response payload returns full model parameters:
+     - `name`: Human-readable display name (e.g. `Anthropic: Claude 3.5 Sonnet`).
+     - `context_length`: Maximum context window in tokens (e.g. `200000`).
+     - `pricing`: Prompt and completion token pricing.
+     - `architecture.modality`: Supported modalities (text, multimodal/vision).
+     - `top_provider.max_completion_tokens`: Output token bounds.
+   - If invalid (HTTP 404 or unrecognized slug), returns a clean 422 error to the settings UI ("Model not found on OpenRouter") and highlights the field in light red without saving.
+
+### 8.3 Multi-Provider Settings Architecture (`/settings`)
+The Settings page provides a unified **AI & API Providers** panel:
+
+1. **"+ Add AI Provider" Action**:
+   - A dropdown or button bar allowing the athlete to add **Google Gemini** or **OpenRouter AI**.
+2. **Google Gemini Card**:
+   - API key password input + Save / Remove.
+   - Auto-discovered model catalog downloaded via Gemini's `models.list` API.
+3. **OpenRouter AI Card**:
+   - API key password input + Save / Remove.
+   - **Nested Configured Models Manager**:
+     - Input field with placeholder `e.g. anthropic/claude-3.5-sonnet`.
+     - Button **`+ Add model`** to validate and append.
+     - **Responsive Models Table**:
+       | Model Name & ID | Context Window | Capabilities | Actions |
+       |---|---|---|---|
+       | **Claude 3.5 Sonnet**<br>`anthropic/claude-3.5-sonnet` | 200k tokens | Text, Vision, Tools | `+` `–` |
+       | **DeepSeek V3**<br>`deepseek/deepseek-chat` | 64k tokens | Text, Tools | `+` `–` |
+       | **Nemotron 3.5 1B (Free)**<br>`nvidia/nemotron-3.5-embed-1b:free` | 131k tokens | Text | `+` `–` |
+     - **Action Controls**: Explicitly uses `+` (add another model) and `–` (remove/disable model) action buttons. **No trash bin icon is used**, keeping the table clean and unobtrusive.
+
+### 8.4 Database Schema & Persistence Contract
+To support per-provider custom configurations (such as OpenRouter's enabled models list) while maintaining 100% database portability across **PostgreSQL**, **MySQL**, and **Firebird**:
+
+1. **Schema Extension (`chat_provider_keys`)**:
+   Add a nullable `config_json` column:
+   - MySQL: `TEXT`
+   - PostgreSQL: `TEXT`
+   - Firebird: `BLOB SUB_TYPE TEXT`
+2. **Stored Payload Format**:
+   ```json
+   {
+     "models": [
+       {
+         "id": "anthropic/claude-3.5-sonnet",
+         "name": "Anthropic: Claude 3.5 Sonnet",
+         "context_length": 200000,
+         "supports_tools": true,
+         "supports_vision": true
+       }
+     ]
+   }
+   ```
+3. **Repository Methods**:
+   - `get_provider_config(athlete_id, provider) -> dict`
+   - `save_provider_config(athlete_id, provider, config: dict) -> None`
+
+### 8.5 Chat Web UI Integration (`/chat`)
+- The AI Model `<select id="chat-model">` groups available models by provider using standard HTML `<optgroup>`:
+  ```html
+  <optgroup label="Google Gemini">
+    <option value="gemini:gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+  </optgroup>
+  <optgroup label="OpenRouter AI">
+    <option value="openrouter:anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+    <option value="openrouter:deepseek/deepseek-chat">DeepSeek V3</option>
+  </optgroup>
+  ```
+- Chat sessions persist both `provider` (`gemini` or `openrouter`) and `model_id`.
+
+---
+
+## 9. API key encryption and secret management
+
+### 9.1 Encryption requirements
 
 Use authenticated encryption (AES-256-GCM) from a maintained cryptographic library (prefer the `cryptography` package — add as a pinned runtime dependency per repository policy).
 
@@ -564,7 +657,7 @@ Use authenticated encryption (AES-256-GCM) from a maintained cryptographic libra
 - Decryption failure must fail closed and produce an actionable operator message, not expose cryptographic details to the user.
 - Use constant-time/standard library cryptographic primitives; do not implement cryptography manually.
 
-### 8.2 Secret rotation and configuration
+### 9.2 Secret rotation and configuration
 
 Because deriving the encryption key from Flask `SECRET_KEY` means changing it can make stored keys undecryptable:
 
@@ -572,10 +665,10 @@ Because deriving the encryption key from Flask `SECRET_KEY` means changing it ca
 - Prefer a dedicated environment setting `KINETIQO_CHAT_ENCRYPTION_KEY` consistent with the existing configuration model. If the project deliberately uses `SECRET_KEY`, specify the exact rotation behavior and test it.
 - Support key versions: store `key_version`, accept a list of active versions (e.g., old + new during rotation), re-encrypt on next write, and implement an explicit rotation procedure documented in `docs/`.
 - Do not expose encrypted values through settings APIs, HTML, logs, or exception messages.
-- Environment-provided provider keys (`KINETIQO_CHAT_GEMINI_API_KEY`), if supported, must have explicit precedence and UI indication. A database key must not silently override an environment key or vice versa. Follow Kinetiqo's existing environment-vs-database settings policy and test it.
+- Environment-provided provider keys (`KINETIQO_CHAT_GEMINI_API_KEY`, `KINETIQO_CHAT_OPENROUTER_API_KEY`), if supported, must have explicit precedence and UI indication. A database key must not silently override an environment key or vice versa. Follow Kinetiqo's existing environment-vs-database settings policy and test it.
 - Never add a provider key to `.env.example` with a real value.
 
-### 8.3 Key settings UI
+### 9.3 Key settings UI
 
 The AI settings section must:
 
@@ -591,92 +684,83 @@ The AI settings section must:
 
 ---
 
-## 9. Kinetiqo MCP/tool integration
+## 10. Kinetiqo MCP/tool integration
 
 The chat must reuse the existing Kinetiqo data/tool layer (`src/kinetiqo/mcp/`). Do not implement a second SQL analytics layer for the AI.
 
-### 9.1 First-release behavior
+### 10.1 Tool execution architecture
 
-Implement **on-demand read-only tool calling** only if the existing tool layer can be invoked safely in-process with a well-defined contract. If not, ship a deterministic read-only context builder first and leave tool calling behind a feature flag (`KINETIQO_CHAT_TOOLS=0`) until the invocation contract is proven.
+Kinetiqo implements **in-process read-only tool calling** via `src/kinetiqo/chat/tools.py`. The FastMCP server instance is constructed and invoked in-process, executing direct database queries via the repository layer without external sub-processes or socket listeners.
 
-The final delivered first release must have a reliable way to answer data questions, not merely a generic chatbot with a hard-coded context snapshot.
+### 10.2 Tool allowlist (31 read-only tools)
 
-### 9.2 Tool allowlist
+Build the tool catalog dynamically from registered FastMCP tool definitions and explicitly exclude all mutating tools. In Kinetiqo v3.0, 31 read-only telemetry and analytics tools are exposed:
 
-Build the tool catalog from the actually registered MCP tool definitions and explicitly allow only tools needed for analysis. Known read-only tools from `docs/MCP.md` that are the intended catalog (the agent must verify exact names, parameters, and output schemas in `src/kinetiqo/mcp/` — do not invent tool names):
-
-- `kinetiqo_search_activities`
-- `kinetiqo_get_activity_details`
-- `kinetiqo_get_activity_streams`
-- `kinetiqo_analyze_pacing`
-- `kinetiqo_find_similar_routes`
-- `kinetiqo_compare_route_attempts`
-- `kinetiqo_get_fitness_and_freshness`
-- `kinetiqo_calculate_power_curve`
-- `kinetiqo_get_personal_records`
-- `kinetiqo_get_weekly_training_profile`
-- `kinetiqo_analyze_recovery_turnaround`
-- Activity totals / date-range summaries (verify exact tool name)
-- FTP and VO₂max trend tools (verify exact names)
-- Training goals / athlete profile read tools (verify exact names)
+- `kinetiqo_search_activities`, `kinetiqo_get_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`.
+- `kinetiqo_get_fitness_and_freshness` (CTL/ATL/TSB models), `kinetiqo_calculate_power_curve` (MMP), `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`.
+- `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_weekly_training_profile`, `kinetiqo_analyze_recovery_turnaround`.
+- `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.
+- Activity filtering strictly enforces `CYCLING_SPORT_TYPES = ["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]` for cycling power analysis.
 
 Explicitly excluded (never exposed to chat, regardless of `KINETIQO_MCP_ALLOW_*` flags):
 
 - `kinetiqo_trigger_sync`
 - `kinetiqo_update_athlete_profile`, `kinetiqo_update_training_goals`
 - `kinetiqo_update_strava_description`
-- Any Playwright visual export tool (posters/infographics) — expensive operations; defer to a later, specifically reviewed and bounded release.
-- Any tool that can: trigger a Strava sync; update Strava content; change athlete/profile/settings data; delete or modify activities; perform arbitrary SQL or filesystem operations; access another athlete's data.
+- Any tool that can: trigger a Strava sync; update Strava content; change athlete/profile/settings data; delete or modify activities; perform arbitrary SQL writes; access another athlete's data.
 
-MCP mutation flags are not a substitute for a chat-specific allowlist. The chat tool registry must exclude mutating tools regardless of global configuration. The allowlist is a single explicit module-level set of tool names (`CHAT_TOOL_ALLOWLIST`) with a test asserting no mutating tool is present, and a test asserting every allowlisted name exists in the registered MCP catalog.
+MCP mutation flags are not a substitute for a chat-specific allowlist. The chat tool registry must exclude mutating tools regardless of global configuration. The allowlist is enforced in `src/kinetiqo/chat/tools.py` (`MUTATING_TOOL_NAMES`) with test coverage.
 
-### 9.3 Tool-call execution rules
+### 10.3 Tool-call execution rules
 
 - Validate tool name and arguments against server-owned schemas (reuse MCP tool input schemas).
-- Apply per-call timeouts (initial target: 10 seconds), maximum tool-call count per assistant turn (initial target: 8), maximum tool-result size (initial target: 64 KB, truncate with a clear marker), and a total turn time budget (initial target: 120 seconds).
+- Apply per-call timeouts (10 seconds), maximum tool-call count per assistant turn (8 calls), maximum tool-result size (64 KB, truncated cleanly), and a total turn time budget (120 seconds).
 - Never execute a tool name or SQL statement provided only by the model; unknown names return a structured tool error to the model.
 - Treat tool output and uploaded documents as untrusted data, not instructions.
 - Do not include secrets, access tokens, or unrelated personal data in tool results.
 - Pass only the minimum fields needed to answer the question.
 - Tool errors are returned to the model as structured errors without stack traces; the user sees a concise explanation if the request cannot be answered.
-- Tool execution must preserve the authenticated athlete context and must not allow the model to override it (tools are invoked in-process with the current athlete identity, exactly as the MCP server does).
+- Tool execution preserves the authenticated athlete context and does not allow the model to override it.
 - Persist `tool_provenance` (names, bounded arg/result summaries, durations) on the assistant message for the "Data used" panel and debugging; never store large duplicate raw payloads.
-- Bound loops: stop when the provider returns a final answer, the tool-call budget is exhausted, or the turn deadline is reached. On budget exhaustion, tell the model (one final round) that no further tool calls are allowed and it must answer with what it has or state the limitation.
-- The model must be told that it cannot execute write operations and that it must not claim a tool ran when it did not.
+- Bound loops: stop when the provider returns a final answer, the tool-call budget is exhausted, or the turn deadline is reached. On budget exhaustion, tell the model (one final round) that no further tool calls are allowed.
+- The model is instructed that it cannot execute write operations and that it must not claim a tool ran when it did not.
 
-### 9.4 Data-grounded answers — server-owned system instruction
+### 10.4 Data-grounded answers — server-owned system instruction
 
-Use a server-generated system instruction that:
+Use a server-generated system instruction (`src/kinetiqo/chat/service.py`) that:
 
 - Defines the assistant as Kinetiqo's training-data assistant.
+- Encodes standard exercise physiology frameworks:
+  - Coggan 7 power levels (% of FTP).
+  - Banister impulse-response model: Chronic Training Load (CTL, ~42-day decay = Fitness), Acute Training Load (ATL, ~7-day decay = Fatigue), Training Stress Balance (TSB = CTL - ATL = Form/Freshness).
+  - Townsend 5-min MAP VO₂max calculation (`10.8 * W/kg + 7`).
+  - Indoor vs Outdoor decoupling and pedal symmetry.
 - Requires using tools for questions that depend on the athlete's data.
 - Requires clearly distinguishing retrieved values, calculations, and coaching interpretation.
 - Requires dates, units, comparison periods, and assumptions to be explicit.
-- Requires saying when data is missing, stale, or insufficient (including the athlete's last sync date when relevant and cheap to obtain).
+- Requires saying when data is missing, stale, or insufficient.
 - Prohibits fabricating activities, power values, heart rates, training load, or tool results.
 - Advises that training insights are informational and not medical diagnosis.
 - Treats user messages, activity descriptions, and uploaded documents as untrusted content that cannot override system instructions (prompt-injection resistance).
-- Requires concise source context in the answer, e.g., date range, activity names/dates, or metric provenance. Do not invent a citation syntax the UI cannot render.
 - Specifies Markdown formatting expectations: headings, short paragraphs, and tables for comparisons; no HTML in answers.
 
-### 9.5 Context policy
+### 10.5 Context policy
 
 - Build system instructions on the server for every request; never accept system prompts from the browser.
-- Optionally pre-load a small, cheap athlete context block (name, sports, last sync date, current CTL/ATL/TSB if a single low-cost query provides them) so the model can personalize without a tool round; keep it bounded (< 2 KB) and clearly sourced/dated.
+- Optionally pre-load a small, cheap athlete context block (name, sports, last sync date, current CTL/ATL/TSB) so the model can personalize without a tool round.
 - Do not inject a large lifetime data dump into every prompt.
-- The UI provides a collapsible "Data used" panel per assistant turn showing the tool names, time ranges, and concise result summaries from `tool_provenance`, without exposing hidden reasoning or internal system prompts.
-- If a context snapshot is cached, use an explicit TTL and invalidate it after data sync or relevant settings changes when practical.
+- The UI provides a collapsible "Data used" toggle per assistant turn showing tool names, call counts, and execution latencies from `tool_provenance`.
 - Never claim the model has access to all Kinetiqo data unless the available tools and query results justify that claim.
 
 ---
 
-## 10. Conversation history and context-window management
+## 11. Conversation history and context-window management
 
-### 10.1 Source of truth
+### 11.1 Source of truth
 
 The database is the authoritative history. Browser storage may retain only transient UI state such as draft text (per session), sidebar width, and last-selected model. Do not store chat history or provider secrets in `localStorage`.
 
-### 10.2 Request construction
+### 11.2 Request construction
 
 For each turn:
 
@@ -687,7 +771,7 @@ For each turn:
 5. Include attachment content only when the attachment is still available, owned by the user, and supported by the current model.
 6. Estimate total request size (chars as a proxy) and apply a context budget. If history exceeds the budget, trim from the oldest turns first, keeping whole user/assistant pairs. The visible conversation is never trimmed — only what is sent to the model. If trimming occurred, note it in the system instruction ("earlier conversation history was omitted").
 
-### 10.3 Context budgets
+### 11.3 Context budgets
 
 - Initial targets (configurable in `chat/config.py`): max 50 most recent messages sent to the model; max ~200 K chars of history; `max_output_tokens` left at provider default unless the model metadata requires a bound.
 - Never silently drop the newest user message or its attachments.
@@ -695,11 +779,11 @@ For each turn:
 
 ---
 
-## 11. Web API and SSE contract
+## 12. Web API and SSE contract
 
 All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET methods (`flask-wtf` token or `X-CSRFToken` header), and scoped to `current_user.id`. Standard error envelope: `{"error": {"code": "<stable-code>", "message": "<safe-text>"}}` with appropriate HTTP status codes.
 
-### 11.1 Endpoints
+### 12.1 Endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -710,182 +794,172 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | PATCH | `/api/chat/sessions/<id>` | Rename (`{title}`) and/or change model (`{model_id}`). |
 | DELETE | `/api/chat/sessions/<id>` | Delete session and owned message/attachment data (transactional). |
 | GET | `/api/chat/sessions/<id>/messages` | Owned messages, chronological, paginated (`?before_seq=&limit=`), default limit 100. |
-| POST | `/api/chat/sessions/<id>/messages` | Send a turn: `{content, attachments?: [attachment_id], model_id?}` → SSE stream response (or `202` + stream URL if the project prefers). Persists the user message first. |
-| POST | `/api/chat/sessions/<id>/regenerate` | Re-run the last user turn: drops the previous assistant turn (keeps it as `interrupted`-style history or deletes per implementation choice — document and test the choice) and streams a new answer. |
+| POST | `/api/chat/sessions/<id>/messages` | Send a turn: `{content, attachments?: [attachment_id], model_id?}` → SSE stream response. Persists the user message first. |
+| POST | `/api/chat/sessions/<id>/regenerate` | Re-run the last user turn: drops previous assistant turn and streams new answer. |
 | POST | `/api/chat/sessions/<id>/cancel` | Cancel the in-flight turn for that session (idempotent; `200` even if nothing was running). |
-| GET | `/api/chat/models?provider=gemini` | Available models for the configured key (server cache, TTL). |
-| POST | `/api/chat/attachments` | Multipart upload (image/PDF). Validates signature, size, count limits; returns descriptor without message association. |
-| GET | `/api/chat/attachments/<id>` | Download owned attachment (correct `Content-Type`, `Content-Disposition`, `X-Content-Type-Options: nosniff`). |
-| DELETE | `/api/chat/attachments/<id>` | Delete owned attachment (storage + metadata). |
-| POST/DELETE | settings AI section (existing settings routes) | Validate/save/remove provider key (§8.3). |
+| GET | `/api/chat/models?provider=gemini` | Available models for the configured provider (server cache, TTL). |
+| GET | `/api/settings/ai/providers` | Summary of configured AI providers and enabled model counts. |
+| POST | `/api/settings/ai/openrouter/validate-model` | Validate an OpenRouter model slug via `GET /api/v1/model/...` before adding. |
+| POST/DELETE | `/api/settings/ai/openrouter/models` | Add (`+`) or remove (`–`) models from athlete's OpenRouter configuration. |
+| POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 
 Request limits: message content max 32 KB of text; enforce with explicit validation errors, not truncation.
 
-### 11.2 Status codes
+### 12.2 Status codes
 
-- `400` invalid shape/limits; `401` unauthenticated; `403` CSRF failure; `404` not owned/not found; `409` concurrent send to the same session (one in-flight turn per session per user — return a "still generating" error with the session state); `413` attachment too large; `422` unsupported MIME for the selected model; `429` provider rate limit (with retry-after when available); `502/504` upstream provider failures; `200` with SSE stream on success.
+- `400` invalid shape/limits; `401` unauthenticated; `403` CSRF failure; `404` not owned/not found; `409` concurrent send to the same session; `413` attachment too large; `422` invalid model name or unsupported MIME; `429` provider rate limit; `502/504` upstream provider failures; `200` with SSE stream on success.
 
-### 11.3 Concurrency and cancellation
+### 12.3 Concurrency and cancellation
 
 - One active turn per session per user. A second send to the same session while a turn is in flight returns `409`.
-- The server keeps a per-session cancel event; `/cancel` sets it, the streaming generator observes it, stops forwarding deltas, closes the upstream provider stream, and persists the assistant turn as `interrupted`.
+- The server keeps a per-session cancel event; `/cancel` sets it, the streaming generator observes it, stops forwarding deltas, closes upstream provider stream, and persists the assistant turn as `interrupted`.
 - Client disconnect (SSE write failure) is treated as cancellation.
-- In-flight turn state is in-memory only (single-process Flask/Gunicorn deployment assumption — verify; if multi-worker, document the limitation and use a database `active_turn` marker with a stale timestamp takeover).
 
-### 11.4 SSE event protocol
+### 12.4 SSE event protocol
 
-Response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no` (if behind a proxy). Events are `event:` + `data:` lines with JSON payloads; a `data: [DONE]`-style terminator is not needed if `completed`/`error` events are authoritative.
+Response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no` (if behind a proxy).
 
 | Event | Data payload | When |
 |---|---|---|
 | `session` | `{session_id}` | Stream start (confirms session state). |
-| `user_message` | `{message_id, seq, created_at}` | The persisted user message (so the client can render it definitively). |
+| `user_message` | `{message_id, seq, created_at}` | The persisted user message. |
 | `text_delta` | `{"text": "..."}` | Each provider text chunk. |
-| `tool_call` | `{"name": "...", "status": "running"}` optional | Optional UX indicator that a tool is being consulted (name + running/done only; never args or raw results). |
+| `tool_call` | `{"name": "...", "status": "running"}` | UX indicator that a tool is being consulted. |
+| `tool_result` | `{"name": "...", "status": "completed"}` | Tool execution finished. |
 | `usage` | `{"input_tokens": n, "output_tokens": n}` | When provider reports usage. |
-| `completed` | `{message_id, seq, model_id, provider, usage, tool_provenance_count, attachments?}` | Final persist succeeded. |
+| `completed` | `{message_id, seq, model_id, provider, usage, tool_provenance_count}` | Final persist succeeded. |
 | `error` | `{"code": "...", "message": "..."}` | Terminal failure; stream closes after. |
 
-Rules: every event is a single JSON object on one `data:` line; the client must treat `error` and `completed` as mutually exclusive terminals; heartbeats (comment lines) every 15 s to keep proxies from timing out. Errors after any `text_delta` must carry `partial: true` and the assistant message is persisted as `interrupted` with the partial content.
+---
+
+## 13. Frontend specification
+
+One page, one JS file (`static/js/chat.js`), server-rendered Jinja shell (`templates/chat.html`) extending `base.html`, self-hosted vendor assets only.
+
+### 13.1 Layout & Visual Standards
+
+- **Sidebar:** conversation list with hover deletion (`×`), standardized "+ New chat" button (40px height matching `/activities`), and pinned model selector / clear history at bottom.
+- **Composer:** auto-growing textarea, Send button with loading spinner during turn generation, brand color rotating animation frame (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`).
+- **Assistant Footer:**
+  - 1px top border divider: `#e5e7eb` (light mode), `#3f3f46` (dark mode).
+  - Unified right-aligned metadata row: `[Data used (X queries) ▾] · [Tokens: X in · Y out · Zs] · [Download response]`.
+  - Typography: uniform `font-sans text-xs text-gray-500 dark:text-zinc-400`.
+  - Transparent "Data used" expanded list: zero background card, zero border, high contrast against both light and dark bubbles (`#6b7280` light, `#a1a1aa` dark).
+- **Empty state:** suggested starter prompts matching athlete telemetry workflows.
 
 ---
 
-## 12. Frontend specification
+## 14. Configuration reference / constants
 
-One page, one JS file (`static/js/chat.js`), server-rendered Jinja shell (`templates/chat.html`) extending `base.html`, progressive-enhancement style consistent with the rest of Kinetiqo (self-hosted vendor assets only; new client libraries must go through `development/vendor-libraries.yaml` and the downloader — never ad-hoc CDN tags; any remaining CDN reference must pin versions, include SRI, and update `license.html` per `AGENTS.md`).
-
-### 12.1 Layout
-
-- **Sidebar:** conversation list (title, relative last-activity time), "New chat" button, delete (with confirm modal), inline rename (double-click / edit affordance). Collapsible on mobile; width persisted in `localStorage` (UI state only).
-- **Main area:** message thread; each message is a distinct element with a header row: role badge (You / assistant avatar), model badge (`gemini-2.x-…`) and usage chips on assistant turns (`▲ 1,234 · ▼ 567` style), and "Data used" collapsible on turns with tool provenance.
-- **Composer:** textarea (auto-grow, Enter to send / Shift+Enter newline — verify platform behavior, provide explicit Send button too), attachment button with previews (thumbnail chips with name/size and remove), model selector dropdown (fetched from `/api/chat/models`), Stop button replacing Send while streaming, disabled state with reason when no key is configured (with a link to Settings).
-- **Empty state:** suggested starter prompts (static, self-hosted, localized alongside existing strings): e.g., "Summarize my last four weeks of training", "How fresh am I right now?", "Compare this month to last year", "What are my best power efforts this season?" Clicking fills the composer.
-
-### 12.2 States and behaviors
-
-- **Streaming:** append `text_delta` chunks into a live element; auto-scroll to bottom unless the user scrolled up (then show a "jump to latest" affordance). Markdown is rendered live but conservatively (see §12.3).
-- **Stop:** visible during streaming; calls `/cancel`; the partial turn is rendered with an explicit "Stopped" label.
-- **Retry:** on `error` events, show a retry control that re-sends the same user content without re-persisting a duplicate user message (the route supports a `retry_of` hint or the client reuses the persisted user message).
-- **Regenerate:** on the last assistant turn, re-runs the turn (§11.1).
-- **Copy:** per-message copy button using the persisted Markdown source (`navigator.clipboard`, fallback to exec command).
-- **Errors:** inline, non-blocking banners with the safe message and error code; the prompt is preserved in the composer.
-- **Disclosure:** before the first send ever (per athlete), show a one-time modal: "Your prompts, relevant Kinetiqo data, and attachments are sent to Google (Gemini) using your API key. [Acknowledge]". Persist acknowledgment server-side (a per-athlete flag in settings or the provider-key row) so it survives devices; do not rely on `localStorage` alone.
-- **Key unconfigured:** empty state shows a setup card linking to Settings with concise steps.
-
-### 12.3 Markdown rendering policy
-
-- Assistant and user content is stored and transported as Markdown; rendering happens client-side.
-- Use a self-hosted Markdown renderer added via the vendor pipeline (e.g., `marked` + `DOMPurify`, or `markdown-it` + sanitizer), pinned with SRI if any CDN is used, or vendored locally per the self-hosting rule.
-- Sanitize all rendered HTML; allow only a conservative tag allowlist (headings, lists, tables, code, emphasis, links). Links get `rel="noopener noreferrer"` and open per the project's external-link policy.
-- Never `innerHTML` with unsanitized model output (Sonar Web:S5725); construct DOM via the sanitizer's API; `textContent` for any raw insertions.
-- Code blocks get a language label when the model provides one; no copy button required in v1.
-- Do not render model-emitted raw HTML — strip it.
-
-### 12.4 Accessibility, keyboard, and quality rules
-
-- Every control has an accessible label (`<label for>` or `aria-label`) per Sonar Web:S6853, including the sidebar toggle, attachment chips, and model selector.
-- Full keyboard support: Send, Stop, Escape to cancel streaming, arrows to move between conversations (nice-to-have), focus management when switching sessions; `aria-live="polite"` region for streaming answer summaries (append at sentence boundaries, not every delta, to avoid screen-reader flooding).
-- JS standards per `SKILLS.md`: `Number.parseInt(x, 10)`, `Number.parseFloat`, `Number.isNaN`, `Number.isFinite`; no duplicate object keys; no global functions (Sonar S7773/S1534).
-- Dark mode via the existing Tailwind dark-theme tokens; test both themes.
-- Mobile: composer fixed, sidebar overlays, touch targets ≥ 44 px.
-- `|tojson` for any server-injected JSON into `<script>` blocks; never `|safe` for model or user content.
-- All text strings follow the project's existing localization/string conventions.
-
----
-
-## 13. Configuration reference / constants
-
-Here are the configuration options for the chat feature. These are to be implemented as constants in the Python code. I don't expect any override via environment variables.
+Configuration constants in `src/kinetiqo/chat/config.py`:
 
 | Constant | Default | Purpose |
 |---|---|---|
 | `KINETIQO_CHAT_MAX_TOOL_CALLS` | `8` | Tool-call budget per turn. |
-| `KINETIQO_CHAT_TOOL_TIMEOUT_S` | `10` | Per tool call. |
+| `KINETIQO_CHAT_TOOL_TIMEOUT_S` | `10` | Per tool call timeout. |
 | `KINETIQO_CHAT_TURN_TIMEOUT_S` | `120` | Total turn budget. |
-| `KINETIQO_CHAT_MAX_HISTORY_MESSAGES` | `50` | Messages sent to the model. |
-| `KINETIQO_CHAT_MAX_ATTACHMENT_MB` | `10` | Per file. |
-| `KINETIQO_CHAT_MAX_ATTACHMENTS` | `5` | Per message. |
-| `KINETIQO_CHAT_MODEL_CACHE_TTL_S` | `600` | Server-side model cache. |
-
-Regarding the API keys, all to be stored i DB and editable via settings. A new section "AI" in the settings page with subsections for Gemini, etc. Have also nice icons per each AI provider (download from web and convert to webp). Have a button to enable/disable the provider and an input for the API key. Use the same styling as the rest of the settings page. No validation for keys needed. Just store and use when called.
+| `KINETIQO_CHAT_MAX_HISTORY_MESSAGES` | `50` | Maximum messages sent to model. |
+| `KINETIQO_CHAT_MAX_ATTACHMENT_MB` | `10` | Maximum attachment file size. |
+| `KINETIQO_CHAT_MAX_ATTACHMENTS` | `5` | Maximum attachments per message. |
+| `KINETIQO_CHAT_MODEL_CACHE_TTL_S` | `600` | Server-side model cache TTL. |
 
 ---
 
-## 14. Security checklist (all items testable)
+## 15. Security checklist (all items testable)
 
-- [ ] All chat routes require authentication; all non-GET routes require CSRF.
-- [ ] Every DB query scoped by `athlete_id`; ownership re-checked on every access.
-- [ ] Provider keys never in plaintext, logs, HTML, flash messages, or URLs.
-- [ ] AES-256-GCM with HKDF-derived key, versioned envelope, fresh nonces.
-- [ ] Attachment storage: server-generated keys, path containment (S8707 pattern), signature-based MIME validation, `nosniff` on downloads, size/count limits enforced pre-buffer.
-- [ ] Uploads served with `Content-Disposition` and correct `Content-Type`; never executed.
-- [ ] System instruction server-owned; browser cannot supply system prompts.
-- [ ] Tool allowlist excludes all mutating tools regardless of MCP flags; enforced by test.
-- [ ] Tool output and attachments treated as untrusted (prompt-injection resistance) in system instruction.
-- [ ] Markdown sanitized client-side; no `|safe` on chat content; no `innerHTML` with unsanitized strings.
-- [ ] No secrets or full prompts in logs; structured logging with bounded payload capture.
-- [ ] SSE endpoints do not leak session state of other users; one in-flight turn per session.
-- [ ] Security headers (nosniff, SAMEORIGIN, referrer policy) inherited from app; verified on new routes.
-- [ ] Rate limiting on chat sends (simple per-user cooldown, e.g., 20 sends/minute, configurable) to protect the user's API quota.
+- [x] All chat routes require authentication; non-GET routes require CSRF validation.
+- [x] Every DB query scoped by `athlete_id`; ownership re-checked on every access.
+- [x] Provider keys encrypted via AES-256-GCM with HKDF-SHA256, never in plaintext, HTML, or logs.
+- [x] System instruction server-owned; browser cannot supply system prompts.
+- [x] Tool allowlist strictly excludes all mutating tools (`MUTATING_TOOL_NAMES`) regardless of MCP flags.
+- [x] Tool output treated as untrusted data (prompt-injection resistance).
+- [x] Markdown sanitized client-side; no `|safe` on dynamic chat content.
+- [x] No secrets, auth tokens, or full prompts in server logs.
+- [x] SSE endpoints isolated to authenticated session; one in-flight turn per session.
+- [x] Security headers (nosniff, SAMEORIGIN, referrer policy) inherited and verified.
 
 ---
 
-## 15. Testing plan (mocked, no network — per AGENTS.md)
+## 16. Testing plan (mocked, no network — per AGENTS.md)
 
-Use `unittest.mock.patch` with class-level patches and `subTest` matrices, following `tests/test_sync_logic.py` as the gold standard. Patch boundaries: provider HTTP (`httpx.AsyncClient`/transport), repository factory, MCP tool executor, encryption key config.
+Use `unittest.mock.patch` with class-level patches following `tests/test_sync_logic.py` as the gold standard.
 
-- **test_chat_models:** domain validation (title limits, roles, statuses, attachment descriptor shapes).
-- **test_chat_service:** lifecycle order (persist user message before provider call — assert call order), history trimming (oldest-first, pairs kept, newest kept), concurrency guard (409), cancellation persists `interrupted`, error mapping per taxonomy, tool budget exhaustion behavior, turn deadline.
-- **test_chat_encryption:** round-trip, version envelope, nonce uniqueness (many encryptions), tamper detection (fail closed), wrong-key failure, no plaintext leakage in exceptions.
-- **test_chat_attachments:** signature vs filename MIME checks, size/count limits, ownership enforcement, path traversal rejection, delete cleanup.
-- **test_chat_tools:** allowlist excludes mutating tools; unknown tool rejected; arg schema validation; timeout enforcement (mock slow tool); result truncation; athlete context preservation (never from model args); provenance recording bounded.
-- **test_chat_provider_gemini:** key validation error mapping (401/403 vs 5xx vs timeout), model list normalization + pagination + filtering, stream parsing from mocked SSE chunks (split chunks, multi-line events), usage extraction, safety-block mapping, no text emitted for non-text parts, stream close in `finally`, no retry after first delta.
-- **test_chat_routes:** auth required, CSRF required on POST/PATCH/DELETE, 404 for foreign sessions, error envelope shape, message pagination, attachment download headers, key settings routes (validate/remove, no echo).
-- **test_chat_sse:** event protocol correctness (event names, JSON single-line, terminals), heartbeat, disconnect → cancellation propagation, error-after-delta carries `partial: true`.
-- **test_chat_security:** security checklist items as executable assertions.
-- **test_chat_schema_\*:** repository contract per backend (per existing DB test conventions; schema/bootstrap tests where the project has them).
-
-CI must run the full suite with `python -m pytest -o pythonpath=src`; no test makes network or DB calls.
+- **test_chat_models:** domain validation (title limits, roles, statuses).
+- **test_chat_service:** lifecycle order, history trimming, concurrency guard, cancellation, error mapping, tool budget limits.
+- **test_chat_encryption:** round-trip AES-256-GCM, nonce uniqueness, tamper detection, wrong-key failure closed.
+- **test_chat_tools:** allowlist excludes mutating tools, `CYCLING_SPORT_TYPES` power filtering, tool provenance persistence.
+- **test_chat_provider_gemini:** key validation, model discovery, chunked SSE streaming, usage extraction.
+- **test_chat_provider_openrouter:** key validation, model parameter resolution (`GET /api/v1/model/...`), OpenAI-format tool calling, SSE streaming.
+- **test_chat_routes:** authentication, CSRF, session scoping, settings key endpoints, model add/remove.
 
 ---
 
-## 16. Documentation and delivery updates
+## 17. Documentation and delivery updates
 
-- Replace `docs/concepts/ai-concept.md` with this specification (or add `docs/AI_CHAT.md` as the user-facing guide and move the concept to implemented status).
-- README: feature bullet, Web UI page entry, configuration reference entries, Docker env vars.
-- `docs/MCP.md`: note that the web chat uses the same read-only tool layer with its own allowlist.
-- `docs/DATABASE.md`: new chat tables and portability notes.
-- `.env.example`: empty placeholders for new variables.
-- `license.html`: any new client-side library (Markdown renderer/sanitizer) with pinned versions.
-- Docker: verify the chat works in `kinetiqo/web:latest` and `web-mcp:latest` images; no new build phase needed unless a new Python dependency requires it (document it).
+- `docs/concepts/ai-concept.md`: Authoritative technical specification and implementation plan.
+- `docs/AI.md`: User-facing feature excerpt and telemetry guide.
+- `.agents/skills/sync-ai-documentation/SKILL.md`: Automatic documentation synchronization skill.
+- `.agents/skills/ai-implementation/SKILL.md`: Multi-provider implementation rules.
 
 ---
 
-## 17. Implementation phases and acceptance criteria
+## 18. Implementation status
 
-Implement in reviewable phases; each phase ends green on the full test suite.
+- [x] **Phase 1 — Foundation**: Chat database schemas (`chat_sessions`, `chat_messages`, `chat_attachments`, `chat_provider_keys`), AES-256-GCM encryption, domain models.
+- [x] **Phase 2 — Gemini Provider**: Key validation, dynamic model discovery, SSE streaming, error taxonomy.
+- [x] **Phase 3 — Chat Service & Tools**: 31 read-only FastMCP tools bound in-process, Coggan/Banister system prompt, provenance persistence.
+- [x] **Phase 4 — Chat UI**: Sidebar sessions with hover delete (`×`), brand animated composer, assistant footer with 1px top divider, unified metadata row, transparent provenance.
+- [x] **Phase 5 — Coaching Workflows**: 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
+- [ ] **Phase 6 — OpenRouter Provider & Multi-Provider Settings**: See Section 19.
 
-**Phase 1 — Foundation:** domain models, errors, repository contract + all three backends, schema additions, encryption module, config plumbing.
-*Accept:* repository tests pass for PostgreSQL/MySQL/Firebird; encryption round-trip tests pass; feature flag gates everything.
+---
 
-**Phase 2 — Gemini adapter:** key validation, model discovery + cache, streaming, usage, error mapping (all HTTP-mocked).
-*Accept:* provider test suite passes; no SDK types leak past the adapter.
+## 19. OpenRouter AI Phased Implementation Roadmap
 
-**Phase 3 — Chat service & API:** lifecycle, SSE protocol, concurrency/cancellation, history management, settings key routes.
-*Accept:* service/route/SSE tests pass; manual smoke test streams a real answer (developer machine only, not CI).
+### Step 1: Database Schema Migration (`chat_provider_keys.config_json`)
+- Add nullable `config_json` column to `chat_provider_keys` in `src/kinetiqo/db/schema.py`:
+  - PostgreSQL: `TEXT`
+  - MySQL: `TEXT`
+  - Firebird: `BLOB SUB_TYPE TEXT`
+- Update `src/kinetiqo/chat/repository.py` with `get_provider_config` and `save_provider_config`.
 
-**Phase 4 — UI:** page shell, sidebar, composer, streaming client, markdown+sanitizer via vendor pipeline, dark mode, a11y, empty state, disclosure modal.
-*Accept:* checklist-driven manual pass in both themes, desktop + mobile widths; no Sonar JS findings; every control labeled.
+### Step 2: OpenRouter Provider Adapter (`src/kinetiqo/chat/providers/openrouter.py`)
+- Implement `ChatProvider` protocol.
+- Endpoint: `https://openrouter.ai/api/v1/chat/completions`.
+- SSE stream parser for OpenAI chunk deltas (`choices[0].delta.content`, `choices[0].delta.tool_calls`).
+- Function calling format using `get_chat_tools(provider="openai")`.
+- Error mapping (401 invalid key, 402 out of credits, 429 rate limits, 502 upstream errors).
 
-**Phase 5 — Tools:** allowlist, executor, budgets, provenance, "Data used" panel, system instruction.
-*Accept:* tool tests pass; a real question about training data produces a grounded answer citing tool data; mutating tools are provably unreachable from chat.
+### Step 3: OpenRouter Model Validation & Details API
+- Implement `validate_and_fetch_model(api_key, model_id) -> ChatProviderModel`:
+  - Calls `GET https://openrouter.ai/api/v1/model/{author}/{slug}`.
+  - Resolves canonical slug and variants (e.g. `:free`).
+  - Extracts display name, context length, pricing, and modal capabilities.
+  - Cache results in memory / TTL.
 
-**Phase 6 — Attachments:** upload/validate/store/download, inline + File API path, previews, model capability checks.
-*Accept:* attachment tests pass; image and PDF questions work end-to-end with a vision-capable model.
+### Step 4: Multi-Provider Settings Page UI (`src/kinetiqo/web/templates/settings.html`)
+- Add "+ Add AI provider" selector for Gemini AI and OpenRouter AI.
+- Render OpenRouter card with:
+  - API key input (password).
+  - Nested "Configured Models" section.
+  - Free-text model ID input with inline validation button / status.
+  - Responsive models table with columns: Model Name & ID, Context Window, Features, Actions.
+  - Action buttons: clean `+` (add another model) and `–` (remove model). No trash bin icon.
 
-**Phase 7 — Polish & docs:** error UX, regenerate, starter prompts, documentation updates, security checklist review, final full-suite run.
-*Accept:* all §15 tests green; security checklist fully checked; docs updated; the feature is demo-able: configure key → ask "How fresh am I?" → grounded, streamed, provenance-visible answer.
+### Step 5: Web API Endpoints (`src/kinetiqo/web/app.py`)
+- `GET /api/settings/ai/openrouter`: Returns configured status and list of enabled models.
+- `POST /api/settings/ai/openrouter`: Saves encrypted OpenRouter API key.
+- `DELETE /api/settings/ai/openrouter`: Removes OpenRouter key and configured models.
+- `POST /api/settings/ai/openrouter/models/validate`: Validates model ID and returns metadata.
+- `POST /api/settings/ai/openrouter/models`: Appends validated model to athlete's OpenRouter configuration.
+- `DELETE /api/settings/ai/openrouter/models`: Removes model from configuration.
+- Update `GET /api/chat/models`: Returns models grouped by provider.
 
-### Definition of done
+### Step 6: Chat Web UI Integration (`src/kinetiqo/web/templates/chat.html` & `chat.js`)
+- Model dropdown `#chat-model` renders `<optgroup label="Google Gemini">` and `<optgroup label="OpenRouter AI">`.
+- Send request dispatches `provider: "openrouter"` when an OpenRouter model is chosen.
 
-An implementation agent following only this document, the repository, and `AGENTS.md`/`SKILLS.md` can deliver a complete, functional, secure, fully tested AI chat feature with no further design decisions required — except where the document explicitly instructs the agent to verify a fact against the live code or provider API first, and to report the mismatch before proceeding.
+### Step 7: Mocked Unit Tests & Verification
+- `tests/test_chat_provider_openrouter.py`: Mocked tests for OpenRouter validation, streaming, tool execution, and error handling.
+- `tests/test_chat_openrouter_settings.py`: Mocked tests for multi-provider settings endpoints.
+- Run full test suite: `cmd /c "set PYTHONPATH=src && uv run --with-requirements requirements.txt python -m unittest discover -s tests -v"`.

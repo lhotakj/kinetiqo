@@ -167,6 +167,7 @@ def _setup_app(cfg):
     from kinetiqo.web.app import app, set_config, _power_cache
     set_config(cfg)
     app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
     # Clear the power cache so results from a previous test don't leak.
     _power_cache.invalidate()
     client = app.test_client()

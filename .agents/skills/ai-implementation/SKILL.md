@@ -262,17 +262,28 @@ When implementing or extending AI provider adapters:
 - Handles `anyOf: [type, null]` Pydantic schemas by unwrapping the non-null type branch.
 - Formatted via `to_gemini_schema(prop)` in `src/kinetiqo/chat/tools.py`.
 
-### 4.2 OpenAI / Mistral Function Declarations
+### 4.2 OpenAI / OpenRouter / Mistral Function Declarations
 - Uses standard JSON Schema with lowercase types: `string`, `integer`, `number`, `boolean`, `array`, `object`.
 - Wrapped in `{ "type": "function", "function": { "name": ..., "description": ..., "parameters": ... } }`.
 - Formatted via `to_openai_schema(prop)` in `src/kinetiqo/chat/tools.py`.
+- OpenRouter uses base URL `https://openrouter.ai/api/v1/chat/completions` with headers `HTTP-Referer: https://github.com/lhotakj/kinetiqo` and `X-Title: Kinetiqo`.
+- OpenRouter models are validated and detailed via `GET https://openrouter.ai/api/v1/model/{author}/{slug}`.
 
 ### 4.3 Anthropic Claude Tool Declarations
 - Direct `{ "name": name, "description": description, "input_schema": parameters }` structure.
 
 ---
 
-## 5. Testing & Verification Rules
+## 5. Mandatory Documentation Synchronization (CRITICAL)
+
+Whenever an agent touches AI features, providers, MCP tools, prompts, or settings:
+- **`docs/concepts/ai-concept.md`** MUST be updated to reflect current technical contracts, schema definitions, and roadmap phases.
+- **`docs/AI.md`** MUST be updated to reflect user-facing features, configuration workflows, and tool capabilities.
+- Refer to `.agents/skills/sync-ai-documentation/SKILL.md` for the full synchronization checklist.
+
+---
+
+## 6. Testing & Verification Rules
 
 1. **Always Mock External Boundaries**: Never invoke live Strava endpoints or require a running database server in unit tests.
 2. **Test Real Repository Signatures**: Ensure test mocks replicate the actual parameter counts (e.g. `get_profile()` with 0 args, `get_best_power_per_activity` with integer duration).

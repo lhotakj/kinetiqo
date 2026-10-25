@@ -266,7 +266,121 @@ class TestUnifiedProfileSync(unittest.TestCase):
         self.assertEqual(kwargs.get('update_strava_cycling_outdoor'), 'New Env Template')
 
 
+class TestManualProfileSyncAPI(unittest.TestCase):
+    """Test POST /api/profile/sync and GET /api/profile without auto-seeding."""
+
+    def setUp(self):
+        app.config['TESTING'] = True
+        app.config['LOGIN_DISABLED'] = True
+        self._csrf_enabled = app.config.get('WTF_CSRF_ENABLED', True)
+        app.config['WTF_CSRF_ENABLED'] = False
+        self.client = app.test_client()
+
+    def tearDown(self):
+        app.config['WTF_CSRF_ENABLED'] = self._csrf_enabled
+
+    @patch('flask_login.utils._get_user')
+    @patch('kinetiqo.web.app.seed_profile_from_strava')
+    @patch('kinetiqo.web.app.create_repository')
+    def test_manual_sync_profile_success(self, mock_create_repo, mock_seed_profile, mock_get_user):
+        """POST /api/profile/sync manually fetches from Strava and returns updated profile."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jaroslav',
+            'last_name': 'Lhotak',
+            'weight': 81.2,
+            'refresh_token': 'secret-token',
+            'gps_simplification': 2,
+        }
+        mock_create_repo.return_value = mock_repo
+        mock_seed_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jaroslav',
+            'last_name': 'Lhotak',
+            'weight': 81.2,
+        }
+
+        resp = self.client.post('/api/profile/sync')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data.get('success'))
+        self.assertEqual(data['profile']['first_name'], 'Jaroslav')
+        self.assertEqual(data['profile']['last_name'], 'Lhotak')
+        self.assertEqual(data['profile']['weight'], 81.2)
+        self.assertNotIn('refresh_token', data['profile'])
+        mock_seed_profile.assert_called_once()
+        _, kwargs = mock_seed_profile.call_args
+        self.assertTrue(kwargs.get('force'))
+
+    @patch('flask_login.utils._get_user')
+    @patch('kinetiqo.web.app.seed_profile_from_strava')
+    @patch('kinetiqo.web.app.create_repository')
+    def test_manual_sync_profile_rate_limited_429(self, mock_create_repo, mock_seed_profile, mock_get_user):
+        """POST /api/profile/sync returns 429 when Strava responds with Too Many Requests."""
+        import requests
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_create_repo.return_value = mock_repo
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 429
+        mock_seed_profile.side_effect = requests.exceptions.HTTPError("429 Client Error", response=mock_resp)
+
+        resp = self.client.post('/api/profile/sync')
+        self.assertEqual(resp.status_code, 429)
+        data = resp.get_json()
+        self.assertIn("rate limit exceeded", data.get('error', '').lower())
+
+    @patch('flask_login.utils._get_user')
+    @patch('kinetiqo.web.app.seed_profile_from_strava')
+    @patch('kinetiqo.web.app.create_repository')
+    def test_get_profile_does_not_call_seed_profile_when_empty(self, mock_create_repo, mock_seed_profile, mock_get_user):
+        """GET /api/profile returns default empty profile without calling Strava."""
+        mock_user = MagicMock()
+        mock_user.is_authenticated = True
+        mock_get_user.return_value = mock_user
+
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = None
+        mock_create_repo.return_value = mock_repo
+
+        resp = self.client.get('/api/profile')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data.get('athlete_id'), 0)
+        self.assertEqual(data.get('weight'), 0)
+        mock_seed_profile.assert_not_called()
+
+
+class TestCliStartupSync(unittest.TestCase):
+    """Test CLI web startup behavior."""
+
+    @patch('kinetiqo.cli.sync_all_profile_env_vars')
+    @patch('kinetiqo.cli.create_repository')
+    def test_sync_profile_from_env_does_not_call_strava(self, mock_create_repo, mock_sync_env):
+        """_sync_profile_from_env syncs environment variables without calling Strava API."""
+        from kinetiqo.cli import _sync_profile_from_env
+        config = Config()
+        mock_repo = MagicMock()
+        mock_create_repo.return_value = mock_repo
+
+        _sync_profile_from_env(config)
+
+        mock_create_repo.assert_called_once_with(config)
+        mock_sync_env.assert_called_once_with(config, mock_repo)
+        mock_repo.close.assert_called_once()
+
+
 if __name__ == '__main__':
     unittest.main()
+
 
 

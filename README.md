@@ -151,7 +151,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 | `/api/sync/stream/<type>` | GET | Stream sync progress through SSE |
 | `/api/sync/stop` | POST | Request cancellation of the active sync |
 | `/api/settings` | GET | Application settings |
-| `/api/profile` | GET/PUT/POST | Athlete profile (weight, name) |
+| `/api/profile` | GET/PUT/POST | Athlete profile (weight, name, GPS simplification, description templates) |
+| `/api/profile/sync` | POST | Manually synchronize athlete profile (name, weight) from Strava API |
 | `/api/goals` | GET/PUT | Activity goals per type |
 | `/latest-version` | GET | Asynchronous GitHub release update check |
 
