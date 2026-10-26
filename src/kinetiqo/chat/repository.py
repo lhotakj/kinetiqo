@@ -13,6 +13,8 @@ from kinetiqo.chat.models import ChatMessage, ChatSession
 
 
 class ChatRepository:
+    GLOBAL_PROVIDER = "__global__"
+
     def __init__(self, repository: Any, dialect: str):
         self.source_repository = repository
         self.conn = repository.conn
@@ -219,12 +221,28 @@ class ChatRepository:
         result = []
         for row in rows:
             provider = row[0]
+            if provider == self.GLOBAL_PROVIDER:
+                continue
             key_enc = row[1]
             enabled = bool(row[2])
             has_key = bool(key_enc and len(str(key_enc).strip()) > 0)
             if (has_key or provider == "ollama") and enabled:
                 result.append(provider)
         return result
+
+    def list_enabled_providers(self, athlete_id: str) -> list[str]:
+        p = self.placeholder
+        rows = self._all(
+            f"SELECT provider, enabled FROM chat_provider_keys WHERE athlete_id = {p}",
+            (athlete_id,),
+        )
+        enabled: list[str] = []
+        for provider, is_enabled in rows:
+            if provider == self.GLOBAL_PROVIDER:
+                continue
+            if bool(is_enabled):
+                enabled.append(str(provider))
+        return enabled
 
     def has_provider(self, athlete_id: str, provider: str) -> bool:
         p = self.placeholder
@@ -237,6 +255,45 @@ class ChatRepository:
     def remove_provider_key(self, athlete_id: str, provider: str) -> None:
         p = self.placeholder
         self._execute(f"DELETE FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
+
+    def get_global_settings(self, athlete_id: str) -> dict[str, Any]:
+        return self.get_provider_config(athlete_id, self.GLOBAL_PROVIDER)
+
+    def save_global_settings(self, athlete_id: str, settings: dict[str, Any]) -> None:
+        self.save_provider_config(athlete_id, self.GLOBAL_PROVIDER, settings)
+
+    def get_default_model(self, athlete_id: str) -> dict[str, str] | None:
+        settings = self.get_global_settings(athlete_id)
+        item = settings.get("default_model")
+        if not isinstance(item, dict):
+            return None
+        provider = str(item.get("provider") or "").strip().lower()
+        model_id = str(item.get("model_id") or "").strip()
+        if not provider or not model_id:
+            return None
+        return {"provider": provider, "model_id": model_id}
+
+    def set_default_model(self, athlete_id: str, provider: str, model_id: str) -> None:
+        settings = self.get_global_settings(athlete_id)
+        settings["default_model"] = {
+            "provider": str(provider).strip().lower(),
+            "model_id": str(model_id).strip(),
+        }
+        self.save_global_settings(athlete_id, settings)
+
+    def clear_default_model(self, athlete_id: str, provider: str | None = None, model_id: str | None = None) -> None:
+        settings = self.get_global_settings(athlete_id)
+        current = settings.get("default_model")
+        if not isinstance(current, dict):
+            return
+        current_provider = str(current.get("provider") or "").strip().lower()
+        current_model = str(current.get("model_id") or "").strip()
+        if provider and current_provider != provider.strip().lower():
+            return
+        if model_id and current_model.lower() != model_id.strip().lower():
+            return
+        settings.pop("default_model", None)
+        self.save_global_settings(athlete_id, settings)
 
     @staticmethod
     def _session(row: tuple) -> ChatSession:

@@ -198,6 +198,52 @@ class TestMCPTools(unittest.TestCase):
         self.assertEqual(res["data"]["deltas"]["distance_km"], 20.0)
         self.assertEqual(res["data"]["deltas"]["distance_pct"], 20.0)
 
+    def test_find_similar_routes_uses_normalized_sport_types_filter(self):
+        self.mock_repo.get_activities_by_ids.return_value = [
+            {"activity_id": "123", "athlete_id": 1, "distance": 50000.0}
+        ]
+        # First stream lookup for source activity, second for candidates
+        self.mock_repo.get_streams_coords_for_activities.side_effect = [
+            {"123": [[14.0 + i * 0.001, 50.0 + i * 0.001] for i in range(12)]},
+            {"456": [[14.0005 + i * 0.001, 50.0005 + i * 0.001] for i in range(12)]},
+        ]
+        self.mock_repo.search_activities.return_value = (
+            [{"activity_id": "456", "distance": 50500.0, "name": "Loop", "start_date": "2026-10-01T10:00:00Z"}],
+            None,
+            False,
+        )
+
+        res = activities.kinetiqo_find_similar_routes(
+            self.mock_repo,
+            activity_id="123",
+            sport_types=["Ride"],
+            max_candidates=5,
+        )
+
+        self.assertEqual(res["data_status"], "complete")
+        filters = self.mock_repo.search_activities.call_args.kwargs["filters"]
+        self.assertIn("sport_types", filters)
+        self.assertIn("Ride", filters["sport_types"])
+        self.assertIn("VirtualRide", filters["sport_types"])
+
+    def test_find_similar_routes_does_not_raise_invalid_argument_when_sport_types_omitted(self):
+        self.mock_repo.get_activities_by_ids.return_value = [
+            {"activity_id": "123", "athlete_id": 1, "distance": 50000.0}
+        ]
+        self.mock_repo.get_streams_coords_for_activities.side_effect = [
+            {"123": [[14.0 + i * 0.001, 50.0 + i * 0.001] for i in range(12)]},
+            {},
+        ]
+        self.mock_repo.search_activities.return_value = ([], None, False)
+
+        res = activities.kinetiqo_find_similar_routes(
+            self.mock_repo,
+            activity_id="123",
+        )
+
+        self.assertEqual(res["data_status"], "complete")
+        self.assertEqual(res["data"]["candidates"], [])
+
     def test_get_activity_totals_normalizes_cycling_sport_types(self):
         self.mock_repo.get_activities_totals.return_value = {
             "total_distance": 11122550.0,

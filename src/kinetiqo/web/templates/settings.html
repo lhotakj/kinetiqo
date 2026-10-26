@@ -265,36 +265,42 @@
 
     <!-- AI provider settings -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-4">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
             <div>
                 <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">AI</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure your AI providers and models for AI Chat. Prompts, relevant Kinetiqo data, and telemetry are processed using your own API keys.</p>
-            </div>
-            <!-- Add AI Provider Selector -->
-            <div class="flex items-center gap-2">
-                <label for="add-ai-provider-select" class="sr-only">Add AI provider</label>
-                <select id="add-ai-provider-select" aria-label="Add AI provider" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white">
-                    <option value="" disabled selected>+ Add AI provider</option>
-                    <option value="gemini">Google Gemini</option>
-                    <option value="openrouter">OpenRouter AI</option>
-                    <option value="vercel">Vercel AI Gateway</option>
-                    <option value="ollama">Ollama (Local AI)</option>
-                </select>
+                <p id="ai-default-model-label" class="text-xs text-gray-600 dark:text-gray-300 mt-2">Default model: No default model selected</p>
             </div>
         </div>
 
-        <div class="p-6 md:p-8 space-y-8">
+        <div class="p-6 md:p-8">
+            <div class="flex flex-col md:flex-row gap-6">
+                <aside class="w-full md:flex-none bg-transparent border border-gray-200 dark:border-zinc-700 rounded-xl" style="max-width: 300px; background-color: transparent;">
+                    <div class="flex items-center justify-end gap-1.5 p-2.5 border-b border-gray-200 dark:border-zinc-700">
+                        <button id="ai-provider-delete-btn" type="button" aria-label="Delete selected provider" class="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-600 dark:text-gray-300 hover:text-red-600 hover:border-red-400 dark:hover:border-red-500 transition cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a1 1 0 011-1h4a1 1 0 011 1v2"></path></svg>
+                        </button>
+                        <button id="ai-provider-add-btn" type="button" aria-label="Add AI provider" class="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-700 dark:text-gray-200 hover:text-orange-600 hover:border-orange-400 transition cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        </button>
+                    </div>
+                    <nav aria-label="AI providers" class="p-2" style="background-color: transparent;">
+                        <ul id="ai-provider-list" class="space-y-1"></ul>
+                    </nav>
+                </aside>
+
+                <section id="ai-provider-detail-panel" class="flex-1 min-h-[500px] px-4 md:px-6 pt-0 pb-2">
+                    <div id="ai-provider-cards-wrap" class="space-y-8">
             <!-- Gemini Provider Card -->
-            <div id="ai-provider-card-gemini" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+            <div id="ai-provider-card-gemini" data-provider="gemini" class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
                 <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
                     <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/70 text-orange-600 dark:text-orange-400 font-bold text-xs shadow-xs">G</span>
+                        <img src="{{ url_for('static', filename='icons/ai_gemini.svg') }}" alt="Google Gemini" class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
                         <div>
                             <h3 class="text-base font-semibold text-gray-900 dark:text-white">Google Gemini</h3>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Official Gemini API with auto-discovered generation models</p>
                         </div>
                     </div>
-                    <span id="gemini-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
                 </div>
                 <form id="gemini-key-form" class="flex flex-wrap items-end gap-3 pt-1">
                     <div class="flex-1 min-w-72">
@@ -304,19 +310,37 @@
                     <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
                     <button id="remove-gemini-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
                 </form>
+                <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">Available Models</h4>
+                    <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs mt-4">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
+                            <thead class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                <tr>
+                                    <th scope="col" class="px-5 py-3.5">Model</th>
+                                    <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gemini-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                <tr>
+                                    <td colspan="3" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- OpenRouter Provider Card -->
-            <div id="ai-provider-card-openrouter" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+            <div id="ai-provider-card-openrouter" data-provider="openrouter" class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
                 <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
                     <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 font-bold text-xs shadow-xs">OR</span>
+                        <img src="{{ url_for('static', filename='icons/ai_openrouter.svg') }}" alt="OpenRouter AI" class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
                         <div>
                             <h3 class="text-base font-semibold text-gray-900 dark:text-white">OpenRouter AI</h3>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Access hundreds of open &amp; commercial models via openrouter.ai</p>
                         </div>
                     </div>
-                    <span id="openrouter-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
                 </div>
                 <!-- OpenRouter Key Form -->
                 <form id="openrouter-key-form" class="flex flex-wrap items-end gap-3 mb-8 pt-1">
@@ -358,12 +382,13 @@
                                     <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
                                     <th scope="col" class="px-5 py-3.5">Context</th>
                                     <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Default</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="openrouter-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="4" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
+                                    <td colspan="5" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -372,16 +397,15 @@
             </div>
 
             <!-- Vercel AI Gateway Provider Card -->
-            <div id="ai-provider-card-vercel" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+            <div id="ai-provider-card-vercel" data-provider="vercel" class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
                 <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
                     <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-black dark:bg-zinc-800 text-white font-bold text-xs shadow-xs">▲</span>
+                        <img src="{{ url_for('static', filename='icons/ai_vercel.svg') }}" alt="Vercel AI Gateway" class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
                         <div>
                             <h3 class="text-base font-semibold text-gray-900 dark:text-white">Vercel AI Gateway</h3>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Route to hundreds of open &amp; frontier models via Vercel AI Gateway (ai-gateway.vercel.sh)</p>
                         </div>
                     </div>
-                    <span id="vercel-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
                 </div>
                 <!-- Vercel Key Form -->
                 <form id="vercel-key-form" class="flex flex-wrap items-end gap-3 mb-8 pt-1">
@@ -424,12 +448,13 @@
                                     <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
                                     <th scope="col" class="px-5 py-3.5">Context</th>
                                     <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Default</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="vercel-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="4" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>
+                                    <td colspan="5" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -438,16 +463,15 @@
             </div>
 
             <!-- Ollama Provider Card -->
-            <div id="ai-provider-card-ollama" class="rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all">
+            <div id="ai-provider-card-ollama" data-provider="ollama" class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
                 <div class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3">
                     <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 font-bold text-xs shadow-xs">OL</span>
+                        <img src="{{ url_for('static', filename='icons/ai_ollama.svg') }}" alt="Ollama (Local AI)" class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
                         <div>
                             <h3 class="text-base font-semibold text-gray-900 dark:text-white">Ollama (Local AI)</h3>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Run local open-weights models on your own hardware or local network</p>
                         </div>
                     </div>
-                    <span id="ollama-key-status" class="text-xs px-3 py-1 rounded-full font-medium shadow-2xs">Loading…</span>
                 </div>
 
                 <!-- Setup & Configuration Guide (Brief explanation in settings GUI) -->
@@ -514,19 +538,71 @@
                                     <th scope="col" class="px-5 py-3.5">Model Name &amp; Tag</th>
                                     <th scope="col" class="px-5 py-3.5">Parameters</th>
                                     <th scope="col" class="px-5 py-3.5">Status</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Default</th>
                                 </tr>
                             </thead>
                             <tbody id="ollama-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="3" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">Click &ldquo;Test connection &amp; fetch models&rdquo; to query your Ollama instance.</td>
+                                    <td colspan="4" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">Click &ldquo;Test connection &amp; fetch models&rdquo; to query your Ollama instance.</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
+            </div>
+                    <div class="mt-6 pt-5 border-t border-gray-200 dark:border-zinc-700 flex items-center justify-end">
+                        <button id="ai-provider-save-btn" type="button" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save</button>
+                    </div>
+                </section>
+            </div>
         </div>
     </div>
+
+    <div id="ai-discard-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="ai-discard-modal-title">
+        <div class="w-full max-w-md rounded-xl bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-xl p-6">
+            <h3 id="ai-discard-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">Discard changes?</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">Are you sure to discard changes?</p>
+            <div class="mt-5 flex justify-end gap-2">
+                <button id="ai-discard-no" type="button" class="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded transition cursor-pointer">No</button>
+                <button id="ai-discard-yes" type="button" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded transition cursor-pointer">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ai-delete-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="ai-delete-modal-title">
+        <div class="w-full max-w-md rounded-xl bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-xl p-6">
+            <h3 id="ai-delete-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">Delete provider?</h3>
+            <p id="ai-delete-modal-text" class="text-sm text-gray-600 dark:text-gray-300 mt-2">Do you really want to delete this provider?</p>
+            <div class="mt-5 flex justify-end gap-2">
+                <button id="ai-delete-no" type="button" class="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded transition cursor-pointer">No</button>
+                <button id="ai-delete-yes" type="button" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded transition cursor-pointer">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ai-add-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="ai-add-modal-title">
+        <div class="w-full max-w-md rounded-xl bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-xl p-6">
+            <h3 id="ai-add-modal-title" class="text-base font-semibold text-gray-900 dark:text-white">Add AI Provider</h3>
+            <div class="mt-4 max-h-72 overflow-auto rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-900/40 p-2">
+                <ul id="ai-add-provider-list" class="space-y-1"></ul>
+            </div>
+            <div class="mt-5 flex justify-end gap-2">
+                <button id="ai-add-cancel" type="button" class="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded transition cursor-pointer">Cancel</button>
+                <button id="ai-add-confirm" type="button" class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded transition cursor-pointer">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Ensure AI controls keep consistent inner spacing in all themes/render paths. */
+        #ai-provider-detail-panel input[type="text"],
+        #ai-provider-detail-panel input[type="password"],
+        #ai-provider-detail-panel textarea,
+        #ai-provider-detail-panel select {
+            padding: 0.625rem 0.875rem !important;
+        }
+    </style>
 
     <!-- Sync Schedules & Database Backend -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
@@ -1321,12 +1397,38 @@
             update_strava_swimming: document.getElementById('profile-update-strava-swimming'),
         };
         const profileStatus = document.getElementById('profile-status');
-        // AI Multi-Provider & Model Manager
+        // AI Multi-Provider two-pane workspace
         const aiHeaders = {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''};
+        const providerMeta = {
+            gemini: {name: 'Google Gemini', endpoint: '/api/settings/ai/gemini'},
+            openrouter: {name: 'OpenRouter AI', endpoint: '/api/settings/ai/openrouter'},
+            vercel: {name: 'Vercel AI Gateway', endpoint: '/api/settings/ai/vercel'},
+            ollama: {name: 'Ollama (Local AI)', endpoint: '/api/settings/ai/ollama'},
+        };
+
+        const providerListEl = document.getElementById('ai-provider-list');
+        const addProviderListEl = document.getElementById('ai-add-provider-list');
+        const defaultModelLabel = document.getElementById('ai-default-model-label');
+        const saveProviderBtn = document.getElementById('ai-provider-save-btn');
+        const deleteProviderBtn = document.getElementById('ai-provider-delete-btn');
+        const addProviderBtn = document.getElementById('ai-provider-add-btn');
+
+        const discardModal = document.getElementById('ai-discard-modal');
+        const discardYesBtn = document.getElementById('ai-discard-yes');
+        const discardNoBtn = document.getElementById('ai-discard-no');
+        const deleteModal = document.getElementById('ai-delete-modal');
+        const deleteModalText = document.getElementById('ai-delete-modal-text');
+        const deleteYesBtn = document.getElementById('ai-delete-yes');
+        const deleteNoBtn = document.getElementById('ai-delete-no');
+        const addModal = document.getElementById('ai-add-modal');
+        const addConfirmBtn = document.getElementById('ai-add-confirm');
+        const addCancelBtn = document.getElementById('ai-add-cancel');
+
         const geminiCard = document.getElementById('ai-provider-card-gemini');
         const geminiForm = document.getElementById('gemini-key-form');
         const geminiInput = document.getElementById('gemini-api-key');
         const geminiStatus = document.getElementById('gemini-key-status');
+        const geminiTableBody = document.getElementById('gemini-models-table-body');
         const removeGeminiBtn = document.getElementById('remove-gemini-key');
 
         const openrouterCard = document.getElementById('ai-provider-card-openrouter');
@@ -1338,6 +1440,7 @@
         const openrouterAddModelBtn = document.getElementById('openrouter-add-model-btn');
         const openrouterModelFeedback = document.getElementById('openrouter-model-feedback');
         const openrouterTableBody = document.getElementById('openrouter-models-table-body');
+
         const vercelCard = document.getElementById('ai-provider-card-vercel');
         const vercelForm = document.getElementById('vercel-key-form');
         const vercelInput = document.getElementById('vercel-api-key');
@@ -1347,6 +1450,7 @@
         const vercelAddModelBtn = document.getElementById('vercel-add-model-btn');
         const vercelModelFeedback = document.getElementById('vercel-model-feedback');
         const vercelTableBody = document.getElementById('vercel-models-table-body');
+
         const ollamaCard = document.getElementById('ai-provider-card-ollama');
         const ollamaForm = document.getElementById('ollama-config-form');
         const ollamaUrlInput = document.getElementById('ollama-base-url');
@@ -1357,693 +1461,522 @@
         const ollamaTestFeedback = document.getElementById('ollama-test-feedback');
         const ollamaTableBody = document.getElementById('ollama-models-table-body');
         const ollamaModelsCount = document.getElementById('ollama-models-count');
-        const addProviderSelect = document.getElementById('add-ai-provider-select');
+
+        const providerCards = {gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, ollama: ollamaCard};
+        const providerData = {
+            gemini: {configured: false, models: []},
+            openrouter: {configured: false, models: []},
+            vercel: {configured: false, models: []},
+            ollama: {configured: false, models: []},
+        };
+
+        let currentProvider = null;
+        let pendingProvider = null;
+        let addCandidateProvider = null;
+        let aiDirty = false;
+        let defaultModel = null;
+        let enabledProviders = [];
+        let allProviders = [];
+
+        const iconPath = (provider) => `/static/icons/ai_${provider}.svg`;
+        const providerIconHtml = (provider, sizeClass = 'w-4 h-4') => `<img src="${iconPath(provider)}" alt="${providerMeta[provider]?.name || provider}" class="${sizeClass} shrink-0" width="16" height="16" onerror="this.onerror=null;this.src='/static/icons/ai_generic.svg';">`;
 
         function setStatusPill(el, text, isConfigured, isError) {
             if (!el) return;
             el.textContent = text;
-            if (isError) {
-                el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300';
-            } else if (isConfigured) {
-                el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
-            } else {
-                el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400';
-            }
+            if (isError) el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300';
+            else if (isConfigured) el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
+            else el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400';
         }
 
         function formatNumber(num) {
             return Number.isFinite(num) ? num.toLocaleString('en-US') : (num || '—');
         }
 
-        // Render OpenRouter models table
+        const openModal = (modal) => {
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+        const closeModal = (modal) => {
+            if (!modal) return;
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+        };
+
+        function updateDefaultModelLabel() {
+            if (!defaultModelLabel) return;
+            defaultModelLabel.textContent = defaultModel?.model_id
+                ? `Default model: ${defaultModel.model_id}`
+                : 'Default model: No default model selected';
+        }
+
+        function setCurrentProvider(provider) {
+            currentProvider = provider;
+            Object.keys(providerCards).forEach((key) => providerCards[key]?.classList.toggle('hidden', key !== provider));
+            renderProviderList();
+            if (saveProviderBtn) saveProviderBtn.disabled = !provider;
+            if (deleteProviderBtn) deleteProviderBtn.disabled = !provider;
+        }
+
+        function renderProviderList() {
+            if (!providerListEl) return;
+            providerListEl.replaceChildren();
+            if (!enabledProviders.length) {
+                const li = document.createElement('li');
+                li.className = 'text-xs text-gray-500 dark:text-gray-400 px-2 py-2';
+                li.textContent = 'No providers yet. Click + to add one.';
+                providerListEl.appendChild(li);
+                return;
+            }
+            enabledProviders.forEach((provider) => {
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                const active = provider === currentProvider;
+                btn.className = `nav-item w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-warm-900 ${active ? 'active' : ''}`;
+                btn.innerHTML = `${providerIconHtml(provider)}<span class="truncate">${providerMeta[provider]?.name || provider}</span>`;
+                btn.addEventListener('click', () => {
+                    if (provider === currentProvider) return;
+                    if (aiDirty) {
+                        pendingProvider = provider;
+                        openModal(discardModal);
+                        return;
+                    }
+                    setCurrentProvider(provider);
+                });
+                li.appendChild(btn);
+                providerListEl.appendChild(li);
+            });
+        }
+
+        async function refreshProvidersIndex() {
+            const res = await fetch('/api/settings/ai/providers');
+            const payload = await res.json();
+            enabledProviders = Array.isArray(payload.enabled_providers) ? payload.enabled_providers : [];
+            allProviders = Array.isArray(payload.all_providers) ? payload.all_providers : [];
+            if (!currentProvider || !enabledProviders.includes(currentProvider)) {
+                setCurrentProvider(enabledProviders[0] || null);
+            }
+            renderProviderList();
+        }
+
+        async function loadDefaultModel() {
+            const res = await fetch('/api/settings/ai/default-model');
+            const payload = await res.json();
+            defaultModel = payload.default_model || null;
+            updateDefaultModelLabel();
+        }
+
+        async function setDefaultModel(provider, modelId) {
+            const res = await fetch('/api/settings/ai/default-model', {
+                method: 'POST', headers: aiHeaders, body: JSON.stringify({provider, model_id: modelId}),
+            });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(payload.error?.message || 'Unable to save default model.');
+            defaultModel = payload.default_model || null;
+            updateDefaultModelLabel();
+            renderAllModelTables();
+        }
+
+        function createStarButton(provider, item) {
+            const isDefault = Boolean(defaultModel && defaultModel.provider === provider && defaultModel.model_id === item.id);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:border-orange-400 transition';
+            btn.setAttribute('aria-label', `Set ${item.id} as default model`);
+            btn.innerHTML = isDefault
+                ? '<span class="text-lg leading-none text-yellow-400" style="-webkit-text-stroke: 0.6px #111827;">★</span>'
+                : '<span class="text-lg leading-none text-gray-400">☆</span>';
+            btn.addEventListener('click', async () => {
+                try {
+                    await setDefaultModel(provider, item.id);
+                } catch (err) {
+                    alert(err.message || 'Unable to save default model.');
+                }
+            });
+            return btn;
+        }
+
+        function renderGeminiModels(models) {
+            if (!geminiTableBody) return;
+            geminiTableBody.replaceChildren();
+            if (!Array.isArray(models) || models.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="3" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>';
+                geminiTableBody.appendChild(tr);
+                return;
+            }
+            models.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
+                tr.innerHTML = `<td class="px-4 py-3 align-middle"><div class="font-semibold text-gray-900 dark:text-white">${item.display_name || item.name || item.id}</div><div class="text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs">${item.id}</div></td><td class="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">${item.supports_tools !== false ? 'Tools' : 'No tools'}${item.supports_vision ? ' • Vision' : ''}</td><td class="px-4 py-3 align-middle text-right"></td>`;
+                tr.children[2].appendChild(createStarButton('gemini', item));
+                geminiTableBody.appendChild(tr);
+            });
+        }
+
         function renderOpenRouterModels(models) {
             if (!openrouterTableBody) return;
             openrouterTableBody.replaceChildren();
-
             if (!Array.isArray(models) || models.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="4" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>';
+                tr.innerHTML = '<td colspan="5" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>';
                 openrouterTableBody.appendChild(tr);
                 return;
             }
-
             models.forEach((item) => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-
-                // Col 1: Name & ID
-                const tdName = document.createElement('td');
-                tdName.className = 'px-4 py-3 align-middle';
-                const nameDiv = document.createElement('div');
-                nameDiv.className = 'font-semibold text-gray-900 dark:text-white';
-                nameDiv.textContent = item.display_name || item.name || item.id;
-                const idDiv = document.createElement('div');
-                idDiv.className = 'text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs';
-                idDiv.textContent = item.id;
-                tdName.appendChild(nameDiv);
-                tdName.appendChild(idDiv);
-                tr.appendChild(tdName);
-
-                // Col 2: Context length
-                const tdCtx = document.createElement('td');
-                tdCtx.className = 'px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300';
-                tdCtx.textContent = item.context_length ? `${formatNumber(item.context_length)} tokens` : '128,000 tokens';
-                tr.appendChild(tdCtx);
-
-                // Col 3: Capabilities
-                const tdCaps = document.createElement('td');
-                tdCaps.className = 'px-4 py-3 align-middle';
-                const badgesWrap = document.createElement('div');
-                badgesWrap.className = 'flex flex-wrap gap-1';
-
-                const toolBadge = document.createElement('span');
-                toolBadge.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300';
-                toolBadge.textContent = item.supports_tools !== false ? 'Tools' : 'No tools';
-                badgesWrap.appendChild(toolBadge);
-
-                if (item.supports_vision) {
-                    const visBadge = document.createElement('span');
-                    visBadge.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300';
-                    visBadge.textContent = 'Vision';
-                    badgesWrap.appendChild(visBadge);
-                }
-                tdCaps.appendChild(badgesWrap);
-                tr.appendChild(tdCaps);
-
-                // Col 4: Actions (Remove button '-' without trash bin)
-                const tdAction = document.createElement('td');
-                tdAction.className = 'px-4 py-3 align-middle text-right whitespace-nowrap';
-
+                tr.innerHTML = `<td class="px-4 py-3 align-middle"><div class="font-semibold text-gray-900 dark:text-white">${item.display_name || item.name || item.id}</div><div class="text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs">${item.id}</div></td><td class="px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300">${item.context_length ? `${formatNumber(item.context_length)} tokens` : '128,000 tokens'}</td><td class="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">${item.supports_tools !== false ? 'Tools' : 'No tools'}${item.supports_vision ? ' • Vision' : ''}</td><td class="px-4 py-3 align-middle text-right"></td><td class="px-4 py-3 align-middle text-right whitespace-nowrap"></td>`;
+                tr.children[3].appendChild(createStarButton('openrouter', item));
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
-                removeBtn.title = `Remove ${item.id}`;
                 removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
                 removeBtn.innerHTML = '<span class="leading-none">&ndash;</span>';
                 removeBtn.addEventListener('click', async () => {
-                    removeBtn.disabled = true;
-                    try {
-                        const res = await fetch('/api/settings/ai/openrouter/models', {
-                            method: 'DELETE',
-                            headers: aiHeaders,
-                            body: JSON.stringify({ model_id: item.id })
-                        });
-                        if (!res.ok) {
-                            const err = await res.json().catch(() => ({}));
-                            throw new Error(err.error?.message || 'Failed to remove model.');
-                        }
-                        const data = await res.json();
-                        renderOpenRouterModels(data.models || []);
-                    } catch (e) {
-                        alert(e.message);
-                    } finally {
-                        removeBtn.disabled = false;
-                    }
+                    const res = await fetch('/api/settings/ai/openrouter/models', {method: 'DELETE', headers: aiHeaders, body: JSON.stringify({model_id: item.id})});
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error?.message || 'Failed to remove model.');
+                    providerData.openrouter.models = data.models || [];
+                    defaultModel = data.default_model || defaultModel;
+                    updateDefaultModelLabel();
+                    renderOpenRouterModels(providerData.openrouter.models);
                 });
-
-                tdAction.appendChild(removeBtn);
-                tr.appendChild(tdAction);
-
+                tr.children[4].appendChild(removeBtn);
                 openrouterTableBody.appendChild(tr);
             });
         }
 
-        // Fetch Gemini key status
-        function loadGeminiStatus() {
-            fetch('/api/settings/ai/gemini')
-                .then(r => r.json())
-                .then(d => setStatusPill(geminiStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false))
-                .catch(() => setStatusPill(geminiStatus, 'Status error', false, true));
-        }
-
-        // Fetch OpenRouter key and models status
-        function loadOpenRouterStatus() {
-            fetch('/api/settings/ai/openrouter')
-                .then(r => r.json())
-                .then(d => {
-                    setStatusPill(openrouterStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-                    renderOpenRouterModels(d.models || []);
-                })
-                .catch(() => setStatusPill(openrouterStatus, 'Status error', false, true));
-        }
-
-        // Save Gemini key
-        if (geminiForm && geminiInput) {
-            geminiForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const key = geminiInput.value.trim();
-                if (!key) return;
-                fetch('/api/settings/ai/gemini', {
-                    method: 'POST',
-                    headers: aiHeaders,
-                    body: JSON.stringify({ api_key: key })
-                })
-                .then(async (res) => {
-                    if (!res.ok) throw new Error((await res.json()).error?.message || 'Unable to save Gemini key');
-                    return res.json();
-                })
-                .then(() => {
-                    geminiInput.value = '';
-                    setStatusPill(geminiStatus, 'Configured', true, false);
-                })
-                .catch(err => setStatusPill(geminiStatus, err.message, false, true));
-            });
-        }
-
-        // Remove Gemini key
-        if (removeGeminiBtn) {
-            removeGeminiBtn.addEventListener('click', () => {
-                fetch('/api/settings/ai/gemini', { method: 'DELETE', headers: aiHeaders })
-                    .then(res => {
-                        if (!res.ok) throw new Error('Unable to remove key');
-                        setStatusPill(geminiStatus, 'Not configured', false, false);
-                    })
-                    .catch(err => setStatusPill(geminiStatus, err.message, false, true));
-            });
-        }
-
-        // Save OpenRouter key
-        if (openrouterForm && openrouterInput) {
-            openrouterForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const key = openrouterInput.value.trim();
-                if (!key) return;
-                fetch('/api/settings/ai/openrouter', {
-                    method: 'POST',
-                    headers: aiHeaders,
-                    body: JSON.stringify({ api_key: key })
-                })
-                .then(async (res) => {
-                    let errMsg = `Unable to save OpenRouter key (HTTP ${res.status})`;
-                    try {
-                        const json = await res.json();
-                        if (json?.error?.message) errMsg = json.error.message;
-                        else if (res.ok) return json;
-                    } catch {
-                        // Response was not JSON (e.g., HTML 500 error page)
-                    }
-                    if (!res.ok) throw new Error(errMsg);
-                    return res;
-                })
-                .then((d) => {
-                    openrouterInput.value = '';
-                    setStatusPill(openrouterStatus, 'Configured', true, false);
-                    renderOpenRouterModels(d.models || []);
-                })
-                .catch(err => setStatusPill(openrouterStatus, err.message, false, true));
-            });
-        }
-
-        // Remove OpenRouter key
-        if (removeOpenrouterBtn) {
-            removeOpenrouterBtn.addEventListener('click', () => {
-                fetch('/api/settings/ai/openrouter', { method: 'DELETE', headers: aiHeaders })
-                    .then(res => {
-                        if (!res.ok) throw new Error('Unable to remove key');
-                        setStatusPill(openrouterStatus, 'Not configured', false, false);
-                        renderOpenRouterModels([]);
-                    })
-                    .catch(err => setStatusPill(openrouterStatus, err.message, false, true));
-            });
-        }
-
-        // Add OpenRouter model via validation API
-        if (openrouterAddModelBtn && openrouterNewModelInput) {
-            openrouterAddModelBtn.addEventListener('click', async () => {
-                const modelId = openrouterNewModelInput.value.trim();
-                if (!modelId) return;
-
-                openrouterAddModelBtn.disabled = true;
-                const origBtnHtml = openrouterAddModelBtn.innerHTML;
-                openrouterAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
-
-                if (openrouterModelFeedback) {
-                    openrouterModelFeedback.classList.remove('hidden');
-                    openrouterModelFeedback.className = 'text-xs mb-3 text-gray-500 dark:text-gray-400 flex items-center gap-1.5';
-                    openrouterModelFeedback.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Validating" width="12" height="12" class="inline-block"><span>Validating with OpenRouter API…</span>';
-                }
-
-                try {
-                    const res = await fetch('/api/settings/ai/openrouter/models', {
-                        method: 'POST',
-                        headers: aiHeaders,
-                        body: JSON.stringify({ model_id: modelId })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) {
-                        const err = new Error(data.error?.message || 'Failed to add model.');
-                        if (data.error?.suggestion) {
-                            err.suggestion = data.error.suggestion;
-                        }
-                        throw err;
-                    }
-                    openrouterNewModelInput.value = '';
-                    renderOpenRouterModels(data.models || []);
-                    if (openrouterModelFeedback) {
-                        openrouterModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
-                        openrouterModelFeedback.textContent = `Model '${modelId}' added successfully.`;
-                        setTimeout(() => openrouterModelFeedback.classList.add('hidden'), 3500);
-                    }
-                } catch (err) {
-                    if (openrouterModelFeedback) {
-                        openrouterModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
-                        openrouterModelFeedback.replaceChildren();
-                        const msgSpan = document.createElement('span');
-                        msgSpan.textContent = err.message + ' ';
-                        openrouterModelFeedback.appendChild(msgSpan);
-                        if (err.suggestion) {
-                            const sugBtn = document.createElement('button');
-                            sugBtn.type = 'button';
-                            sugBtn.className = 'inline-flex items-center px-2 py-0.5 ml-1 rounded font-mono text-[11px] bg-orange-100 hover:bg-orange-200 dark:bg-orange-950/70 dark:hover:bg-orange-900 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-700 transition cursor-pointer';
-                            sugBtn.textContent = `Use ${err.suggestion}`;
-                            sugBtn.addEventListener('click', () => {
-                                openrouterNewModelInput.value = err.suggestion;
-                                openrouterAddModelBtn.click();
-                            });
-                            openrouterModelFeedback.appendChild(sugBtn);
-                        }
-                    }
-                } finally {
-                    openrouterAddModelBtn.disabled = false;
-                    openrouterAddModelBtn.innerHTML = origBtnHtml;
-                }
-            });
-        }
-
-        // Render Vercel AI Gateway models table
         function renderVercelModels(models) {
             if (!vercelTableBody) return;
             vercelTableBody.replaceChildren();
-
             if (!Array.isArray(models) || models.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="4" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>';
+                tr.innerHTML = '<td colspan="5" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>';
                 vercelTableBody.appendChild(tr);
                 return;
             }
-
             models.forEach((item) => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-
-                // Col 1: Name & ID
-                const tdName = document.createElement('td');
-                tdName.className = 'px-4 py-3 align-middle';
-                const nameDiv = document.createElement('div');
-                nameDiv.className = 'font-semibold text-gray-900 dark:text-white';
-                nameDiv.textContent = item.display_name || item.name || item.id;
-                const idDiv = document.createElement('div');
-                idDiv.className = 'text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs';
-                idDiv.textContent = item.id;
-                tdName.appendChild(nameDiv);
-                tdName.appendChild(idDiv);
-                tr.appendChild(tdName);
-
-                // Col 2: Context length
-                const tdCtx = document.createElement('td');
-                tdCtx.className = 'px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300';
-                tdCtx.textContent = item.context_length ? `${formatNumber(item.context_length)} tokens` : '128,000 tokens';
-                tr.appendChild(tdCtx);
-
-                // Col 3: Capabilities
-                const tdCaps = document.createElement('td');
-                tdCaps.className = 'px-4 py-3 align-middle';
-                const badgesWrap = document.createElement('div');
-                badgesWrap.className = 'flex flex-wrap gap-1';
-
-                const toolBadge = document.createElement('span');
-                toolBadge.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300';
-                toolBadge.textContent = item.supports_tools !== false ? 'Tools' : 'No tools';
-                badgesWrap.appendChild(toolBadge);
-
-                if (item.supports_vision) {
-                    const visBadge = document.createElement('span');
-                    visBadge.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300';
-                    visBadge.textContent = 'Vision';
-                    badgesWrap.appendChild(visBadge);
-                }
-                tdCaps.appendChild(badgesWrap);
-                tr.appendChild(tdCaps);
-
-                // Col 4: Actions (Remove button '-' without trash bin)
-                const tdAction = document.createElement('td');
-                tdAction.className = 'px-4 py-3 align-middle text-right whitespace-nowrap';
-
+                tr.innerHTML = `<td class="px-4 py-3 align-middle"><div class="font-semibold text-gray-900 dark:text-white">${item.display_name || item.name || item.id}</div><div class="text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs">${item.id}</div></td><td class="px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300">${item.context_length ? `${formatNumber(item.context_length)} tokens` : '128,000 tokens'}</td><td class="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">${item.supports_tools !== false ? 'Tools' : 'No tools'}${item.supports_vision ? ' • Vision' : ''}</td><td class="px-4 py-3 align-middle text-right"></td><td class="px-4 py-3 align-middle text-right whitespace-nowrap"></td>`;
+                tr.children[3].appendChild(createStarButton('vercel', item));
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
-                removeBtn.title = `Remove ${item.id}`;
                 removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
                 removeBtn.innerHTML = '<span class="leading-none">&ndash;</span>';
                 removeBtn.addEventListener('click', async () => {
-                    removeBtn.disabled = true;
-                    try {
-                        const res = await fetch('/api/settings/ai/vercel/models', {
-                            method: 'DELETE',
-                            headers: aiHeaders,
-                            body: JSON.stringify({ model_id: item.id })
-                        });
-                        if (!res.ok) {
-                            const err = await res.json().catch(() => ({}));
-                            throw new Error(err.error?.message || 'Failed to remove model.');
-                        }
-                        const data = await res.json();
-                        renderVercelModels(data.models || []);
-                    } catch (e) {
-                        alert(e.message);
-                    } finally {
-                        removeBtn.disabled = false;
-                    }
+                    const res = await fetch('/api/settings/ai/vercel/models', {method: 'DELETE', headers: aiHeaders, body: JSON.stringify({model_id: item.id})});
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error?.message || 'Failed to remove model.');
+                    providerData.vercel.models = data.models || [];
+                    defaultModel = data.default_model || defaultModel;
+                    updateDefaultModelLabel();
+                    renderVercelModels(providerData.vercel.models);
                 });
-
-                tdAction.appendChild(removeBtn);
-                tr.appendChild(tdAction);
-
+                tr.children[4].appendChild(removeBtn);
                 vercelTableBody.appendChild(tr);
             });
         }
 
-        // Fetch Vercel AI Gateway key and models status
-        function loadVercelStatus() {
-            fetch('/api/settings/ai/vercel')
-                .then(r => r.json())
-                .then(d => {
-                    setStatusPill(vercelStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-                    renderVercelModels(d.models || []);
-                })
-                .catch(() => setStatusPill(vercelStatus, 'Status error', false, true));
-        }
-
-        // Save Vercel AI Gateway key
-        if (vercelForm && vercelInput) {
-            vercelForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const key = vercelInput.value.trim();
-                if (!key) return;
-                fetch('/api/settings/ai/vercel', {
-                    method: 'POST',
-                    headers: aiHeaders,
-                    body: JSON.stringify({ api_key: key })
-                })
-                .then(async res => {
-                    if (!res.ok) {
-                        let errMsg = `Unable to save Vercel key (HTTP ${res.status})`;
-                        try {
-                            const errBody = await res.json();
-                            if (errBody && errBody.error && errBody.error.message) {
-                                errMsg = errBody.error.message;
-                            }
-                        } catch {
-                            // fallback
-                        }
-                        throw new Error(errMsg);
-                    }
-                    return res.json();
-                })
-                .then(d => {
-                    setStatusPill(vercelStatus, 'Configured', true, false);
-                    vercelInput.value = '';
-                    renderVercelModels(d.models || []);
-                })
-                .catch(err => setStatusPill(vercelStatus, err.message, false, true));
-            });
-        }
-
-        // Remove Vercel AI Gateway key
-        if (removeVercelBtn) {
-            removeVercelBtn.addEventListener('click', () => {
-                fetch('/api/settings/ai/vercel', { method: 'DELETE', headers: aiHeaders })
-                    .then(res => {
-                        if (!res.ok) throw new Error('Unable to remove key');
-                        setStatusPill(vercelStatus, 'Not configured', false, false);
-                        renderVercelModels([]);
-                    })
-                    .catch(err => setStatusPill(vercelStatus, err.message, false, true));
-            });
-        }
-
-        // Add Vercel AI Gateway model via validation API
-        if (vercelAddModelBtn && vercelNewModelInput) {
-            vercelAddModelBtn.addEventListener('click', async () => {
-                const modelId = vercelNewModelInput.value.trim();
-                if (!modelId) return;
-
-                vercelAddModelBtn.disabled = true;
-                const origBtnHtml = vercelAddModelBtn.innerHTML;
-                vercelAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
-
-                if (vercelModelFeedback) {
-                    vercelModelFeedback.classList.remove('hidden');
-                    vercelModelFeedback.className = 'text-xs mb-3 text-gray-500 dark:text-gray-400 flex items-center gap-1.5';
-                    vercelModelFeedback.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Validating" width="12" height="12" class="inline-block"><span>Validating with Vercel AI Gateway API…</span>';
-                }
-
-                try {
-                    const res = await fetch('/api/settings/ai/vercel/models', {
-                        method: 'POST',
-                        headers: aiHeaders,
-                        body: JSON.stringify({ model_id: modelId })
-                    });
-                    const data = await res.json();
-                    if (!res.ok) {
-                        const err = new Error(data.error?.message || 'Failed to add model.');
-                        if (data.error?.suggestion) {
-                            err.suggestion = data.error.suggestion;
-                        }
-                        throw err;
-                    }
-                    vercelNewModelInput.value = '';
-                    renderVercelModels(data.models || []);
-                    if (vercelModelFeedback) {
-                        vercelModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
-                        vercelModelFeedback.textContent = `Model '${modelId}' added successfully.`;
-                        setTimeout(() => vercelModelFeedback.classList.add('hidden'), 3500);
-                    }
-                } catch (err) {
-                    if (vercelModelFeedback) {
-                        vercelModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
-                        vercelModelFeedback.replaceChildren();
-                        const msgSpan = document.createElement('span');
-                        msgSpan.textContent = err.message + ' ';
-                        vercelModelFeedback.appendChild(msgSpan);
-                        if (err.suggestion) {
-                            const sugBtn = document.createElement('button');
-                            sugBtn.type = 'button';
-                            sugBtn.className = 'inline-flex items-center px-2 py-0.5 ml-1 rounded font-mono text-[11px] bg-orange-100 hover:bg-orange-200 dark:bg-orange-950/70 dark:hover:bg-orange-900 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-700 transition cursor-pointer';
-                            sugBtn.textContent = `Use ${err.suggestion}`;
-                            sugBtn.addEventListener('click', () => {
-                                vercelNewModelInput.value = err.suggestion;
-                                vercelAddModelBtn.click();
-                            });
-                            vercelModelFeedback.appendChild(sugBtn);
-                        }
-                    }
-                } finally {
-                    vercelAddModelBtn.disabled = false;
-                    vercelAddModelBtn.innerHTML = origBtnHtml;
-                }
-            });
-        }
-
-        // Render Ollama discovered models table
         function renderOllamaModels(models) {
             if (!ollamaTableBody) return;
             ollamaTableBody.replaceChildren();
-            if (ollamaModelsCount) {
-                const count = Array.isArray(models) ? models.length : 0;
-                ollamaModelsCount.textContent = `${count} model${count === 1 ? '' : 's'}`;
-            }
-
-            if (!Array.isArray(models) || models.length === 0) {
+            const count = Array.isArray(models) ? models.length : 0;
+            if (ollamaModelsCount) ollamaModelsCount.textContent = `${count} model${count === 1 ? '' : 's'}`;
+            if (!count) {
                 const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = 3;
-                td.className = 'px-4 py-4 text-center text-gray-500 dark:text-gray-400';
-                td.textContent = 'No models detected on server. Pull a model via `ollama run <model>` first.';
-                tr.appendChild(td);
+                tr.innerHTML = '<td colspan="4" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No models detected on server. Pull a model via `ollama run <model>` first.</td>';
                 ollamaTableBody.appendChild(tr);
                 return;
             }
-
             models.forEach((item) => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-
-                const tdName = document.createElement('td');
-                tdName.className = 'px-5 py-3.5 align-middle font-mono font-medium text-gray-900 dark:text-white';
-                tdName.textContent = item.id || item.name;
-
-                const tdSize = document.createElement('td');
-                tdSize.className = 'px-5 py-3.5 align-middle text-gray-600 dark:text-gray-300';
-                tdSize.textContent = item.parameter_size || '—';
-
-                const tdStatus = document.createElement('td');
-                tdStatus.className = 'px-5 py-3.5 align-middle';
-                const pill = document.createElement('span');
-                pill.className = 'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
-                pill.textContent = 'Available';
-                tdStatus.appendChild(pill);
-
-                tr.appendChild(tdName);
-                tr.appendChild(tdSize);
-                tr.appendChild(tdStatus);
+                tr.innerHTML = `<td class="px-5 py-3.5 align-middle font-mono font-medium text-gray-900 dark:text-white">${item.id || item.name}</td><td class="px-5 py-3.5 align-middle text-gray-600 dark:text-gray-300">${item.parameter_size || '—'}</td><td class="px-5 py-3.5 align-middle"><span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">Available</span></td><td class="px-5 py-3.5 align-middle text-right"></td>`;
+                tr.children[3].appendChild(createStarButton('ollama', {id: item.id}));
                 ollamaTableBody.appendChild(tr);
             });
         }
 
-        // Fetch Ollama status
-        function loadOllamaStatus() {
-            fetch('/api/settings/ai/ollama')
-                .then(r => r.json())
-                .then(d => {
-                    setStatusPill(ollamaStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-                    if (ollamaUrlInput && d.base_url) {
-                        ollamaUrlInput.value = d.base_url;
-                    }
-                    if (ollamaKeyInput && d.has_api_key) {
-                        ollamaKeyInput.placeholder = '•••••••• (API key saved)';
-                    }
-                    renderOllamaModels(d.models || []);
-                })
-                .catch(() => setStatusPill(ollamaStatus, 'Status error', false, true));
+        const renderAllModelTables = () => {
+            renderGeminiModels(providerData.gemini.models || []);
+            renderOpenRouterModels(providerData.openrouter.models || []);
+            renderVercelModels(providerData.vercel.models || []);
+            renderOllamaModels(providerData.ollama.models || []);
+        };
+
+        const markAiDirty = () => { aiDirty = true; };
+        const clearAiDirty = () => { aiDirty = false; };
+
+        [geminiInput, openrouterInput, vercelInput, ollamaUrlInput, ollamaKeyInput].forEach((input) => input?.addEventListener('input', markAiDirty));
+
+        async function loadGeminiStatus() {
+            try {
+                const r = await fetch('/api/settings/ai/gemini');
+                const d = await r.json();
+                providerData.gemini = {configured: Boolean(d.configured), models: d.models || []};
+                setStatusPill(geminiStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+            } catch {
+                setStatusPill(geminiStatus, 'Status error', false, true);
+            }
+        }
+        async function loadOpenRouterStatus() {
+            try {
+                const r = await fetch('/api/settings/ai/openrouter');
+                const d = await r.json();
+                providerData.openrouter = {configured: Boolean(d.configured), models: d.models || []};
+                setStatusPill(openrouterStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+            } catch {
+                setStatusPill(openrouterStatus, 'Status error', false, true);
+            }
+        }
+        async function loadVercelStatus() {
+            try {
+                const r = await fetch('/api/settings/ai/vercel');
+                const d = await r.json();
+                providerData.vercel = {configured: Boolean(d.configured), models: d.models || []};
+                setStatusPill(vercelStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+            } catch {
+                setStatusPill(vercelStatus, 'Status error', false, true);
+            }
+        }
+        async function loadOllamaStatus() {
+            try {
+                const r = await fetch('/api/settings/ai/ollama');
+                const d = await r.json();
+                providerData.ollama = {configured: Boolean(d.configured), models: d.models || []};
+                setStatusPill(ollamaStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+                if (ollamaUrlInput && d.base_url) ollamaUrlInput.value = d.base_url;
+                if (ollamaKeyInput && d.has_api_key) ollamaKeyInput.placeholder = '•••••••• (API key saved)';
+            } catch {
+                setStatusPill(ollamaStatus, 'Status error', false, true);
+            }
         }
 
-        // Save Ollama configuration
-        if (ollamaForm) {
-            ollamaForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const baseUrl = ollamaUrlInput?.value.trim() || 'http://localhost:11434';
-                const apiKey = ollamaKeyInput?.value.trim();
-                const payload = { base_url: baseUrl };
-                if (apiKey) {
-                    payload.api_key = apiKey;
-                } else {
-                    payload.keep_key = true;
-                }
+        async function saveCurrentProvider() {
+            if (!currentProvider) return;
+            const payloadByProvider = {
+                gemini: {url: '/api/settings/ai/gemini', body: {api_key: geminiInput?.value.trim() || ''}},
+                openrouter: {url: '/api/settings/ai/openrouter', body: {api_key: openrouterInput?.value.trim() || ''}},
+                vercel: {url: '/api/settings/ai/vercel', body: {api_key: vercelInput?.value.trim() || ''}},
+                ollama: {
+                    url: '/api/settings/ai/ollama',
+                    body: {
+                        base_url: ollamaUrlInput?.value.trim() || 'http://localhost:11434',
+                        ...(ollamaKeyInput?.value.trim() ? {api_key: ollamaKeyInput.value.trim()} : {keep_key: true}),
+                    },
+                },
+            };
+            const cfg = payloadByProvider[currentProvider];
+            const res = await fetch(cfg.url, {method: 'POST', headers: aiHeaders, body: JSON.stringify(cfg.body)});
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error?.message || 'Save failed');
+            clearAiDirty();
+            if (currentProvider !== 'ollama') {
+                const inputByProvider = {gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput};
+                if (inputByProvider[currentProvider]) inputByProvider[currentProvider].value = '';
+            } else if (ollamaKeyInput?.value.trim()) {
+                ollamaKeyInput.value = '';
+                ollamaKeyInput.placeholder = '•••••••• (API key saved)';
+            }
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadOllamaStatus(), loadDefaultModel(), refreshProvidersIndex()]);
+            renderAllModelTables();
+        }
 
-                try {
-                    const res = await fetch('/api/settings/ai/ollama', {
-                        method: 'POST',
-                        headers: aiHeaders,
-                        body: JSON.stringify(payload)
-                    });
-                    const d = await res.json();
-                    if (!res.ok) throw new Error(d.error?.message || 'Unable to save Ollama settings');
-                    setStatusPill(ollamaStatus, 'Configured', true, false);
-                    if (ollamaKeyInput && apiKey) {
-                        ollamaKeyInput.value = '';
-                        ollamaKeyInput.placeholder = '•••••••• (API key saved)';
-                    }
-                    renderOllamaModels(d.models || []);
-                    if (ollamaTestFeedback) {
-                        ollamaTestFeedback.classList.remove('hidden');
-                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300';
-                        ollamaTestFeedback.textContent = `Settings saved successfully. Discovered ${d.models?.length || 0} model(s).`;
-                        setTimeout(() => { ollamaTestFeedback.classList.add('hidden'); }, 5000);
-                    }
-                } catch (err) {
-                    setStatusPill(ollamaStatus, err.message, false, true);
-                    if (ollamaTestFeedback) {
-                        ollamaTestFeedback.classList.remove('hidden');
-                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300';
-                        ollamaTestFeedback.textContent = err.message;
-                    }
-                }
+        saveProviderBtn?.addEventListener('click', async () => {
+            const origHtml = saveProviderBtn.innerHTML;
+            saveProviderBtn.disabled = true;
+            saveProviderBtn.classList.add('opacity-60', 'cursor-wait');
+            saveProviderBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="16" height="16" class="inline-block">';
+            try {
+                await saveCurrentProvider();
+            } catch (err) {
+                const statusByProvider = {gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, ollama: ollamaStatus};
+                setStatusPill(statusByProvider[currentProvider], err.message || 'Save failed', false, true);
+            } finally {
+                saveProviderBtn.innerHTML = origHtml;
+                saveProviderBtn.disabled = !currentProvider;
+                saveProviderBtn.classList.remove('opacity-60', 'cursor-wait');
+            }
+        });
+
+        [geminiForm, openrouterForm, vercelForm, ollamaForm].forEach((form) => form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveProviderBtn?.click();
+        }));
+
+        discardYesBtn?.addEventListener('click', () => {
+            aiDirty = false;
+            closeModal(discardModal);
+            if (pendingProvider) {
+                setCurrentProvider(pendingProvider);
+                pendingProvider = null;
+            }
+        });
+        discardNoBtn?.addEventListener('click', () => {
+            pendingProvider = null;
+            closeModal(discardModal);
+        });
+
+        deleteProviderBtn?.addEventListener('click', () => {
+            if (!currentProvider) return;
+            deleteModalText.innerHTML = `Do you really want to delete ${providerIconHtml(currentProvider)} <strong>${providerMeta[currentProvider]?.name || currentProvider}</strong>?`;
+            openModal(deleteModal);
+        });
+        deleteNoBtn?.addEventListener('click', () => closeModal(deleteModal));
+        deleteYesBtn?.addEventListener('click', async () => {
+            if (!currentProvider) return;
+            const res = await fetch(providerMeta[currentProvider].endpoint, {method: 'DELETE', headers: aiHeaders});
+            if (!res.ok) return;
+            closeModal(deleteModal);
+            aiDirty = false;
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadOllamaStatus(), loadDefaultModel(), refreshProvidersIndex()]);
+            renderAllModelTables();
+        });
+
+        function renderAddProviderModalList() {
+            if (!addProviderListEl) return;
+            addProviderListEl.replaceChildren();
+            addCandidateProvider = null;
+            allProviders.forEach((item) => {
+                const provider = item.provider;
+                const enabled = enabledProviders.includes(provider);
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.disabled = enabled;
+                btn.className = `w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${enabled ? 'opacity-40 cursor-not-allowed bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400' : 'hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200 cursor-pointer'}`;
+                btn.innerHTML = `${providerIconHtml(provider)}<span class="truncate">${item.name || provider}</span>`;
+                btn.addEventListener('click', () => {
+                    addCandidateProvider = provider;
+                    Array.from(addProviderListEl.querySelectorAll('button')).forEach((b) => b.classList.remove('bg-orange-100', 'dark:bg-orange-950/50', 'text-orange-800', 'dark:text-orange-300'));
+                    btn.classList.add('bg-orange-100', 'dark:bg-orange-950/50', 'text-orange-800', 'dark:text-orange-300');
+                });
+                li.appendChild(btn);
+                addProviderListEl.appendChild(li);
             });
         }
 
-        // Test connection to Ollama
-        if (ollamaTestBtn) {
-            ollamaTestBtn.addEventListener('click', async () => {
-                const baseUrl = ollamaUrlInput?.value.trim() || 'http://localhost:11434';
-                const apiKey = ollamaKeyInput?.value.trim() || '';
+        addProviderBtn?.addEventListener('click', () => {
+            renderAddProviderModalList();
+            openModal(addModal);
+        });
+        addCancelBtn?.addEventListener('click', () => closeModal(addModal));
+        addConfirmBtn?.addEventListener('click', async () => {
+            if (!addCandidateProvider) return;
+            const res = await fetch('/api/settings/ai/providers', {
+                method: 'POST', headers: aiHeaders, body: JSON.stringify({provider: addCandidateProvider}),
+            });
+            if (!res.ok) return;
+            closeModal(addModal);
+            await refreshProvidersIndex();
+            setCurrentProvider(addCandidateProvider);
+        });
 
-                ollamaTestBtn.disabled = true;
-                const origHtml = ollamaTestBtn.innerHTML;
-                ollamaTestBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Testing" width="14" height="14" class="inline-block"><span>Connecting…</span>';
+        const removeProviderByKey = async (key) => {
+            const res = await fetch(providerMeta[key].endpoint, {method: 'DELETE', headers: aiHeaders});
+            if (!res.ok) return;
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadOllamaStatus(), loadDefaultModel(), refreshProvidersIndex()]);
+            renderAllModelTables();
+        };
+        removeGeminiBtn?.addEventListener('click', () => removeProviderByKey('gemini'));
+        removeOpenrouterBtn?.addEventListener('click', () => removeProviderByKey('openrouter'));
+        removeVercelBtn?.addEventListener('click', () => removeProviderByKey('vercel'));
+        ollamaRemoveBtn?.addEventListener('click', () => removeProviderByKey('ollama'));
 
+        openrouterAddModelBtn?.addEventListener('click', async () => {
+            const modelId = openrouterNewModelInput?.value.trim();
+            if (!modelId) return;
+            const origBtnHtml = openrouterAddModelBtn.innerHTML;
+            openrouterAddModelBtn.disabled = true;
+            openrouterAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
+            try {
+                const res = await fetch('/api/settings/ai/openrouter/models', {method: 'POST', headers: aiHeaders, body: JSON.stringify({model_id: modelId})});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || 'Failed to add model.');
+                openrouterNewModelInput.value = '';
+                providerData.openrouter.models = data.models || [];
+                renderOpenRouterModels(providerData.openrouter.models);
+                if (openrouterModelFeedback) {
+                    openrouterModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
+                    openrouterModelFeedback.textContent = `Model '${modelId}' added successfully.`;
+                    setTimeout(() => openrouterModelFeedback.classList.add('hidden'), 3500);
+                }
+            } catch (err) {
+                if (openrouterModelFeedback) {
+                    openrouterModelFeedback.classList.remove('hidden');
+                    openrouterModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
+                    openrouterModelFeedback.textContent = err.message;
+                }
+            } finally {
+                openrouterAddModelBtn.disabled = false;
+                openrouterAddModelBtn.innerHTML = origBtnHtml;
+            }
+        });
+
+        vercelAddModelBtn?.addEventListener('click', async () => {
+            const modelId = vercelNewModelInput?.value.trim();
+            if (!modelId) return;
+            const origBtnHtml = vercelAddModelBtn.innerHTML;
+            vercelAddModelBtn.disabled = true;
+            vercelAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
+            try {
+                const res = await fetch('/api/settings/ai/vercel/models', {method: 'POST', headers: aiHeaders, body: JSON.stringify({model_id: modelId})});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || 'Failed to add model.');
+                vercelNewModelInput.value = '';
+                providerData.vercel.models = data.models || [];
+                renderVercelModels(providerData.vercel.models);
+                if (vercelModelFeedback) {
+                    vercelModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
+                    vercelModelFeedback.textContent = `Model '${modelId}' added successfully.`;
+                    setTimeout(() => vercelModelFeedback.classList.add('hidden'), 3500);
+                }
+            } catch (err) {
+                if (vercelModelFeedback) {
+                    vercelModelFeedback.classList.remove('hidden');
+                    vercelModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
+                    vercelModelFeedback.textContent = err.message;
+                }
+            } finally {
+                vercelAddModelBtn.disabled = false;
+                vercelAddModelBtn.innerHTML = origBtnHtml;
+            }
+        });
+
+        ollamaTestBtn?.addEventListener('click', async () => {
+            const baseUrl = ollamaUrlInput?.value.trim() || 'http://localhost:11434';
+            const apiKey = ollamaKeyInput?.value.trim() || '';
+            const origHtml = ollamaTestBtn.innerHTML;
+            ollamaTestBtn.disabled = true;
+            ollamaTestBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
+            try {
+                const res = await fetch('/api/settings/ai/ollama/test', {method: 'POST', headers: aiHeaders, body: JSON.stringify({base_url: baseUrl, api_key: apiKey})});
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error?.message || 'Connection test failed');
+                providerData.ollama.models = d.models || [];
+                renderOllamaModels(providerData.ollama.models);
+            } catch (err) {
                 if (ollamaTestFeedback) {
                     ollamaTestFeedback.classList.remove('hidden');
-                    ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-gray-300 flex items-center gap-2';
-                    ollamaTestFeedback.replaceChildren();
-                    const spinImg = document.createElement('img');
-                    spinImg.src = '/static/img/kinetiqo-loading-32x32.webp';
-                    spinImg.alt = 'Testing';
-                    spinImg.width = 14;
-                    spinImg.height = 14;
-                    const textSpan = document.createElement('span');
-                    textSpan.textContent = `Connecting to Ollama at ${baseUrl}…`;
-                    ollamaTestFeedback.appendChild(spinImg);
-                    ollamaTestFeedback.appendChild(textSpan);
+                    ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300';
+                    ollamaTestFeedback.textContent = err.message;
                 }
+            } finally {
+                ollamaTestBtn.disabled = false;
+                ollamaTestBtn.innerHTML = origHtml;
+            }
+        });
 
-                try {
-                    const res = await fetch('/api/settings/ai/ollama/test', {
-                        method: 'POST',
-                        headers: aiHeaders,
-                        body: JSON.stringify({ base_url: baseUrl, api_key: apiKey })
-                    });
-                    const d = await res.json();
-                    if (!res.ok) throw new Error(d.error?.message || 'Connection test failed');
-                    renderOllamaModels(d.models || []);
-                    if (ollamaTestFeedback) {
-                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300';
-                        ollamaTestFeedback.textContent = `Connected successfully to Ollama at ${baseUrl}! Discovered ${d.models?.length || 0} model(s).`;
-                    }
-                } catch (err) {
-                    if (ollamaTestFeedback) {
-                        ollamaTestFeedback.className = 'text-xs mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300';
-                        ollamaTestFeedback.textContent = err.message;
-                    }
-                } finally {
-                    ollamaTestBtn.disabled = false;
-                    ollamaTestBtn.innerHTML = origHtml;
-                }
-            });
-        }
-
-        // Remove Ollama provider
-        if (ollamaRemoveBtn) {
-            ollamaRemoveBtn.addEventListener('click', () => {
-                fetch('/api/settings/ai/ollama', { method: 'DELETE', headers: aiHeaders })
-                    .then(res => {
-                        if (!res.ok) throw new Error('Unable to remove Ollama provider');
-                        setStatusPill(ollamaStatus, 'Not configured', false, false);
-                        if (ollamaKeyInput) {
-                            ollamaKeyInput.value = '';
-                            ollamaKeyInput.placeholder = 'Optional (leave empty for standard local/LAN Ollama)';
-                        }
-                        renderOllamaModels([]);
-                    })
-                    .catch(err => setStatusPill(ollamaStatus, err.message, false, true));
-            });
-        }
-
-        // Provider dropdown jump-to or focus
-        if (addProviderSelect) {
-            addProviderSelect.addEventListener('change', () => {
-                const val = addProviderSelect.value;
-                if (val === 'gemini' && geminiCard) {
-                    geminiCard.scrollIntoView({ behavior: 'smooth' });
-                    geminiInput?.focus();
-                } else if (val === 'openrouter' && openrouterCard) {
-                    openrouterCard.scrollIntoView({ behavior: 'smooth' });
-                    openrouterInput?.focus();
-                } else if (val === 'vercel' && vercelCard) {
-                    vercelCard.scrollIntoView({ behavior: 'smooth' });
-                    vercelInput?.focus();
-                } else if (val === 'ollama' && ollamaCard) {
-                    ollamaCard.scrollIntoView({ behavior: 'smooth' });
-                    ollamaUrlInput?.focus();
-                }
-                addProviderSelect.selectedIndex = 0;
-            });
-        }
-
-        loadGeminiStatus();
-        loadOpenRouterStatus();
-        loadVercelStatus();
-        loadOllamaStatus();
+        (async () => {
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadOllamaStatus(), loadDefaultModel()]);
+            renderAllModelTables();
+            await refreshProvidersIndex();
+        })();
 
         function showStatus(msg, isError) {
             if (!profileStatus) return;

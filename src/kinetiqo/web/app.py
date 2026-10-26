@@ -77,6 +77,7 @@ from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncry
 from kinetiqo.chat.errors import ChatError, ChatConfigurationError
 from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
+from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
 from kinetiqo.chat.providers.vercel import VercelChatProvider
@@ -115,6 +116,12 @@ STRAVA_RECONNECT_TITLE = "Reconnect with Strava"
 STRAVA_RECONNECT_TEMPLATE = "strava_reconnect.html"
 PNG_MIMETYPE = "image/png"
 UTC_OFFSET_SUFFIX = "+00:00"
+AI_PROVIDER_META = {
+    "gemini": "Google Gemini",
+    "openrouter": "OpenRouter AI",
+    "vercel": "Vercel AI Gateway",
+    "ollama": "Ollama (Local AI)",
+}
 
 # CSRF protection: enabled when Flask-WTF is available. In development, a generated secret is acceptable.
 app = Flask(__name__, template_folder='./templates', static_folder='./static', static_url_path='/static')
@@ -2402,6 +2409,37 @@ def _chat_error(error: Exception, status: int = 400):
     return jsonify({'error': payload}), status
 
 
+def _is_supported_ai_provider(provider: str) -> bool:
+    return provider in AI_PROVIDER_META
+
+
+def _normalize_default_model(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    provider = str(value.get('provider') or '').strip().lower()
+    model_id = str(value.get('model_id') or '').strip()
+    if not provider or not model_id:
+        return None
+    return {'provider': provider, 'model_id': model_id}
+
+
+def _decorate_models_with_default(repository: ChatRepository, athlete_id: str, provider: str, models: list[dict]) -> tuple[list[dict], dict | None]:
+    default_model = _normalize_default_model(repository.get_default_model(athlete_id))
+    default_provider = str((default_model or {}).get('provider') or '').strip().lower()
+    default_model_id = str((default_model or {}).get('model_id') or '').strip()
+    decorated: list[dict] = []
+    for item in models:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get('id') or '').strip()
+        if not model_id:
+            continue
+        model_copy = dict(item)
+        model_copy['is_default'] = bool(default_provider == provider and default_model_id.lower() == model_id.lower())
+        decorated.append(model_copy)
+    return decorated, default_model
+
+
 @app.route('/chat', methods=['GET'])
 @app.route('/chat/<session_id>', methods=['GET'])
 @login_required
@@ -2524,21 +2562,58 @@ def chat_messages_api(session_id: str):
 def chat_models_api():
     try:
         provider = request.args.get('provider', 'all')
-        models_data = _chat_service().models(_chat_user_id(), provider)
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        models_data = service.models(athlete_id, provider)
+        default_model = _normalize_default_model(service.repository.get_default_model(athlete_id))
         if provider == 'all':
-            return jsonify({'providers': models_data})
-        return jsonify({'models': models_data})
+            return jsonify({'providers': models_data, 'default_model': default_model})
+        return jsonify({'models': models_data, 'default_model': default_model})
     except (ChatError, ChatEncryptionError) as exc:
         return _chat_error(exc, 422)
 
 
-@app.route('/api/settings/ai/providers', methods=['GET'])
+@app.route('/api/settings/ai/providers', methods=['GET', 'POST'])
 @login_required
 def chat_providers_settings_api():
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        provider = str(data.get('provider') or '').strip().lower()
+        if not _is_supported_ai_provider(provider):
+            return _chat_error(ValueError('Unsupported AI provider.'), 422)
+        existing_cfg = repository.get_provider_config(athlete_id, provider)
+        if provider == 'ollama' and not existing_cfg.get('base_url'):
+            existing_cfg['base_url'] = 'http://localhost:11434'
+        repository.save_provider_config(athlete_id, provider, existing_cfg)
     configured = repository.list_configured_providers(athlete_id)
-    return jsonify({'configured_providers': configured})
+    enabled = repository.list_enabled_providers(athlete_id)
+    all_providers = [{'provider': key, 'name': AI_PROVIDER_META[key]} for key in AI_PROVIDER_META]
+    return jsonify({
+        'configured_providers': configured,
+        'enabled_providers': enabled,
+        'all_providers': all_providers,
+    })
+
+
+@app.route('/api/settings/ai/default-model', methods=['GET', 'POST'])
+@login_required
+def chat_default_model_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        return jsonify({'default_model': _normalize_default_model(repository.get_default_model(athlete_id))})
+
+    data = request.get_json(silent=True) or {}
+    provider = str(data.get('provider') or '').strip().lower()
+    model_id = str(data.get('model_id') or '').strip()
+    if not _is_supported_ai_provider(provider):
+        return _chat_error(ValueError('Unsupported AI provider.'), 422)
+    if not model_id:
+        return _chat_error(ValueError('Model ID is required.'), 422)
+    repository.set_default_model(athlete_id, provider, model_id)
+    return jsonify({'default_model': _normalize_default_model(repository.get_default_model(athlete_id))})
 
 
 @app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
@@ -2547,17 +2622,45 @@ def chat_gemini_settings_api():
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
     if request.method == 'GET':
-        return jsonify({'configured': repository.get_provider_key(athlete_id, 'gemini') is not None})
+        encrypted_key = repository.get_provider_key(athlete_id, 'gemini')
+        has_key = encrypted_key is not None
+        models: list[dict] = []
+        if has_key:
+            try:
+                api_key = decrypt_api_key(encrypted_key, app.secret_key)
+                provider = GeminiChatProvider(api_key)
+                models = [
+                    {
+                        'id': model.id,
+                        'name': model.display_name,
+                        'display_name': model.display_name,
+                        'supports_tools': model.supports_tools,
+                        'supports_vision': model.supports_vision,
+                    }
+                    for model in provider.list_models()
+                ]
+                cfg = repository.get_provider_config(athlete_id, 'gemini')
+                cfg['models'] = models
+                repository.save_provider_config(athlete_id, 'gemini', cfg)
+            except Exception as exc:
+                logger.warning('Gemini model refresh failed for athlete=%s: %s', athlete_id, exc)
+                models = repository.get_provider_config(athlete_id, 'gemini').get('models', [])
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'gemini', models)
+        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'gemini')
+        repository.clear_default_model(athlete_id, provider='gemini')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
     if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
         return _chat_error(ValueError('Enter a valid API key.'), 422)
     try:
+        existing_config = repository.get_provider_config(athlete_id, 'gemini')
         repository.save_provider_key(athlete_id, 'gemini', encrypt_api_key(api_key.strip(), app.secret_key))
-        return jsonify({'configured': True})
+        repository.save_provider_config(athlete_id, 'gemini', existing_config)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'gemini', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
     except ChatEncryptionError as exc:
         return _chat_error(exc, 500)
 
@@ -2570,12 +2673,37 @@ def chat_openrouter_settings_api():
     if request.method == 'GET':
         has_key = repository.get_provider_key(athlete_id, 'openrouter') is not None
         config_data = repository.get_provider_config(athlete_id, 'openrouter')
+        current_models = list(config_data.get('models', []))
+        if has_key and current_models:
+            try:
+                encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
+                provider = OpenRouterChatProvider(api_key, configured_models=current_models)
+                refreshed_models = []
+                for model_item in current_models:
+                    model_id = str((model_item or {}).get('id') or '').strip()
+                    if not model_id:
+                        continue
+                    try:
+                        refreshed = provider.validate_model(model_id)
+                        refreshed_models.append(refreshed)
+                    except Exception:
+                        # Hide unavailable/deprecated models from settings and chat dropdowns.
+                        continue
+                if refreshed_models != current_models:
+                    config_data['models'] = refreshed_models
+                    repository.save_provider_config(athlete_id, 'openrouter', config_data)
+            except Exception as exc:
+                logger.warning('OpenRouter model refresh failed for athlete=%s: %s', athlete_id, exc)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', config_data.get('models', []))
         return jsonify({
             'configured': has_key,
-            'models': config_data.get('models', [])
+            'models': models,
+            'default_model': default_model,
         })
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'openrouter')
+        repository.clear_default_model(athlete_id, provider='openrouter')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
@@ -2589,7 +2717,8 @@ def chat_openrouter_settings_api():
             encrypt_api_key(api_key.strip(), app.secret_key),
             config=existing_config
         )
-        return jsonify({'configured': True, 'models': existing_config.get('models', [])})
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
     except ChatEncryptionError as exc:
         return _chat_error(exc, 500)
 
@@ -2639,7 +2768,9 @@ def chat_openrouter_models_api():
         new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
         cfg['models'] = new_models
         repository.save_provider_config(athlete_id, 'openrouter', cfg)
-        return jsonify({'models': new_models})
+        repository.clear_default_model(athlete_id, provider='openrouter', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', new_models)
+        return jsonify({'models': models, 'default_model': default_model})
 
     # POST - add model
     # If model is already present, return current list
@@ -2657,7 +2788,8 @@ def chat_openrouter_models_api():
     current_models.append(model_info)
     cfg['models'] = current_models
     repository.save_provider_config(athlete_id, 'openrouter', cfg)
-    return jsonify({'models': current_models}), 201
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
 
 
 @app.route('/api/settings/ai/vercel', methods=['GET', 'POST', 'DELETE'])
@@ -2668,12 +2800,37 @@ def chat_vercel_settings_api():
     if request.method == 'GET':
         has_key = repository.get_provider_key(athlete_id, 'vercel') is not None
         config_data = repository.get_provider_config(athlete_id, 'vercel')
+        current_models = list(config_data.get('models', []))
+        if has_key and current_models:
+            try:
+                encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
+                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
+                provider = VercelChatProvider(api_key, configured_models=current_models)
+                refreshed_models = []
+                for model_item in current_models:
+                    model_id = str((model_item or {}).get('id') or '').strip()
+                    if not model_id:
+                        continue
+                    try:
+                        refreshed = provider.validate_model(model_id)
+                        refreshed_models.append(refreshed)
+                    except Exception:
+                        # Hide unavailable/deprecated models from settings and chat dropdowns.
+                        continue
+                if refreshed_models != current_models:
+                    config_data['models'] = refreshed_models
+                    repository.save_provider_config(athlete_id, 'vercel', config_data)
+            except Exception as exc:
+                logger.warning('Vercel model refresh failed for athlete=%s: %s', athlete_id, exc)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', config_data.get('models', []))
         return jsonify({
             'configured': has_key,
-            'models': config_data.get('models', [])
+            'models': models,
+            'default_model': default_model,
         })
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'vercel')
+        repository.clear_default_model(athlete_id, provider='vercel')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
@@ -2687,7 +2844,8 @@ def chat_vercel_settings_api():
             encrypt_api_key(api_key.strip(), app.secret_key),
             config=existing_config
         )
-        return jsonify({'configured': True, 'models': existing_config.get('models', [])})
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
     except ChatEncryptionError as exc:
         return _chat_error(exc, 500)
 
@@ -2737,7 +2895,9 @@ def chat_vercel_models_api():
         new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
         cfg['models'] = new_models
         repository.save_provider_config(athlete_id, 'vercel', cfg)
-        return jsonify({'models': new_models})
+        repository.clear_default_model(athlete_id, provider='vercel', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', new_models)
+        return jsonify({'models': models, 'default_model': default_model})
 
     # POST - add model
     # If model is already present, return current list
@@ -2755,7 +2915,8 @@ def chat_vercel_models_api():
     current_models.append(model_info)
     cfg['models'] = current_models
     repository.save_provider_config(athlete_id, 'vercel', cfg)
-    return jsonify({'models': current_models}), 201
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
 
 
 @app.route('/api/settings/ai/ollama', methods=['GET', 'POST', 'DELETE'])
@@ -2767,14 +2928,17 @@ def chat_ollama_settings_api():
         is_configured = repository.has_provider(athlete_id, 'ollama')
         config_data = repository.get_provider_config(athlete_id, 'ollama')
         has_key = repository.get_provider_key(athlete_id, 'ollama') is not None
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'ollama', config_data.get('models', []))
         return jsonify({
             'configured': is_configured,
             'base_url': config_data.get('base_url', 'http://localhost:11434'),
             'has_api_key': has_key,
-            'models': config_data.get('models', []),
+            'models': models,
+            'default_model': default_model,
         })
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'ollama')
+        repository.clear_default_model(athlete_id, provider='ollama')
         return Response(status=204)
 
     data = request.get_json(silent=True) or {}
@@ -2825,7 +2989,8 @@ def chat_ollama_settings_api():
         'configured': True,
         'base_url': base_url,
         'has_api_key': bool(enc_key),
-        'models': cfg.get('models', []),
+        'models': _decorate_models_with_default(repository, athlete_id, 'ollama', cfg.get('models', []))[0],
+        'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
     })
 
 
@@ -2858,6 +3023,8 @@ def chat_ollama_test_api():
             cfg['base_url'] = base_url
             cfg['models'] = result['models']
             repository.save_provider_config(athlete_id, 'ollama', cfg)
+        result['models'] = _decorate_models_with_default(repository, athlete_id, 'ollama', result.get('models', []))[0]
+        result['default_model'] = _normalize_default_model(repository.get_default_model(athlete_id))
         return jsonify(result)
     except (ConnectionError, TimeoutError, ValueError) as exc:
         return _chat_error(exc, 422)

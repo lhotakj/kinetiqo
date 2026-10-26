@@ -134,6 +134,8 @@ class ChatService:
         provider_cls = self._provider_class(provider)
         deprecated = getattr(provider_cls, "deprecated_models", frozenset())
         default_model = getattr(provider_cls, "default_model", "default")
+        if not isinstance(default_model, str) or not default_model.strip():
+            default_model = "default"
         chosen_model = model_id if model_id and model_id not in deprecated else default_model
         return self.repository.create_session(athlete_id, provider, chosen_model)
 
@@ -141,29 +143,24 @@ class ChatService:
         return self.repository.list_configured_providers(athlete_id)
 
     def models(self, athlete_id: str, provider: str = "all") -> list[dict[str, Any]] | dict[str, Any]:
+        display_names = {
+            "gemini": "Google Gemini",
+            "openrouter": "OpenRouter AI",
+            "ollama": "Ollama (Local AI)",
+            "vercel": "Vercel AI Gateway",
+        }
         if provider == "all":
-            groups = []
-            display_names = {
-                "gemini": "Google Gemini",
-                "openrouter": "OpenRouter AI",
-                "ollama": "Ollama (Local AI)",
-                "vercel": "Vercel AI Gateway",
-            }
+            groups: list[dict[str, Any]] = []
             for prov in self.configured_providers(athlete_id):
-                try:
-                    adapter = self._provider(athlete_id, prov)
-                    prov_models = [m.__dict__ for m in adapter.list_models()]
-                    if prov_models:
-                        groups.append({
-                            "provider": prov,
-                            "display_name": display_names.get(prov, prov.title()),
-                            "models": prov_models,
-                        })
-                except Exception as exc:
-                    logger.warning("Failed listing models for provider %s: %s", prov, exc)
+                prov_models = self._known_models_for_provider(athlete_id, prov)
+                if prov_models:
+                    groups.append({
+                        "provider": prov,
+                        "display_name": display_names.get(prov, prov.title()),
+                        "models": prov_models,
+                    })
             return groups
-        adapter = self._provider(athlete_id, provider)
-        return [model.__dict__ for model in adapter.list_models()]
+        return self._known_models_for_provider(athlete_id, provider)
 
     def stream_turn(
         self,
@@ -221,6 +218,8 @@ class ChatService:
         adapter = self._provider(athlete_id, target_provider)
         deprecated = getattr(adapter, "deprecated_models", frozenset())
         default_model = getattr(adapter, "default_model", "default")
+        if not isinstance(default_model, str) or not default_model.strip():
+            default_model = "default"
         requested_model = model_id or (chat_session.model_id if target_provider == chat_session.provider else default_model)
         if requested_model in deprecated:
             requested_model = default_model
@@ -330,6 +329,49 @@ class ChatService:
         if provider in ("openrouter", "vercel"):
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)
+
+    def _known_models_for_provider(self, athlete_id: str, provider: str) -> list[dict[str, Any]]:
+        self._provider_class(provider)
+        if provider != "ollama" and not self.repository.get_provider_key(athlete_id, provider):
+            raise ChatConfigurationError()
+        config = self.repository.get_provider_config(athlete_id, provider) or {}
+        raw_models = config.get("models")
+        result: list[dict[str, Any]] = []
+        provider_cls = self._provider_class(provider)
+        deprecated = set(getattr(provider_cls, "deprecated_models", frozenset()))
+
+        if isinstance(raw_models, list):
+            for item in raw_models:
+                if not isinstance(item, dict):
+                    continue
+                model_id = str(item.get("id") or "").strip()
+                if not model_id or model_id in deprecated:
+                    continue
+                enabled = item.get("enabled", True)
+                if enabled is False:
+                    continue
+                display_name = str(item.get("display_name") or item.get("name") or model_id)
+                result.append({
+                    "id": model_id,
+                    "display_name": display_name,
+                    "supports_tools": bool(item.get("supports_tools", True)),
+                    "supports_vision": bool(item.get("supports_vision", False)),
+                    "enabled": True,
+                })
+
+        if result:
+            return result
+
+        fallback_model = str(getattr(provider_cls, "default_model", "") or "").strip()
+        if fallback_model and fallback_model not in deprecated:
+            return [{
+                "id": fallback_model,
+                "display_name": fallback_model,
+                "supports_tools": True,
+                "supports_vision": False,
+                "enabled": True,
+            }]
+        return []
 
     @staticmethod
     def _provider_class(provider: str):

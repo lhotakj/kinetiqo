@@ -243,12 +243,14 @@ class TestGeminiDiagnostics(unittest.TestCase):
     def test_model_discovery_filters_non_generation_models(self):
         provider = GeminiChatProvider("key")
         provider._request_json = MagicMock(return_value={"models": [
-            {"name": "models/gemini-available", "displayName": "Available", "supportedGenerationMethods": ["generateContent"]},
-            {"name": "models/gemini-2.5-flash", "displayName": "Deprecated Flash", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-available", "displayName": "Available", "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]},
+            {"name": "models/gemini-non-stream", "displayName": "No Stream", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-2.5-flash", "displayName": "Deprecated Flash", "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]},
             {"name": "models/embedding-only", "supportedGenerationMethods": ["embedContent"]},
         ]})
         models = provider.list_models()
         self.assertEqual([(model.id, model.display_name) for model in models], [("gemini-available", "Available")])
+        self.assertNotIn("gemini-non-stream", [m.id for m in models])
         self.assertNotIn("gemini-2.5-flash", [m.id for m in models])
 
     def test_invalid_request_logs_status_without_response_body(self):

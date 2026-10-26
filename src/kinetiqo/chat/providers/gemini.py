@@ -53,6 +53,7 @@ class GeminiChatProvider(BaseChatProvider):
     def list_models(self) -> list[ChatProviderModel]:
         payload = self._request_json("GET", f"{_BASE_URL}/models")
         result = []
+        stream_ready = []
         for model in payload.get("models", []):
             methods = model.get("supportedGenerationMethods", [])
             if "generateContent" not in methods:
@@ -65,7 +66,10 @@ class GeminiChatProvider(BaseChatProvider):
                 continue
             if any(pattern in lower_name for pattern in EXCLUDED_MODEL_PATTERNS):
                 continue
-            result.append(ChatProviderModel(name, model.get("displayName") or name, "generateContent" in methods, "generateContent" in methods))
+            entry = ChatProviderModel(name, model.get("displayName") or name, "generateContent" in methods, "generateContent" in methods)
+            result.append(entry)
+            if "streamGenerateContent" in methods:
+                stream_ready.append(entry)
 
         def model_rank(m: ChatProviderModel) -> int:
             for idx, pref in enumerate(PREFERRED_MODELS):
@@ -73,9 +77,10 @@ class GeminiChatProvider(BaseChatProvider):
                     return idx
             return len(PREFERRED_MODELS) + 1
 
-        result.sort(key=lambda m: (model_rank(m), m.id))
-        logger.info("Gemini model discovery completed: available_models=%d", len(result))
-        return result
+        final_models = stream_ready if stream_ready else result
+        final_models.sort(key=lambda m: (model_rank(m), m.id))
+        logger.info("Gemini model discovery completed: available_models=%d", len(final_models))
+        return final_models
 
     def stream(
         self,

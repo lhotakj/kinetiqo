@@ -456,6 +456,7 @@
     const loadModels = async () => {
         const payload = await request('/api/chat/models?provider=all');
         const groups = Array.isArray(payload.providers) ? payload.providers : [];
+        const serverDefault = payload.default_model || null;
         const flatModels = [];
         model.replaceChildren();
 
@@ -501,9 +502,12 @@
 
         const savedModel = localStorage.getItem('kinetiqo_chat_model');
         const priorValue = model.value;
+        const matchedServerDefault = serverDefault
+            && flatModels.some((item) => item.id === serverDefault.model_id && (!serverDefault.provider || item.provider === serverDefault.provider));
 
         const matchedSaved = savedModel && flatModels.some((item) => item.id === savedModel);
-        const preferred = (matchedSaved ? flatModels.find((item) => item.id === savedModel) : null)
+        const preferred = (matchedServerDefault ? flatModels.find((item) => item.id === serverDefault.model_id && (!serverDefault.provider || item.provider === serverDefault.provider)) : null)
+            || (matchedSaved ? flatModels.find((item) => item.id === savedModel) : null)
             || flatModels.find((item) => item.id === priorValue)
             || PREFERRED_MODELS.map((p) => flatModels.find((item) => item.id === p)).find(Boolean)
             || flatModels[0];

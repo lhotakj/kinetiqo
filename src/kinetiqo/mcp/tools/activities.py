@@ -393,6 +393,7 @@ def kinetiqo_find_similar_routes(
 ) -> Dict[str, Any]:
     """Find past activities matching a source activity's route via GPS start/end proximity."""
     act_str = str(activity_id).strip()
+    norm_sports = normalize_sport_types(sport_types)
     try:
         source_acts = repo.get_activities_by_ids([act_str])
         if not source_acts:
