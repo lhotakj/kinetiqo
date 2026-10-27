@@ -743,6 +743,54 @@ class TestMCPTools(unittest.TestCase):
         self.assertTrue(vo2_an["vo2max_time_min"] >= 19.0)
         self.assertIn("Genuine VO2max workout", vo2_an["classification_reason"])
 
+    def test_parse_stream_ts_epoch_and_iso_streams(self):
+        """Verify parse_stream_ts_epoch and telemetry downsampling handles ISO-8601 timestamps without int() error."""
+        from datetime import datetime, timezone
+        from kinetiqo.mcp.utils import parse_stream_ts_epoch
+
+        # 1. Test parse_stream_ts_epoch helper across types
+        self.assertEqual(parse_stream_ts_epoch(1700000000), 1700000000.0)
+        self.assertEqual(parse_stream_ts_epoch(1700000000.8), 1700000000.8)
+        self.assertEqual(parse_stream_ts_epoch("1700000000"), 1700000000.0)
+        dt = datetime(2026, 10, 27, 11, 6, 20, tzinfo=timezone.utc)
+        expected_epoch = dt.timestamp()
+        self.assertEqual(parse_stream_ts_epoch("2026-10-27T11:06:20+00:00"), expected_epoch)
+        self.assertEqual(parse_stream_ts_epoch(dt), expected_epoch)
+        self.assertEqual(parse_stream_ts_epoch(None), 0)
+        self.assertEqual(parse_stream_ts_epoch("invalid"), 0)
+
+        # 2. Test kinetiqo_get_activity_streams with ISO timestamps and resolution="low"
+        iso_stream = [
+            {"ts": "2026-10-27T11:06:20+00:00", "watts": 200.0, "heartrate": 140},
+            {"ts": "2026-10-27T11:06:21+00:00", "watts": 210.0, "heartrate": 142},
+            {"ts": "2026-10-27T11:06:22+00:00", "watts": 220.0, "heartrate": 144},
+            {"ts": "2026-10-27T11:06:23+00:00", "watts": 230.0, "heartrate": 146},
+        ]
+        self.mock_repo.get_activity_stream_window.return_value = iso_stream
+        res = telemetry.kinetiqo_get_activity_streams(
+            self.mock_repo,
+            activity_id="20749829518",
+            stream_types=["heartrate", "watts"],
+            resolution="low",
+        )
+        self.assertEqual(res["data_status"], "complete")
+        self.assertTrue(len(res["data"]["samples"]) > 0)
+
+        # 3. Test kinetiqo_calculate_power_curve with ISO timestamps
+        curve_stream = [
+            {"ts": f"2026-10-27T11:06:{i:02d}+00:00", "watts": 250.0}
+            for i in range(30)
+        ]
+        self.mock_repo.get_activity_stream_window.return_value = curve_stream
+        curve_res = telemetry.kinetiqo_calculate_power_curve(
+            self.mock_repo,
+            activity_id="20749829518",
+            durations=[5, 10, 20],
+        )
+        self.assertEqual(curve_res["data_status"], "complete")
+        self.assertIn("mmp_curve", curve_res["data"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

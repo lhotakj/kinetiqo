@@ -16,6 +16,7 @@ from kinetiqo.mcp.utils import (
     extract_activity_summaries,
     get_best_powers_for_durations,
     normalize_sport_types,
+    parse_stream_ts_epoch,
     resolve_date_range,
     CYCLING_SPORT_TYPES,
 )
@@ -118,7 +119,7 @@ def kinetiqo_calculate_power_curve(
         if not rows:
             return create_error_envelope(ERROR_NOT_FOUND, f"No power streams found for activity {activity_id}")
 
-        timestamps = [int(r.get("ts") or 0) for r in rows]
+        timestamps = [int(parse_stream_ts_epoch(r.get("ts"))) for r in rows]
         watts = [float(r.get("watts") or 0.0) for r in rows]
         mmp = calculate_mmp_curve(timestamps, watts, req_durations)
 

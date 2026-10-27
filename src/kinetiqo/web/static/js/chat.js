@@ -28,6 +28,103 @@
             .replace(/'/g, '&#39;');
     };
 
+    const tryParseToChartJson = (text, lang) => {
+        const raw = (text || '').trim();
+        if (!raw) return null;
+
+        const lowerLang = (lang || '').trim().toLowerCase();
+
+        if (lowerLang === 'chart' || lowerLang === 'chartjs' || lowerLang === 'chart.js') {
+            return raw;
+        }
+
+        if (lowerLang === 'json' && raw.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.type && parsed.data) {
+                    return raw;
+                }
+            } catch (_) {}
+        }
+
+        // Automatic fallback: If model emits ```radar, ```spider, or Mermaid radar syntax
+        if (lowerLang === 'radar' || lowerLang === 'spider' || (lowerLang === 'mermaid' && /^\s*radar\b/im.test(raw))) {
+            if (raw.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.type) return raw;
+                } catch (_) {}
+            }
+            const lines = raw.split(/\r?\n/);
+            let title = '';
+            const labels = [];
+            const values = [];
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed === 'radar' || trimmed.startsWith('%%')) continue;
+                const titleMatch = trimmed.match(/^title\s+(.*)$/i);
+                if (titleMatch) {
+                    title = titleMatch[1].trim();
+                    continue;
+                }
+                const pairMatch = trimmed.match(/^["']?([^"':\n]+)["']?\s*:\s*([0-9.]+)/);
+                if (pairMatch) {
+                    labels.push(pairMatch[1].trim());
+                    values.push(Number.parseFloat(pairMatch[2]));
+                }
+            }
+
+            if (labels.length >= 2 && values.length >= 2) {
+                const chartConfig = {
+                    type: 'radar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: title || 'Power Profile (W)',
+                            data: values,
+                            borderColor: '#ea580c',
+                            backgroundColor: 'rgba(234, 88, 12, 0.2)',
+                            pointBackgroundColor: '#ea580c'
+                        }]
+                    },
+                    options: {
+                        plugins: {
+                            title: { display: Boolean(title), text: title || 'Power Profile' }
+                        }
+                    }
+                };
+                return JSON.stringify(chartConfig, null, 2);
+            }
+        }
+
+        return null;
+    };
+
+    const buildChartContainerHtml = (codeText) => {
+        const rawCode = (codeText || '').trim();
+        return `<div class="chat-chart-container my-3 rounded-xl border border-warm-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-900/60 p-3 shadow-xs" data-rendered="false">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-warm-100 dark:border-zinc-800 text-[11px] text-gray-500 dark:text-zinc-400 select-none">
+                <span class="font-mono font-medium flex items-center gap-1.5 text-gray-700 dark:text-zinc-300 min-w-0">
+                    <svg class="w-3.5 h-3.5 text-orange-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                    <span class="chat-chart-title truncate max-w-[280px]">Interactive Chart</span>
+                </span>
+                <button type="button" class="chat-chart-toggle cursor-pointer hover:text-orange-600 dark:hover:text-orange-400 transition px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1" title="Toggle between chart and source code">
+                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    <span>View code</span>
+                </button>
+            </div>
+            <div class="chat-chart-canvas-wrapper relative w-full h-[320px] max-h-[420px] py-1 flex items-center justify-center">
+                <canvas class="chat-chart-canvas w-full h-full"></canvas>
+            </div>
+            <pre class="chat-chart-code hidden overflow-x-auto rounded-lg bg-zinc-900 p-2.5 text-xs text-zinc-100 font-mono dark:bg-black/40 border border-zinc-700/60 mt-1"><code>${escapeHtml(rawCode)}</code></pre>
+        </div>`;
+    };
+
     if (typeof window.marked !== 'undefined' && typeof window.marked.use === 'function') {
         try {
             window.marked.use({
@@ -37,6 +134,22 @@
                     link({ href, title, text }) {
                         const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
                         return `<a href="${href || '#'}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
+                    },
+                    code(codeOrToken, infostring) {
+                        let lang = '';
+                        let text = '';
+                        if (codeOrToken && typeof codeOrToken === 'object') {
+                            lang = (codeOrToken.lang || '').trim().toLowerCase();
+                            text = codeOrToken.text || '';
+                        } else {
+                            lang = (infostring || '').trim().toLowerCase();
+                            text = codeOrToken || '';
+                        }
+                        const chartJson = tryParseToChartJson(text, lang);
+                        if (chartJson) {
+                            return buildChartContainerHtml(chartJson);
+                        }
+                        return false;
                     }
                 }
             });
@@ -47,17 +160,23 @@
 
     const renderMarkdown = (text) => {
         if (!text) return '';
+        const cleaned = text.replace(/(?:^|\n)\s*\*?Copy the block above[\s\S]*?Mermaid live editor[^\n]*\*?/gi, '');
         if (typeof window.marked !== 'undefined' && typeof window.marked.parse === 'function') {
             try {
-                return window.marked.parse(text);
+                return window.marked.parse(cleaned);
             } catch (err) {
                 console.warn('Marked parse error, using fallback:', err);
             }
         }
         const codeBlocks = [];
-        let processed = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        let processed = cleaned.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
             const id = `__CB_${codeBlocks.length}__`;
-            codeBlocks.push(`<pre class="my-3 overflow-x-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100 font-mono dark:bg-black/40 border border-zinc-700/60"><code>${escapeHtml(code.trim())}</code></pre>`);
+            const chartJson = tryParseToChartJson(code.trim(), lang);
+            if (chartJson) {
+                codeBlocks.push(buildChartContainerHtml(chartJson));
+            } else {
+                codeBlocks.push(`<pre class="my-3 overflow-x-auto rounded-xl bg-zinc-900 p-3 text-xs text-zinc-100 font-mono dark:bg-black/40 border border-zinc-700/60"><code>${escapeHtml(code.trim())}</code></pre>`);
+            }
             return id;
         });
 
@@ -159,6 +278,133 @@
     const modelNamesMap = new Map();
 
     const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replace(/_/g, ' ');
+
+    const renderChartJsInElement = (rootElement) => {
+        if (!rootElement || typeof window.Chart === 'undefined') return;
+
+        const containers = rootElement.querySelectorAll('.chat-chart-container');
+        if (!containers || containers.length === 0) return;
+
+        const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+        const defaultTextColor = isDark ? '#d4d4d8' : '#374151';
+        const defaultGridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
+
+        containers.forEach(container => {
+            if (container.dataset.rendered === 'true') return;
+
+            const codeEl = container.querySelector('.chat-chart-code code');
+            const canvas = container.querySelector('.chat-chart-canvas');
+            const wrapper = container.querySelector('.chat-chart-canvas-wrapper');
+            const toggleBtn = container.querySelector('.chat-chart-toggle');
+            const codePre = container.querySelector('.chat-chart-code');
+
+            if (!codeEl || !canvas || !wrapper) return;
+            const codeText = codeEl.textContent.trim();
+            if (!codeText) return;
+
+            if (toggleBtn && !toggleBtn._hooked) {
+                toggleBtn._hooked = true;
+                toggleBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const isCodeHidden = codePre.classList.contains('hidden');
+                    const span = toggleBtn.querySelector('span');
+                    if (isCodeHidden) {
+                        codePre.classList.remove('hidden');
+                        wrapper.classList.add('hidden');
+                        if (span) span.textContent = 'View chart';
+                    } else {
+                        codePre.classList.add('hidden');
+                        wrapper.classList.remove('hidden');
+                        if (span) span.textContent = 'View code';
+                    }
+                });
+            }
+
+            try {
+                let cleanJson = codeText
+                    .replace(/\/\/.*$/gm, '')
+                    .replace(/,(\s*[\]}])/g, '$1');
+                const config = JSON.parse(cleanJson);
+
+                if (!config.options) config.options = {};
+                config.options.responsive = true;
+                config.options.maintainAspectRatio = false;
+
+                if (!config.options.plugins) config.options.plugins = {};
+                if (!config.options.plugins.legend) config.options.plugins.legend = {};
+                if (!config.options.plugins.legend.labels) config.options.plugins.legend.labels = {};
+                if (!config.options.plugins.legend.labels.color) config.options.plugins.legend.labels.color = defaultTextColor;
+
+                if (config.options.plugins.title) {
+                    if (!config.options.plugins.title.color) {
+                        config.options.plugins.title.color = defaultTextColor;
+                    }
+                    const titleText = Array.isArray(config.options.plugins.title.text)
+                        ? config.options.plugins.title.text.join(' ')
+                        : String(config.options.plugins.title.text || '');
+                    const titleSpan = container.querySelector('.chat-chart-title');
+                    if (titleSpan && titleText.trim()) {
+                        titleSpan.textContent = titleText.trim();
+                    }
+                }
+
+                if (config.options.scales) {
+                    Object.keys(config.options.scales).forEach(scaleKey => {
+                        const scale = config.options.scales[scaleKey];
+                        if (scale) {
+                            if (!scale.ticks) scale.ticks = {};
+                            if (!scale.ticks.color) scale.ticks.color = defaultTextColor;
+                            if (!scale.ticks.backdropColor) scale.ticks.backdropColor = 'transparent';
+                            if (!scale.grid) scale.grid = {};
+                            if (!scale.grid.color) scale.grid.color = defaultGridColor;
+                            if (!scale.angleLines) scale.angleLines = {};
+                            if (!scale.angleLines.color) scale.angleLines.color = defaultGridColor;
+                            if (!scale.pointLabels) scale.pointLabels = {};
+                            if (!scale.pointLabels.color) scale.pointLabels.color = defaultTextColor;
+                            if (scale.title && !scale.title.color) scale.title.color = defaultTextColor;
+                        }
+                    });
+                }
+
+                if (canvas._chartInstance) {
+                    canvas._chartInstance.destroy();
+                    canvas._chartInstance = null;
+                }
+
+                const ctx = canvas.getContext('2d');
+                canvas._chartInstance = new window.Chart(ctx, config);
+                container.dataset.rendered = 'true';
+            } catch (err) {
+                console.warn('Chart.js render error:', err);
+                wrapper.innerHTML = `<div class="text-xs text-amber-600 dark:text-amber-400 py-1.5 px-1 flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Chart preview error (${escapeHtml(err.message)}). Source displayed below.</span></div>`;
+                if (codePre) codePre.classList.remove('hidden');
+                if (toggleBtn) {
+                    const span = toggleBtn.querySelector('span');
+                    if (span) span.textContent = 'View chart';
+                }
+                container.dataset.rendered = 'error';
+            }
+        });
+    };
+
+    const observeThemeChangesForCharts = () => {
+        try {
+            const observer = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    if (m.attributeName === 'class') {
+                        document.querySelectorAll('.chat-chart-container').forEach(c => {
+                            c.dataset.rendered = 'false';
+                            renderChartJsInElement(c.closest('article') || c.parentElement);
+                        });
+                        break;
+                    }
+                }
+            });
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        } catch (err) {
+            console.warn('Failed to observe theme changes for charts:', err);
+        }
+    };
 
     const refreshSeparators = (footer) => {
         const provSlot = footer.querySelector('.chat-provenance-slot');
@@ -346,7 +592,36 @@
                 if (!textContainer) return;
 
                 const clone = textContainer.cloneNode(true);
+
+                // Preserve rendered charts as embedded base64 images
+                const origChartContainers = article.querySelectorAll('.chat-chart-container');
+                const cloneChartContainers = clone.querySelectorAll('.chat-chart-container');
+                origChartContainers.forEach((origC, idx) => {
+                    const cloneC = cloneChartContainers[idx];
+                    if (!cloneC) return;
+                    const origCanvas = origC.querySelector('canvas');
+                    if (origCanvas) {
+                        try {
+                            const dataUrl = origCanvas.toDataURL('image/png');
+                            const img = document.createElement('img');
+                            img.src = dataUrl;
+                            img.alt = 'Chart';
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            const wrapper = cloneC.querySelector('.chat-chart-canvas-wrapper');
+                            if (wrapper) wrapper.replaceWith(img);
+                        } catch (err) {
+                            console.warn('Failed to convert chart canvas to data URL:', err);
+                        }
+                    }
+                    const toggleHeader = cloneC.firstElementChild;
+                    const codePre = cloneC.querySelector('.chat-chart-code');
+                    if (toggleHeader) toggleHeader.remove();
+                    if (codePre) codePre.remove();
+                });
+
                 clone.querySelectorAll('*').forEach(el => {
+                    if (el.closest('svg')) return;
                     el.removeAttribute('class');
                     el.removeAttribute('style');
                 });
@@ -464,6 +739,7 @@
         if (role === 'assistant') {
             article._rawMarkdown = content;
             textContainer.innerHTML = renderMarkdown(content);
+            renderChartJsInElement(article);
         } else {
             textContainer.textContent = content;
         }
@@ -1168,6 +1444,7 @@
             if (rawAssistantMarkdown) {
                 answer._rawMarkdown = rawAssistantMarkdown;
                 answerText.innerHTML = renderMarkdown(rawAssistantMarkdown);
+                renderChartJsInElement(answer);
             }
 
             const totalDurationSec = `${((performance.now() - turnStartTime) / 1000).toFixed(1)}s`;
@@ -1197,6 +1474,7 @@
                         }
                         lastAssistant.insertBefore(cancelPill, answerText.nextSibling);
                     }
+                    renderChartJsInElement(lastAssistant);
                     scrollToBottom();
                 }
             } else {
@@ -1215,6 +1493,8 @@
             input.focus();
         }
     });
+
+    observeThemeChangesForCharts();
 
     Promise.all([loadModels(), loadSessions(), loadAllPrompts()])
         .then(() => sessionId ? openSession(sessionId) : null)

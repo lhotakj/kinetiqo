@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block head %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart-4.5.1.umd.min.js', v=app_version) }}"></script>
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v17') }}" defer></script>
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v27') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
   main {

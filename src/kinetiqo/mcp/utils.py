@@ -21,6 +21,27 @@ def format_iso_timestamp(ts: Optional[datetime]) -> Optional[str]:
     return ts.astimezone(timezone.utc).isoformat()
 
 
+def parse_stream_ts_epoch(val: Any) -> float:
+    """Safely convert any stream timestamp representation (epoch int/float, datetime, or ISO string) to epoch seconds."""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, datetime):
+        return val.timestamp()
+    if isinstance(val, str):
+        val_str = val.strip()
+        try:
+            return float(val_str)
+        except ValueError:
+            pass
+        try:
+            return datetime.fromisoformat(val_str).timestamp()
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
 def downsample_stream_window(
     rows: List[Dict[str, Any]],
     resolution: str = "auto",
@@ -93,11 +114,11 @@ def _bucket_downsample(rows: List[Dict[str, Any]], bucket_seconds: int) -> List[
         return []
 
     buckets: Dict[int, List[Dict[str, Any]]] = {}
-    first_ts = int(rows[0].get("ts") or 0)
+    first_ts = parse_stream_ts_epoch(rows[0].get("ts"))
 
     for row in rows:
-        ts = int(row.get("ts") or 0)
-        bucket_key = (ts - first_ts) // bucket_seconds
+        ts = parse_stream_ts_epoch(row.get("ts"))
+        bucket_key = int((ts - first_ts) // bucket_seconds)
         if bucket_key not in buckets:
             buckets[bucket_key] = []
         buckets[bucket_key].append(row)
@@ -141,10 +162,10 @@ def detect_stream_gaps(rows: List[Dict[str, Any]], threshold_s: int = 2) -> Dict
     total_gap_sec = 0
 
     for i in range(len(rows) - 1):
-        t1 = rows[i].get("ts")
-        t2 = rows[i + 1].get("ts")
-        if t1 is not None and t2 is not None:
-            delta = t2 - t1
+        t1 = parse_stream_ts_epoch(rows[i].get("ts"))
+        t2 = parse_stream_ts_epoch(rows[i + 1].get("ts"))
+        if t1 > 0 and t2 > 0:
+            delta = int(t2 - t1)
             if delta > threshold_s:
                 total_gaps += 1
                 gap = delta - 1

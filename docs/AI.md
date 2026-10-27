@@ -115,15 +115,50 @@ Kinetiqo Flask Application Server
   - Full conversation persistence with automatic date-based sorting.
   - Hover deletion (`×`) to prune individual sessions instantly.
   - "+ New chat" button adhering to Kinetiqo's primary action button standards.
+- **Prompt History & Copilot-Style Suggestions**:
+  - **Arrow Up / Down Navigation**: Pressing Arrow Up at the first line of the composer rolls back through prompt history; pressing Arrow Down at the last line rolls forward.
+  - **Copilot-Style Auto-Suggestions**: Real-time suggestion popup appears while typing, suggesting completions based on the athlete's prompt history across all past sessions.
+  - **Database Index Optimization**: Accelerated across all chats via composite database index `idx_chat_messages_hist` on `(athlete_id, role, created_at)` across PostgreSQL, MySQL, and Firebird.
+- **Live Generation Cancellation**:
+  - When a prompt is executing, the send button transforms into an active red `■ Cancel` button.
+  - Clicking cancel immediately terminates the stream via `AbortController`, signals server-side generator termination (`GeneratorExit`), displays a `■ Cancelled` indicator in the chat stream, and restores the composer.
+- **Data Presentation & Charting Architecture**:
+  - **Structured Data & Metric Tables**: Numerical telemetry, comparisons, time series, and scatter/trend comparisons are presented in clean, responsive Markdown tables and bulleted takeaways for 100% reliable rendering without parser fragility.
+  - **Interactive Chart.js Engine (Self-Hosted)**:
+    - Powered by self-hosted **Chart.js 4.5.1** (`static/vendor/chartjs/chart-4.5.1.umd.min.js`), completely replacing fragile DSL diagram libraries.
+    - Features rich interactive canvas rendering: hover tooltips with exact values, responsive auto-scaling, clickable legend series toggling, dark/light theme-adaptive scales and grids, and a `[View code] / [View chart]` toggle.
+    - When exporting responses via **Download HTML**, rendered charts are automatically converted to embedded high-resolution PNG data URLs so saved reports remain 100% visual and offline-ready.
+  - **Comprehensive Supported Chart Taxonomy**:
+    - **Core Chart Types**:
+      - **Column Chart (Vertical Bar)**: Compares values across categories using vertical bars (Clustered, Stacked, and 100% Stacked; `type: 'bar'`).
+      - **Bar Chart (Horizontal Bar)**: Horizontal bars (`type: 'bar', options: { indexAxis: 'y' }`) for rankings with long category labels (activity names, segments, athlete PR leaderboards).
+      - **Line Chart**: Shows continuous trends and changes over equal time intervals or sequences (annual mileage, monthly elevation, FTP history, MMP power curves, CTL/ATL/TSB models), with stepped curves (`stepped: true`) and markers (`pointRadius`).
+      - **Pie & Doughnut Charts**: Displays proportional parts to a whole, with doughnut charts featuring a hollow center (`type: 'pie'`, `type: 'doughnut'`), ideal for Coggan Power Zones (Z1–Z7), Heart Rate Zones (Z1–Z5), and sport type breakdowns.
+      - **Area Chart**: Emphasizes the magnitude of change over time, showing filled spaces below lines (`type: 'line', fill: true`, stacked area via `scales: { y: { stacked: true } }`).
+      - **XY Scatter Plot**: Maps numeric coordinate points for 2-variable correlation (`type: 'scatter'`, `[{x, y}]`), such as Heart Rate vs. Power, cadence vs. speed, and aerobic decoupling.
+      - **Bubble Chart**: Maps numeric points with a 3rd data dimension (`type: 'bubble'`, `[{x, y, r}]`), where bubble radius `r` visualizes a 3rd metric (e.g. duration × watts × TSS/elevation).
+    - **Specialized and Statistical Charts**:
+      - **Histogram**: Displays frequency distribution of numeric telemetry data grouped into bins (`type: 'bar'` with `categoryPercentage: 1.0, barPercentage: 1.0` for gapless continuous bins).
+      - **Pareto Chart**: Combines a column chart (sorted descending frequencies/counts on primary left y-axis) with a line graph (cumulative percentage curve 0–100% on secondary right y1-axis).
+      - **Box and Whisker**: Summarizes data spread, median, quartiles, and statistical outliers (modeled in Chart.js via floating bars `[Q1, Q3]` for interquartile ranges, or clustered multi-dataset bars for Min, Q1, Median, Q3, Max).
+      - **Waterfall Chart**: Visualizes cumulative positive and negative sequential contributions to a total using floating bar tuples `[start, end]`.
+      - **Funnel Chart**: Tracks progressive reduction or stages through a multi-step process (`type: 'bar', indexAxis: 'y'` sorted descending).
+      - **Stock Chart (High-Low-Close / Candlestick)**: Visualizes boundary and range data using floating bar tuples `[low, high]` for range bounds, combined with line markers for open/close values.
+      - **Radar (Spider) Chart**: Compares multiple performance metrics or variables across radial axes (`type: 'radar'`), e.g. Power Skills spider profile across benchmark durations 1s, 5s, 10s, 30s, 1m, 5m, 10m, 30m, 60m in Watts or W/kg.
+      - **Surface Chart**: Plots 3-D numerical data landscapes; visualized via multi-series contour lines or Bubble charts `[{x, y, r}]` where radius `r` represents the 3rd surface dimension.
+      - **Treemap & Sunburst**: Maps hierarchical and multi-tiered proportional data (represented in Chart.js via multi-ring concentric Doughnut charts with multiple datasets, or stacked hierarchical bars).
+      - **Combo Chart (Mixed / Dual-Axis)**: Combines two or more distinct chart types (such as column bars and a line curve) in a single view with dual y and y1 axes.
+  - **Theme-Aware Styling**: Charts dynamically re-render with matching palettes (`dark` vs `light`) when toggling dark mode in the Kinetiqo header.
+  - **Graceful Error Isolation**: If invalid chart configuration syntax is encountered, Kinetiqo avoids technical parser stack traces, displaying an elegant preview fallback and source view.
+- **Dual-Format Response Export**:
+  - **Markdown Export (`.md`)**: Downloads clean Markdown preserving exact formatting, telemetry tables, and code blocks.
+  - **Self-Contained HTML Export (`.html`)**: Downloads unstyled, portable HTML with auto-embedded Base64 images and rendered high-res chart graphics (removing interactive toggle buttons and extraneous dashboard classes).
 - **Dynamic Composer Animation**:
   - Rotating frame border utilizing Kinetiqo brand colors (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`) during live response streaming.
 - **Streamlined Message Footer**:
   - Crisp 1px top border separator in both light (`#e5e7eb`) and dark (`#3f3f46`) modes.
-  - Unified right-aligned metadata row: `[Data used (X queries) ▾] · [Tokens: X in · Y out · Zs] · [Download response]`.
+  - Unified right-aligned metadata row: `[Data used (X queries) ▾] · [Model Badge] · [Tokens: X in · Y out · Zs] · [Download MD] · [Download HTML]`.
   - Transparent, distraction-free provenance view with high-contrast text.
-- **Markdown & Code Rendering**:
-  - Tables, mathematical formulas, bullet points, and code blocks rendered smoothly with auto-sanitization.
-  - One-click Markdown export (`Download response`).
 
 ---
 
