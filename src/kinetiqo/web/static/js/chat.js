@@ -13,6 +13,7 @@
     const status = document.getElementById('chat-status');
     const model = document.getElementById('chat-model');
     const activeModelBadge = document.getElementById('chat-active-model');
+    const suggestionsPopup = document.getElementById('chat-suggestions-popup');
     let sessionId = JSON.parse(app.dataset.initialSessionId || 'null');
     const userName = JSON.parse(app.dataset.userName || '"Athlete"') || 'Athlete';
 
@@ -163,7 +164,7 @@
         const provSlot = footer.querySelector('.chat-provenance-slot');
         const modelBadge = footer.querySelector('.chat-model-badge');
         const badge = footer.querySelector('.chat-tokens-badge');
-        const downloadBtn = footer.querySelector('.chat-download-btn');
+        const downloadBtns = footer.querySelectorAll('.chat-download-btn');
 
         const sepProv = footer.querySelector('.chat-footer-sep-prov');
         const sepModel = footer.querySelector('.chat-footer-sep-model');
@@ -172,7 +173,7 @@
         const hasProv = Boolean(provSlot && provSlot.children.length > 0);
         const hasModel = Boolean(modelBadge && modelBadge.textContent.trim().length > 0);
         const hasTokens = Boolean(badge && badge.textContent.trim().length > 0);
-        const hasDownload = Boolean(downloadBtn && !downloadBtn.classList.contains('hidden'));
+        const hasDownload = Boolean(Array.from(downloadBtns).some(btn => !btn.classList.contains('hidden')));
 
         if (sepProv) {
             sepProv.classList.toggle('hidden', !(hasProv && (hasModel || hasTokens || hasDownload)));
@@ -294,19 +295,21 @@
             sepTokens.textContent = '·';
             row.appendChild(sepTokens);
 
-            // Download response button
-            const downloadBtn = document.createElement('button');
-            downloadBtn.type = 'button';
-            downloadBtn.className = 'chat-download-btn cursor-pointer inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 transition';
-            downloadBtn.title = 'Download response as Markdown';
-            downloadBtn.setAttribute('aria-label', 'Download response as Markdown');
-            downloadBtn.innerHTML = `
-                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            // Download response as Markdown (.md) button
+            const downloadMdBtn = document.createElement('button');
+            downloadMdBtn.type = 'button';
+            downloadMdBtn.className = 'chat-download-btn chat-download-md-btn cursor-pointer inline-flex items-center gap-1 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 transition';
+            downloadMdBtn.title = 'Download response as Markdown (.md)';
+            downloadMdBtn.setAttribute('aria-label', 'Download response as Markdown');
+            downloadMdBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="color: rgb(163, 163, 163);">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                <span>Download response</span>
+                <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor" style="color: rgb(163, 163, 163);" aria-hidden="true">
+                    <path d="M14.85 3H1.15C.52 3 0 3.52 0 4.15v7.69C0 12.48.52 13 1.15 13h13.69c.64 0 1.15-.52 1.15-1.15V4.15C16 3.52 15.48 3 14.85 3zM9 11H7V8.5L5.5 10 4 8.5V11H2V5h2l1.5 2L7 5h2v6zm2.5 0L9 7.5h1.5V5h2v2.5H14L11.5 11z"/>
+                </svg>
             `;
-            downloadBtn.addEventListener('click', (e) => {
+            downloadMdBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const mdContent = article._rawMarkdown || article.querySelector('.chat-text')?.textContent || '';
                 if (!mdContent) return;
@@ -321,7 +324,68 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             });
-            row.appendChild(downloadBtn);
+            row.appendChild(downloadMdBtn);
+
+            // Download response as HTML (.html) button
+            const downloadHtmlBtn = document.createElement('button');
+            downloadHtmlBtn.type = 'button';
+            downloadHtmlBtn.className = 'chat-download-btn chat-download-html-btn cursor-pointer inline-flex items-center gap-1 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 transition';
+            downloadHtmlBtn.title = 'Download response as HTML (.html)';
+            downloadHtmlBtn.setAttribute('aria-label', 'Download response as HTML');
+            downloadHtmlBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="color: rgb(163, 163, 163);">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style="color: rgb(163, 163, 163);" aria-hidden="true">
+                    <path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.564-2.438L1.5 0zm7.031 9.75l-.232-2.718 10.059-.003.23-2.622L5.412 4.41l.698 8.01h9.126l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.158H8.531z"/>
+                </svg>
+            `;
+            downloadHtmlBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const textContainer = article.querySelector('.chat-text');
+                if (!textContainer) return;
+
+                const clone = textContainer.cloneNode(true);
+                clone.querySelectorAll('*').forEach(el => {
+                    el.removeAttribute('class');
+                    el.removeAttribute('style');
+                });
+
+                const imgs = Array.from(clone.querySelectorAll('img'));
+                for (const img of imgs) {
+                    const src = img.getAttribute('src');
+                    if (src && !src.startsWith('data:')) {
+                        try {
+                            const res = await fetch(src);
+                            const blob = await res.blob();
+                            const base64 = await new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            });
+                            img.setAttribute('src', base64);
+                        } catch (err) {
+                            console.warn('Failed to encode image to base64:', err);
+                        }
+                    }
+                }
+
+                const cleanBody = clone.innerHTML.trim();
+                const fullHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>Kinetiqo Response</title>\n</head>\n<body>\n${cleanBody}\n</body>\n</html>`;
+
+                const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                a.download = `kinetiqo-response-${ts}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+            row.appendChild(downloadHtmlBtn);
 
             footer.appendChild(row);
 
@@ -422,14 +486,85 @@
         return article;
     };
 
+    const STORAGE_KEY_PROMPTS = 'kinetiqo_chat_prompt_history';
+    const MAX_STORED_PROMPTS = 100;
+
+    const initialServerPrompts = (() => {
+        try {
+            const raw = app.dataset.initialPrompts;
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    })();
+
+    const loadStoredPrompts = () => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_PROMPTS);
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    };
+
     let promptHistory = [];
     let historyIndex = -1;
     let currentDraft = '';
 
+    const syncPromptHistory = (sessionMessages = null) => {
+        const stored = loadStoredPrompts();
+        const set = new Set([...initialServerPrompts, ...stored]);
+        if (sessionMessages && Array.isArray(sessionMessages)) {
+            sessionMessages.filter(m => m.role === 'user').forEach(m => {
+                if (m.content && m.content.trim()) set.add(m.content.trim());
+            });
+        }
+        promptHistory = Array.from(set);
+    };
+    syncPromptHistory();
+
+    const saveStoredPrompt = (text) => {
+        if (!text || !text.trim()) return;
+        const clean = text.trim();
+        let list = loadStoredPrompts().filter(p => p !== clean);
+        list.push(clean);
+        if (list.length > MAX_STORED_PROMPTS) {
+            list = list.slice(-MAX_STORED_PROMPTS);
+        }
+        try {
+            localStorage.setItem(STORAGE_KEY_PROMPTS, JSON.stringify(list));
+        } catch (err) {
+            console.warn('Failed to save prompt to localStorage:', err);
+        }
+        if (!initialServerPrompts.includes(clean)) {
+            initialServerPrompts.push(clean);
+        }
+        syncPromptHistory();
+    };
+
+    const loadAllPrompts = async () => {
+        try {
+            const payload = await request('/api/chat/prompts');
+            if (payload && Array.isArray(payload.prompts)) {
+                payload.prompts.forEach(p => {
+                    const clean = (p || '').trim();
+                    if (clean && !initialServerPrompts.includes(clean)) {
+                        initialServerPrompts.push(clean);
+                    }
+                });
+                syncPromptHistory();
+            }
+        } catch {
+            // Silently ignore if background prompt fetch fails
+        }
+    };
+
     const showMessages = (list) => {
         messages.replaceChildren();
         list.forEach((item) => messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens, item.model_id));
-        promptHistory = list.filter(m => m.role === 'user').map(m => m.content);
+        syncPromptHistory(list);
         historyIndex = -1;
         currentDraft = '';
         empty.classList.toggle('hidden', list.length > 0);
@@ -573,7 +708,7 @@
                         sessionId = null;
                         history.replaceState(null, '', '/chat');
                         messages.replaceChildren();
-                        promptHistory = [];
+                        syncPromptHistory();
                         historyIndex = -1;
                         currentDraft = '';
                         empty.classList.remove('hidden');
@@ -625,7 +760,7 @@
         sessionId = null;
         history.replaceState(null, '', '/chat');
         messages.replaceChildren();
-        promptHistory = [];
+        syncPromptHistory();
         historyIndex = -1;
         currentDraft = '';
         empty.classList.remove('hidden');
@@ -644,7 +779,7 @@
                 sessionId = null;
                 history.replaceState(null, '', '/chat');
                 messages.replaceChildren();
-                promptHistory = [];
+                syncPromptHistory();
                 historyIndex = -1;
                 currentDraft = '';
                 empty.classList.remove('hidden');
@@ -673,24 +808,190 @@
         return !textAfter.includes('\n');
     };
 
+    // Copilot-Style History Autocomplete Suggestions
+    let activeSuggestions = [];
+    let suggestionSelectedIndex = -1;
+
+    const hideSuggestions = () => {
+        if (!suggestionsPopup) return;
+        suggestionsPopup.classList.add('hidden');
+        suggestionsPopup.classList.remove('visible');
+        suggestionsPopup.replaceChildren();
+        activeSuggestions = [];
+        suggestionSelectedIndex = -1;
+    };
+
+    const highlightMatch = (text, query) => {
+        if (!query) return escapeHtml(text);
+        const qLower = query.toLowerCase();
+        const tLower = text.toLowerCase();
+        const idx = tLower.indexOf(qLower);
+        if (idx === -1) return escapeHtml(text);
+        const before = escapeHtml(text.slice(0, idx));
+        const match = escapeHtml(text.slice(idx, idx + query.length));
+        const after = escapeHtml(text.slice(idx + query.length));
+        return `${before}<span class="chat-suggestion-match">${match}</span>${after}`;
+    };
+
+    const selectSuggestionItem = (idx) => {
+        suggestionSelectedIndex = idx;
+        if (!suggestionsPopup) return;
+        const items = suggestionsPopup.querySelectorAll('.chat-suggestion-item');
+        items.forEach((it, i) => {
+            const isSelected = i === idx;
+            it.classList.toggle('active', isSelected);
+            it.setAttribute('aria-selected', isSelected.toString());
+            if (isSelected) {
+                it.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    };
+
+    const applySuggestion = (text) => {
+        input.value = text;
+        hideSuggestions();
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        historyIndex = -1;
+        currentDraft = text;
+    };
+
+    const renderSuggestions = (query) => {
+        if (!suggestionsPopup) return;
+        const cleanQuery = (query || '').trim().toLowerCase();
+        if (!cleanQuery) {
+            hideSuggestions();
+            return;
+        }
+
+        const candidates = [...promptHistory].reverse();
+        const matched = [];
+        const seen = new Set();
+
+        candidates.forEach((prompt) => {
+            const pClean = (prompt || '').trim();
+            const pLower = pClean.toLowerCase();
+            if (!pClean || pLower === cleanQuery) return;
+            if (pLower.includes(cleanQuery) && !seen.has(pClean)) {
+                seen.add(pClean);
+                matched.push(pClean);
+            }
+        });
+
+        if (matched.length === 0) {
+            hideSuggestions();
+            return;
+        }
+
+        activeSuggestions = matched.slice(0, 5);
+        suggestionSelectedIndex = -1;
+        suggestionsPopup.replaceChildren();
+
+        activeSuggestions.forEach((prompt, idx) => {
+            const item = document.createElement('div');
+            item.className = 'chat-suggestion-item';
+            item.dataset.index = idx.toString();
+            item.setAttribute('role', 'option');
+            item.setAttribute('id', `chat-suggestion-opt-${idx}`);
+            item.setAttribute('aria-selected', 'false');
+
+            const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            iconSvg.setAttribute('class', 'w-3.5 h-3.5 flex-shrink-0 text-gray-400 dark:text-zinc-500');
+            iconSvg.setAttribute('fill', 'none');
+            iconSvg.setAttribute('stroke', 'currentColor');
+            iconSvg.setAttribute('viewBox', '0 0 24 24');
+            iconSvg.setAttribute('aria-hidden', 'true');
+            iconSvg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>';
+            item.appendChild(iconSvg);
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'chat-suggestion-text';
+            textSpan.innerHTML = highlightMatch(prompt, query.trim());
+            item.appendChild(textSpan);
+
+            item.addEventListener('mouseenter', () => {
+                selectSuggestionItem(idx);
+            });
+
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                applySuggestion(prompt);
+            });
+
+            suggestionsPopup.appendChild(item);
+        });
+
+        const legend = document.createElement('div');
+        legend.className = 'chat-suggestion-legend';
+        legend.innerHTML = '<span>History suggestions</span><span>↑↓ to navigate · Tab/Enter to choose · Esc to dismiss</span>';
+        suggestionsPopup.appendChild(legend);
+
+        suggestionsPopup.classList.remove('hidden');
+        suggestionsPopup.classList.add('visible');
+    };
+
+    input.addEventListener('input', () => {
+        historyIndex = -1;
+        currentDraft = input.value;
+        renderSuggestions(input.value);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (suggestionsPopup && !suggestionsPopup.classList.contains('hidden')) {
+            if (!composer.contains(e.target) && !suggestionsPopup.contains(e.target)) {
+                hideSuggestions();
+            }
+        }
+    });
+
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowUp') {
-            if (isCursorOnFirstLine(input) && promptHistory.length > 0) {
-                if (historyIndex === -1) {
-                    currentDraft = input.value;
-                    historyIndex = promptHistory.length - 1;
-                    input.value = promptHistory[historyIndex];
-                    input.setSelectionRange(input.value.length, input.value.length);
+        const isSuggestionsOpen = suggestionsPopup && !suggestionsPopup.classList.contains('hidden') && activeSuggestions.length > 0;
+
+        if (isSuggestionsOpen) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                suggestionSelectedIndex = (suggestionSelectedIndex + 1) % activeSuggestions.length;
+                selectSuggestionItem(suggestionSelectedIndex);
+                return;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                suggestionSelectedIndex = (suggestionSelectedIndex - 1 + activeSuggestions.length) % activeSuggestions.length;
+                selectSuggestionItem(suggestionSelectedIndex);
+                return;
+            } else if (e.key === 'Tab' || (e.key === 'Enter' && suggestionSelectedIndex >= 0)) {
+                if (suggestionSelectedIndex >= 0 && suggestionSelectedIndex < activeSuggestions.length) {
                     e.preventDefault();
+                    applySuggestion(activeSuggestions[suggestionSelectedIndex]);
+                    return;
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                hideSuggestions();
+                return;
+            }
+        }
+
+        if (e.key === 'ArrowUp') {
+            if (promptHistory.length > 0) {
+                if (historyIndex === -1) {
+                    if (isCursorOnFirstLine(input)) {
+                        currentDraft = input.value;
+                        historyIndex = promptHistory.length - 1;
+                        input.value = promptHistory[historyIndex];
+                        input.setSelectionRange(input.value.length, input.value.length);
+                        e.preventDefault();
+                    }
                 } else if (historyIndex > 0) {
                     historyIndex--;
                     input.value = promptHistory[historyIndex];
                     input.setSelectionRange(input.value.length, input.value.length);
                     e.preventDefault();
+                } else if (historyIndex === 0) {
+                    e.preventDefault();
                 }
             }
         } else if (e.key === 'ArrowDown') {
-            if (isCursorOnLastLine(input) && historyIndex !== -1) {
+            if (historyIndex !== -1) {
                 if (historyIndex < promptHistory.length - 1) {
                     historyIndex++;
                     input.value = promptHistory[historyIndex];
@@ -705,31 +1006,67 @@
             }
         } else if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            hideSuggestions();
             composer.requestSubmit();
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+
+    let activeAbortController = null;
+    let isResponding = false;
+
+    const cancelCurrentTurn = () => {
+        if (activeAbortController) {
+            activeAbortController.abort();
+        }
+    };
+
+    send.addEventListener('click', (e) => {
+        if (isResponding) {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelCurrentTurn();
         }
     });
 
     composer.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (isResponding) {
+            cancelCurrentTurn();
+            return;
+        }
         const content = input.value.trim();
         if (!content) return;
-        promptHistory.push(content);
+        hideSuggestions();
+        saveStoredPrompt(content);
         historyIndex = -1;
         currentDraft = '';
+
         const origSendHtml = send.innerHTML;
+        const origSendClass = send.className;
         const turnStartTime = performance.now();
+        activeAbortController = new AbortController();
+        isResponding = true;
+
+        send.className = 'chat-send-btn chat-cancel-btn';
+        send.type = 'button';
+        send.disabled = false;
+        send.title = 'Cancel prompt generation';
+        send.setAttribute('aria-label', 'Cancel prompt generation');
+        send.innerHTML = '<span class="font-bold text-[13px] leading-none select-none">■</span><span>Cancel</span>';
+
         try {
             composer.classList.add('composer-responding');
             if (!sessionId) await createSession();
-            send.disabled = true;
-            send.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="16" height="16" class="inline-block">';
             status.classList.add('hidden');
             const chosenProvider = getSelectedProvider();
             const chosenModelId = model.value;
             const response = await fetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ content, model_id: chosenModelId, provider: chosenProvider })
+                body: JSON.stringify({ content, model_id: chosenModelId, provider: chosenProvider }),
+                signal: activeAbortController.signal
             });
             if (!response.ok || !response.body) {
                 const errData = await response.json().catch(() => ({}));
@@ -742,7 +1079,6 @@
             const answerText = answer.querySelector('.chat-text');
             empty.classList.add('hidden');
 
-            // Standard looping loading K indicator
             let thinkingEl = document.createElement('div');
             thinkingEl.className = 'chat-loading-indicator flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-1';
             thinkingEl.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="18" height="18" class="inline-block"><span>Thinking…</span>';
@@ -818,11 +1154,9 @@
                             toolStatusEl = null;
                         }
                         answerText.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2"><span class="font-bold text-red-500 text-sm leading-none">⚠️</span><span>${escapeHtml(payload.message)}</span></div>`;
-                        const downloadBtn = answer.querySelector('.chat-download-btn');
-                        if (downloadBtn) {
-                            downloadBtn.classList.add('hidden');
-                            refreshSeparators(ensureFooter(answer));
-                        }
+                        const downloadBtns = answer.querySelectorAll('.chat-download-btn');
+                        downloadBtns.forEach(btn => btn.classList.add('hidden'));
+                        refreshSeparators(ensureFooter(answer));
                         setStatus(payload.message, true);
                     }
                 });
@@ -845,15 +1179,44 @@
             }
             await loadSessions();
         } catch (error) {
-            setStatus(error.message, true);
+            if (error.name === 'AbortError' || activeAbortController?.signal.aborted) {
+                const lastAssistant = messages.querySelector('.chat-msg-assistant:last-of-type');
+                if (lastAssistant) {
+                    const thinking = lastAssistant.querySelector('.chat-loading-indicator');
+                    if (thinking) thinking.remove();
+                    const toolSt = lastAssistant.querySelector('.chat-tool-status');
+                    if (toolSt) toolSt.remove();
+
+                    const answerText = lastAssistant.querySelector('.chat-text');
+                    if (answerText) {
+                        const cancelPill = document.createElement('div');
+                        cancelPill.className = 'chat-cancelled-indicator';
+                        cancelPill.innerHTML = '<span class="text-xs font-bold leading-none select-none">■</span><span>Cancelled</span>';
+                        if (!lastAssistant._rawMarkdown) {
+                            answerText.innerHTML = '<p class="text-xs text-gray-500 dark:text-zinc-400 italic">Prompt cancelled</p>';
+                        }
+                        lastAssistant.insertBefore(cancelPill, answerText.nextSibling);
+                    }
+                    scrollToBottom();
+                }
+            } else {
+                setStatus(error.message, true);
+            }
         } finally {
+            isResponding = false;
+            activeAbortController = null;
+            send.className = origSendClass;
+            send.type = 'submit';
             send.disabled = false;
+            send.title = 'Send message';
+            send.setAttribute('aria-label', 'Send message');
             send.innerHTML = origSendHtml;
             composer.classList.remove('composer-responding');
+            input.focus();
         }
     });
 
-    Promise.all([loadModels(), loadSessions()])
+    Promise.all([loadModels(), loadSessions(), loadAllPrompts()])
         .then(() => sessionId ? openSession(sessionId) : null)
         .catch((error) => setStatus(error.message, true));
 })();

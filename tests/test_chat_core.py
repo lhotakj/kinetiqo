@@ -204,6 +204,43 @@ class TestChatService(unittest.TestCase):
         self.assertIn("kinetiqo_get_activity_totals", provenance)
         self.assertIn('"duration_ms": 25', provenance)
 
+    @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
+    @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
+    def test_stream_turn_handles_generator_exit_as_cancelled(self, registry, decrypt):
+        session = MagicMock(provider="gemini", model_id="gemini-live")
+        user = ChatMessage("user-id", "session", "athlete", "user", "hello", 1, "complete", datetime.now(timezone.utc))
+        assistant = ChatMessage("assistant-id", "session", "athlete", "assistant", "", 2, "interrupted", datetime.now(timezone.utc))
+        self.repository.get_session.return_value = session
+        self.repository.add_message.side_effect = [user, assistant]
+        self.repository.list_messages.return_value = []
+        self.repository.get_provider_key.return_value = "ciphertext"
+
+        provider = MagicMock()
+        provider.list_models.return_value = [ChatProviderModel("gemini-live", "Live")]
+
+        def infinite_events():
+            from kinetiqo.chat.models import StreamEvent
+            yield StreamEvent("text_delta", text="Partial ")
+            yield StreamEvent("text_delta", text="content ")
+
+        provider.stream.return_value = infinite_events()
+        registry.__getitem__.return_value.return_value = provider
+
+        _, events = self.service.stream_turn("athlete", "session", "hello")
+        first_event = next(events)
+        self.assertEqual(first_event.text, "Partial ")
+
+        # Simulate client aborting the HTTP request/connection
+        events.close()
+
+        self.repository.update_message.assert_called_once()
+        call_args = self.repository.update_message.call_args[0]
+        self.assertEqual(call_args[0], "athlete")
+        self.assertEqual(call_args[1], "assistant-id")
+        self.assertEqual(call_args[2], "Partial ")
+        self.assertEqual(call_args[3], "cancelled")
+        self.assertEqual(call_args[4], "cancelled")
+
     def test_system_instruction_contains_taxonomy_and_indoor_outdoor_mandate(self):
         instruction = build_system_instruction()
         self.assertIn("SPORT TAXONOMY MANDATE", instruction)
@@ -237,6 +274,23 @@ class TestChatRepository(unittest.TestCase):
         self.assertTrue(any("DELETE FROM chat_messages" in q for q in executed_queries))
         self.assertTrue(any("DELETE FROM chat_sessions" in q for q in executed_queries))
         backend.conn.commit.assert_called_once()
+
+    def test_list_recent_prompts_deduplicates_and_preserves_recency(self):
+        backend = MagicMock()
+        cursor = backend.conn.cursor.return_value
+        cursor.fetchall.return_value = [
+            ("Summarize training",),
+            ("Compare month",),
+            ("Summarize training",),
+            ("What is my FTP?",),
+        ]
+        repository = ChatRepository(backend, "postgresql")
+        prompts = repository.list_recent_prompts("athlete-123", limit=10)
+        self.assertEqual(prompts, ["Summarize training", "Compare month", "What is my FTP?"])
+        executed_query = cursor.execute.call_args[0][0]
+        self.assertIn("SELECT content FROM chat_messages", executed_query)
+        self.assertIn("role = 'user'", executed_query)
+        self.assertIn("ORDER BY created_at DESC", executed_query)
 
 
 class TestGeminiDiagnostics(unittest.TestCase):

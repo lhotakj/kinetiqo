@@ -520,7 +520,10 @@ SCHEMA_DEFINITION = {
             {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
         ],
         "constraints": [{"name": "uq_chat_message_seq", "def_mysql": "CONSTRAINT uq_chat_message_seq UNIQUE (session_id, seq)", "def_pg": "CONSTRAINT uq_chat_message_seq UNIQUE (session_id, seq)", "def_firebird": 'CONSTRAINT uq_chat_message_seq UNIQUE ("session_id", "seq")'}],
-        "indexes": [{"name": "idx_chat_messages_session", "def_mysql": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_pg": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_firebird": 'CREATE INDEX idx_chat_messages_session ON "chat_messages" ("session_id", "seq")'}],
+        "indexes": [
+            {"name": "idx_chat_messages_session", "def_mysql": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_pg": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_firebird": 'CREATE INDEX idx_chat_messages_session ON "chat_messages" ("session_id", "seq")'},
+            {"name": "idx_chat_messages_hist", "def_mysql": "CREATE INDEX idx_chat_messages_hist ON chat_messages (athlete_id, role, created_at)", "def_pg": "CREATE INDEX idx_chat_messages_hist ON chat_messages (athlete_id, role, created_at DESC)", "def_firebird": 'CREATE DESCENDING INDEX idx_chat_messages_hist ON "chat_messages" ("athlete_id", "role", "created_at")'}
+        ],
         "engine_mysql": "ENGINE=InnoDB",
     },
     "chat_provider_keys": {

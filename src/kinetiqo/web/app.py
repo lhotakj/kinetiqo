@@ -2461,7 +2461,32 @@ def chat_page(session_id: str | None = None):
                 user_name = profile['name']
     except Exception:
         pass
-    return render_template('chat.html', title='AI Chat', initial_session_id=session_id, user_name=user_name)
+    initial_prompts = []
+    try:
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        initial_prompts = service.repository.list_recent_prompts(athlete_id)
+    except Exception:
+        pass
+    return render_template(
+        'chat.html',
+        title='AI Chat',
+        initial_session_id=session_id,
+        user_name=user_name,
+        initial_prompts=initial_prompts,
+    )
+
+
+@app.route('/api/chat/prompts', methods=['GET'])
+@login_required
+def chat_prompts_api():
+    try:
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        prompts = service.repository.list_recent_prompts(athlete_id)
+        return jsonify({'prompts': prompts})
+    except Exception as exc:
+        return jsonify({'prompts': [], 'error': str(exc)}), 500
 
 
 @app.route('/api/chat/sessions', methods=['GET', 'POST', 'DELETE'])

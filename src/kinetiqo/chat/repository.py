@@ -152,6 +152,24 @@ class ChatRepository:
         rows = self._all(f"SELECT message_id, session_id, athlete_id, role, content, seq, status, created_at, provider, model_id, input_tokens, output_tokens, tool_provenance, error_code FROM chat_messages WHERE session_id = {p} AND athlete_id = {p} ORDER BY seq ASC", (session_id, athlete_id))
         return [self._message(row) for row in rows[-limit:]]
 
+    def list_recent_prompts(self, athlete_id: str, limit: int = 200) -> list[str]:
+        p = self.placeholder
+        rows = self._all(
+            f"SELECT content FROM chat_messages WHERE athlete_id = {p} AND role = 'user' ORDER BY created_at DESC",
+            (athlete_id,),
+        )
+        seen: set[str] = set()
+        prompts: list[str] = []
+        for row in rows:
+            text = row[0].read() if hasattr(row[0], "read") else str(row[0] or "")
+            clean = text.strip()
+            if clean and clean not in seen:
+                seen.add(clean)
+                prompts.append(clean)
+                if len(prompts) >= limit:
+                    break
+        return prompts
+
     def get_provider_key(self, athlete_id: str, provider: str) -> str | None:
         p = self.placeholder
         row = self._one(f"SELECT api_key_enc FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))

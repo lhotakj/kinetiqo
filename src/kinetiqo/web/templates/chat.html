@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block head %}
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v13') }}" defer></script>
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v17') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
   main {
@@ -178,6 +178,166 @@
   .chat-send-btn:disabled {
     opacity: 0.65;
     cursor: wait;
+  }
+
+  .chat-cancel-btn {
+    position: relative;
+    border-radius: 9px;
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border: none;
+    cursor: pointer !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+
+  .chat-cancel-btn:hover {
+    background: #b91c1c !important;
+    transform: translateY(-1px);
+  }
+
+  .chat-cancel-btn:active {
+    transform: translateY(0);
+  }
+
+  /* Copilot-Style History Autocomplete Suggestions Popup */
+  .chat-suggestions-popup {
+    display: none !important;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    overflow-y: auto;
+    z-index: 50;
+    padding: 6px;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .chat-suggestions-popup.visible {
+    display: flex !important;
+  }
+
+  html.dark .chat-suggestions-popup {
+    background: #262629;
+    border-color: #3f3f46;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
+  }
+
+  .chat-suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.12s, color 0.12s;
+    user-select: none;
+  }
+
+  html.dark .chat-suggestion-item {
+    color: #d4d4d8;
+  }
+
+  .chat-suggestion-item:hover,
+  .chat-suggestion-item.active {
+    background: rgba(249, 115, 22, 0.1);
+    color: #ea580c;
+  }
+
+  html.dark .chat-suggestion-item:hover,
+  html.dark .chat-suggestion-item.active {
+    background: rgba(249, 115, 22, 0.18);
+    color: #fb923c;
+  }
+
+  .chat-suggestion-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-suggestion-match {
+    color: #ea580c;
+    font-weight: 600;
+  }
+
+  html.dark .chat-suggestion-match {
+    color: #fb923c;
+  }
+
+  .chat-suggestion-legend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px 2px;
+    border-top: none !important;
+    font-size: 11px;
+    color: #9ca3af;
+    user-select: none;
+  }
+
+  html.dark .chat-suggestion-legend {
+    border-top: none !important;
+    color: #71717a;
+  }
+
+  .chat-cancelled-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 8px;
+    padding: 4px 10px;
+    margin: 6px 0;
+  }
+
+  html.dark .chat-cancelled-indicator {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .chat-download-btn {
+    opacity: 0.85;
+    transition: opacity 0.15s ease;
+  }
+
+  .chat-download-btn:hover {
+    opacity: 1;
+  }
+
+  .chat-download-btn svg {
+    color: rgb(163, 163, 163);
+    transition: color 0.15s ease;
+  }
+
+  .chat-download-btn:hover svg {
+    color: #ea580c !important;
+  }
+
+  html.dark .chat-download-btn:hover svg {
+    color: #fb923c !important;
   }
 
   /* Markdown Elements Inside Assistant Bubble */
@@ -600,7 +760,7 @@
 </style>
 {% endblock %}
 {% block content %}
-<div id="chat-app" data-initial-session-id="{{ initial_session_id | tojson }}" data-user-name="{{ user_name | tojson }}"
+<div id="chat-app" data-initial-session-id="{{ initial_session_id | tojson }}" data-user-name="{{ user_name | tojson }}" data-initial-prompts="{{ initial_prompts | tojson }}"
   class="chat-layout-wrapper">
   <!-- Left Navigation Column: Latest Chats & Settings -->
   <aside class="chat-sidebar" aria-label="Chat Navigation">
@@ -681,7 +841,9 @@
 
     <!-- Pinned Bottom Chat Box -->
     <div class="chat-composer-box">
-      <div style="width: 100%;">
+      <div style="width: 100%; position: relative;">
+        <!-- Copilot-Style History Autocomplete Suggestions Popup -->
+        <div id="chat-suggestions-popup" class="chat-suggestions-popup hidden" role="listbox" aria-label="Prompt suggestions"></div>
         <form id="chat-composer" class="chat-composer-card">
           <label for="chat-input" class="sr-only">Message to Kinetiqo AI Chat</label>
           <textarea id="chat-input" maxlength="32768" rows="2" aria-label="Message to Kinetiqo AI Chat"

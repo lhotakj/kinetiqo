@@ -43,6 +43,9 @@ class TestSchemaDefinition(unittest.TestCase):
                     self.assertIn("type_mysql", column)
                     self.assertIn("type_pg", column)
                     self.assertIn("type_firebird", column)
+        chat_msg_indexes = {idx["name"] for idx in SCHEMA_DEFINITION["chat_messages"]["indexes"]}
+        self.assertIn("idx_chat_messages_hist", chat_msg_indexes)
+        self.assertIn("idx_chat_messages_session", chat_msg_indexes)
 
     def test_activities_reverse_composite_indexes(self):
         """Verify performance-critical reverse composite indexes exist for all dialects."""

@@ -284,6 +284,19 @@ class ChatService:
                     output_tokens=output_tokens,
                     tool_provenance=provenance_json,
                 )
+            except GeneratorExit:
+                provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
+                self.repository.update_message(
+                    athlete_id,
+                    assistant.message_id,
+                    assembled,
+                    "cancelled",
+                    "cancelled",
+                    input_tokens,
+                    output_tokens,
+                    tool_provenance=provenance_json,
+                )
+                raise
             except Exception as exc:
                 code = getattr(exc, "error_code", "chat_error")
                 provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
