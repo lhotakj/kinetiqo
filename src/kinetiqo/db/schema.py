@@ -202,6 +202,12 @@ SCHEMA_DEFINITION = {
                 "def_firebird": 'CREATE INDEX idx_activities_gear ON "activities" ("gear_id")'
             },
             {
+                "name": "idx_activities_gear_start",
+                "def_mysql": "CREATE INDEX idx_activities_gear_start ON activities (gear_id, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_gear_start ON activities (gear_id, start_date DESC) WHERE gear_id IS NOT NULL",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_gear_start ON "activities" ("gear_id", "start_date")'
+            },
+            {
                 "name": "idx_activities_fitness_trends",
                 "def_mysql": "CREATE INDEX idx_activities_fitness_trends ON activities (suffer_score, start_date)",
                 "def_pg": "CREATE INDEX idx_activities_fitness_trends ON activities (start_date) INCLUDE (suffer_score) WHERE suffer_score > 0",
@@ -499,7 +505,20 @@ SCHEMA_DEFINITION = {
             {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
             {"name": "last_message_at", "type_mysql": "TIMESTAMP NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
         ],
-        "indexes": [{"name": "idx_chat_sessions_owner", "def_mysql": "CREATE INDEX idx_chat_sessions_owner ON chat_sessions (athlete_id, last_message_at)", "def_pg": "CREATE INDEX idx_chat_sessions_owner ON chat_sessions (athlete_id, last_message_at DESC)", "def_firebird": 'CREATE DESCENDING INDEX idx_chat_sessions_owner ON "chat_sessions" ("athlete_id", "last_message_at")'}],
+        "indexes": [
+            {
+                "name": "idx_chat_sessions_owner",
+                "def_mysql": "CREATE INDEX idx_chat_sessions_owner ON chat_sessions (athlete_id, last_message_at)",
+                "def_pg": "CREATE INDEX idx_chat_sessions_owner ON chat_sessions (athlete_id, last_message_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_chat_sessions_owner ON "chat_sessions" ("athlete_id", "last_message_at")'
+            },
+            {
+                "name": "idx_chat_sessions_owner_sid",
+                "def_mysql": "CREATE INDEX idx_chat_sessions_owner_sid ON chat_sessions (athlete_id, last_message_at, session_id)",
+                "def_pg": "CREATE INDEX idx_chat_sessions_owner_sid ON chat_sessions (athlete_id, last_message_at DESC, session_id DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_chat_sessions_owner_sid ON "chat_sessions" ("athlete_id", "last_message_at", "session_id")'
+            }
+        ],
         "engine_mysql": "ENGINE=InnoDB",
     },
     "chat_messages": {
@@ -522,6 +541,7 @@ SCHEMA_DEFINITION = {
         "constraints": [{"name": "uq_chat_message_seq", "def_mysql": "CONSTRAINT uq_chat_message_seq UNIQUE (session_id, seq)", "def_pg": "CONSTRAINT uq_chat_message_seq UNIQUE (session_id, seq)", "def_firebird": 'CONSTRAINT uq_chat_message_seq UNIQUE ("session_id", "seq")'}],
         "indexes": [
             {"name": "idx_chat_messages_session", "def_mysql": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_pg": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_firebird": 'CREATE INDEX idx_chat_messages_session ON "chat_messages" ("session_id", "seq")'},
+            {"name": "idx_chat_msg_sess_owner_seq", "def_mysql": "CREATE INDEX idx_chat_msg_sess_owner_seq ON chat_messages (session_id, athlete_id, seq)", "def_pg": "CREATE INDEX idx_chat_msg_sess_owner_seq ON chat_messages (session_id, athlete_id, seq)", "def_firebird": 'CREATE INDEX idx_chat_msg_sess_owner_seq ON "chat_messages" ("session_id", "athlete_id", "seq")'},
             {"name": "idx_chat_messages_hist", "def_mysql": "CREATE INDEX idx_chat_messages_hist ON chat_messages (athlete_id, role, created_at)", "def_pg": "CREATE INDEX idx_chat_messages_hist ON chat_messages (athlete_id, role, created_at DESC)", "def_firebird": 'CREATE DESCENDING INDEX idx_chat_messages_hist ON "chat_messages" ("athlete_id", "role", "created_at")'}
         ],
         "engine_mysql": "ENGINE=InnoDB",
@@ -785,7 +805,8 @@ class SchemaManager:
             if self.db_type == 'mysql':
                 cur.execute(
                     "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
-                    (table_name,))
+                    (table_name,)
+                )
             elif self.db_type == 'firebird':
                 cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE TRIM(RDB$RELATION_NAME) = ?",
                             (table_name,))
@@ -795,7 +816,8 @@ class SchemaManager:
                 cur.execute(
                     "SELECT table_name FROM information_schema.tables "
                     "WHERE table_schema = 'public' AND table_name = %s",
-                    (table_name,))
+                    (table_name,)
+                )
             return cur.fetchone() is not None
         finally:
             cur.close()
@@ -937,7 +959,8 @@ class SchemaManager:
                 cur.execute(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_schema = 'public' AND table_name = %s",
-                    (table_name,))
+                    (table_name,)
+                )
                 return {row[0] for row in cur.fetchall()}
         finally:
             cur.close()
