@@ -12,6 +12,10 @@
     const send = document.getElementById('chat-send');
     const status = document.getElementById('chat-status');
     const model = document.getElementById('chat-model');
+    const modelTrigger = document.getElementById('chat-model-trigger');
+    const modelSelectedLabel = document.getElementById('chat-model-selected');
+    const modelMenu = document.getElementById('chat-model-menu');
+    const modelDefaultIndicator = document.getElementById('chat-model-default-indicator');
     const activeModelBadge = document.getElementById('chat-active-model');
     const suggestionsPopup = document.getElementById('chat-suggestions-popup');
     let sessionId = JSON.parse(app.dataset.initialSessionId || 'null');
@@ -276,6 +280,18 @@
     };
 
     const modelNamesMap = new Map();
+    let defaultModelId = '';
+    let defaultModelProvider = '';
+    let modelCatalog = [];
+
+    const getProviderIconPath = (provider) => {
+        const key = String(provider || '').trim().toLowerCase();
+        if (key.includes('gemini')) return '/static/icons/ai_gemini.svg';
+        if (key.includes('openrouter')) return '/static/icons/ai_openrouter.svg';
+        if (key.includes('ollama')) return '/static/icons/ai_ollama.svg';
+        if (key.includes('vercel')) return '/static/icons/ai_vercel.svg';
+        return '';
+    };
 
     const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replace(/_/g, ' ');
 
@@ -410,6 +426,7 @@
         const provSlot = footer.querySelector('.chat-provenance-slot');
         const modelBadge = footer.querySelector('.chat-model-badge');
         const badge = footer.querySelector('.chat-tokens-badge');
+        const thinkingBadge = footer.querySelector('.chat-thinking-badge');
         const downloadBtns = footer.querySelectorAll('.chat-download-btn');
 
         const sepProv = footer.querySelector('.chat-footer-sep-prov');
@@ -418,14 +435,20 @@
 
         const hasProv = Boolean(provSlot && provSlot.children.length > 0);
         const hasModel = Boolean(modelBadge && modelBadge.textContent.trim().length > 0);
-        const hasTokens = Boolean(badge && badge.textContent.trim().length > 0);
-        const hasDownload = Boolean(Array.from(downloadBtns).some(btn => !btn.classList.contains('hidden')));
+        const hasTokens = Boolean(badge && !badge.classList.contains('hidden') && badge.textContent.trim().length > 0);
+        const hasThinking = Boolean(thinkingBadge && !thinkingBadge.classList.contains('hidden') && thinkingBadge.textContent.trim().length > 0);
+        const hasDownload = Boolean(Array.from(downloadBtns).some((btn) => {
+            const hiddenByClass = btn.classList.contains('hidden');
+            const hiddenByAttr = btn.hasAttribute('hidden');
+            const hiddenByStyle = btn.style.display === 'none';
+            return !(hiddenByClass || hiddenByAttr || hiddenByStyle);
+        }));
 
         if (sepProv) {
-            sepProv.classList.toggle('hidden', !(hasProv && (hasModel || hasTokens || hasDownload)));
+            sepProv.classList.toggle('hidden', !(hasProv && (hasModel || hasThinking || hasTokens || hasDownload)));
         }
         if (sepModel) {
-            sepModel.classList.toggle('hidden', !(hasModel && (hasTokens || hasDownload)));
+            sepModel.classList.toggle('hidden', !(hasModel && (hasThinking || hasTokens || hasDownload)));
         }
         if (sepTokens) {
             sepTokens.classList.toggle('hidden', !(hasTokens && hasDownload));
@@ -534,6 +557,11 @@
             const badge = document.createElement('span');
             badge.className = 'chat-tokens-badge text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
             row.appendChild(badge);
+
+            // While generating, display elapsed-time counter in place of download actions.
+            const thinkingBadge = document.createElement('span');
+            thinkingBadge.className = 'chat-thinking-badge hidden text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
+            row.appendChild(thinkingBadge);
 
             // Separator between tokens and download
             const sepTokens = document.createElement('span');
@@ -678,6 +706,63 @@
         return footer;
     };
 
+    const setDownloadButtonsState = (article, visible) => {
+        const footer = ensureFooter(article);
+        const downloadBtns = footer.querySelectorAll('.chat-download-btn');
+        downloadBtns.forEach((btn) => {
+            if (visible) {
+                btn.classList.remove('hidden', 'opacity-60', 'pointer-events-none', 'cursor-not-allowed');
+                btn.removeAttribute('hidden');
+                btn.style.display = '';
+                btn.disabled = false;
+                btn.setAttribute('aria-disabled', 'false');
+                return;
+            }
+            btn.classList.add('hidden', 'opacity-60', 'pointer-events-none', 'cursor-not-allowed');
+            btn.setAttribute('hidden', 'hidden');
+            btn.style.display = 'none';
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+        });
+    };
+
+    const setFooterThinkingState = (article, elapsedSeconds) => {
+        const footer = ensureFooter(article);
+        const thinkingBadge = footer.querySelector('.chat-thinking-badge');
+        const tokensBadge = footer.querySelector('.chat-tokens-badge');
+
+        article._isThinking = true;
+        if (thinkingBadge) {
+            const safeSeconds = Math.max(0, Number.parseInt(String(elapsedSeconds || 0), 10) || 0);
+            thinkingBadge.textContent = `Thinking for ${safeSeconds}s`;
+            thinkingBadge.classList.remove('hidden');
+        }
+        if (tokensBadge) {
+            tokensBadge.classList.add('hidden');
+        }
+        setDownloadButtonsState(article, false);
+        refreshSeparators(footer);
+    };
+
+    const clearFooterThinkingState = (article) => {
+        const footer = ensureFooter(article);
+        const thinkingBadge = footer.querySelector('.chat-thinking-badge');
+        const tokensBadge = footer.querySelector('.chat-tokens-badge');
+
+        article._isThinking = false;
+        if (thinkingBadge) {
+            thinkingBadge.textContent = '';
+            thinkingBadge.classList.add('hidden');
+        }
+        if (tokensBadge) {
+            tokensBadge.classList.remove('hidden');
+        }
+        if (!article._hideDownloadsPermanently) {
+            setDownloadButtonsState(article, true);
+        }
+        refreshSeparators(footer);
+    };
+
     const updateFooterInfo = (article, inTokens = null, outTokens = null, durationStr = null) => {
         const footer = ensureFooter(article);
         const badge = footer.querySelector('.chat-tokens-badge');
@@ -706,6 +791,8 @@
         } else {
             badge.textContent = '';
         }
+
+        badge.classList.toggle('hidden', Boolean(article._isThinking));
 
         refreshSeparators(footer);
     };
@@ -848,11 +935,181 @@
         scrollToBottom();
     };
 
-    const updateActiveModelDisplay = () => {
-        if (activeModelBadge && model) {
-            const selectedOpt = model.options[model.selectedIndex];
-            activeModelBadge.textContent = selectedOpt ? (selectedOpt.text || selectedOpt.value) : (model.value || '');
+    const isDefaultModel = (modelId, provider) => {
+        if (!defaultModelId || !modelId || modelId !== defaultModelId) return false;
+        if (!defaultModelProvider) return true;
+        return (provider || '') === defaultModelProvider;
+    };
+
+    const getModelMenuItems = () => {
+        if (!modelMenu) return [];
+        return Array.from(modelMenu.querySelectorAll('.chat-model-item'));
+    };
+
+    const getFocusedModelItemIndex = () => {
+        const items = getModelMenuItems();
+        const active = document.activeElement;
+        return items.findIndex((item) => item === active);
+    };
+
+    const focusModelItemByIndex = (index) => {
+        const items = getModelMenuItems();
+        if (items.length === 0) return;
+        const safeIndex = Math.max(0, Math.min(index, items.length - 1));
+        items[safeIndex].focus();
+    };
+
+    const closeModelDropdown = (restoreFocus = false) => {
+        if (!modelMenu || !modelTrigger) return;
+        modelMenu.classList.remove('open');
+        modelTrigger.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) {
+            modelTrigger.focus();
         }
+    };
+
+    const openModelDropdown = (focusMode = null) => {
+        if (!modelMenu || !modelTrigger) return;
+        modelMenu.classList.add('open');
+        modelTrigger.setAttribute('aria-expanded', 'true');
+        if (!focusMode) return;
+
+        const items = getModelMenuItems();
+        if (items.length === 0) return;
+
+        let targetIndex = 0;
+        if (focusMode === 'selected') {
+            const selectedIndex = items.findIndex((item) => item.dataset.modelId === model.value);
+            targetIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        } else if (focusMode === 'last') {
+            targetIndex = items.length - 1;
+        } else if (focusMode === 'first') {
+            targetIndex = 0;
+        }
+
+        window.requestAnimationFrame(() => {
+            focusModelItemByIndex(targetIndex);
+        });
+    };
+
+    const toggleModelDropdown = () => {
+        if (!modelMenu || !modelTrigger) return;
+        const isOpen = modelMenu.classList.contains('open');
+        if (isOpen) {
+            closeModelDropdown();
+        } else {
+            openModelDropdown();
+        }
+    };
+
+    const updateActiveModelDisplay = () => {
+        if (!model) return;
+        const selectedOpt = model.options[model.selectedIndex];
+        const selectedLabel = selectedOpt ? (selectedOpt.text || selectedOpt.value) : (model.value || '');
+        const selectedProvider = selectedOpt?.dataset.provider || '';
+        if (activeModelBadge) {
+            activeModelBadge.textContent = selectedLabel;
+        }
+        if (modelSelectedLabel) {
+            modelSelectedLabel.textContent = selectedLabel;
+        }
+        if (modelDefaultIndicator) {
+            modelDefaultIndicator.classList.toggle('visible', isDefaultModel(model.value, selectedProvider));
+        }
+        if (modelMenu) {
+            modelMenu.querySelectorAll('.chat-model-item').forEach((itemEl) => {
+                const isSelected = itemEl.dataset.modelId === model.value;
+                itemEl.classList.toggle('is-selected', isSelected);
+                itemEl.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+                const starEl = itemEl.querySelector('.chat-model-item-default-star');
+                if (starEl) {
+                    const itemProvider = itemEl.dataset.provider || '';
+                    starEl.classList.toggle('visible', isDefaultModel(itemEl.dataset.modelId || '', itemProvider));
+                }
+            });
+        }
+    };
+
+    const renderModelDropdown = () => {
+        if (!modelMenu || !model) return;
+        modelMenu.replaceChildren();
+        if (!modelCatalog.length) {
+            return;
+        }
+
+        const grouped = new Map();
+        modelCatalog.forEach((item) => {
+            const key = item.provider || 'unknown';
+            if (!grouped.has(key)) {
+                grouped.set(key, { label: item.groupLabel || key, items: [] });
+            }
+            grouped.get(key).items.push(item);
+        });
+
+        grouped.forEach((group) => {
+            const groupEl = document.createElement('div');
+            groupEl.className = 'chat-model-group';
+
+            const headerEl = document.createElement('div');
+            headerEl.className = 'chat-model-group-header';
+
+            const groupProviderKey = String(group.items[0]?.provider || '').trim().toLowerCase();
+            const groupIconPath = getProviderIconPath(groupProviderKey);
+            if (groupIconPath) {
+                const groupIconImg = document.createElement('img');
+                groupIconImg.className = 'chat-model-group-icon';
+                groupIconImg.src = groupIconPath;
+                groupIconImg.alt = '';
+                groupIconImg.dataset.provider = groupProviderKey;
+                groupIconImg.setAttribute('aria-hidden', 'true');
+                headerEl.appendChild(groupIconImg);
+            }
+
+            const labelEl = document.createElement('div');
+            labelEl.className = 'chat-model-group-label';
+            labelEl.textContent = group.label;
+            headerEl.appendChild(labelEl);
+            groupEl.appendChild(headerEl);
+
+            group.items.forEach((item) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'chat-model-item';
+                btn.dataset.modelId = item.id;
+                btn.dataset.provider = item.provider;
+                btn.setAttribute('role', 'option');
+                btn.setAttribute('aria-selected', 'false');
+
+                const mainWrap = document.createElement('span');
+                mainWrap.className = 'chat-model-item-main';
+
+
+                const textEl = document.createElement('span');
+                textEl.className = 'chat-model-item-label';
+                textEl.textContent = item.name;
+                mainWrap.appendChild(textEl);
+
+                const starEl = document.createElement('span');
+                starEl.className = 'chat-model-item-default-star';
+                starEl.setAttribute('aria-hidden', 'true');
+                starEl.textContent = '★';
+
+                btn.appendChild(mainWrap);
+                btn.appendChild(starEl);
+                btn.id = `chat-model-item-${item.provider}-${item.id}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+                btn.addEventListener('click', () => {
+                    model.value = item.id;
+                    model.dispatchEvent(new Event('change', { bubbles: true }));
+                    closeModelDropdown(true);
+                });
+
+                groupEl.appendChild(btn);
+            });
+
+            modelMenu.appendChild(groupEl);
+        });
+
+        updateActiveModelDisplay();
     };
 
     const getSelectedProvider = () => {
@@ -869,6 +1126,8 @@
         const groups = Array.isArray(payload.providers) ? payload.providers : [];
         const serverDefault = payload.default_model || null;
         const flatModels = [];
+        modelNamesMap.clear();
+        modelCatalog = [];
         model.replaceChildren();
 
         if (groups.length === 0) {
@@ -889,8 +1148,9 @@
         }
 
         groups.forEach((group) => {
+            const displayName = group.display_name || group.provider;
             const optgroup = document.createElement('optgroup');
-            optgroup.label = group.display_name || group.provider;
+            optgroup.label = displayName;
             (group.models || []).forEach((item) => {
                 if (item.enabled === false) return;
                 const modelName = item.display_name || item.name || item.id;
@@ -901,6 +1161,12 @@
                 option.textContent = modelName;
                 optgroup.appendChild(option);
                 flatModels.push({ ...item, provider: group.provider });
+                modelCatalog.push({
+                    id: item.id,
+                    provider: group.provider,
+                    groupLabel: displayName,
+                    name: modelName
+                });
             });
             if (optgroup.children.length > 0) {
                 model.appendChild(optgroup);
@@ -923,8 +1189,16 @@
             || PREFERRED_MODELS.map((p) => flatModels.find((item) => item.id === p)).find(Boolean)
             || flatModels[0];
 
+        const defaultChoice = (matchedServerDefault
+            ? flatModels.find((item) => item.id === serverDefault.model_id && (!serverDefault.provider || item.provider === serverDefault.provider))
+            : null) || preferred;
+
+        defaultModelId = defaultChoice?.id || '';
+        defaultModelProvider = defaultChoice?.provider || '';
+
         model.value = preferred.id;
         localStorage.setItem('kinetiqo_chat_model', preferred.id);
+        renderModelDropdown();
         updateActiveModelDisplay();
 
         // Refresh model badges in already-rendered messages
@@ -947,6 +1221,55 @@
             });
         }
     });
+
+    if (modelTrigger) {
+        modelTrigger.addEventListener('click', () => {
+            toggleModelDropdown();
+        });
+        modelTrigger.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                openModelDropdown('selected');
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                openModelDropdown('last');
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openModelDropdown('selected');
+            } else if (e.key === 'Escape') {
+                closeModelDropdown(true);
+            }
+        });
+    }
+
+    if (modelMenu) {
+        modelMenu.addEventListener('keydown', (e) => {
+            const items = getModelMenuItems();
+            if (items.length === 0) return;
+
+            const currentIndex = getFocusedModelItemIndex();
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
+                focusModelItemByIndex(nextIndex);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prevIndex = currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length;
+                focusModelItemByIndex(prevIndex);
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                focusModelItemByIndex(0);
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                focusModelItemByIndex(items.length - 1);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeModelDropdown(true);
+            } else if (e.key === 'Tab') {
+                closeModelDropdown(false);
+            }
+        });
+    }
 
     const loadSessions = async () => {
         const payload = await request('/api/chat/sessions');
@@ -1218,6 +1541,12 @@
                 hideSuggestions();
             }
         }
+        if (modelMenu && modelTrigger) {
+            const clickedInsideModelDropdown = modelTrigger.contains(e.target) || modelMenu.contains(e.target);
+            if (!clickedInsideModelDropdown) {
+                closeModelDropdown();
+            }
+        }
     });
 
     input.addEventListener('keydown', (e) => {
@@ -1332,6 +1661,9 @@
         send.setAttribute('aria-label', 'Cancel prompt generation');
         send.innerHTML = '<span class="font-bold text-[13px] leading-none select-none">■</span><span>Cancel</span>';
 
+        let answer = null;
+        let thinkingCounterInterval = null;
+
         try {
             composer.classList.add('composer-responding');
             if (!sessionId) await createSession();
@@ -1350,8 +1682,14 @@
             }
             input.value = '';
             messageNode('user', content);
-            const answer = messageNode('assistant', '', null, null, null, chosenModelId);
+            answer = messageNode('assistant', '', null, null, null, chosenModelId);
             ensureFooter(answer);
+            answer._hideDownloadsPermanently = false;
+            setFooterThinkingState(answer, 0);
+            thinkingCounterInterval = window.setInterval(() => {
+                const elapsedSeconds = Math.floor((performance.now() - turnStartTime) / 1000);
+                setFooterThinkingState(answer, elapsedSeconds);
+            }, 1000);
             const answerText = answer.querySelector('.chat-text');
             empty.classList.add('hidden');
 
@@ -1430,8 +1768,8 @@
                             toolStatusEl = null;
                         }
                         answerText.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2"><span class="font-bold text-red-500 text-sm leading-none">⚠️</span><span>${escapeHtml(payload.message)}</span></div>`;
-                        const downloadBtns = answer.querySelectorAll('.chat-download-btn');
-                        downloadBtns.forEach(btn => btn.classList.add('hidden'));
+                        answer._hideDownloadsPermanently = true;
+                        setDownloadButtonsState(answer, false);
                         refreshSeparators(ensureFooter(answer));
                         setStatus(payload.message, true);
                     }
@@ -1481,6 +1819,12 @@
                 setStatus(error.message, true);
             }
         } finally {
+            if (thinkingCounterInterval) {
+                window.clearInterval(thinkingCounterInterval);
+            }
+            if (answer) {
+                clearFooterThinkingState(answer);
+            }
             isResponding = false;
             activeAbortController = null;
             send.className = origSendClass;

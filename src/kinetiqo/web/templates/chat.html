@@ -2,7 +2,7 @@
 {% block head %}
 <script src="{{ url_for('static', filename='vendor/chartjs/chart-4.5.1.umd.min.js', v=app_version) }}"></script>
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v27') }}" defer></script>
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v31') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
   main {
@@ -123,6 +123,14 @@
     border-top: 1px solid #e5e7eb;
     background: transparent;
     padding: 14px 24px 18px;
+    flex-shrink: 0;
+  }
+
+  .chat-composer-model-wrap {
+    flex: 1 1 auto;
+  }
+
+  .chat-composer-actions {
     flex-shrink: 0;
   }
 
@@ -575,21 +583,246 @@
     color: #fb923c;
   }
 
-  html.dark #chat-model {
-    background-color: #27272a;
-    color: #f4f4f5;
-    border-color: #3f3f46;
+  .chat-model-dropdown {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
   }
 
-  html.dark #chat-model optgroup {
-    background-color: #212124;
-    color: #a1a1aa;
+  @media (max-width: 1400px) {
+    .chat-composer-tools-text {
+      display: none !important;
+    }
+  }
+
+  .chat-model-trigger {
+    width: 100%;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 11px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  }
+
+  .chat-model-trigger:hover {
+    background: #f9fafb;
+  }
+
+  .chat-model-trigger:focus-visible {
+    border-color: #ea580c;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.18);
+  }
+
+  .chat-model-trigger-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .chat-model-trigger-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    color: #6b7280;
+  }
+
+  .chat-model-default-indicator {
+    color: #f59e0b;
+    opacity: 0;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.12s ease;
+  }
+
+  .chat-model-default-indicator.visible {
+    opacity: 1;
+  }
+
+  .chat-model-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: 100%;
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 60;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
+  .chat-model-menu.open {
+    display: block;
+  }
+
+  .chat-model-menu::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .chat-model-menu::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 999px;
+  }
+
+  .chat-model-menu::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chat-model-group+.chat-model-group {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #f3f4f6;
+  }
+
+  .chat-model-group-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 8px 6px;
+  }
+
+  .chat-model-group-icon {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    min-height: 14px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .chat-model-group-label {
+    padding: 0;
+    font-size: 11px;
     font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
 
-  html.dark #chat-model option {
-    background-color: #27272a;
+  .chat-model-item {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    padding: 7px 8px;
+    text-align: left;
+    cursor: pointer;
+    color: #374151;
+    font-size: 12px;
+  }
+
+  .chat-model-item-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin-left: 22px;
+  }
+
+  .chat-model-item-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-model-item:hover,
+  .chat-model-item:focus-visible {
+    background: #f3f4f6;
+    color: #111827;
+    outline: none;
+  }
+
+  .chat-model-item.is-selected {
+    background: rgba(249, 115, 22, 0.12);
+    color: #c2410c;
+    font-weight: 600;
+  }
+
+  .chat-model-item-default-star {
+    color: #f59e0b;
+    opacity: 0;
+    pointer-events: none;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .chat-model-item-default-star.visible {
+    opacity: 1;
+  }
+
+  html.dark .chat-model-trigger {
+    border-color: #3f3f46;
+    background: #27272a;
     color: #f4f4f5;
+  }
+
+  html.dark .chat-model-trigger:hover {
+    background: #3f3f46;
+  }
+
+  html.dark .chat-model-trigger-icons {
+    color: #a1a1aa;
+  }
+
+  html.dark .chat-model-menu {
+    background: #27272a;
+    border-color: #3f3f46;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
+    scrollbar-color: #52525b transparent;
+  }
+
+  html.dark .chat-model-menu::-webkit-scrollbar-thumb {
+    background: #52525b;
+  }
+
+  html.dark .chat-model-group+.chat-model-group {
+    border-top-color: #3f3f46;
+  }
+
+  html.dark .chat-model-group-label {
+    color: #a1a1aa;
+  }
+
+  html.dark .chat-model-group-icon[data-provider="vercel"] {
+    filter: invert(1);
+  }
+
+  html.dark .chat-model-item {
+    color: #e4e4e7;
+  }
+
+  html.dark .chat-model-item:hover,
+  html.dark .chat-model-item:focus-visible {
+    background: #3f3f46;
+    color: #ffffff;
+  }
+
+  html.dark .chat-model-item.is-selected {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
   }
 
   /* Composer responding frame animation with Kinetiqo logo brand colors */
@@ -851,34 +1084,29 @@
             placeholder="Ask about your training, power, freshness, or activities… (Enter to send, Shift+Enter for newline)"
             class="chat-composer-textarea"></textarea>
           <div class="chat-composer-toolbar flex items-center justify-between gap-3 pt-2 mt-1">
-            <!-- Left bottom: Model Selector aligned standard (widened by 60px with dropdown icon) -->
+            <!-- Left bottom: Model selector styled like activities date dropdown -->
             <div class="chat-composer-model-wrap flex items-center gap-1.5 min-w-0">
               <label for="chat-model" class="sr-only">Select AI Model</label>
-              <div class="relative inline-flex items-center">
-                <!-- Dropdown indicator / model icon at start -->
-                <span
-                  class="pointer-events-none absolute left-2.5 flex items-center justify-center text-gray-400 dark:text-zinc-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </span>
-                <select id="chat-model" aria-label="Select AI Model"
-                  class="chat-composer-model-select w-[320px] sm:w-[400px] max-w-full appearance-none rounded-lg border border-gray-200 bg-white hover:bg-gray-50 dark:border-zinc-700/80 dark:bg-zinc-800/80 dark:hover:bg-zinc-700/80 py-1.5 pl-8 pr-8 text-xs font-medium text-gray-700 dark:text-zinc-200 shadow-2xs outline-none transition cursor-pointer truncate">
+              <div class="chat-model-dropdown">
+                <select id="chat-model" aria-label="Select AI Model" class="sr-only">
                   <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
                 </select>
-                <!-- Dropdown chevron indicator at end -->
-                <span
-                  class="pointer-events-none absolute right-2.5 flex items-center justify-center text-gray-500 dark:text-zinc-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </span>
+                <button id="chat-model-trigger" type="button" class="chat-model-trigger" aria-haspopup="listbox"
+                  aria-expanded="false" aria-controls="chat-model-menu">
+                  <span id="chat-model-selected" class="chat-model-trigger-label">gemini-3.1-flash-lite</span>
+                  <span class="chat-model-trigger-icons">
+                    <span id="chat-model-default-indicator" class="chat-model-default-indicator" aria-hidden="true">★</span>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
+                <div id="chat-model-menu" class="chat-model-menu" role="listbox" aria-label="Select AI Model"></div>
               </div>
             </div>
 
             <!-- Right bottom: Tools text + Send button -->
-            <div class="flex items-center gap-3 flex-shrink-0">
+            <div class="chat-composer-actions flex items-center gap-3">
               <span
                 class="chat-composer-tools-text text-[11px] font-normal text-gray-500 dark:text-zinc-400 whitespace-nowrap select-none inline-flex items-center gap-1.5">
                 <span>🔒</span><span>Local read-only fitness data tools active</span>
