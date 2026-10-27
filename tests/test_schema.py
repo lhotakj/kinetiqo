@@ -46,6 +46,10 @@ class TestSchemaDefinition(unittest.TestCase):
         chat_msg_indexes = {idx["name"] for idx in SCHEMA_DEFINITION["chat_messages"]["indexes"]}
         self.assertIn("idx_chat_messages_hist", chat_msg_indexes)
         self.assertIn("idx_chat_messages_session", chat_msg_indexes)
+        self.assertIn("idx_chat_msg_sess_owner_seq", chat_msg_indexes)
+
+        chat_session_indexes = {idx["name"] for idx in SCHEMA_DEFINITION["chat_sessions"]["indexes"]}
+        self.assertIn("idx_chat_sessions_owner_sid", chat_session_indexes)
 
     def test_activities_reverse_composite_indexes(self):
         """Verify performance-critical reverse composite indexes exist for all dialects."""
@@ -59,6 +63,7 @@ class TestSchemaDefinition(unittest.TestCase):
             "idx_activities_speed_start",
             "idx_activities_time_start",
             "idx_activities_totals_date_cover",
+            "idx_activities_gear_start",
         ]
 
         for expected in expected_new_indexes:

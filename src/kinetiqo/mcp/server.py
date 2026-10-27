@@ -575,7 +575,9 @@ def create_mcp_server(
                                 if isinstance(parsed, dict):
                                     status_desc = parsed.get("data_status") or "complete"
                                     if "error_code" in parsed.get("data", {}):
-                                        status_desc = f"error: [{parsed['data']['error_code']}]"
+                                        err_code = parsed["data"]["error_code"]
+                                        err_msg = parsed["data"].get("message", "")
+                                        status_desc = f"error: [{err_code}] {err_msg}" if err_msg else f"error: [{err_code}]"
                             except Exception:
                                 pass
                             break

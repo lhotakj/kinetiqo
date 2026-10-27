@@ -849,10 +849,11 @@
         return article;
     };
 
-    const STORAGE_KEY_PROMPTS = 'kinetiqo_chat_prompt_history';
-    const MAX_STORED_PROMPTS = 100;
+    try {
+        localStorage.removeItem('kinetiqo_chat_prompt_history');
+    } catch (_) {}
 
-    const initialServerPrompts = (() => {
+    const suggestionPrompts = (() => {
         try {
             const raw = app.dataset.initialPrompts;
             const parsed = raw ? JSON.parse(raw) : [];
@@ -862,75 +863,64 @@
         }
     })();
 
-    const loadStoredPrompts = () => {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY_PROMPTS);
-            const parsed = raw ? JSON.parse(raw) : [];
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            return [];
-        }
-    };
-
-    let promptHistory = [];
-    let historyIndex = -1;
-    let currentDraft = '';
-
-    const syncPromptHistory = (sessionMessages = null) => {
-        const stored = loadStoredPrompts();
-        const set = new Set([...initialServerPrompts, ...stored]);
-        if (sessionMessages && Array.isArray(sessionMessages)) {
-            sessionMessages.filter(m => m.role === 'user').forEach(m => {
-                if (m.content && m.content.trim()) set.add(m.content.trim());
-            });
-        }
-        promptHistory = Array.from(set);
-    };
-    syncPromptHistory();
-
-    const saveStoredPrompt = (text) => {
-        if (!text || !text.trim()) return;
-        const clean = text.trim();
-        let list = loadStoredPrompts().filter(p => p !== clean);
-        list.push(clean);
-        if (list.length > MAX_STORED_PROMPTS) {
-            list = list.slice(-MAX_STORED_PROMPTS);
-        }
-        try {
-            localStorage.setItem(STORAGE_KEY_PROMPTS, JSON.stringify(list));
-        } catch (err) {
-            console.warn('Failed to save prompt to localStorage:', err);
-        }
-        if (!initialServerPrompts.includes(clean)) {
-            initialServerPrompts.push(clean);
-        }
-        syncPromptHistory();
-    };
-
     const loadAllPrompts = async () => {
         try {
             const payload = await request('/api/chat/prompts');
             if (payload && Array.isArray(payload.prompts)) {
-                payload.prompts.forEach(p => {
+                payload.prompts.forEach((p) => {
                     const clean = (p || '').trim();
-                    if (clean && !initialServerPrompts.includes(clean)) {
-                        initialServerPrompts.push(clean);
+                    if (clean && !suggestionPrompts.includes(clean)) {
+                        suggestionPrompts.push(clean);
                     }
                 });
-                syncPromptHistory();
             }
         } catch {
             // Silently ignore if background prompt fetch fails
         }
     };
 
-    const showMessages = (list) => {
-        messages.replaceChildren();
-        list.forEach((item) => messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens, item.model_id));
-        syncPromptHistory(list);
+    // Prompt history browsing strictly scoped to user turns in the active chat (not localStorage)
+    let currentChatHistory = [];
+    let historyIndex = -1;
+    let currentDraft = '';
+
+    const recordUserPrompt = (text) => {
+        const clean = (text || '').trim();
+        if (!clean) return;
+        if (currentChatHistory.length === 0 || currentChatHistory[currentChatHistory.length - 1] !== clean) {
+            currentChatHistory.push(clean);
+        }
+        if (!suggestionPrompts.includes(clean)) {
+            suggestionPrompts.push(clean);
+        }
         historyIndex = -1;
         currentDraft = '';
-        empty.classList.toggle('hidden', list.length > 0);
+    };
+
+    const resetChatHistory = () => {
+        currentChatHistory = [];
+        historyIndex = -1;
+        currentDraft = '';
+    };
+
+    const showMessages = (list) => {
+        messages.replaceChildren();
+        currentChatHistory = [];
+        (list || []).forEach((item) => {
+            messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens, item.model_id);
+            if (item.role === 'user' && typeof item.content === 'string') {
+                const clean = item.content.trim();
+                if (clean && (currentChatHistory.length === 0 || currentChatHistory[currentChatHistory.length - 1] !== clean)) {
+                    currentChatHistory.push(clean);
+                }
+                if (clean && !suggestionPrompts.includes(clean)) {
+                    suggestionPrompts.push(clean);
+                }
+            }
+        });
+        historyIndex = -1;
+        currentDraft = '';
+        empty.classList.toggle('hidden', (list || []).length > 0);
         status.classList.add('hidden');
         scrollToBottom();
     };
@@ -1307,9 +1297,7 @@
                         sessionId = null;
                         history.replaceState(null, '', '/chat');
                         messages.replaceChildren();
-                        syncPromptHistory();
-                        historyIndex = -1;
-                        currentDraft = '';
+                        resetChatHistory();
                         empty.classList.remove('hidden');
                         status.classList.add('hidden');
                     }
@@ -1359,9 +1347,7 @@
         sessionId = null;
         history.replaceState(null, '', '/chat');
         messages.replaceChildren();
-        syncPromptHistory();
-        historyIndex = -1;
-        currentDraft = '';
+        resetChatHistory();
         empty.classList.remove('hidden');
         status.classList.add('hidden');
         loadSessions();
@@ -1378,9 +1364,7 @@
                 sessionId = null;
                 history.replaceState(null, '', '/chat');
                 messages.replaceChildren();
-                syncPromptHistory();
-                historyIndex = -1;
-                currentDraft = '';
+                resetChatHistory();
                 empty.classList.remove('hidden');
                 status.classList.add('hidden');
                 await loadSessions();
@@ -1463,7 +1447,7 @@
             return;
         }
 
-        const candidates = [...promptHistory].reverse();
+        const candidates = [...suggestionPrompts].reverse();
         const matched = [];
         const seen = new Set();
 
@@ -1577,18 +1561,18 @@
         }
 
         if (e.key === 'ArrowUp') {
-            if (promptHistory.length > 0) {
+            if (currentChatHistory.length > 0) {
                 if (historyIndex === -1) {
                     if (isCursorOnFirstLine(input)) {
                         currentDraft = input.value;
-                        historyIndex = promptHistory.length - 1;
-                        input.value = promptHistory[historyIndex];
+                        historyIndex = currentChatHistory.length - 1;
+                        input.value = currentChatHistory[historyIndex];
                         input.setSelectionRange(input.value.length, input.value.length);
                         e.preventDefault();
                     }
                 } else if (historyIndex > 0) {
                     historyIndex--;
-                    input.value = promptHistory[historyIndex];
+                    input.value = currentChatHistory[historyIndex];
                     input.setSelectionRange(input.value.length, input.value.length);
                     e.preventDefault();
                 } else if (historyIndex === 0) {
@@ -1597,9 +1581,9 @@
             }
         } else if (e.key === 'ArrowDown') {
             if (historyIndex !== -1) {
-                if (historyIndex < promptHistory.length - 1) {
+                if (historyIndex < currentChatHistory.length - 1) {
                     historyIndex++;
-                    input.value = promptHistory[historyIndex];
+                    input.value = currentChatHistory[historyIndex];
                     input.setSelectionRange(input.value.length, input.value.length);
                     e.preventDefault();
                 } else {
@@ -1644,7 +1628,6 @@
         const content = input.value.trim();
         if (!content) return;
         hideSuggestions();
-        saveStoredPrompt(content);
         historyIndex = -1;
         currentDraft = '';
 
@@ -1667,6 +1650,7 @@
         try {
             composer.classList.add('composer-responding');
             if (!sessionId) await createSession();
+            recordUserPrompt(content);
             status.classList.add('hidden');
             const chosenProvider = getSelectedProvider();
             const chosenModelId = model.value;

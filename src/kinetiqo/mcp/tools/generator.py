@@ -9,6 +9,7 @@ from kinetiqo.mcp.contracts import (
     create_envelope,
     create_error_envelope,
     ERROR_INVALID_ARGUMENT,
+    ERROR_NOT_CONFIGURED,
     ERROR_NOT_FOUND,
 )
 from kinetiqo.web.renderers.poster_renderer import render_poster_artifact
@@ -20,9 +21,11 @@ def _format_generator_error(action: str, exc: Exception) -> Dict[str, Any]:
     err_str = str(exc)
     msg = f"Failed generating {action}: {err_str}"
     lower = err_str.lower()
+    error_code = ERROR_INVALID_ARGUMENT
     if "playwright" in lower or "chromium" in lower or "executable" in lower:
         msg += ". Visual rendering requires Chromium and Playwright (available in the 'kinetiqo/web-mcp' Docker image)."
-    return create_error_envelope(ERROR_INVALID_ARGUMENT, msg)
+        error_code = ERROR_NOT_CONFIGURED
+    return create_error_envelope(error_code, msg)
 
 
 def kinetiqo_generate_activity_poster(
