@@ -3,7 +3,7 @@
 > **Version:** 3.0  
 > **Status:** Active / Production Ready  
 > **Primary Interfaces:** `/chat`, `/settings`, FastMCP tools layer  
-> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Ollama (Local AI)  
+> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Ollama (Local AI)  
 > **Database Compatibility:** PostgreSQL, MySQL, Firebird (100% Parameterized Raw SQL)
 
 ---
@@ -73,6 +73,7 @@ Kinetiqo Flask Application Server
        │     ├── Google Gemini Adapter (gemini-3.1-flash-lite, gemini-2.5-flash, etc.)
        │     ├── OpenRouter AI Adapter (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, etc.)
        │     ├── Vercel AI Gateway Adapter (Kimi K2.6, Llama 3.3 70B, DeepSeek R1, Claude Haiku 4.5, GPT-4o)
+       │     ├── Kilo AI Gateway Adapter (Kilo Auto Free, Llama 3.3 70B, DeepSeek R1, Gemini 2.5 Flash, Qwen 2.5)
        │     └── Ollama / Local AI Adapter (Qwen, Llama, Mistral on your own hardware)
        │
        └── In-Process FastMCP Tool Layer
@@ -99,7 +100,15 @@ Kinetiqo Flask Application Server
 - **Fuzzy Model Suggestions**: If the organization prefix is omitted (e.g. `kimi-k2.6`), Kinetiqo searches the Vercel model catalog and suggests the exact canonical ID (`moonshotai/kimi-k2.6`) with a single-click suggestion button.
 - **Flexible Management**: Add (`+`) or remove (`-`) configured models from the responsive table in Settings.
 
-### 4.4 Ollama (Local Hardware AI)
+### 4.4 Kilo AI Gateway (kilo.ai)
+- High-efficiency, zero-markup AI model gateway and aggregator (`https://api.kilo.ai/api/gateway`) from the creators of Kilo Code, providing unified OpenAI-compatible routing across 400+ models.
+- **Free Auto-Routing Tier (`kilo/kilo-auto/free`)**: Dynamically routes training queries to the optimal healthy free-tier model on the fly, with up to 262k context, tool calling, and multimodal vision support at zero cost without credit card requirements.
+- **Zero-Markup & Bring-Your-Own-Key (BYOK)**: Connects to underlying providers at provider list rates or zero markup for Kilo Pass / Gateway users.
+- **Curated Model Registry**: Register any model identifier available on Kilo Gateway (e.g. `kilo/kilo-auto/free`, `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-r1`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-coder-32b-instruct`, `anthropic/claude-3.5-haiku`, `openai/gpt-4o-mini`).
+- **Live Validation & Suggestions**: Validates models via Kilo's model registry (`GET /api/gateway/models/{id}` and `/models`), automatically discovering context window size, tool-calling capabilities, vision support, pricing, and rate limits. Suggests canonical slugs when prefixes are omitted (e.g. `kilo-auto/free` → `kilo/kilo-auto/free`).
+- **Multi-Turn Tool Execution**: Fully supports Kinetiqo's in-process FastMCP tool calling across endurance telemetry, MMP power curves, and fitness metrics.
+
+### 4.5 Ollama (Local Hardware AI)
 - **100% Private On-Premise Inference**: Connect to models running on your own PC or homelab server via Ollama's OpenAI-compatible API.
 - **Automatic Model Discovery**: Detects all locally installed models (`qwen3:1.7b`, `qwen2.5:7b-instruct`, `llama3.1:8b`, etc.) without manual configuration.
 - **Optional API Token**: No API key is required on your local network. An optional token field is available if Ollama is hosted behind a reverse proxy.
@@ -107,13 +116,13 @@ Kinetiqo Flask Application Server
 - **Provider-specific model details**: Ollama reports the local parameter size when available; pricing, context limits, and rate limits are not inferred.
 
 ### 4.6 Unified Provider Model Tables
-- Gemini, OpenRouter, Vercel AI Gateway, and Ollama use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
+- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, and Ollama use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
 - Values such as Gemini context and output-token limits or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
 - Remove actions are available only for providers with user-managed model lists; other providers show `-` in the Actions column.
 
 ### 4.7 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
-- If a quota or rate limit is reached on OpenRouter or Vercel, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
+- If a quota or rate limit is reached on OpenRouter, Vercel, or Kilo, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
 ---
 
@@ -173,18 +182,43 @@ Kinetiqo Flask Application Server
 ## 6. Configuration in Settings (`/settings`)
 
 1. Navigate to **Settings** (`/settings`) → **AI & API Providers**.
-2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, or **Ollama (Local AI)**.
+2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, or **Ollama (Local AI)**.
 3. Configure the provider:
    - **For Gemini**: Paste your API key; models are automatically discovered.
    - **For OpenRouter**: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
    - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
+   - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai)), then use the nested models table to add your preferred models (e.g. `kilo/kilo-auto/free`) with real-time validation.
    - **For Ollama**: Enter your Ollama server URL (e.g. `http://localhost:11434` or `http://192.168.1.150:11434`). Test the connection to auto-discover all pulled models. An API key is optional.
 4. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
 
-## 7. Free models
+---
 
+## 7. Free Models & Recommendations
+
+### 7.1 Best Free Models on Kilo AI Gateway (`kilo.ai`)
+Kilo AI Gateway provides zero-markup developer access and actively maintained free routing tiers:
+1. **`kilo/kilo-auto/free` (Recommended Default)**:
+   - **Context Window**: 262,144 tokens (256K).
+   - **Capabilities**: Full function calling (tools) and multimodal image support.
+   - **Cost**: 100% Free ($0 / $0 token pricing), no paid credits or credit card required.
+   - **Why it's great**: Automatically routes requests to the healthiest and highest-capacity free open-weight models without manual switching.
+2. **`deepseek/deepseek-r1:free` or `deepseek/deepseek-chat:free`**:
+   - **Context Window**: 64,000–128,000 tokens.
+   - **Capabilities**: High-depth reasoning, mathematical formulation, and deep training trend deduction.
+   - **Cost**: Free tier routing where active on upstream partner networks.
+3. **`meta-llama/llama-3.3-70b-instruct:free`**:
+   - **Context Window**: 131,072 tokens.
+   - **Capabilities**: Industry-standard open-weights conversational intelligence and tool-calling execution.
+4. **`qwen/qwen-2.5-coder-32b-instruct:free`**:
+   - **Context Window**: 131,072 tokens.
+   - **Capabilities**: High logical precision, ideal for complex multi-step FastMCP data calculations.
+5. **Ultra-Budget / High-Value Paid Tiers on Kilo**:
+   - `google/gemini-2.5-flash`: 1M+ token context with micro-cent pricing ($0.075 / 1M tokens).
+   - `openai/gpt-4o-mini`: 128k context with high tool-calling reliability ($0.15 / 1M tokens).
+   - `anthropic/claude-3.5-haiku`: 200k context with lightning speed and vision support.
+
+### 7.2 Best Free Models on OpenRouter
 If you want verified 100% free models currently active on OpenRouter:
 - `google/gemma-4-26b-a4b-it:free` (262k context, tools + multimodal vision support)
 - `nvidia/nemotron-3.5-lightning:free` (131k context, tools support)
-
-If you want DeepSeek: `deepseek/deepseek-chat`
+- DeepSeek flagship tier: `deepseek/deepseek-chat` (or `:free` variant when active)

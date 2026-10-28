@@ -164,7 +164,7 @@ def get_chat_tools(provider: str = "gemini", config: Any = None, repo_factory: C
         description = getattr(tool, "description", "") or ""
         raw_schema = getattr(tool, "inputSchema", {})
 
-        if norm_provider in ("openai", "mistral", "openrouter", "ollama", "vercel"):
+        if norm_provider in ("openai", "mistral", "openrouter", "ollama", "vercel", "kilo"):
             declarations.append({
                 "type": "function",
                 "function": {

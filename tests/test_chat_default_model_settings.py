@@ -80,6 +80,21 @@ class TestChatDefaultModelSettingsEndpoints(unittest.TestCase):
         self.assertIn("all_providers", payload)
         self.assertIn("enabled_providers", payload)
 
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    def test_get_providers_includes_kilo(self, mock_service_fn, _mock_user_id):
+        mock_repo = MagicMock()
+        mock_repo.list_configured_providers.return_value = ["gemini"]
+        mock_repo.list_enabled_providers.return_value = ["gemini", "kilo"]
+        mock_service_fn.return_value = MagicMock(repository=mock_repo)
+
+        resp = self.client.get("/api/settings/ai/providers")
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()
+        provider_ids = [p["provider"] for p in payload["all_providers"]]
+        self.assertIn("kilo", provider_ids)
+        self.assertIn("vercel", provider_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -290,6 +290,7 @@
         if (key.includes('openrouter')) return '/static/icons/ai_openrouter.svg';
         if (key.includes('ollama')) return '/static/icons/ai_ollama.svg';
         if (key.includes('vercel')) return '/static/icons/ai_vercel.svg';
+        if (key.includes('kilo')) return '/static/icons/ai_kilo.svg';
         return '';
     };
 

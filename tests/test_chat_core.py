@@ -99,6 +99,9 @@ class TestChatService(unittest.TestCase):
         self.service.create_session("athlete", provider="vercel")
         self.repository.create_session.assert_called_with("athlete", "vercel", "moonshotai/kimi-k2.6")
 
+        self.service.create_session("athlete", provider="kilo")
+        self.repository.create_session.assert_called_with("athlete", "kilo", "kilo/kilo-auto/free")
+
     @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
     @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
     def test_stream_turn_switches_provider_when_explicitly_requested(self, registry, decrypt):

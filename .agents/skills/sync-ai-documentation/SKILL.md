@@ -67,6 +67,7 @@ Before finishing any task touching AI components, complete the following verific
 | **Google Gemini** | Google REST API | `x-goog-api-key` | Gemini JSON Schema | Dynamic via `models.list` API |
 | **OpenRouter AI** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against OpenRouter catalog |
 | **Vercel AI Gateway** | `https://ai-gateway.vercel.sh/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against Vercel catalog |
+| **Kilo AI Gateway** | `https://api.kilo.ai/api/gateway` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against Kilo catalog |
 | **Ollama** | Configurable local URL | Optional Bearer key | OpenAI-compatible functions | Dynamic model discovery from local server |
 
 ---

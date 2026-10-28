@@ -314,6 +314,7 @@ class ChatService:
             "openrouter": "OpenRouter AI",
             "ollama": "Ollama (Local AI)",
             "vercel": "Vercel AI Gateway",
+            "kilo": "Kilo AI Gateway",
         }
         if provider == "all":
             groups: list[dict[str, Any]] = []
@@ -505,7 +506,7 @@ class ChatService:
         if not encrypted_key:
             raise ChatConfigurationError()
         api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
-        if provider in ("openrouter", "vercel"):
+        if provider in ("openrouter", "vercel", "kilo"):
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)
 

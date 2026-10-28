@@ -81,7 +81,7 @@ class TestSettingsApi(unittest.TestCase):
         self.assertIn("Supported Template Variables", content)
         self.assertIn("strava-var-dropdown", content)
         for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
-            self.assertEqual(content.count(f">{heading}</th>"), 4, heading)
+            self.assertEqual(content.count(f">{heading}</th>"), 5, heading)
 
 
 class TestDatabaseEnvConfig(unittest.TestCase):

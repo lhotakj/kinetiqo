@@ -287,12 +287,14 @@ When implementing or extending AI provider adapters:
 - Formatted via `to_gemini_schema(prop)` in `src/kinetiqo/chat/tools.py`.
 - **Function Response Role Mandate**: In multi-turn chat turns, Gemini API strictly requires `"role": "user"` for content objects containing `functionResponse`. Passing `"role": "function"` or `"role": "tool"` causes an immediate HTTP 400 `INVALID_ARGUMENT`. Model turns preceding the response must cleanly contain only the `functionCall` parts without empty text or thought tokens.
 
-### 4.2 OpenAI / OpenRouter / Mistral Function Declarations
+### 4.2 OpenAI / OpenRouter / Vercel / Kilo / Mistral Function Declarations
 - Uses standard JSON Schema with lowercase types: `string`, `integer`, `number`, `boolean`, `array`, `object`.
 - Wrapped in `{ "type": "function", "function": { "name": ..., "description": ..., "parameters": ... } }`.
 - Formatted via `to_openai_schema(prop)` in `src/kinetiqo/chat/tools.py`.
 - OpenRouter uses base URL `https://openrouter.ai/api/v1/chat/completions` with headers `HTTP-Referer: https://github.com/lhotakj/kinetiqo` and `X-Title: Kinetiqo`.
-- OpenRouter models are validated and detailed via `GET https://openrouter.ai/api/v1/model/{author}/{slug}`.
+- Vercel AI Gateway uses base URL `https://ai-gateway.vercel.sh/v1/chat/completions`.
+- Kilo AI Gateway uses base URL `https://api.kilo.ai/api/gateway/chat/completions` with headers `HTTP-Referer: https://github.com/lhotakj/kinetiqo` and `X-Title: Kinetiqo`.
+- Kilo models are validated and detailed via `GET https://api.kilo.ai/api/gateway/models/{model_id}` with catalog fallback to `/models`.
 
 ### 4.3 Anthropic Claude Tool Declarations
 - Direct `{ "name": name, "description": description, "input_schema": parameters }` structure.

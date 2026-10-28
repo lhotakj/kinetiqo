@@ -1,8 +1,8 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, and Vercel AI Gateway adapters implemented with live validation and dynamic tool calling)  
+> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, and Kilo AI Gateway adapters implemented with live validation and dynamic tool calling)  
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
-> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Ollama (Local AI).  
+> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Ollama (Local AI).  
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
 > **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
 > **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
@@ -653,8 +653,12 @@ To support per-provider custom configurations (such as OpenRouter's enabled mode
     <option value="vercel:moonshotai/kimi-k2.6">Kimi K2.6</option>
     <option value="vercel:meta/llama-3.3-70b">Llama 3.3 70B</option>
   </optgroup>
+  <optgroup label="Kilo AI Gateway">
+    <option value="kilo:kilo/kilo-auto/free">Kilo Auto Free Tier</option>
+    <option value="kilo:meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>
+  </optgroup>
   ```
-- Chat sessions persist both `provider` (`gemini`, `openrouter`, or `vercel`) and `model_id`.
+- Chat sessions persist both `provider` (`gemini`, `openrouter`, `vercel`, or `kilo`) and `model_id`.
 
 ### 8.6 Vercel AI Gateway Provider Implementation
 Vercel AI Gateway (`https://ai-gateway.vercel.sh/v1`) is an OpenAI-compatible edge gateway unifying access to leading frontier and open-weight models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic Claude, OpenAI GPT-4o, etc.).
@@ -678,6 +682,31 @@ Vercel AI Gateway (`https://ai-gateway.vercel.sh/v1`) is an OpenAI-compatible ed
    - `POST /api/settings/ai/vercel/models/validate`: Real-time validation returning model parameters.
    - `POST /api/settings/ai/vercel/models`: Validates and appends model to athlete configuration.
    - `DELETE /api/settings/ai/vercel/models`: Removes model from configuration.
+
+### 8.7 Kilo AI Gateway Provider Implementation
+Kilo AI Gateway (`https://api.kilo.ai/api/gateway`) is an OpenAI-compatible gateway and inference router from the creators of Kilo Code, providing access to over 400+ frontier and open-weight models with zero markup and Bring-Your-Own-Key (BYOK) support.
+
+1. **Protocol & Authentication**:
+   - Endpoint: `https://api.kilo.ai/api/gateway/chat/completions` (OpenAI-compatible REST format).
+   - Authentication: `Authorization: Bearer <KILO_API_KEY>`.
+   - Headers: `Content-Type: application/json`, `User-Agent: Kinetiqo-Fitness-AI`, `HTTP-Referer: https://github.com/lhotakj/kinetiqo`, `X-Title: Kinetiqo`.
+   - Streaming: SSE (`stream: true`), parsing standard OpenAI chunk deltas with multi-turn FastMCP tool calling.
+2. **Free Auto-Routing Tier & Model Selection**:
+   - `kilo/kilo-auto/free`: Smart auto-routing tier that routes requests dynamically to healthy, high-performing free open-weight models with up to 262k context, tool calling, and multimodal vision support at zero cost.
+   - Popular high-performance models: `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-r1`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-coder-32b-instruct`, `anthropic/claude-3.5-haiku`, `openai/gpt-4o-mini`.
+3. **Live Model Validation & Catalog Lookup**:
+   - Direct lookup: `GET https://api.kilo.ai/api/gateway/models/{model_id}`.
+   - Catalog fallback & suggestions: `GET https://api.kilo.ai/api/gateway/models`.
+   - Extracts context length (up to 1M+ tokens), tool-calling support, vision capabilities, pricing per 1M tokens, description, and request limits.
+   - Rejects non-generative embedding models (`type == "embedding"` or `"embed"` in model ID).
+   - Suggests canonical provider slugs if prefix was omitted (e.g., entering `kilo-auto/free` yields suggestion `kilo/kilo-auto/free`).
+4. **Web API Endpoints**:
+   - `GET /api/settings/ai/kilo`: Returns configured status and list of enabled models.
+   - `POST /api/settings/ai/kilo`: Encrypts and saves API key.
+   - `DELETE /api/settings/ai/kilo`: Removes key and associated models.
+   - `POST /api/settings/ai/kilo/models/validate`: Real-time validation returning model parameters.
+   - `POST /api/settings/ai/kilo/models`: Validates and appends model to athlete configuration.
+   - `DELETE /api/settings/ai/kilo/models`: Removes model from configuration.
 
 ---
 
@@ -843,6 +872,8 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | POST/DELETE | `/api/settings/ai/openrouter/models` | Add (`+`) or remove (`–`) models from athlete's OpenRouter configuration. |
 | POST | `/api/settings/ai/vercel/models/validate` | Validate a Vercel AI Gateway model identifier via `GET /v1/models/...` before adding. |
 | POST/DELETE | `/api/settings/ai/vercel/models` | Add (`+`) or remove (`–`) models from athlete's Vercel configuration. |
+| POST | `/api/settings/ai/kilo/models/validate` | Validate a Kilo AI Gateway model identifier via `GET /api/gateway/models/...` before adding. |
+| POST/DELETE | `/api/settings/ai/kilo/models` | Add (`+`) or remove (`–`) models from athlete's Kilo configuration. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 
 Request limits: message content max 32 KB of text; enforce with explicit validation errors, not truncation.
