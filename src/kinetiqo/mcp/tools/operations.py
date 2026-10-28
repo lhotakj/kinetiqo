@@ -1,7 +1,7 @@
 """Group F: Operations, Synchronization, and Administration Tools."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import uuid
 
 from kinetiqo.mcp.contracts import (
@@ -49,7 +49,7 @@ def kinetiqo_trigger_sync(
     return create_envelope(payload, source="calculated")
 
 
-def kinetiqo_get_sync_job_status(repo: Any, job_id: Optional[str] = None) -> Dict[str, Any]:
+def kinetiqo_get_sync_job_status(repo: Any, job_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
     """Check status, counts, and duration of background sync jobs."""
     try:
         logs = repo.get_logs(limit=10)
@@ -71,7 +71,7 @@ def kinetiqo_get_sync_job_status(repo: Any, job_id: Optional[str] = None) -> Dic
 def kinetiqo_preview_strava_description(
     repo: Any,
     config: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
 ) -> Dict[str, Any]:
     """Preview rendered UPDATE_STRAVA_* description without publishing."""
     try:
@@ -101,8 +101,8 @@ def kinetiqo_preview_strava_description(
 def kinetiqo_update_strava_description(
     repo: Any,
     config: Any,
-    activity_id: str,
-    preview_id: str,
+    activity_id: Union[str, int],
+    preview_id: Union[str, int],
     allow_write: bool = False,
 ) -> Dict[str, Any]:
     """Publish approved description to Strava (requires KINETIQO_MCP_ALLOW_STRAVA_WRITE=1)."""

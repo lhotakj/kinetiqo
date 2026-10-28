@@ -87,13 +87,15 @@ Kinetiqo Flask Application Server
 ### 4.2 OpenRouter AI
 - OpenAI-compatible gateway unlocking access to hundreds of cutting-edge open and proprietary models.
 - **Custom Curated Model List**: Enter any OpenRouter model identifier (e.g. `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-chat`, `google/gemma-4-26b-a4b-it:free`, `nvidia/nemotron-3.5-lightning:free`).
-- **Live Model Validation**: Automatically validates model IDs against OpenRouter's metadata API, fetching context lengths and capabilities.
+- **Live Model Validation & Details**: Validates model IDs against OpenRouter metadata and displays published pricing, output-token bounds, descriptions, and rate/request limits in Settings.
+- **Rate-limit transparency**: Rate limits are shown only when included in provider metadata; otherwise Settings says they are unpublished and may vary by provider or account. Kinetiqo does not infer or guarantee quotas.
 - **Flexible Management**: Add (`+`) or remove (`-`) models on the fly in Settings.
 
 ### 4.3 Vercel AI Gateway
 - Unified OpenAI-compatible edge gateway (`https://ai-gateway.vercel.sh/v1`) providing low-latency routing to leading open-weight and frontier models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic, OpenAI, etc.).
 - **Custom Curated Model List**: Enter any Vercel AI Gateway model identifier (e.g. `moonshotai/kimi-k2.6`, `meta/llama-3.3-70b`, `deepseek/deepseek-r1`, `anthropic/claude-haiku-4.5`, `openai/gpt-4o`).
-- **Live Model Validation**: Automatically validates entered model IDs against Vercel's models API (`GET /v1/models/{model_id}` or catalog `/v1/models`), checking context window capacity, tool-calling support, and vision capabilities.
+- **Live Model Validation & Details**: Automatically validates entered model IDs against Vercel's models API (`GET /v1/models/{model_id}` or catalog `/v1/models`), displaying published context/output-token limits, pricing, descriptions, tool-calling support, vision capabilities, and rate/request limits.
+- **Rate-limit transparency**: Rate limits are shown only when included in provider metadata; otherwise Settings says they are unpublished and may vary by provider or account. Kinetiqo does not infer or guarantee quotas.
 - **Fuzzy Model Suggestions**: If the organization prefix is omitted (e.g. `kimi-k2.6`), Kinetiqo searches the Vercel model catalog and suggests the exact canonical ID (`moonshotai/kimi-k2.6`) with a single-click suggestion button.
 - **Flexible Management**: Add (`+`) or remove (`-`) configured models from the responsive table in Settings.
 
@@ -102,8 +104,14 @@ Kinetiqo Flask Application Server
 - **Automatic Model Discovery**: Detects all locally installed models (`qwen3:1.7b`, `qwen2.5:7b-instruct`, `llama3.1:8b`, etc.) without manual configuration.
 - **Optional API Token**: No API key is required on your local network. An optional token field is available if Ollama is hosted behind a reverse proxy.
 - **Remote Host Setup**: To connect across machines on your LAN, set `OLLAMA_HOST=0.0.0.0:11434` on the Ollama PC and provide its local IP (e.g. `http://192.168.1.150:11434`).
+- **Provider-specific model details**: Ollama reports the local parameter size when available; pricing, context limits, and rate limits are not inferred.
 
-### 4.5 Dynamic Mid-Session Provider & Model Switching
+### 4.6 Unified Provider Model Tables
+- Gemini, OpenRouter, Vercel AI Gateway, and Ollama use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
+- Values such as Gemini context and output-token limits or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
+- Remove actions are available only for providers with user-managed model lists; other providers show `-` in the Actions column.
+
+### 4.7 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
 - If a quota or rate limit is reached on OpenRouter or Vercel, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 

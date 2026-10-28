@@ -216,6 +216,21 @@ When writing or modifying MCP tools, chat helpers, or AI integrations, you must 
   2. In `search_activities` across all concrete repository backends (PostgreSQL, MySQL, Firebird), check `keyword = filters.get("keyword") or filters.get("query")`.
   3. Support both `min_distance` (meters) and `min_distance_km` (kilometers), as well as `min_elevation` and `min_elevation_m`.
 
+---
+
+### Gotcha 11: LLM Integer Activity IDs & FastMCP Pydantic String Validation
+- **The Bug**: Strava activity IDs are 64-bit numerical identifiers (e.g. `20749829518`). When models (Gemini, Claude, GPT) call activity detail or telemetry tools, they frequently emit numeric arguments `activity_id=20749829518` (int) instead of string. Because FastMCP constructs a Pydantic arguments model from type annotations, typing `activity_id: str` raises an immediate `ToolError`:
+  ```text
+  1 validation error for get_activity_detailsArguments
+  activity_id
+    Input should be a valid string [type=string_type, input_value=20749829518, input_type=int]
+  ```
+- **The Protocol**:
+  1. In `src/kinetiqo/mcp/server.py` and tool signatures, annotate activity identifiers as `Union[str, int]` or `List[Union[str, int]]` or `Optional[Union[str, int]]`.
+  2. Normalize MCP tool call arguments defensively via `normalize_mcp_arguments()` in `logged_call_tool` and `normalize_tool_call_arguments()` in `execute_chat_tool()`, converting numeric IDs to strings before execution.
+  3. In `to_gemini_schema()` and `to_openai_schema()`, prefer the `STRING` / `string` type branch when unpacking `anyOf` unions that include strings and integers.
+  4. Explicitly convert parameters to string (`str(activity_id)`) before passing to repositories and renderer functions.
+
 
 
 ---
@@ -281,6 +296,14 @@ When implementing or extending AI provider adapters:
 
 ### 4.3 Anthropic Claude Tool Declarations
 - Direct `{ "name": name, "description": description, "input_schema": parameters }` structure.
+
+### 4.4 Provider Model Metadata & Unified Settings Tables
+- Every AI provider model row in `/settings` MUST use the same columns, in the same order: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, **Actions**.
+- Use `ChatProviderModel` optional metadata fields where available: `context_length`, `max_output_tokens`, `pricing`, `rate_limits`, `request_limits`, and `description`. Extend that shared model only for provider-neutral metadata; keep provider-specific request parsing inside the provider adapter.
+- Populate values only from the provider's documented model/catalog API or trustworthy response metadata. Do not invent pricing, context limits, rate limits, or quotas. Render unavailable values as `-`.
+- Rate limits can be account-, team-, route-, or provider-dependent. Show them only when the provider explicitly reports them, and preserve provider-provided units and labels. Do not present observed 429 responses as a guaranteed quota.
+- Preserve optional metadata through Settings API serialization and stored provider configuration so it appears consistently after refresh. A provider with discovered/non-removable models must retain the shared columns and render `-` in **Actions**; keep **Default** behavior available consistently.
+- New-provider checklist: add the adapter and registry/service wiring; implement mocked catalog/model discovery and metadata normalization; serialize metadata through authenticated Settings endpoints; use the shared table renderer; cover unknown metadata and non-removable actions in tests; update `docs/concepts/ai-concept.md` and `docs/AI.md`.
 
 ---
 

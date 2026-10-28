@@ -197,6 +197,7 @@ class OpenRouterChatProvider(BaseChatProvider):
         supports_vision = "image" in modality.lower() or "multimodal" in modality.lower()
         pricing = item.get("pricing") or {}
         supported_params = item.get("supported_parameters") or []
+        top_provider = item.get("top_provider") or {}
         # If supported_parameters is present, check for 'tools'; embedding models have no tools support
         is_embedding = "embed" in mid.lower() or "embedding" in modality.lower()
         supports_tools = ("tools" in supported_params or not supported_params) and not is_embedding
@@ -208,6 +209,10 @@ class OpenRouterChatProvider(BaseChatProvider):
             "supports_tools": supports_tools,
             "supports_vision": supports_vision,
             "pricing": pricing,
+            "description": item.get("description") or "",
+            "max_output_tokens": top_provider.get("max_completion_tokens") or item.get("max_completion_tokens"),
+            "rate_limits": item.get("rate_limits"),
+            "request_limits": item.get("per_request_limits"),
         }
 
     def list_models(self) -> list[ChatProviderModel]:

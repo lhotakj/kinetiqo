@@ -297,13 +297,25 @@ class TestGeminiDiagnostics(unittest.TestCase):
     def test_model_discovery_filters_non_generation_models(self):
         provider = GeminiChatProvider("key")
         provider._request_json = MagicMock(return_value={"models": [
-            {"name": "models/gemini-available", "displayName": "Available", "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]},
+            {
+                "name": "models/gemini-available",
+                "displayName": "Available",
+                "supportedGenerationMethods": ["generateContent", "streamGenerateContent"],
+                "inputTokenLimit": 1048576,
+                "outputTokenLimit": 8192,
+                "description": "A Gemini test model.",
+            },
             {"name": "models/gemini-non-stream", "displayName": "No Stream", "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/gemini-2.5-flash", "displayName": "Deprecated Flash", "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]},
             {"name": "models/embedding-only", "supportedGenerationMethods": ["embedContent"]},
         ]})
         models = provider.list_models()
         self.assertEqual([(model.id, model.display_name) for model in models], [("gemini-available", "Available")])
+        self.assertEqual(models[0].context_length, 1048576)
+        self.assertEqual(models[0].max_output_tokens, 8192)
+        self.assertEqual(models[0].description, "A Gemini test model.")
+        self.assertIsNone(models[0].pricing)
+        self.assertIsNone(models[0].rate_limits)
         self.assertNotIn("gemini-non-stream", [m.id for m in models])
         self.assertNotIn("gemini-2.5-flash", [m.id for m in models])
 

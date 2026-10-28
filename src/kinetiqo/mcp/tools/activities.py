@@ -1,7 +1,7 @@
 """Group A: Activity Discovery & Query Engine Tools."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import math
 
 from kinetiqo.mcp.contracts import (
@@ -186,7 +186,7 @@ def kinetiqo_search_activities(
     return create_envelope(payload, source="local_db")
 
 
-def kinetiqo_get_activity_details(repo: Any, activity_id: str) -> Dict[str, Any]:
+def kinetiqo_get_activity_details(repo: Any, activity_id: Union[str, int]) -> Dict[str, Any]:
     """Retrieve comprehensive metadata and sensor coverage for a single activity."""
     act_str = str(activity_id).strip()
     try:
@@ -271,7 +271,7 @@ def kinetiqo_get_activity_totals(
     return create_envelope(data, source="local_db")
 
 
-def kinetiqo_compare_activities(repo: Any, activity_ids: List[str]) -> Dict[str, Any]:
+def kinetiqo_compare_activities(repo: Any, activity_ids: List[Union[str, int]]) -> Dict[str, Any]:
     """Compare 2 to 5 activities side-by-side."""
     if not activity_ids or not (2 <= len(activity_ids) <= 5):
         return create_error_envelope(
@@ -387,7 +387,7 @@ def kinetiqo_compare_periods(
 
 def kinetiqo_find_similar_routes(
     repo: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     sport_types: Optional[List[str]] = None,
     max_candidates: int = 10,
 ) -> Dict[str, Any]:
@@ -471,8 +471,8 @@ def kinetiqo_find_similar_routes(
 
 def kinetiqo_compare_route_attempts(
     repo: Any,
-    source_activity_id: str,
-    target_activity_id: str,
+    source_activity_id: Union[str, int],
+    target_activity_id: Union[str, int],
 ) -> Dict[str, Any]:
     """Compare performance across attempts on the same route."""
     try:

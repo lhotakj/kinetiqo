@@ -10,7 +10,9 @@ from kinetiqo.chat.tools import (
     build_training_context,
     execute_chat_tool,
     get_chat_tools,
+    normalize_tool_call_arguments,
     to_gemini_schema,
+    to_openai_schema,
 )
 
 
@@ -153,5 +155,47 @@ class TestChatTools(unittest.TestCase):
         bounded = _bound_tool_payload({"items": large_list}, max_items=10)
         self.assertEqual(len(bounded["items"]), 11)  # 10 items + truncation notice
         self.assertEqual(bounded["items"][-1]["_truncated_count"], 40)
+
+    def test_normalize_tool_call_arguments(self):
+        # Integer activity_id coerced to string
+        norm = normalize_tool_call_arguments({"activity_id": 20749829518, "other": 123})
+        self.assertEqual(norm["activity_id"], "20749829518")
+        self.assertEqual(norm["other"], 123)
+
+        # List of integer activity_ids coerced to strings
+        norm_list = normalize_tool_call_arguments({"activity_ids": [20713760854, 20749829518]})
+        self.assertEqual(norm_list["activity_ids"], ["20713760854", "20749829518"])
+
+        # Accidental single int for activity_ids wrapped in list of string
+        norm_single = normalize_tool_call_arguments({"activity_ids": 20749829518})
+        self.assertEqual(norm_single["activity_ids"], ["20749829518"])
+
+    def test_to_gemini_and_openai_schema_prefers_string_for_unions(self):
+        union_prop = {
+            "anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}],
+            "title": "Activity Id",
+        }
+        gemini = to_gemini_schema(union_prop)
+        self.assertEqual(gemini["type"], "STRING")
+
+        openai = to_openai_schema(union_prop)
+        self.assertEqual(openai["type"], "string")
+
+    def test_execute_chat_tool_with_integer_activity_id(self):
+        repo = MagicMock()
+        repo.get_activities_by_ids.return_value = [{
+            "activity_id": "20749829518",
+            "name": "Morning Ride",
+            "distance": 50000.0,
+            "moving_time": 5400,
+        }]
+        repo.get_stream_coverage.return_value = {}
+
+        # Passing integer activity_id should not fail Pydantic validation
+        payload, elapsed = execute_chat_tool(repo, "kinetiqo_get_activity_details", {"activity_id": 20749829518})
+        self.assertNotIn("error", payload)
+        self.assertEqual(payload.get("data_status"), "complete")
+        self.assertEqual(payload.get("data", {}).get("activity_id"), "20749829518")
+        self.assertGreaterEqual(elapsed, 0)
 
 

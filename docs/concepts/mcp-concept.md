@@ -162,7 +162,7 @@ Tools designed to help the LLM filter, search, compare, and summarize the athlet
 #### 2. `kinetiqo_get_activity_details` [P0 / MVP]
 * **Description**: Retrieve comprehensive metadata for a specific activity by ID.
 * **Inputs**:
-  * `activity_id` (decimal string, required): Locally synced activity ID.
+  * `activity_id` (string or integer, required): Locally synced activity ID.
 * **Output**: Locally stored activity columns with explicit units (`distance_km`, `moving_time_s`, `elapsed_time_s`, `elevation_gain_m`, `average_speed_kmh`, `max_speed_kmh`, `average_watts`, `max_watts`, `average_heartrate_bpm`, `max_heartrate_bpm`, `average_cadence_rpm`, `calories_kcal`, `suffer_score`) plus coverage and source. Temperature is available when recorded; description, weather, timezone, gear details and segment-level trophies are **not** in the current local schema. Never fabricate them or silently fetch Strava.
 
 #### 3. `kinetiqo_get_activity_totals` [P0 / MVP]
@@ -175,7 +175,7 @@ Tools designed to help the LLM filter, search, compare, and summarize the athlet
 #### 4. `kinetiqo_compare_activities` [P0 / MVP]
 * **Description**: Compare 2 to 5 activities side-by-side (e.g. repeated time trials, interval sessions on the same route, or yearly race editions).
 * **Inputs**:
-  * `activity_ids` (array of strings, required): IDs of 2 to 5 activities to compare.
+  * `activity_ids` (array of strings or integers, required): IDs of 2 to 5 activities to compare.
 * **Output**: Side-by-side measured duration, distance, speed, power, HR and elevation with per-metric availability. NP requires a qualifying power stream; HR drift and efficiency factor require separate, documented stream methods and must be null until implemented.
 
 #### 5. `kinetiqo_compare_periods` [P0 / MVP]

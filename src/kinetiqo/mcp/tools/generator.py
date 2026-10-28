@@ -1,6 +1,6 @@
 """Group E: Visual & Creative Generation Tools."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import base64
 import os
 from pathlib import Path
@@ -31,7 +31,7 @@ def _format_generator_error(action: str, exc: Exception) -> Dict[str, Any]:
 def kinetiqo_generate_activity_poster(
     repo: Any,
     config: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     ratio: str = "4/3",
     map_provider: str = "carto_dark",
     route_color: str = "#f97316",
@@ -120,7 +120,7 @@ def kinetiqo_generate_fondo_infographic(
 def kinetiqo_generate_map_artifact(
     repo: Any,
     config: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     map_provider: str = "osm",
     route_color: str = "#3b82f6",
     hide_start_end_km: Optional[float] = None,

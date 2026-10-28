@@ -65,15 +65,17 @@ Before finishing any task touching AI components, complete the following verific
 | Provider | Base URL | Auth Header | Tool Calling Schema | Model Discovery / Validation |
 |---|---|---|---|---|
 | **Google Gemini** | Google REST API | `x-goog-api-key` | Gemini JSON Schema | Dynamic via `models.list` API |
-| **OpenRouter AI** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Free-text model ID validated via `GET /api/v1/model/{author}/{slug}` |
+| **OpenRouter AI** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against OpenRouter catalog |
+| **Vercel AI Gateway** | `https://ai-gateway.vercel.sh/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against Vercel catalog |
+| **Ollama** | Configurable local URL | Optional Bearer key | OpenAI-compatible functions | Dynamic model discovery from local server |
 
 ---
 
 ## 4. Multi-Provider Settings Standard
 
 In `src/kinetiqo/web/templates/settings.html`:
-- Provide a "+ Add AI provider" control allowing selection between **Gemini AI** and **OpenRouter AI**.
-- Gemini provides single API token input with automatic model listing.
-- OpenRouter provides API token input plus a nested "+ Add model" button with free-text input.
-- Validate entered model names in real-time against `GET https://openrouter.ai/api/v1/model/{author}/{slug}`.
-- Present configured models in a clean table with `+` and `-` buttons.
+- Keep all providers in one provider selector and follow the existing provider adapter, settings API, and model-discovery conventions when adding a provider.
+- Render every provider's model list with the same columns and order: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, **Actions**.
+- Use only provider-supplied/documented metadata; display `-` for missing values, especially pricing, model limits, and rate quotas. Never infer them.
+- Show remove actions only for user-managed model lists; use `-` for discovered, non-removable models while retaining the shared table layout.
+- Add mocked tests for metadata normalization, endpoint serialization/persistence, and the settings table contract, then update both `docs/concepts/ai-concept.md` and `docs/AI.md`.

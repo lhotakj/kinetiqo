@@ -66,7 +66,15 @@ class GeminiChatProvider(BaseChatProvider):
                 continue
             if any(pattern in lower_name for pattern in EXCLUDED_MODEL_PATTERNS):
                 continue
-            entry = ChatProviderModel(name, model.get("displayName") or name, "generateContent" in methods, "generateContent" in methods)
+            entry = ChatProviderModel(
+                id=name,
+                display_name=model.get("displayName") or name,
+                supports_vision="generateContent" in methods,
+                supports_tools="generateContent" in methods,
+                context_length=model.get("inputTokenLimit"),
+                max_output_tokens=model.get("outputTokenLimit"),
+                description=model.get("description"),
+            )
             result.append(entry)
             if "streamGenerateContent" in methods:
                 stream_ready.append(entry)

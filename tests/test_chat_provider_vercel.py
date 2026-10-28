@@ -85,6 +85,10 @@ class TestVercelChatProvider(unittest.TestCase):
             "modalities": {"input": ["text", "image"], "output": ["text"]},
             "type": "language",
             "description": "Kimi K2.6 model",
+            "pricing": {"input": "0.000001", "output": "0.000002"},
+            "max_output_tokens": 8192,
+            "rate_limits": {"requests_per_minute": 60},
+            "request_limits": {"max_input_tokens": 128000},
         }
         client.get.return_value = mock_resp
         client.__enter__.return_value = client
@@ -97,6 +101,11 @@ class TestVercelChatProvider(unittest.TestCase):
         self.assertTrue(result["supports_tools"])
         self.assertTrue(result["supports_vision"])
         self.assertFalse(result["is_embedding"])
+        self.assertEqual(result["pricing"], {"input": "0.000001", "output": "0.000002"})
+        self.assertEqual(result["max_output_tokens"], 8192)
+        self.assertEqual(result["rate_limits"], {"requests_per_minute": 60})
+        self.assertEqual(result["request_limits"], {"max_input_tokens": 128000})
+        self.assertEqual(result["description"], "Kimi K2.6 model")
 
     def test_validate_model_catalog_fallback_success(self):
         client = MagicMock()

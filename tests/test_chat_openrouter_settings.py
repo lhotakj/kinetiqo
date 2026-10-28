@@ -108,6 +108,8 @@ class TestOpenRouterSettingsEndpoints(unittest.TestCase):
             "name": "Claude 3.5 Sonnet",
             "context_length": 200000,
             "supports_tools": True,
+            "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+            "rate_limits": {"requests_per_minute": 60},
         }
         mock_provider_cls.return_value = mock_provider_instance
 
@@ -120,7 +122,10 @@ class TestOpenRouterSettingsEndpoints(unittest.TestCase):
         add_data = add_resp.get_json()
         self.assertEqual(len(add_data["models"]), 1)
         self.assertEqual(add_data["models"][0]["id"], "anthropic/claude-3.5-sonnet")
+        self.assertEqual(add_data["models"][0]["pricing"], {"prompt": "0.000001", "completion": "0.000002"})
+        self.assertEqual(add_data["models"][0]["rate_limits"], {"requests_per_minute": 60})
         mock_repo.save_provider_config.assert_called_once()
+        self.assertEqual(mock_repo.save_provider_config.call_args.args[2]["models"][0]["rate_limits"], {"requests_per_minute": 60})
 
         # 2. Delete model
         mock_repo.get_provider_config.return_value = {

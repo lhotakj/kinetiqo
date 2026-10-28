@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional, Union
 from mcp.server.fastmcp import FastMCP
 
 from kinetiqo.db.factory import create_repository
@@ -14,6 +14,23 @@ from kinetiqo.mcp.prompts import register_mcp_prompts
 from kinetiqo.mcp.tools import activities, telemetry, physiology, achievements, generator, operations
 
 logger = logging.getLogger("kinetiqo.mcp")
+
+
+def normalize_mcp_arguments(arguments: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Normalize input arguments for MCP tool execution (e.g. numeric IDs to strings)."""
+    if not isinstance(arguments, dict):
+        return {}
+    norm_args = dict(arguments)
+    for key in ("activity_id", "source_activity_id", "target_activity_id", "job_id", "preview_id"):
+        if key in norm_args and norm_args[key] is not None:
+            norm_args[key] = str(norm_args[key]).strip()
+    if "activity_ids" in norm_args and norm_args["activity_ids"] is not None:
+        val = norm_args["activity_ids"]
+        if isinstance(val, (list, tuple)):
+            norm_args["activity_ids"] = [str(x).strip() for x in val if x is not None]
+        elif isinstance(val, (str, int)):
+            norm_args["activity_ids"] = [str(val).strip()]
+    return norm_args
 
 
 def create_mcp_server(
@@ -160,9 +177,9 @@ def create_mcp_server(
             )
 
     @server.tool(name="kinetiqo_get_activity_details", description="Retrieve comprehensive activity metadata and sensor coverage.")
-    def get_activity_details(activity_id: str) -> Dict[str, Any]:
+    def get_activity_details(activity_id: Union[str, int]) -> Dict[str, Any]:
         with get_repo() as r:
-            return activities.kinetiqo_get_activity_details(repo=r, activity_id=activity_id)
+            return activities.kinetiqo_get_activity_details(repo=r, activity_id=str(activity_id))
 
     @server.tool(
         name="kinetiqo_get_activity_totals",
@@ -184,9 +201,9 @@ def create_mcp_server(
             )
 
     @server.tool(name="kinetiqo_compare_activities", description="Compare 2 to 5 activities side-by-side.")
-    def compare_activities(activity_ids: List[str]) -> Dict[str, Any]:
+    def compare_activities(activity_ids: List[Union[str, int]]) -> Dict[str, Any]:
         with get_repo() as r:
-            return activities.kinetiqo_compare_activities(repo=r, activity_ids=activity_ids)
+            return activities.kinetiqo_compare_activities(repo=r, activity_ids=[str(a) for a in activity_ids])
 
     @server.tool(name="kinetiqo_compare_periods", description="Compare two training periods with equal elapsed-day alignment.")
     def compare_periods(
@@ -206,25 +223,25 @@ def create_mcp_server(
 
     @server.tool(name="kinetiqo_find_similar_routes", description="Find past activities matching an activity's GPS route.")
     def find_similar_routes(
-        activity_id: str,
+        activity_id: Union[str, int],
         sport_types: Optional[List[str]] = None,
         max_candidates: int = 10,
     ) -> Dict[str, Any]:
         with get_repo() as r:
             return activities.kinetiqo_find_similar_routes(
                 repo=r,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 sport_types=sport_types,
                 max_candidates=max_candidates,
             )
 
     @server.tool(name="kinetiqo_compare_route_attempts", description="Compare matched section performance across two sessions on the same route.")
-    def compare_route_attempts(source_activity_id: str, target_activity_id: str) -> Dict[str, Any]:
+    def compare_route_attempts(source_activity_id: Union[str, int], target_activity_id: Union[str, int]) -> Dict[str, Any]:
         with get_repo() as r:
             return activities.kinetiqo_compare_route_attempts(
                 repo=r,
-                source_activity_id=source_activity_id,
-                target_activity_id=target_activity_id,
+                source_activity_id=str(source_activity_id),
+                target_activity_id=str(target_activity_id),
             )
 
     # ==========================================
@@ -232,33 +249,33 @@ def create_mcp_server(
     # ==========================================
     @server.tool(name="kinetiqo_get_activity_streams", description="Retrieve raw or downsampled telemetry time-series.")
     def get_activity_streams(
-        activity_id: str,
+        activity_id: Union[str, int],
         stream_types: Optional[List[str]] = None,
         resolution: str = "auto",
     ) -> Dict[str, Any]:
         with get_repo() as r:
             return telemetry.kinetiqo_get_activity_streams(
                 repo=r,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 stream_types=stream_types,
                 resolution=resolution,
             )
 
     @server.tool(name="kinetiqo_get_data_coverage", description="Check sensor presence, row counts, and sampling gaps.")
-    def get_data_coverage(activity_id: str) -> Dict[str, Any]:
+    def get_data_coverage(activity_id: Union[str, int]) -> Dict[str, Any]:
         with get_repo() as r:
-            return telemetry.kinetiqo_get_data_coverage(repo=r, activity_id=activity_id)
+            return telemetry.kinetiqo_get_data_coverage(repo=r, activity_id=str(activity_id))
 
     @server.tool(name="kinetiqo_calculate_power_curve", description="Compute Mean Maximal Power (MMP) curve.")
     def calculate_power_curve(
-        activity_id: Optional[str] = None,
+        activity_id: Optional[Union[str, int]] = None,
         days: Optional[int] = None,
         durations: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         with get_repo() as r:
             return telemetry.kinetiqo_calculate_power_curve(
                 repo=r,
-                activity_id=activity_id,
+                activity_id=str(activity_id) if activity_id is not None else None,
                 days=days,
                 durations=durations,
             )
@@ -284,34 +301,34 @@ def create_mcp_server(
             )
 
     @server.tool(name="kinetiqo_analyze_workout_structure", description="Analyze NP, IF, TSS, sustained blocks, and sprint surges.")
-    def analyze_workout_structure(activity_id: str, athlete_ftp: Optional[float] = None) -> Dict[str, Any]:
+    def analyze_workout_structure(activity_id: Union[str, int], athlete_ftp: Optional[float] = None) -> Dict[str, Any]:
         with get_repo() as r:
             return telemetry.kinetiqo_analyze_workout_structure(
                 repo=r,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 athlete_ftp=athlete_ftp,
             )
 
     @server.tool(name="kinetiqo_analyze_pacing", description="Analyze split pacing, stops, and aerobic decoupling.")
     def analyze_pacing(
-        activity_id: str,
+        activity_id: Union[str, int],
         split_basis: str = "moving_time",
         num_splits: int = 2,
     ) -> Dict[str, Any]:
         with get_repo() as r:
             return telemetry.kinetiqo_analyze_pacing(
                 repo=r,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 split_basis=split_basis,
                 num_splits=num_splits,
             )
 
     @server.tool(name="kinetiqo_get_route_highlights", description="Identify top climbs and peak wattage segments with optional privacy redaction.")
-    def get_route_highlights(activity_id: str, hide_start_end_km: Optional[float] = None) -> Dict[str, Any]:
+    def get_route_highlights(activity_id: Union[str, int], hide_start_end_km: Optional[float] = None) -> Dict[str, Any]:
         with get_repo() as r:
             return telemetry.kinetiqo_get_route_highlights(
                 repo=r,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 hide_start_end_km=hide_start_end_km,
             )
 
@@ -421,7 +438,7 @@ def create_mcp_server(
     # ==========================================
     @server.tool(name="kinetiqo_generate_activity_poster", description="Generate high-resolution PNG activity poster.")
     def generate_activity_poster(
-        activity_id: str,
+        activity_id: Union[str, int],
         ratio: str = "4/3",
         map_provider: str = "carto_dark",
         route_color: str = "#f97316",
@@ -432,7 +449,7 @@ def create_mcp_server(
             return generator.kinetiqo_generate_activity_poster(
                 repo=r,
                 config=config,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 ratio=ratio,
                 map_provider=map_provider,
                 route_color=route_color,
@@ -472,7 +489,7 @@ def create_mcp_server(
 
     @server.tool(name="kinetiqo_generate_map_artifact", description="Generate standalone map artifact with route line.")
     def generate_map_artifact(
-        activity_id: str,
+        activity_id: Union[str, int],
         map_provider: str = "osm",
         route_color: str = "#3b82f6",
         hide_start_end_km: Optional[float] = None,
@@ -481,7 +498,7 @@ def create_mcp_server(
             return generator.kinetiqo_generate_map_artifact(
                 repo=r,
                 config=config,
-                activity_id=activity_id,
+                activity_id=str(activity_id),
                 map_provider=map_provider,
                 route_color=route_color,
                 hide_start_end_km=hide_start_end_km,
@@ -491,14 +508,14 @@ def create_mcp_server(
     # Group F: Operations & Sync
     # ==========================================
     @server.tool(name="kinetiqo_get_sync_job_status", description="Check status and duration of background sync jobs.")
-    def get_sync_job_status(job_id: Optional[str] = None) -> Dict[str, Any]:
+    def get_sync_job_status(job_id: Optional[Union[str, int]] = None) -> Dict[str, Any]:
         with get_repo() as r:
-            return operations.kinetiqo_get_sync_job_status(repo=r, job_id=job_id)
+            return operations.kinetiqo_get_sync_job_status(repo=r, job_id=str(job_id) if job_id is not None else None)
 
     @server.tool(name="kinetiqo_preview_strava_description", description="Preview UPDATE_STRAVA_* description merge without writing.")
-    def preview_strava_description(activity_id: str) -> Dict[str, Any]:
+    def preview_strava_description(activity_id: Union[str, int]) -> Dict[str, Any]:
         with get_repo() as r:
-            return operations.kinetiqo_preview_strava_description(repo=r, config=config, activity_id=activity_id)
+            return operations.kinetiqo_preview_strava_description(repo=r, config=config, activity_id=str(activity_id))
 
     if allow_sync:
         @server.tool(name="kinetiqo_trigger_sync", description="Trigger background activity sync (requires KINETIQO_MCP_ALLOW_SYNC=1).")
@@ -514,13 +531,13 @@ def create_mcp_server(
 
     if allow_strava_write:
         @server.tool(name="kinetiqo_update_strava_description", description="Publish approved description to Strava (requires KINETIQO_MCP_ALLOW_STRAVA_WRITE=1).")
-        def update_strava_description(activity_id: str, preview_id: str) -> Dict[str, Any]:
+        def update_strava_description(activity_id: Union[str, int], preview_id: Union[str, int]) -> Dict[str, Any]:
             with get_repo() as r:
                 return operations.kinetiqo_update_strava_description(
                     repo=r,
                     config=config,
-                    activity_id=activity_id,
-                    preview_id=preview_id,
+                    activity_id=str(activity_id),
+                    preview_id=str(preview_id),
                     allow_write=True,
                 )
 
@@ -549,6 +566,7 @@ def create_mcp_server(
         orig_call_tool = server._tool_manager.call_tool
 
         async def logged_call_tool(name: str, arguments: dict, context=None, convert_result=False):
+            arguments = normalize_mcp_arguments(arguments)
             safe_args = {}
             for k, v in (arguments or {}).items():
                 if k.lower() in ("password", "secret", "token", "key"):

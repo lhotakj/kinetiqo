@@ -422,8 +422,12 @@ class ToolCall:
 class ChatProviderModel:
     id: str
     display_name: str
-    input_token_limit: int | None = None
-    output_token_limit: int | None = None
+    context_length: int | None = None
+    max_output_tokens: int | None = None
+    pricing: dict | None = None
+    rate_limits: dict | None = None
+    request_limits: dict | None = None
+    description: str | None = None
     supports_vision: bool = False
     supported_mime_types: tuple[str, ...] = ()
     supports_tools: bool = False
@@ -581,7 +585,8 @@ OpenRouter hosts hundreds of models that are updated, added, or deprecated regul
      - `context_length`: Maximum context window in tokens (e.g. `200000`).
      - `pricing`: Prompt and completion token pricing.
      - `architecture.modality`: Supported modalities (text, multimodal/vision).
-     - `top_provider.max_completion_tokens`: Output token bounds.
+      - `top_provider.max_completion_tokens`: Output token bounds.
+      - Provider-supplied rate and per-request limits, when present.
    - If invalid (HTTP 404 or unrecognized slug), returns a clean 422 error to the settings UI ("Model not found on OpenRouter") and highlights the field in light red without saving.
 
 ### 8.3 Multi-Provider Settings Architecture (`/settings`)
@@ -597,13 +602,16 @@ The Settings page provides a unified **AI & API Providers** panel:
    - **Nested Configured Models Manager**:
      - Input field with placeholder `e.g. anthropic/claude-3.5-sonnet`.
      - Button **`+ Add model`** to validate and append.
-     - **Responsive Models Table**:
-       | Model Name & ID | Context Window | Capabilities | Actions |
-       |---|---|---|---|
-       | **Claude 3.5 Sonnet**<br>`anthropic/claude-3.5-sonnet` | 200k tokens | Text, Vision, Tools | `+` `–` |
-       | **DeepSeek V3**<br>`deepseek/deepseek-chat` | 64k tokens | Text, Tools | `+` `–` |
-       | **Nemotron 3.5 1B (Free)**<br>`nvidia/nemotron-3.5-embed-1b:free` | 131k tokens | Text | `+` `–` |
+      - **Responsive Models Table**:
+        | Model Name & ID | Context Window | Capabilities | Pricing & Limits | Actions |
+        |---|---|---|---|---|
+        | **Claude 3.5 Sonnet**<br>`anthropic/claude-3.5-sonnet` | 200k tokens | Text, Vision, Tools | Provider metadata where available | `+` `–` |
+        | **DeepSeek V3**<br>`deepseek/deepseek-chat` | 64k tokens | Text, Tools | Provider metadata where available | `+` `–` |
+        | **Nemotron 3.5 1B (Free)**<br>`nvidia/nemotron-3.5-embed-1b:free` | 131k tokens | Text | Provider metadata where available | `+` `–` |
      - **Action Controls**: Explicitly uses `+` (add another model) and `–` (remove/disable model) action buttons. **No trash bin icon is used**, keeping the table clean and unobtrusive.
+   - All four provider tables (Gemini, OpenRouter, Vercel AI Gateway, and Ollama) use the same columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
+   - Gemini displays the input context limit, output-token limit, and description from its model catalog. Ollama displays its reported parameter size. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
+   - The Actions column shows `-` for providers whose models are discovered rather than user-managed.
 
 ### 8.4 Database Schema & Persistence Contract
 To support per-provider custom configurations (such as OpenRouter's enabled models list) while maintaining 100% database portability across **PostgreSQL**, **MySQL**, and **Firebird**:
@@ -660,6 +668,7 @@ Vercel AI Gateway (`https://ai-gateway.vercel.sh/v1`) is an OpenAI-compatible ed
    - Direct lookup: `GET https://ai-gateway.vercel.sh/v1/models/{model_id}`.
    - Catalog fallback & suggestions: `GET https://ai-gateway.vercel.sh/v1/models`.
    - Extracts `context_window` (up to 1M tokens), tool-calling support (`tools` in `supported_parameters` or `tool-use` in `tags`), vision capability (`image` in modalities or `vision` in tags), and model descriptions.
+   - Preserves provider-published pricing, maximum output tokens, and rate/request-limit metadata for the Settings model details. Missing rate-limit metadata is shown as unpublished; limits are not inferred because they may depend on provider routing or the account/team.
    - Rejects non-generative embedding models (`type == "embedding"` or `"embed"` in model ID).
    - Suggests canonical provider slugs if prefix was omitted (e.g., entering `kimi-k2.6` yields suggestion `moonshotai/kimi-k2.6`).
 3. **Web API Endpoints**:
@@ -744,6 +753,7 @@ MCP mutation flags are not a substitute for a chat-specific allowlist. The chat 
 ### 10.3 Tool-call execution rules
 
 - Validate tool name and arguments against server-owned schemas (reuse MCP tool input schemas).
+- Coerce numeric activity IDs and collection arguments defensively (`normalize_tool_call_arguments`, `normalize_mcp_arguments`), supporting both string and integer formats for activity identifiers across all AI models and MCP clients.
 - Apply per-call timeouts (10 seconds), maximum tool-call count per assistant turn (8 calls), maximum tool-result size (64 KB, truncated cleanly), and a total turn time budget (120 seconds).
 - Never execute a tool name or SQL statement provided only by the model; unknown names return a structured tool error to the model.
 - Treat tool output and uploaded documents as untrusted data, not instructions.

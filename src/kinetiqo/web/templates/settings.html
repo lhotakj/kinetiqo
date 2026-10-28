@@ -316,14 +316,17 @@
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
                             <thead class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
                                 <tr>
-                                    <th scope="col" class="px-5 py-3.5">Model</th>
+                                    <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                    <th scope="col" class="px-5 py-3.5">Context</th>
                                     <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="gemini-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="3" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>
+                                    <td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -382,13 +385,14 @@
                                     <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
                                     <th scope="col" class="px-5 py-3.5">Context</th>
                                     <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Default</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="openrouter-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="5" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
+                                    <td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -448,13 +452,14 @@
                                     <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
                                     <th scope="col" class="px-5 py-3.5">Context</th>
                                     <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Default</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="vercel-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="5" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>
+                                    <td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -535,15 +540,17 @@
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
                             <thead class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
                                 <tr>
-                                    <th scope="col" class="px-5 py-3.5">Model Name &amp; Tag</th>
-                                    <th scope="col" class="px-5 py-3.5">Parameters</th>
-                                    <th scope="col" class="px-5 py-3.5">Status</th>
+                                    <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                    <th scope="col" class="px-5 py-3.5">Context</th>
+                                    <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                    <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
                                     <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                    <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="ollama-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
                                 <tr>
-                                    <td colspan="4" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">Click &ldquo;Test connection &amp; fetch models&rdquo; to query your Ollama instance.</td>
+                                    <td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">Click &ldquo;Test connection &amp; fetch models&rdquo; to query your Ollama instance.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1603,17 +1610,87 @@
             geminiTableBody.replaceChildren();
             if (!Array.isArray(models) || models.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="3" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>';
+                tr.innerHTML = '<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>';
                 geminiTableBody.appendChild(tr);
                 return;
             }
-            models.forEach((item) => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-                tr.innerHTML = `<td class="px-4 py-3 align-middle"><div class="font-semibold text-gray-900 dark:text-white">${item.display_name || item.name || item.id}</div><div class="text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs">${item.id}</div></td><td class="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">${item.supports_tools !== false ? 'Tools' : 'No tools'}${item.supports_vision ? ' • Vision' : ''}</td><td class="px-4 py-3 align-middle text-right"></td>`;
-                tr.children[2].appendChild(createStarButton('gemini', item));
-                geminiTableBody.appendChild(tr);
+            models.forEach((item) => geminiTableBody.appendChild(createModelRow(item, 'gemini')));
+        }
+
+        function formatModelMetadata(value) {
+            if (value === null || value === undefined || value === '') return null;
+            if (typeof value === 'object' && Object.keys(value).length === 0) return null;
+            return typeof value === 'object' ? JSON.stringify(value) : String(value);
+        }
+
+        function createModelRow(item, provider) {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
+            const modelCell = document.createElement('td');
+            modelCell.className = 'px-4 py-3 align-middle';
+            const name = document.createElement('div');
+            name.className = 'font-semibold text-gray-900 dark:text-white';
+            name.textContent = item.display_name || item.name || item.id;
+            const id = document.createElement('div');
+            id.className = 'text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs';
+            id.textContent = item.id;
+            modelCell.append(name, id);
+
+            const contextCell = document.createElement('td');
+            contextCell.className = 'px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300';
+            contextCell.textContent = item.context_length ? `${formatNumber(item.context_length)} tokens` : '-';
+
+            const capabilitiesCell = document.createElement('td');
+            capabilitiesCell.className = 'px-4 py-3 align-middle text-gray-600 dark:text-gray-300';
+            const capabilities = [item.supports_tools !== false ? 'Tools' : 'No tools'];
+            if (item.supports_vision) capabilities.push('Vision');
+            if (provider === 'ollama') capabilities.push('Available');
+            capabilitiesCell.textContent = capabilities.join(' · ') || '-';
+
+            const detailsCell = document.createElement('td');
+            detailsCell.className = 'px-4 py-3 align-middle text-gray-600 dark:text-gray-300 min-w-64';
+            const details = [
+                ['Pricing', formatModelMetadata(item.pricing) || '-'],
+                ['Max output', item.max_output_tokens ? `${formatNumber(item.max_output_tokens)} tokens` : '-'],
+                ['Rate limits', formatModelMetadata(item.rate_limits) || '-'],
+            ];
+            const requestLimits = formatModelMetadata(item.request_limits);
+            details.push(['Request limits', requestLimits || '-']);
+            if (item.parameter_size) details.push(['Model size', item.parameter_size]);
+            if (item.description) details.push(['Description', item.description]);
+            details.forEach(([label, value]) => {
+                const line = document.createElement('div');
+                line.textContent = `${label}: ${value}`;
+                detailsCell.appendChild(line);
             });
+
+            const defaultCell = document.createElement('td');
+            defaultCell.className = 'px-4 py-3 align-middle text-right';
+            defaultCell.appendChild(createStarButton(provider, item));
+            const actionsCell = document.createElement('td');
+            actionsCell.className = 'px-4 py-3 align-middle text-right whitespace-nowrap';
+            if (provider === 'openrouter' || provider === 'vercel') {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
+                removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
+                removeBtn.textContent = '−';
+                removeBtn.addEventListener('click', async () => {
+                    const res = await fetch(`/api/settings/ai/${provider}/models`, {method: 'DELETE', headers: aiHeaders, body: JSON.stringify({model_id: item.id})});
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error?.message || 'Failed to remove model.');
+                    providerData[provider].models = data.models || [];
+                    defaultModel = data.default_model || defaultModel;
+                    updateDefaultModelLabel();
+                    if (provider === 'openrouter') renderOpenRouterModels(providerData.openrouter.models);
+                    else renderVercelModels(providerData.vercel.models);
+                });
+                actionsCell.appendChild(removeBtn);
+            } else {
+                actionsCell.textContent = '-';
+            }
+            tr.append(modelCell, contextCell, capabilitiesCell, detailsCell, defaultCell, actionsCell);
+            return tr;
         }
 
         function renderOpenRouterModels(models) {
@@ -1621,32 +1698,11 @@
             openrouterTableBody.replaceChildren();
             if (!Array.isArray(models) || models.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="5" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>';
+                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>';
                 openrouterTableBody.appendChild(tr);
                 return;
             }
-            models.forEach((item) => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-                tr.innerHTML = `<td class="px-4 py-3 align-middle"><div class="font-semibold text-gray-900 dark:text-white">${item.display_name || item.name || item.id}</div><div class="text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs">${item.id}</div></td><td class="px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300">${item.context_length ? `${formatNumber(item.context_length)} tokens` : '128,000 tokens'}</td><td class="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">${item.supports_tools !== false ? 'Tools' : 'No tools'}${item.supports_vision ? ' • Vision' : ''}</td><td class="px-4 py-3 align-middle text-right"></td><td class="px-4 py-3 align-middle text-right whitespace-nowrap"></td>`;
-                tr.children[3].appendChild(createStarButton('openrouter', item));
-                const removeBtn = document.createElement('button');
-                removeBtn.type = 'button';
-                removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
-                removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
-                removeBtn.innerHTML = '<span class="leading-none">&ndash;</span>';
-                removeBtn.addEventListener('click', async () => {
-                    const res = await fetch('/api/settings/ai/openrouter/models', {method: 'DELETE', headers: aiHeaders, body: JSON.stringify({model_id: item.id})});
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.error?.message || 'Failed to remove model.');
-                    providerData.openrouter.models = data.models || [];
-                    defaultModel = data.default_model || defaultModel;
-                    updateDefaultModelLabel();
-                    renderOpenRouterModels(providerData.openrouter.models);
-                });
-                tr.children[4].appendChild(removeBtn);
-                openrouterTableBody.appendChild(tr);
-            });
+            models.forEach((item) => openrouterTableBody.appendChild(createModelRow(item, 'openrouter')));
         }
 
         function renderVercelModels(models) {
@@ -1654,32 +1710,11 @@
             vercelTableBody.replaceChildren();
             if (!Array.isArray(models) || models.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="5" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>';
+                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>';
                 vercelTableBody.appendChild(tr);
                 return;
             }
-            models.forEach((item) => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-                tr.innerHTML = `<td class="px-4 py-3 align-middle"><div class="font-semibold text-gray-900 dark:text-white">${item.display_name || item.name || item.id}</div><div class="text-gray-500 dark:text-gray-400 font-mono text-[11px] truncate max-w-xs">${item.id}</div></td><td class="px-4 py-3 align-middle whitespace-nowrap text-gray-600 dark:text-gray-300">${item.context_length ? `${formatNumber(item.context_length)} tokens` : '128,000 tokens'}</td><td class="px-4 py-3 align-middle text-gray-600 dark:text-gray-300">${item.supports_tools !== false ? 'Tools' : 'No tools'}${item.supports_vision ? ' • Vision' : ''}</td><td class="px-4 py-3 align-middle text-right"></td><td class="px-4 py-3 align-middle text-right whitespace-nowrap"></td>`;
-                tr.children[3].appendChild(createStarButton('vercel', item));
-                const removeBtn = document.createElement('button');
-                removeBtn.type = 'button';
-                removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
-                removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
-                removeBtn.innerHTML = '<span class="leading-none">&ndash;</span>';
-                removeBtn.addEventListener('click', async () => {
-                    const res = await fetch('/api/settings/ai/vercel/models', {method: 'DELETE', headers: aiHeaders, body: JSON.stringify({model_id: item.id})});
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.error?.message || 'Failed to remove model.');
-                    providerData.vercel.models = data.models || [];
-                    defaultModel = data.default_model || defaultModel;
-                    updateDefaultModelLabel();
-                    renderVercelModels(providerData.vercel.models);
-                });
-                tr.children[4].appendChild(removeBtn);
-                vercelTableBody.appendChild(tr);
-            });
+            models.forEach((item) => vercelTableBody.appendChild(createModelRow(item, 'vercel')));
         }
 
         function renderOllamaModels(models) {
@@ -1689,17 +1724,15 @@
             if (ollamaModelsCount) ollamaModelsCount.textContent = `${count} model${count === 1 ? '' : 's'}`;
             if (!count) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="4" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No models detected on server. Pull a model via `ollama run <model>` first.</td>';
+                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No models detected on server. Pull a model via `ollama run <model>` first.</td>';
                 ollamaTableBody.appendChild(tr);
                 return;
             }
-            models.forEach((item) => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors';
-                tr.innerHTML = `<td class="px-5 py-3.5 align-middle font-mono font-medium text-gray-900 dark:text-white">${item.id || item.name}</td><td class="px-5 py-3.5 align-middle text-gray-600 dark:text-gray-300">${item.parameter_size || '—'}</td><td class="px-5 py-3.5 align-middle"><span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">Available</span></td><td class="px-5 py-3.5 align-middle text-right"></td>`;
-                tr.children[3].appendChild(createStarButton('ollama', {id: item.id}));
-                ollamaTableBody.appendChild(tr);
-            });
+            models.forEach((item) => ollamaTableBody.appendChild(createModelRow({
+                ...item,
+                display_name: item.name || item.id,
+                supports_tools: true,
+            }, 'ollama')));
         }
 
         const renderAllModelTables = () => {

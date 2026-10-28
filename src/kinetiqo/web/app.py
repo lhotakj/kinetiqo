@@ -2661,6 +2661,12 @@ def chat_gemini_settings_api():
                         'display_name': model.display_name,
                         'supports_tools': model.supports_tools,
                         'supports_vision': model.supports_vision,
+                        'context_length': model.context_length,
+                        'max_output_tokens': model.max_output_tokens,
+                        'pricing': model.pricing,
+                        'rate_limits': model.rate_limits,
+                        'request_limits': model.request_limits,
+                        'description': model.description,
                     }
                     for model in provider.list_models()
                 ]

@@ -1,7 +1,7 @@
 """Group B: High-Resolution Telemetry & Power Analytics Tools."""
 
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import math
 
 from kinetiqo.mcp.contracts import (
@@ -31,7 +31,7 @@ from kinetiqo.analytics.pacing import calculate_pacing_splits
 
 def kinetiqo_get_activity_streams(
     repo: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     stream_types: Optional[List[str]] = None,
     resolution: str = "auto",
 ) -> Dict[str, Any]:
@@ -79,7 +79,7 @@ def kinetiqo_get_activity_streams(
     return create_envelope(payload, source="local_db")
 
 
-def kinetiqo_get_data_coverage(repo: Any, activity_id: str) -> Dict[str, Any]:
+def kinetiqo_get_data_coverage(repo: Any, activity_id: Union[str, int]) -> Dict[str, Any]:
     """Fast pre-flight check returning sensor presence, sample counts, timestamp ranges, and gaps."""
     try:
         int_id = int(str(activity_id).strip())
@@ -102,7 +102,7 @@ def kinetiqo_get_data_coverage(repo: Any, activity_id: str) -> Dict[str, Any]:
 
 def kinetiqo_calculate_power_curve(
     repo: Any,
-    activity_id: Optional[str] = None,
+    activity_id: Optional[Union[str, int]] = None,
     days: Optional[int] = None,
     durations: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
@@ -276,7 +276,7 @@ def kinetiqo_get_personal_records(
 
 def kinetiqo_analyze_workout_structure(
     repo: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     athlete_ftp: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Analyze structured workout metrics: NP, IF, TSS, sustained blocks, and sprint surges."""
@@ -451,7 +451,7 @@ def kinetiqo_analyze_workout_structure(
 
 def kinetiqo_analyze_pacing(
     repo: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     split_basis: str = "moving_time",
     num_splits: int = 2,
 ) -> Dict[str, Any]:
@@ -474,7 +474,7 @@ def kinetiqo_analyze_pacing(
 
 def kinetiqo_get_route_highlights(
     repo: Any,
-    activity_id: str,
+    activity_id: Union[str, int],
     hide_start_end_km: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Identify top climbs and peak wattage segments with optional privacy redaction."""

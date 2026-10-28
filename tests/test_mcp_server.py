@@ -170,6 +170,38 @@ class TestMCPServer(unittest.TestCase):
         call_kwargs_none = self.mock_repo.search_activities.call_args[1]
         self.assertIsNone(call_kwargs_none.get("athlete_id"))
 
+    def test_call_tool_with_integer_activity_id(self):
+        """Verify FastMCP accepts integer activity_id and list of integer activity_ids without Pydantic validation error."""
+        import asyncio
+        self.mock_repo.get_activities_by_ids.return_value = [{
+            "activity_id": "20749829518",
+            "name": "Tempo Ride",
+            "distance": 45000.0,
+            "moving_time": 4800,
+        }]
+        self.mock_repo.get_stream_coverage.return_value = {}
+
+        server = create_mcp_server(self.mock_config, repo_factory=lambda: self.mock_repo)
+
+        # 1. Direct call with integer activity_id
+        res_single = asyncio.run(server.call_tool("kinetiqo_get_activity_details", {"activity_id": 20749829518}))
+        self.assertIsInstance(res_single, tuple)
+        text_single = res_single[0][0].text
+        self.assertIn('"activity_id": "20749829518"', text_single)
+        self.assertIn('"data_status": "complete"', text_single)
+
+        # 2. Direct call with list of integer activity_ids
+        self.mock_repo.get_activities_by_ids.return_value = [
+            {"activity_id": "20713760854", "name": "Ride 1", "distance": 30000.0, "moving_time": 3600},
+            {"activity_id": "20749829518", "name": "Ride 2", "distance": 45000.0, "moving_time": 4800},
+        ]
+        res_comp = asyncio.run(server.call_tool("kinetiqo_compare_activities", {"activity_ids": [20713760854, 20749829518]}))
+        self.assertIsInstance(res_comp, tuple)
+        text_comp = res_comp[0][0].text
+        self.assertIn('"data_status": "complete"', text_comp)
+        self.assertIn('"activity_id": "20713760854"', text_comp)
+        self.assertIn('"activity_id": "20749829518"', text_comp)
+
     def test_cli_mcp_command_and_logging_redirection(self):
         """Test Click CLI 'kinetiqo mcp' command launches STDIO server and redirects logs to stderr."""
         from click.testing import CliRunner

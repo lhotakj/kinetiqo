@@ -14,6 +14,12 @@ class ChatProviderModel:
     display_name: str
     supports_vision: bool = False
     supports_tools: bool = False
+    context_length: int | None = None
+    max_output_tokens: int | None = None
+    pricing: dict[str, Any] | None = None
+    rate_limits: dict[str, Any] | None = None
+    request_limits: dict[str, Any] | None = None
+    description: str | None = None
 
 
 @dataclass(frozen=True)

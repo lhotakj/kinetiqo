@@ -66,7 +66,8 @@ def to_gemini_schema(prop: Any) -> dict[str, Any]:
     if "anyOf" in prop:
         non_null = [item for item in prop["anyOf"] if item.get("type") != "null"]
         if non_null:
-            merged = dict(non_null[0])
+            preferred = next((item for item in non_null if str(item.get("type", "")).upper() == "STRING"), non_null[0])
+            merged = dict(preferred)
             for k, v in prop.items():
                 if k not in ("anyOf", "type", "items", "properties"):
                     merged[k] = v
@@ -107,7 +108,8 @@ def to_openai_schema(prop: Any) -> dict[str, Any]:
     if "anyOf" in prop:
         non_null = [item for item in prop["anyOf"] if item.get("type") != "null"]
         if non_null:
-            merged = dict(non_null[0])
+            preferred = next((item for item in non_null if str(item.get("type", "")).lower() == "string"), non_null[0])
+            merged = dict(preferred)
             for k, v in prop.items():
                 if k not in ("anyOf", "type", "items", "properties"):
                     merged[k] = v
@@ -184,6 +186,23 @@ def get_chat_tools(provider: str = "gemini", config: Any = None, repo_factory: C
     return declarations
 
 
+def normalize_tool_call_arguments(arguments: dict[str, Any] | None) -> dict[str, Any]:
+    """Defensively normalize arguments received from LLM tool calling."""
+    if not isinstance(arguments, dict):
+        return {}
+    norm_args = dict(arguments)
+    for key in ("activity_id", "source_activity_id", "target_activity_id", "job_id", "preview_id"):
+        if key in norm_args and norm_args[key] is not None:
+            norm_args[key] = str(norm_args[key]).strip()
+    if "activity_ids" in norm_args and norm_args["activity_ids"] is not None:
+        val = norm_args["activity_ids"]
+        if isinstance(val, (list, tuple)):
+            norm_args["activity_ids"] = [str(x).strip() for x in val if x is not None]
+        elif isinstance(val, (str, int)):
+            norm_args["activity_ids"] = [str(val).strip()]
+    return norm_args
+
+
 def execute_chat_tool(
     repo: Any,
     tool_name: str,
@@ -198,9 +217,10 @@ def execute_chat_tool(
     cfg = config or _FallbackConfig(repo)
     server = create_mcp_server(cfg, repo_factory=lambda: repo)
     start_time = time.perf_counter()
+    norm_arguments = normalize_tool_call_arguments(arguments)
 
     try:
-        raw_result = _run_coroutine(server.call_tool(tool_name, arguments or {}))
+        raw_result = _run_coroutine(server.call_tool(tool_name, norm_arguments))
         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 
         # Extract result dictionary

@@ -79,6 +79,8 @@ class TestVercelSettingsEndpoints(unittest.TestCase):
             "name": "Kimi K2.6",
             "context_length": 262000,
             "supports_tools": True,
+            "max_output_tokens": 8192,
+            "rate_limits": {"requests_per_minute": 60},
         }
         mock_provider_cls.return_value = mock_provider_instance
 
@@ -107,6 +109,8 @@ class TestVercelSettingsEndpoints(unittest.TestCase):
             "name": "Kimi K2.6",
             "context_length": 262000,
             "supports_tools": True,
+            "max_output_tokens": 8192,
+            "rate_limits": {"requests_per_minute": 60},
         }
         mock_provider_cls.return_value = mock_provider_instance
 
@@ -119,7 +123,10 @@ class TestVercelSettingsEndpoints(unittest.TestCase):
         add_data = add_resp.get_json()
         self.assertEqual(len(add_data["models"]), 1)
         self.assertEqual(add_data["models"][0]["id"], "moonshotai/kimi-k2.6")
+        self.assertEqual(add_data["models"][0]["max_output_tokens"], 8192)
+        self.assertEqual(add_data["models"][0]["rate_limits"], {"requests_per_minute": 60})
         mock_repo.save_provider_config.assert_called_once()
+        self.assertEqual(mock_repo.save_provider_config.call_args.args[2]["models"][0]["rate_limits"], {"requests_per_minute": 60})
 
         # 2. Delete model
         mock_repo.get_provider_config.return_value = {

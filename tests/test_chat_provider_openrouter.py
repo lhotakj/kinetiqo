@@ -84,6 +84,11 @@ class TestOpenRouterChatProvider(unittest.TestCase):
                     "context_length": 131072,
                     "supported_parameters": ["tools"],
                     "architecture": {"modality": "text"},
+                    "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+                    "top_provider": {"max_completion_tokens": 8192},
+                    "rate_limits": {"requests_per_minute": 60},
+                    "per_request_limits": {"max_prompt_tokens": 120000},
+                    "description": "A test model description.",
                 }
             ]
         }
@@ -96,6 +101,11 @@ class TestOpenRouterChatProvider(unittest.TestCase):
         self.assertEqual(result["display_name"], "Meta Llama 3.3 70B")
         self.assertEqual(result["context_length"], 131072)
         self.assertTrue(result["supports_tools"])
+        self.assertEqual(result["pricing"], {"prompt": "0.000001", "completion": "0.000002"})
+        self.assertEqual(result["max_output_tokens"], 8192)
+        self.assertEqual(result["rate_limits"], {"requests_per_minute": 60})
+        self.assertEqual(result["request_limits"], {"max_prompt_tokens": 120000})
+        self.assertEqual(result["description"], "A test model description.")
 
     def test_validate_model_suggests_base_model_when_free_suffix_not_offered(self):
         client = MagicMock()

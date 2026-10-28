@@ -249,6 +249,7 @@ class VercelChatProvider(BaseChatProvider):
         )
         pricing = item.get("pricing") or {}
         description = item.get("description") or ""
+        max_output_tokens = item.get("max_output_tokens") or item.get("max_tokens")
 
         return {
             "id": mid,
@@ -259,6 +260,9 @@ class VercelChatProvider(BaseChatProvider):
             "supports_vision": bool(supports_vision),
             "pricing": pricing,
             "description": description,
+            "max_output_tokens": max_output_tokens,
+            "rate_limits": item.get("rate_limits"),
+            "request_limits": item.get("request_limits") or item.get("per_request_limits"),
             "is_embedding": bool(is_embedding),
         }
 
