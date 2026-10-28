@@ -40,13 +40,14 @@ The assistant does not guess or hallucinate metrics. When asked a training quest
 ### 2.2 Transparent Data Provenance ("Data used")
 Every assistant answer that queries athlete telemetry features a prominent, interactive **"Data used (X local queries)"** toggle in the message footer. Clicking it exposes the exact underlying analytical tools and execution latency (e.g., `get fitness freshness (18ms)`, `get personal records (24ms)`).
 
-### 2.3 Pre-Built Athlete Coaching Workflows
+### 2.3 Pre-Built Athlete Coaching & Operations Workflows
 Integrated prompt workflows in `src/kinetiqo/mcp/prompts.py` equip the AI with structured evaluation frameworks:
-1. **Recovery & Freshness Audit**: Evaluates TSB (Form) vs ATL (Fatigue) and CTL (Fitness).
-2. **VO₂max & FTP Progression**: Analyzes 5-min MAP power trend lines and 95% 20-min FTP steps.
-3. **Indoor vs. Outdoor Load Analysis**: Dissects cadence, normalized power, and heart rate divergence.
-4. **Climbing & Elevation Breakdown**: VAM (vertical ascent in meters/hour) and sustained hill-climb pacing.
-5. **Gran Fondo & Milestone Audit**: Century rides, marathon efforts, and long-range endurance consistency.
+1. **Post-Ride Debrief (`post_ride_debrief`)**: Analyzes sensor coverage, sustained power blocks, sprint surges, pacing splits, and offers commemorative poster generation or Strava description updates.
+2. **Sync & Strava Update Workflow (`sync_and_update_strava`)**: Initiates fast or full sync with customizable time limits (`limit_days`), validates imported telemetry, formulates custom workout summaries, and publishes updated descriptions to Strava.
+3. **Recovery & Freshness Audit (`endurance_recovery_advisor`)**: Evaluates TSB (Form) vs ATL (Fatigue) and CTL (Fitness) after major endurance milestones.
+4. **VO₂max & FTP Progression (`ftp_breakthrough_and_power_zones_audit`)**: Analyzes 5-min MAP power trend lines, 95% 20-min FTP steps, and Coggan power training zones.
+5. **Race Readiness Assessment (`race_readiness_assessment`)**: Evaluates athlete form, peak power skills, and acute:chronic training workload prior to target events.
+6. **Training Stress & Overreaching Check (`training_stress_and_overreaching_check`)**: Audits ACWR ratios, CTL ramp rates, and fatigue accumulation to prevent overtraining.
 
 ---
 
@@ -54,8 +55,12 @@ Integrated prompt workflows in `src/kinetiqo/mcp/prompts.py` equip the AI with s
 
 1. **100% Self-Hosted & Scoped**: All telemetry queries execute against the local database, strictly isolated to the authenticated athlete (`athlete_id = current_user.id`).
 2. **Encrypted Provider Keys**: External API keys are encrypted at rest using **AES-256-GCM** with an envelope key derived via HKDF-SHA256. API keys are never rendered in HTML, logged, or sent to the browser.
-3. **Hard Read-Only Safety Gates**: Mutating actions (triggering Strava sync, updating Strava activity descriptions, altering athlete FTP/weight) are **strictly forbidden** from the chat tool allowlist. The AI cannot modify athlete records.
-4. **No Third-Party Analytics Trackers**: Responses stream directly from the chosen AI provider API over secure HTTPS/TLS to your private Kinetiqo server, then to your browser via Server-Sent Events (SSE).
+3. **Hard Read-Only Safety Gates in Web Chat**: Mutating actions (triggering Strava sync, updating Strava activity descriptions, altering athlete FTP/weight) are **strictly forbidden** from the web chat tool allowlist. The chat interface cannot modify athlete records.
+4. **Gated MCP Mutating Tools for External Agents**: When running the standalone FastMCP server (`kinetiqo mcp`) for external AI agents (Claude Desktop, Antigravity IDE, Cursor), mutating capabilities are explicitly gated behind environment variables:
+   - `KINETIQO_MCP_ALLOW_SYNC=1`: Enables `kinetiqo_trigger_sync` (supports fast sync and full sync with `limit_days` time limitation).
+   - `KINETIQO_MCP_ALLOW_STRAVA_WRITE=1`: Enables `kinetiqo_update_strava_description` (supports both template `preview_id` and custom AI prompt description strings).
+   - `KINETIQO_MCP_ALLOW_PROFILE_WRITE=1`: Enables `kinetiqo_update_athlete_profile` (FTP and weight adjustments).
+5. **No Third-Party Analytics Trackers**: Responses stream directly from the chosen AI provider API over secure HTTPS/TLS to your private Kinetiqo server, then to your browser via Server-Sent Events (SSE).
 
 ---
 
@@ -102,10 +107,10 @@ Kinetiqo Flask Application Server
 
 ### 4.4 Kilo AI Gateway (kilo.ai)
 - High-efficiency, zero-markup AI model gateway and aggregator (`https://api.kilo.ai/api/gateway`) from the creators of Kilo Code, providing unified OpenAI-compatible routing across 400+ models.
-- **Free Auto-Routing Tier (`kilo/kilo-auto/free`)**: Dynamically routes training queries to the optimal healthy free-tier model on the fly, with up to 262k context, tool calling, and multimodal vision support at zero cost without credit card requirements.
+- **Free Auto-Routing Tier (`kilo-auto/free`)**: Dynamically routes training queries to the optimal healthy free-tier model on the fly, with up to 262k context, tool calling, and multimodal vision support at zero cost without credit card requirements.
 - **Zero-Markup & Bring-Your-Own-Key (BYOK)**: Connects to underlying providers at provider list rates or zero markup for Kilo Pass / Gateway users.
-- **Curated Model Registry**: Register any model identifier available on Kilo Gateway (e.g. `kilo/kilo-auto/free`, `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-r1`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-coder-32b-instruct`, `anthropic/claude-3.5-haiku`, `openai/gpt-4o-mini`).
-- **Live Validation & Suggestions**: Validates models via Kilo's model registry (`GET /api/gateway/models/{id}` and `/models`), automatically discovering context window size, tool-calling capabilities, vision support, pricing, and rate limits. Suggests canonical slugs when prefixes are omitted (e.g. `kilo-auto/free` → `kilo/kilo-auto/free`).
+- **Curated Model Registry**: Register any model identifier available on Kilo Gateway (e.g. `kilo-auto/free`, `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-r1`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-coder-32b-instruct`, `anthropic/claude-3.5-haiku`, `openai/gpt-4o-mini`).
+- **Live Validation & Suggestions**: Validates models via Kilo's model registry (`GET /api/gateway/models/{id}` and `/models`), automatically discovering context window size, tool-calling capabilities, vision support, pricing, and rate limits. Suggests canonical slugs when prefixes are omitted (e.g. `llama-3.3-70b-instruct` → `meta-llama/llama-3.3-70b-instruct`).
 - **Multi-Turn Tool Execution**: Fully supports Kinetiqo's in-process FastMCP tool calling across endurance telemetry, MMP power curves, and fitness metrics.
 
 ### 4.5 Ollama (Local Hardware AI)
@@ -123,6 +128,21 @@ Kinetiqo Flask Application Server
 ### 4.7 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
 - If a quota or rate limit is reached on OpenRouter, Vercel, or Kilo, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
+
+### 4.8 Default Model & Multi-Model Automated Fallbacks
+- **Default Model Designation (`★`)**:
+  - Click the star icon in any provider's model table under **Settings → AI & API Providers** to designate your preferred default model.
+  - New chat sessions automatically select this model. The active default model is highlighted with a gold star badge in the AI Settings header and on the right side of the `/chat` model dropdown.
+- **Up to 3 Automated Fallback Models (Diamond Badges `1`, `2`, `3`)**:
+  - Click the diamond icon (rotated 45° square) next to any model to designate it as a fallback.
+  - Up to **3 fallback models** can be selected across any configured provider (e.g. Fallback 1: `kilo-auto/free`, Fallback 2: `google/gemma-4-26b-a4b-it:free`, Fallback 3: `gemini-3.1-flash-lite`).
+  - **Click-Order Priority**: The fallback order strictly follows the chronological order in which you click them (1st clicked = Fallback 1, 2nd clicked = Fallback 2, 3rd clicked = Fallback 3).
+  - **Visual Badges**: Active fallbacks display an orange diamond badge containing their rank (`1`, `2`, `3`) in the model table, in the AI Settings header badge row, and on the right side of the `/chat` model dropdown.
+  - **Mutual Exclusivity & Bounds**: A default model cannot simultaneously be a fallback. Marking a fallback model as default automatically clears it from the fallback list. Attempting to add a 4th fallback is gracefully prevented with a notification.
+  - **Informational Help Popover (`(?)`)**: An info button in the AI Settings header provides on-demand guidance regarding fallback mechanics and how to adjust them.
+- **Seamless Streaming Failover**:
+  - When submitting a prompt in `/chat`, if the primary model fails before producing output deltas (e.g. HTTP 429 quota exhaustion, provider downtime, or temporary network failure), Kinetiqo automatically and transparently attempts Fallback 1, then Fallback 2, and then Fallback 3.
+  - The assistant message and session automatically adopt the provider and model that answered, ensuring uninterrupted coaching insights without manual model re-selection.
 
 ---
 
@@ -187,7 +207,7 @@ Kinetiqo Flask Application Server
    - **For Gemini**: Paste your API key; models are automatically discovered.
    - **For OpenRouter**: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
    - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
-   - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai)), then use the nested models table to add your preferred models (e.g. `kilo/kilo-auto/free`) with real-time validation.
+   - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai)), then use the nested models table to add your preferred models (e.g. `kilo-auto/free`) with real-time validation.
    - **For Ollama**: Enter your Ollama server URL (e.g. `http://localhost:11434` or `http://192.168.1.150:11434`). Test the connection to auto-discover all pulled models. An API key is optional.
 4. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
 
@@ -197,7 +217,7 @@ Kinetiqo Flask Application Server
 
 ### 7.1 Best Free Models on Kilo AI Gateway (`kilo.ai`)
 Kilo AI Gateway provides zero-markup developer access and actively maintained free routing tiers:
-1. **`kilo/kilo-auto/free` (Recommended Default)**:
+1. **`kilo-auto/free` (Recommended Default)**:
    - **Context Window**: 262,144 tokens (256K).
    - **Capabilities**: Full function calling (tools) and multimodal image support.
    - **Cost**: 100% Free ($0 / $0 token pricing), no paid credits or credit card required.

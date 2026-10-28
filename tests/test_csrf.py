@@ -47,7 +47,7 @@ class TestCSRFMeta(unittest.TestCase):
         self.assertIn('action="/logout"', data)
         self.assertIn('name="csrf_token"', data)
         self.assertIn('id="columnSelectModal"', data)
-        self.assertIn('background-color: rgba(0, 0, 0, 0.3);', data)
+        self.assertIn('background-color: rgba(0, 0, 0, 0.65);', data)
         self.assertNotIn('bg-opacity-30', data)
         self.assertIn('id="selectAllOnAllPagesBtn"', data)
         self.assertIn('id="clearSelectionBtn"', data)

@@ -48,7 +48,7 @@
                 if (parsed && parsed.type && parsed.data) {
                     return raw;
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
 
         // Automatic fallback: If model emits ```radar, ```spider, or Mermaid radar syntax
@@ -57,7 +57,7 @@
                 try {
                     const parsed = JSON.parse(raw);
                     if (parsed && parsed.type) return raw;
-                } catch (_) {}
+                } catch (_) { }
             }
             const lines = raw.split(/\r?\n/);
             let title = '';
@@ -282,6 +282,7 @@
     const modelNamesMap = new Map();
     let defaultModelId = '';
     let defaultModelProvider = '';
+    let fallbackModelsList = [];
     let modelCatalog = [];
 
     const getProviderIconPath = (provider) => {
@@ -852,7 +853,7 @@
 
     try {
         localStorage.removeItem('kinetiqo_chat_prompt_history');
-    } catch (_) {}
+    } catch (_) { }
 
     const suggestionPrompts = (() => {
         try {
@@ -932,6 +933,21 @@
         return (provider || '') === defaultModelProvider;
     };
 
+    const getFallbackIndex = (modelId, provider) => {
+        if (!fallbackModelsList || !fallbackModelsList.length || !modelId) return 0;
+        const idx = fallbackModelsList.findIndex((item) => {
+            return item.model_id === modelId && (!item.provider || !provider || item.provider === provider);
+        });
+        return idx >= 0 ? idx + 1 : 0;
+    };
+
+    const renderFallbackBadgeSvg = (num) => {
+        return `<svg class="w-3.5 h-3.5 inline-block text-orange-500 flex-shrink-0" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="1" width="9" height="9" rx="1.5" transform="rotate(45 8 1)" fill="currentColor" stroke="#ea580c" stroke-width="0.5" />
+            <text x="8" y="10.2" text-anchor="middle" font-size="7.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" fill="white">${num}</text>
+        </svg>`;
+    };
+
     const getModelMenuItems = () => {
         if (!modelMenu) return [];
         return Array.from(modelMenu.querySelectorAll('.chat-model-item'));
@@ -1004,6 +1020,17 @@
         if (modelSelectedLabel) {
             modelSelectedLabel.textContent = selectedLabel;
         }
+        const triggerIcon = document.getElementById('chat-model-trigger-icon');
+        if (triggerIcon) {
+            const iconPath = getProviderIconPath(selectedProvider);
+            if (iconPath) {
+                triggerIcon.src = iconPath;
+                triggerIcon.dataset.provider = selectedProvider;
+                triggerIcon.style.display = 'inline-block';
+            } else {
+                triggerIcon.style.display = 'none';
+            }
+        }
         if (modelDefaultIndicator) {
             modelDefaultIndicator.classList.toggle('visible', isDefaultModel(model.value, selectedProvider));
         }
@@ -1015,7 +1042,22 @@
                 const starEl = itemEl.querySelector('.chat-model-item-default-star');
                 if (starEl) {
                     const itemProvider = itemEl.dataset.provider || '';
-                    starEl.classList.toggle('visible', isDefaultModel(itemEl.dataset.modelId || '', itemProvider));
+                    const itemId = itemEl.dataset.modelId || '';
+                    const isDef = isDefaultModel(itemId, itemProvider);
+                    const fbIdx = getFallbackIndex(itemId, itemProvider);
+                    if (isDef) {
+                        starEl.textContent = '★';
+                        starEl.classList.add('visible');
+                        starEl.title = 'Default model';
+                    } else if (fbIdx > 0) {
+                        starEl.innerHTML = renderFallbackBadgeSvg(fbIdx);
+                        starEl.classList.add('visible');
+                        starEl.title = `Fallback model #${fbIdx}`;
+                    } else {
+                        starEl.textContent = '★';
+                        starEl.classList.remove('visible');
+                        starEl.title = '';
+                    }
                 }
             });
         }
@@ -1080,10 +1122,20 @@
                 textEl.textContent = item.name;
                 mainWrap.appendChild(textEl);
 
+                const isDef = isDefaultModel(item.id, item.provider);
+                const fbIdx = getFallbackIndex(item.id, item.provider);
                 const starEl = document.createElement('span');
-                starEl.className = 'chat-model-item-default-star';
+                starEl.className = 'chat-model-item-default-star' + (isDef || fbIdx > 0 ? ' visible' : '');
                 starEl.setAttribute('aria-hidden', 'true');
-                starEl.textContent = '★';
+                if (isDef) {
+                    starEl.textContent = '★';
+                    starEl.title = 'Default model';
+                } else if (fbIdx > 0) {
+                    starEl.innerHTML = renderFallbackBadgeSvg(fbIdx);
+                    starEl.title = `Fallback model #${fbIdx}`;
+                } else {
+                    starEl.textContent = '★';
+                }
 
                 btn.appendChild(mainWrap);
                 btn.appendChild(starEl);
@@ -1116,6 +1168,7 @@
         const payload = await request('/api/chat/models?provider=all');
         const groups = Array.isArray(payload.providers) ? payload.providers : [];
         const serverDefault = payload.default_model || null;
+        fallbackModelsList = Array.isArray(payload.fallback_models) ? payload.fallback_models : [];
         const flatModels = [];
         modelNamesMap.clear();
         modelCatalog = [];
@@ -1301,6 +1354,7 @@
                         resetChatHistory();
                         empty.classList.remove('hidden');
                         status.classList.add('hidden');
+                        startAllSlotRotations();
                     }
                     await loadSessions();
                 } catch (err) {
@@ -1351,6 +1405,7 @@
         resetChatHistory();
         empty.classList.remove('hidden');
         status.classList.add('hidden');
+        startAllSlotRotations();
         loadSessions();
     });
 
@@ -1368,6 +1423,7 @@
                 resetChatHistory();
                 empty.classList.remove('hidden');
                 status.classList.add('hidden');
+                startAllSlotRotations();
                 await loadSessions();
             } catch (err) {
                 setStatus(err.message, true);
@@ -1375,10 +1431,201 @@
         });
     }
 
-    document.querySelectorAll('.chat-suggestion').forEach((button) => button.addEventListener('click', () => {
-        input.value = button.textContent.trim().replace(/^[^\w]+/, '');
-        input.focus();
-    }));
+    // Curated Eye-Catching Prompt Suggestions & Per-Chip 10-18s Random Rotation
+    const CURATED_PROMPTS = [
+        { icon: '⚡', text: 'How fresh am I right now (CTL / ATL / TSB)?' },
+        { icon: '📊', text: 'Summarize my last 4 weeks of training' },
+        { icon: '🏆', text: 'What are my benchmark power records?' },
+        { icon: '📈', text: "Compare this month's distance to last year" },
+        { icon: '🚴', text: 'Show my FTP history and 5-min MAP progression' },
+        { icon: '🩺', text: 'What are my power & heart rate training zones?' },
+        { icon: '⛰️', text: 'Show my steepest climb & highest elevation ride' },
+        { icon: '⏱️', text: 'Evaluate pacing & aerobic decoupling on my longest ride' },
+        { icon: '🔥', text: 'Analyze workout intervals of my latest activity' },
+        { icon: '🎯', text: 'Check my weekly & monthly training goals progress' },
+        { icon: '🛡️', text: 'Should I push hard or schedule a recovery deload week?' },
+        { icon: '🌟', text: 'Review my Gran Fondo endurance milestones' },
+        { icon: '⚡', text: 'Compare indoor workouts vs outdoor rides in power' },
+        { icon: '📈', text: 'Calculate my season Mean Maximal Power (MMP) curve' },
+        { icon: '🏆', text: 'When did I do VO2max training this season?' },
+        { icon: '🚴', text: 'Show my highest power ride & best sustained block' },
+        { icon: '🩺', text: 'Analyze my recovery after major endurance rides' },
+        { icon: '📊', text: 'What is my Acute to Chronic Workload Ratio (ACWR)?' },
+        { icon: '⛰️', text: 'Show my climbing VAM and hill climb power' },
+        { icon: '🔥', text: 'Structured post-session debrief of my latest activity' }
+    ];
+
+    const NUM_SUGGESTION_SLOTS = 5;
+    const suggestionsGrid = document.getElementById('chat-suggestions-grid');
+    const activePromptIndices = [0, 1, 2, 3, 4];
+    const slotTimers = [null, null, null, null, null];
+    let isHoveringSuggestions = false;
+
+    function getRandomSlotDelayMs() {
+        // Random interval between 10s (10000ms) and 18s (18000ms) for EACH chip
+        return Math.floor(Math.random() * (18000 - 10000 + 1)) + 10000;
+    }
+
+    function clearAllSlotTimers() {
+        for (let i = 0; i < slotTimers.length; i++) {
+            if (slotTimers[i]) {
+                clearTimeout(slotTimers[i]);
+                slotTimers[i] = null;
+            }
+        }
+    }
+
+    function scheduleSlotRotation(slotIndex, delayMs = null) {
+        if (slotTimers[slotIndex]) {
+            clearTimeout(slotTimers[slotIndex]);
+            slotTimers[slotIndex] = null;
+        }
+
+        const delay = delayMs !== null ? delayMs : getRandomSlotDelayMs();
+        slotTimers[slotIndex] = setTimeout(() => {
+            rotateSingleSuggestionSlot(slotIndex);
+        }, delay);
+    }
+
+    function rotateSingleSuggestionSlot(slotIndex) {
+        if (!empty || empty.classList.contains('hidden') || isHoveringSuggestions) {
+            // Check again in 2 seconds if hidden or hovering
+            scheduleSlotRotation(slotIndex, 2000);
+            return;
+        }
+
+        if (!suggestionsGrid || !suggestionsGrid.children[slotIndex]) {
+            scheduleSlotRotation(slotIndex);
+            return;
+        }
+
+        // Pick a random unshown prompt from the pool of 20
+        const allIndices = CURATED_PROMPTS.map((_, idx) => idx);
+        const unshownIndices = allIndices.filter((idx) => !activePromptIndices.includes(idx));
+        const candidatePool = unshownIndices.length > 0
+            ? unshownIndices
+            : allIndices.filter((idx) => idx !== activePromptIndices[slotIndex]);
+
+        const nextIndex = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+        activePromptIndices[slotIndex] = nextIndex;
+        const newPrompt = CURATED_PROMPTS[nextIndex];
+
+        const chipBtn = suggestionsGrid.children[slotIndex];
+        chipBtn.classList.add('swapping');
+
+        setTimeout(() => {
+            chipBtn.setAttribute('title', newPrompt.text);
+            const iconEl = chipBtn.querySelector('.chat-suggestion-icon');
+            if (iconEl) iconEl.textContent = newPrompt.icon;
+            const labelEl = chipBtn.querySelector('.chat-suggestion-label');
+            if (labelEl) labelEl.textContent = newPrompt.text;
+
+            chipBtn.onclick = () => {
+                input.value = newPrompt.text;
+                input.focus();
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+
+            requestAnimationFrame(() => {
+                chipBtn.classList.remove('swapping');
+                // Schedule this chip's next rotation after another random 10-18s
+                scheduleSlotRotation(slotIndex);
+            });
+        }, 350);
+    }
+
+    function bindSuggestionChipClicks() {
+        if (!suggestionsGrid) return;
+        Array.from(suggestionsGrid.children).forEach((btn) => {
+            btn.onclick = () => {
+                const label = btn.querySelector('.chat-suggestion-label');
+                const promptText = label ? label.textContent.trim() : btn.textContent.trim().replace(/^[^\w]+/, '');
+                input.value = promptText;
+                input.focus();
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+        });
+    }
+
+    function startAllSlotRotations() {
+        clearAllSlotTimers();
+        // Stagger the initial rotations between 10s and 18s with random offsets so they don't swap together
+        for (let i = 0; i < NUM_SUGGESTION_SLOTS; i++) {
+            const staggerDelay = 10000 + (i * 1500) + Math.floor(Math.random() * 2000);
+            scheduleSlotRotation(i, staggerDelay);
+        }
+    }
+
+    function initPromptSuggestions() {
+        if (!suggestionsGrid) return;
+
+        suggestionsGrid.addEventListener('mouseenter', () => { isHoveringSuggestions = true; });
+        suggestionsGrid.addEventListener('mouseleave', () => { isHoveringSuggestions = false; });
+
+        bindSuggestionChipClicks();
+        startAllSlotRotations();
+    }
+
+    initPromptSuggestions();
+
+    // AI Disclaimer Modal
+    function initDisclaimerModal() {
+        const modal = document.getElementById('ai-disclaimer-modal');
+        const body = document.getElementById('ai-disclaimer-body');
+        const openBtn = document.getElementById('open-disclaimer-btn');
+        const closeXBtn = document.getElementById('close-disclaimer-x-btn');
+        const ackBtn = document.getElementById('disclaimer-acknowledge-btn');
+        const rawScript = document.getElementById('ai-disclaimer-raw');
+
+        if (!modal) return;
+
+        let isRendered = false;
+
+        const openModal = async () => {
+            if (!isRendered) {
+                let md = (rawScript?.textContent || '').trim();
+                if (!md) {
+                    try {
+                        const res = await request('/api/chat/disclaimer');
+                        md = (res?.disclaimer || '').trim();
+                    } catch (_) {}
+                }
+                if (md && typeof marked !== 'undefined') {
+                    body.innerHTML = marked.parse(md);
+                } else if (md) {
+                    body.textContent = md;
+                } else {
+                    body.innerHTML = '<p class="text-gray-500">Kinetiqo AI training advice is informational.</p>';
+                }
+                isRendered = true;
+            }
+            modal.classList.add('modal-open');
+            ackBtn?.focus();
+        };
+
+        const closeModal = () => {
+            modal.classList.remove('modal-open');
+            openBtn?.focus();
+        };
+
+        if (openBtn) openBtn.addEventListener('click', openModal);
+        if (closeXBtn) closeXBtn.addEventListener('click', closeModal);
+        if (ackBtn) ackBtn.addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('modal-open')) {
+                closeModal();
+            }
+        });
+    }
+
+    initDisclaimerModal();
 
     const isCursorOnFirstLine = (textarea) => {
         const selStart = textarea.selectionStart;

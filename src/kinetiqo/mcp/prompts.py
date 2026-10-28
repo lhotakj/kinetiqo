@@ -13,16 +13,36 @@ def register_mcp_prompts(mcp_server: Any) -> None:
         return (
             f"You are the Kinetiqo Athlete Assistant. Conduct a structured post-session debrief for {act_clause}:\n\n"
             "Workflow Instructions:\n"
-            "1. Fetch activity details using `kinetiqo_get_activity_details` and check sensor telemetry coverage using `kinetiqo_get_data_coverage`.\n"
-            "2. If power telemetry is available, analyze the session structure using `kinetiqo_analyze_workout_structure` (NP, IF, TSS, sustained blocks, and sprint surges).\n"
-            "3. If multiple splits or pace analysis is needed, run `kinetiqo_analyze_pacing` to inspect pacing deltas and aerobic decoupling.\n"
-            "4. Fetch recent fitness and training fatigue trends via `kinetiqo_get_fitness_and_freshness`.\n"
-            "5. Synthesize a concise, clear report for the athlete:\n"
+            "1. If the latest activity has not yet been synchronized into Kinetiqo, initiate a fast sync using `kinetiqo_trigger_sync(sync_type='fast', limit_days=7)` and check status with `kinetiqo_get_sync_job_status`.\n"
+            "2. Fetch activity details using `kinetiqo_get_activity_details` and check sensor telemetry coverage using `kinetiqo_get_data_coverage`.\n"
+            "3. If power telemetry is available, analyze the session structure using `kinetiqo_analyze_workout_structure` (NP, IF, TSS, sustained blocks, and sprint surges).\n"
+            "4. If multiple splits or pace analysis is needed, run `kinetiqo_analyze_pacing` to inspect pacing deltas and aerobic decoupling.\n"
+            "5. Fetch recent fitness and training fatigue trends via `kinetiqo_get_fitness_and_freshness`.\n"
+            "6. Synthesize a concise, clear report for the athlete:\n"
             "   - Disclose measured values only (distance, elevation, moving time, average/max power, HR).\n"
             "   - State clearly which sensors were absent or had gaps; never hallucinate missing wattage or cadence.\n"
             "   - Highlight notable achievements (peak surges, sustained power blocks, PRs or KOMs).\n"
             "   - Review training fatigue (TSB Form) with actionable recovery guidance.\n"
-            "   - Offer to generate a commemorative poster (`kinetiqo_generate_activity_poster`) or preview description updates."
+            "   - Offer to generate a commemorative poster (`kinetiqo_generate_activity_poster`) or update the Strava description with workout telemetry via `kinetiqo_update_strava_description(activity_id=..., custom_description=...)`."
+        )
+
+    @mcp_server.prompt("sync_and_update_strava")
+    def sync_and_update_strava(sync_type: str = "fast", limit_days: int = 0, activity_id: str = "") -> str:
+        """Initiate fast or full sync with time limitation and update Strava activity description with workout telemetry."""
+        is_full = (sync_type or "").lower() == "full"
+        type_desc = f"full sync (limit_days={limit_days})" if is_full else f"fast sync (limit_days={limit_days})"
+        act_clause = f"Activity #{activity_id}" if activity_id else "the newly synced activity"
+        return (
+            f"You are the Kinetiqo Operations & Coaching Specialist. Execute a synchronized telemetry workflow for {act_clause} via {type_desc}:\n\n"
+            "Workflow Instructions:\n"
+            f"1. Initiate synchronization via `kinetiqo_trigger_sync(sync_type='{sync_type}', limit_days={limit_days}{', full_sync_ack=True' if is_full else ''})`.\n"
+            "2. Monitor sync job status using `kinetiqo_get_sync_job_status(job_id=...)` until the sync completes.\n"
+            "3. Retrieve the synced activity details using `kinetiqo_search_activities(limit=1)` or `kinetiqo_get_activity_details(activity_id=...)`.\n"
+            "4. Inspect workout metrics and power zones using `kinetiqo_analyze_workout_structure(activity_id=...)`.\n"
+            "5. Formulate or preview an evidence-based Strava description:\n"
+            "   - Either call `kinetiqo_preview_strava_description(activity_id=...)` to generate the standard Kinetiqo template with power zones and surges,\n"
+            "   - Or compose a custom telemetry summary including measured distance, elevation, normalized power (NP), intensity factor (IF), peak power bursts, and achievements.\n"
+            "6. If KINETIQO_MCP_ALLOW_STRAVA_WRITE=1 is configured, update the activity description on Strava using `kinetiqo_update_strava_description(activity_id=..., custom_description=...)` (or pass `preview_id`). Confirm the publication to the athlete."
         )
 
     @mcp_server.prompt("race_readiness_assessment")

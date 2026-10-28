@@ -35,13 +35,13 @@ class TestKiloChatProvider(unittest.TestCase):
 
         # Explicit configured models
         cfg = [
-            {"id": "kilo/kilo-auto/free", "name": "Kilo Auto Free", "context_length": 262144},
+            {"id": "kilo-auto/free", "name": "Kilo Auto Free", "context_length": 262144},
             {"id": "meta-llama/llama-3.3-70b-instruct", "name": "Llama 3.3 70B", "context_length": 131072},
         ]
         provider = KiloChatProvider("key", configured_models=cfg)
         models = provider.list_models()
         self.assertEqual(len(models), 2)
-        self.assertEqual(models[0].id, "kilo/kilo-auto/free")
+        self.assertEqual(models[0].id, "kilo-auto/free")
         self.assertEqual(models[0].display_name, "Kilo Auto Free")
         self.assertEqual(models[1].id, "meta-llama/llama-3.3-70b-instruct")
 
@@ -77,7 +77,7 @@ class TestKiloChatProvider(unittest.TestCase):
         client = MagicMock()
         mock_resp = MagicMock(status_code=200, is_success=True)
         mock_resp.json.return_value = {
-            "id": "kilo/kilo-auto/free",
+            "id": "kilo-auto/free",
             "name": "Kilo Auto Free",
             "context_window": 262144,
             "tags": ["tool-use", "vision", "reasoning"],
@@ -94,8 +94,8 @@ class TestKiloChatProvider(unittest.TestCase):
         client.__enter__.return_value = client
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
 
-        result = provider.validate_model("kilo/kilo-auto/free")
-        self.assertEqual(result["id"], "kilo/kilo-auto/free")
+        result = provider.validate_model("kilo-auto/free")
+        self.assertEqual(result["id"], "kilo-auto/free")
         self.assertEqual(result["display_name"], "Kilo Auto Free")
         self.assertEqual(result["context_length"], 262144)
         self.assertTrue(result["supports_tools"])
@@ -142,9 +142,9 @@ class TestKiloChatProvider(unittest.TestCase):
         cat_resp.json.return_value = {
             "data": [
                 {
-                    "id": "kilo/kilo-auto/free",
-                    "name": "Kilo Auto Free",
-                    "context_window": 262144,
+                    "id": "meta-llama/llama-3.3-70b-instruct",
+                    "name": "Llama 3.3 70B",
+                    "context_window": 131072,
                 }
             ]
         }
@@ -153,10 +153,10 @@ class TestKiloChatProvider(unittest.TestCase):
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
 
         with self.assertRaises(LookupError) as ctx:
-            provider.validate_model("kilo-auto/free")
+            provider.validate_model("llama-3.3-70b-instruct")
 
-        self.assertIn("Did you mean 'kilo/kilo-auto/free'?", str(ctx.exception))
-        self.assertEqual(getattr(ctx.exception, "suggestion", None), "kilo/kilo-auto/free")
+        self.assertIn("Did you mean 'meta-llama/llama-3.3-70b-instruct'?", str(ctx.exception))
+        self.assertEqual(getattr(ctx.exception, "suggestion", None), "meta-llama/llama-3.3-70b-instruct")
 
     def test_validate_model_rejects_embedding_model(self):
         provider = KiloChatProvider("key")
@@ -199,7 +199,7 @@ class TestKiloChatProvider(unittest.TestCase):
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
 
         events = list(provider.stream(
-            model_id="kilo/kilo-auto/free",
+            model_id="kilo-auto/free",
             system_instruction="You are a coach.",
             history=[],
             prompt="Why is the sky blue?",
@@ -243,7 +243,7 @@ class TestKiloChatProvider(unittest.TestCase):
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
 
         events = list(provider.stream(
-            model_id="kilo/kilo-auto/free",
+            model_id="kilo-auto/free",
             system_instruction="Coach",
             history=[],
             prompt="What are my training goals?",
@@ -269,7 +269,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatProviderUnavailableError):
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
     def test_stream_timeout_raises_timeout(self):
         client = MagicMock()
@@ -278,7 +278,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatTimeoutError):
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
     def test_stream_403_forbidden_raises_auth_error_with_body_detail(self):
         err_payload = json.dumps({
@@ -296,7 +296,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatAuthenticationError) as ctx:
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
         self.assertIn("Invalid API key", str(ctx.exception))
         self.assertIn("HTTP 403", str(ctx.exception))
@@ -312,7 +312,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatRateLimitError) as ctx:
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
         self.assertIn("Credit balance exhausted", str(ctx.exception))
 
@@ -327,7 +327,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatRateLimitError) as ctx:
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
         self.assertIn("Concurrency limit reached", str(ctx.exception))
 
@@ -341,7 +341,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatProviderUnavailableError):
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
     def test_stream_400_bad_request_raises_response_error(self):
         err_payload = json.dumps({"error": {"message": "Invalid temperature parameter"}}).encode("utf-8")
@@ -354,7 +354,7 @@ class TestKiloChatProvider(unittest.TestCase):
 
         provider = KiloChatProvider("key", client_factory=lambda timeout=None: client)
         with self.assertRaises(ChatProviderResponseError) as ctx:
-            list(provider.stream("kilo/kilo-auto/free", "sys", [], "hi"))
+            list(provider.stream("kilo-auto/free", "sys", [], "hi"))
 
         self.assertIn("Invalid temperature parameter", str(ctx.exception))
 

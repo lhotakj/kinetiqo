@@ -140,11 +140,23 @@ class ChatRepository:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         tool_provenance: str | None = None,
+        provider: str | None = None,
+        model_id: str | None = None,
     ) -> None:
         p = self.placeholder
+        fields = ["content", "status", "error_code", "input_tokens", "output_tokens", "tool_provenance"]
+        values = [content, status, error_code, input_tokens, output_tokens, tool_provenance]
+        if provider is not None:
+            fields.append("provider")
+            values.append(provider)
+        if model_id is not None:
+            fields.append("model_id")
+            values.append(model_id)
+        set_clause = ", ".join(f"{f} = {p}" for f in fields)
+        values.extend([message_id, athlete_id])
         self._execute(
-            f"UPDATE chat_messages SET content = {p}, status = {p}, error_code = {p}, input_tokens = {p}, output_tokens = {p}, tool_provenance = {p} WHERE message_id = {p} AND athlete_id = {p}",
-            (content, status, error_code, input_tokens, output_tokens, tool_provenance, message_id, athlete_id),
+            f"UPDATE chat_messages SET {set_clause} WHERE message_id = {p} AND athlete_id = {p}",
+            tuple(values),
         )
 
     def list_messages(self, athlete_id: str, session_id: str, limit: int = 100) -> list[ChatMessage]:
@@ -312,6 +324,58 @@ class ChatRepository:
             return
         settings.pop("default_model", None)
         self.save_global_settings(athlete_id, settings)
+
+    def get_fallback_models(self, athlete_id: str) -> list[dict[str, str]]:
+        settings = self.get_global_settings(athlete_id)
+        items = settings.get("fallback_models")
+        if not isinstance(items, list):
+            return []
+        result: list[dict[str, str]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            provider = str(item.get("provider") or "").strip().lower()
+            model_id = str(item.get("model_id") or "").strip()
+            if provider and model_id and not any(x["provider"] == provider and x["model_id"] == model_id for x in result):
+                result.append({"provider": provider, "model_id": model_id})
+        return result[:3]
+
+    def set_fallback_models(self, athlete_id: str, models: list[dict[str, Any]]) -> list[dict[str, str]]:
+        if not isinstance(models, list):
+            raise ValueError("Fallback models must be a list.")
+        cleaned: list[dict[str, str]] = []
+        for item in models:
+            if not isinstance(item, dict):
+                continue
+            provider = str(item.get("provider") or "").strip().lower()
+            model_id = str(item.get("model_id") or "").strip()
+            if provider and model_id and not any(x["provider"] == provider and x["model_id"] == model_id for x in cleaned):
+                cleaned.append({"provider": provider, "model_id": model_id})
+        if len(cleaned) > 3:
+            raise ValueError("Maximum 3 fallback models allowed.")
+        settings = self.get_global_settings(athlete_id)
+        settings["fallback_models"] = cleaned
+        self.save_global_settings(athlete_id, settings)
+        return cleaned
+
+    def clear_fallback_model(self, athlete_id: str, provider: str | None = None, model_id: str | None = None) -> list[dict[str, str]]:
+        settings = self.get_global_settings(athlete_id)
+        items = settings.get("fallback_models")
+        if not isinstance(items, list):
+            return []
+        cleaned: list[dict[str, str]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            p = str(item.get("provider") or "").strip().lower()
+            m = str(item.get("model_id") or "").strip()
+            if provider and p == provider.strip().lower() and (not model_id or m.lower() == model_id.strip().lower()):
+                continue
+            if p and m and not any(x["provider"] == p and x["model_id"] == m for x in cleaned):
+                cleaned.append({"provider": p, "model_id": m})
+        settings["fallback_models"] = cleaned
+        self.save_global_settings(athlete_id, settings)
+        return cleaned
 
     @staticmethod
     def _session(row: tuple) -> ChatSession:

@@ -518,26 +518,38 @@ def create_mcp_server(
             return operations.kinetiqo_preview_strava_description(repo=r, config=config, activity_id=str(activity_id))
 
     if allow_sync:
-        @server.tool(name="kinetiqo_trigger_sync", description="Trigger background activity sync (requires KINETIQO_MCP_ALLOW_SYNC=1).")
-        def trigger_sync(sync_type: str = "fast", full_sync_ack: bool = False) -> Dict[str, Any]:
+        @server.tool(name="kinetiqo_trigger_sync", description="Trigger background activity sync (requires KINETIQO_MCP_ALLOW_SYNC=1). Supports fast sync (incremental) and full sync with optional time limitation (limit_days).")
+        def trigger_sync(
+            sync_type: str = "fast",
+            limit_days: int = 0,
+            update_strava: bool = True,
+            full_sync_ack: bool = False,
+        ) -> Dict[str, Any]:
             with get_repo() as r:
                 return operations.kinetiqo_trigger_sync(
                     repo=r,
                     config=config,
                     sync_type=sync_type,
+                    limit_days=limit_days,
+                    update_strava=update_strava,
                     full_sync_ack=full_sync_ack,
                     allow_sync=True,
                 )
 
     if allow_strava_write:
-        @server.tool(name="kinetiqo_update_strava_description", description="Publish approved description to Strava (requires KINETIQO_MCP_ALLOW_STRAVA_WRITE=1).")
-        def update_strava_description(activity_id: Union[str, int], preview_id: Union[str, int]) -> Dict[str, Any]:
+        @server.tool(name="kinetiqo_update_strava_description", description="Publish approved description to Strava (requires KINETIQO_MCP_ALLOW_STRAVA_WRITE=1). Accepts either a preview_id or a direct custom_description string.")
+        def update_strava_description(
+            activity_id: Union[str, int],
+            preview_id: Optional[Union[str, int]] = None,
+            custom_description: Optional[str] = None,
+        ) -> Dict[str, Any]:
             with get_repo() as r:
                 return operations.kinetiqo_update_strava_description(
                     repo=r,
                     config=config,
                     activity_id=str(activity_id),
-                    preview_id=str(preview_id),
+                    preview_id=str(preview_id) if preview_id is not None else None,
+                    custom_description=custom_description,
                     allow_write=True,
                 )
 

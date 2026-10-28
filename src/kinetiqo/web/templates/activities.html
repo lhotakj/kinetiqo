@@ -275,7 +275,7 @@
 
 <!-- Column selection modal -->
 <div id="columnSelectModal" class="fixed inset-0 flex items-center justify-center z-50 hidden"
-     style="background-color: rgba(0, 0, 0, 0.3);">
+     style="background-color: rgba(0, 0, 0, 0.65);">
     <div class="bg-white rounded-lg shadow-lg p-6 w-96 flex flex-col" style="max-height: 90vh;">
         <h3 class="text-lg font-semibold mb-4 flex-shrink-0">Select columns to display</h3>
         <form id="columnSelectForm" class="flex-1 overflow-y-auto min-h-0">
@@ -1850,6 +1850,16 @@ var table = null;
         // Add event listeners
         $('#selectColumnsBtn').on('click', showColumnSelectModal);
         $('#closeColumnSelectModal').on('click', hideColumnSelectModal);
+        $('#columnSelectModal').on('click', function (e) {
+            if (e.target === this) {
+                hideColumnSelectModal();
+            }
+        });
+        $(document).on('keydown', function (e) {
+            if (e.key === 'Escape' && !$('#columnSelectModal').hasClass('hidden')) {
+                hideColumnSelectModal();
+            }
+        });
         // Note: #saveColumnSelect and #resetViewBtn are bound above
     });
 

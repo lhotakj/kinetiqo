@@ -537,6 +537,135 @@ class TestMCPTools(unittest.TestCase):
         prof_denied = operations.kinetiqo_update_athlete_profile(self.mock_repo, weight_kg=72.0, allow_write=False)
         self.assertEqual(prof_denied["data_status"], "unavailable")
 
+    def test_trigger_sync_fast_and_full_with_limit_days(self):
+        # 1. Fast sync with time limitation
+        res_fast = operations.kinetiqo_trigger_sync(
+            self.mock_repo,
+            self.mock_config,
+            sync_type="fast",
+            limit_days=14,
+            update_strava=True,
+            allow_sync=True,
+        )
+        self.assertEqual(res_fast["data_status"], "complete")
+        job_id = res_fast["data"]["job_id"]
+        self.assertTrue(job_id.startswith("sync_"))
+        self.assertEqual(res_fast["data"]["sync_type"], "fast")
+        self.assertEqual(res_fast["data"]["limit_days"], 14)
+        self.assertTrue(res_fast["data"]["update_strava"])
+
+        # Check job status retrieval
+        status_res = operations.kinetiqo_get_sync_job_status(self.mock_repo, job_id=job_id)
+        self.assertEqual(status_res["data_status"], "complete")
+        self.assertEqual(status_res["data"]["requested_job_id"], job_id)
+        self.assertIn("job_status", status_res["data"])
+
+        # 2. Full sync without ack fails
+        res_full_no_ack = operations.kinetiqo_trigger_sync(
+            self.mock_repo,
+            self.mock_config,
+            sync_type="full",
+            full_sync_ack=False,
+            allow_sync=True,
+        )
+        self.assertEqual(res_full_no_ack["data_status"], "unavailable")
+        self.assertIn("full_sync_ack", res_full_no_ack["data"]["message"])
+
+        # 3. Full sync with ack and limit_days
+        res_full = operations.kinetiqo_trigger_sync(
+            self.mock_repo,
+            self.mock_config,
+            sync_type="full",
+            limit_days=30,
+            full_sync_ack=True,
+            allow_sync=True,
+        )
+        self.assertEqual(res_full["data_status"], "complete")
+        self.assertEqual(res_full["data"]["sync_type"], "full")
+        self.assertEqual(res_full["data"]["limit_days"], 30)
+
+        # 4. Negative limit_days rejected
+        res_neg = operations.kinetiqo_trigger_sync(
+            self.mock_repo,
+            self.mock_config,
+            limit_days=-5,
+            allow_sync=True,
+        )
+        self.assertEqual(res_neg["data_status"], "unavailable")
+        self.assertIn("negative", res_neg["data"]["message"])
+
+    def test_update_strava_description_with_custom_description(self):
+        # 1. Custom description directly passed (no preview_id required)
+        res_custom = operations.kinetiqo_update_strava_description(
+            self.mock_repo,
+            self.mock_config,
+            activity_id="20749829518",
+            custom_description="Awesome tempo ride with sustained 250W blocks! 🚴💨",
+            allow_write=True,
+        )
+        self.assertEqual(res_custom["data_status"], "complete")
+        self.assertTrue(res_custom["data"]["published"])
+        self.assertEqual(res_custom["data"]["activity_id"], "20749829518")
+        self.assertEqual(res_custom["data"]["description"], "Awesome tempo ride with sustained 250W blocks! 🚴💨")
+
+        # 2. Preview workflow followed by preview_id update
+        self.mock_repo.get_activities_by_ids.return_value = [{
+            "id": "20749829518",
+            "name": "Sunday Ride",
+            "sport_type": "Ride",
+            "description": "Original description",
+        }]
+        prev_res = operations.kinetiqo_preview_strava_description(self.mock_repo, self.mock_config, activity_id="20749829518")
+        self.assertEqual(prev_res["data_status"], "complete")
+        prev_id = prev_res["data"]["preview_id"]
+
+        res_from_prev = operations.kinetiqo_update_strava_description(
+            self.mock_repo,
+            self.mock_config,
+            activity_id="20749829518",
+            preview_id=prev_id,
+            allow_write=True,
+        )
+        self.assertEqual(res_from_prev["data_status"], "complete")
+        self.assertTrue(res_from_prev["data"]["published"])
+        self.assertEqual(res_from_prev["data"]["preview_id"], prev_id)
+
+        # 3. Missing both custom_description and valid preview_id fails
+        res_missing = operations.kinetiqo_update_strava_description(
+            self.mock_repo,
+            self.mock_config,
+            activity_id="20749829518",
+            preview_id="",
+            allow_write=True,
+        )
+        self.assertEqual(res_missing["data_status"], "unavailable")
+
+    @patch("kinetiqo.sync.SyncService")
+    def test_trigger_sync_executes_service_synchronously(self, mock_sync_service_cls):
+        mock_instance = MagicMock()
+        mock_instance.sync.return_value = ["Progress 1", "Progress 2"]
+        mock_sync_service_cls.return_value = mock_instance
+
+        res = operations.kinetiqo_trigger_sync(
+            self.mock_repo,
+            self.mock_config,
+            sync_type="fast",
+            limit_days=7,
+            update_strava=True,
+            allow_sync=True,
+            run_in_background=False,
+        )
+        self.assertEqual(res["data_status"], "complete")
+        mock_sync_service_cls.assert_called_once_with(self.mock_config)
+        mock_instance.sync.assert_called_once_with(
+            full_sync=False,
+            trigger="mcp",
+            user="mcp",
+            limit_days=7,
+            update_strava=True,
+        )
+        mock_instance.close.assert_called_once()
+
     def test_get_training_goals_db_schema(self):
         # DatabaseRepository returns rows with activity_type_id and goal columns
         self.mock_repo.get_goals.return_value = [

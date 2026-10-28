@@ -102,7 +102,7 @@ class TestMCPServer(unittest.TestCase):
 
         # Test prompts discovery
         prompts = asyncio.run(server.list_prompts())
-        self.assertEqual(len(prompts), 12)
+        self.assertEqual(len(prompts), 13)
         prompt_names = {p.name for p in prompts}
         self.assertEqual(
             prompt_names,
@@ -119,6 +119,7 @@ class TestMCPServer(unittest.TestCase):
                 "training_stress_and_overreaching_check",
                 "cadence_and_pedaling_efficiency_analysis",
                 "interval_session_quality_audit",
+                "sync_and_update_strava",
             },
         )
 

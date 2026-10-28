@@ -83,6 +83,58 @@ class TestSettingsApi(unittest.TestCase):
         for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
             self.assertEqual(content.count(f">{heading}</th>"), 5, heading)
 
+    def test_settings_page_contains_section_anchors(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/settings")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        for anchor_id in ('id="templates"', 'id="profile"', 'id="gps"', 'id="ai"', 'id="sync"'):
+            self.assertIn(anchor_id, content)
+
+    def test_chat_page_contains_ai_settings_link_and_suggestions(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        repo.list_recent_prompts.return_value = []
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/chat")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        self.assertIn('/settings#ai', content)
+        self.assertIn('AI Settings', content)
+        self.assertIn('id="chat-suggestions-grid"', content)
+        self.assertNotIn('chat-hero-icon', content)
+
+    def test_chat_page_and_api_contains_disclaimer_modal(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        repo.list_recent_prompts.return_value = []
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/chat")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        self.assertIn('id="open-disclaimer-btn"', content)
+        self.assertIn('id="ai-disclaimer-modal"', content)
+        self.assertIn('id="disclaimer-acknowledge-btn"', content)
+        self.assertIn('I acknowledge', content)
+        self.assertIn('background-color: rgba(0, 0, 0, 0.65);', content)
+        self.assertIn('w-[80vw]', content)
+        self.assertIn('h-[80vh]', content)
+        self.assertIn('chat-disclaimer-modal-body', content)
+        self.assertIn('Training advice is informational.', content)
+
+        # Test GET /api/chat/disclaimer endpoint
+        api_response = self.client.get("/api/chat/disclaimer")
+        self.assertEqual(api_response.status_code, 200)
+        api_data = api_response.get_json()
+        self.assertIn('disclaimer', api_data)
+        self.assertIn('Kinetiqo AI Disclaimer', api_data['disclaimer'])
+
+
 
 class TestDatabaseEnvConfig(unittest.TestCase):
     """Unit tests for database environment variable fallback."""

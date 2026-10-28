@@ -500,6 +500,31 @@ Normalize provider failures into application errors (`src/kinetiqo/chat/errors.p
 
 Each error carries a stable `error_code` string persisted on failed messages and a safe, localized, user-facing message. Return safe, actionable messages to the browser. Log technical details without secrets, raw attachment contents, or full prompts. Never return provider stack traces or raw upstream error bodies.
 
+### 6.4 Default Model and Multi-Model Fallback Cascading
+
+Kinetiqo enables athletes to designate a primary **Default Model** as well as up to **3 Fallback Models** across configured providers:
+
+1. **Default Model**:
+   - Marked with a gold star (`★`) in the model table and in the `/chat` model dropdown.
+   - When launching a new chat session, the system automatically defaults to this model.
+   - Persisted in global athlete settings (`chat_provider_keys` with provider `__global__` and setting key `default_model`).
+
+2. **Fallback Sequence (Up to 3 Models)**:
+   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Ollama).
+   - Displayed in the UI with a 45° rotated square diamond badge containing the sequence number (`1`, `2`, or `3`).
+   - The priority/order of fallback execution is strictly determined by the chronological order in which the athlete clicks them:
+     - **Fallback 1**: First alternate attempted.
+     - **Fallback 2**: Second alternate attempted if Fallback 1 fails.
+     - **Fallback 3**: Third alternate attempted if Fallback 2 fails.
+   - Both client UI and server endpoint enforce a maximum limit of 3 fallback models (`HTTP 422 Unprocessable Entity` if exceeded).
+   - **Mutual Exclusion**: A model cannot be both default and a fallback. If a model designated as fallback is selected as the default model, it is automatically removed from the fallback list.
+   - **Help Popover (`(?)`)**: An informational popover in the AI Settings header clearly explains the fallback sequence and how order is assigned.
+
+3. **Seamless Streaming Failover Invariant**:
+   - When a user sends a prompt on `/chat`, if the active model encounters a failure *before* any text deltas have been streamed to the client (e.g. HTTP 429 quota exhaustion, upstream 5xx outage, or authentication error), the backend automatically and transparently catches the failure and cascades through Fallback 1 -> Fallback 2 -> Fallback 3.
+   - The stream switches provider/model contexts transparently, and the final `completed` event updates the session and message records with the working provider and model ID.
+   - If a failure occurs *after* partial text deltas have already been delivered, failover is intentionally prevented to avoid corrupting the output stream with stitched partial answers.
+
 ---
 
 ## 7. Gemini provider implementation
@@ -654,7 +679,7 @@ To support per-provider custom configurations (such as OpenRouter's enabled mode
     <option value="vercel:meta/llama-3.3-70b">Llama 3.3 70B</option>
   </optgroup>
   <optgroup label="Kilo AI Gateway">
-    <option value="kilo:kilo/kilo-auto/free">Kilo Auto Free Tier</option>
+    <option value="kilo:kilo-auto/free">Kilo Auto Free Tier</option>
     <option value="kilo:meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B</option>
   </optgroup>
   ```
@@ -692,14 +717,14 @@ Kilo AI Gateway (`https://api.kilo.ai/api/gateway`) is an OpenAI-compatible gate
    - Headers: `Content-Type: application/json`, `User-Agent: Kinetiqo-Fitness-AI`, `HTTP-Referer: https://github.com/lhotakj/kinetiqo`, `X-Title: Kinetiqo`.
    - Streaming: SSE (`stream: true`), parsing standard OpenAI chunk deltas with multi-turn FastMCP tool calling.
 2. **Free Auto-Routing Tier & Model Selection**:
-   - `kilo/kilo-auto/free`: Smart auto-routing tier that routes requests dynamically to healthy, high-performing free open-weight models with up to 262k context, tool calling, and multimodal vision support at zero cost.
+   - `kilo-auto/free`: Smart auto-routing tier that routes requests dynamically to healthy, high-performing free open-weight models with up to 262k context, tool calling, and multimodal vision support at zero cost.
    - Popular high-performance models: `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-r1`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-coder-32b-instruct`, `anthropic/claude-3.5-haiku`, `openai/gpt-4o-mini`.
 3. **Live Model Validation & Catalog Lookup**:
    - Direct lookup: `GET https://api.kilo.ai/api/gateway/models/{model_id}`.
    - Catalog fallback & suggestions: `GET https://api.kilo.ai/api/gateway/models`.
    - Extracts context length (up to 1M+ tokens), tool-calling support, vision capabilities, pricing per 1M tokens, description, and request limits.
    - Rejects non-generative embedding models (`type == "embedding"` or `"embed"` in model ID).
-   - Suggests canonical provider slugs if prefix was omitted (e.g., entering `kilo-auto/free` yields suggestion `kilo/kilo-auto/free`).
+   - Suggests canonical provider slugs if prefix was omitted (e.g., entering `llama-3.3-70b-instruct` yields suggestion `meta-llama/llama-3.3-70b-instruct`).
 4. **Web API Endpoints**:
    - `GET /api/settings/ai/kilo`: Returns configured status and list of enabled models.
    - `POST /api/settings/ai/kilo`: Encrypts and saves API key.
@@ -770,7 +795,7 @@ Build the tool catalog dynamically from registered FastMCP tool definitions and 
 - `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.
 - Activity filtering strictly enforces `CYCLING_SPORT_TYPES = ["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]` for cycling power analysis.
 
-Explicitly excluded (never exposed to chat, regardless of `KINETIQO_MCP_ALLOW_*` flags):
+Explicitly excluded from chat (never exposed to in-browser chat, regardless of `KINETIQO_MCP_ALLOW_*` flags):
 
 - `kinetiqo_trigger_sync`
 - `kinetiqo_update_athlete_profile`, `kinetiqo_update_training_goals`
@@ -779,7 +804,29 @@ Explicitly excluded (never exposed to chat, regardless of `KINETIQO_MCP_ALLOW_*`
 
 MCP mutation flags are not a substitute for a chat-specific allowlist. The chat tool registry must exclude mutating tools regardless of global configuration. The allowlist is enforced in `src/kinetiqo/chat/tools.py` (`MUTATING_TOOL_NAMES`) with test coverage.
 
-### 10.3 Tool-call execution rules
+### 10.3 FastMCP External Server & Mutating Operations (`kinetiqo mcp`)
+
+For external AI assistants connecting via the FastMCP server (`kinetiqo mcp` via STDIO or FastMCP SSE), mutating operations are conditionally registered when explicit environment flags are set:
+
+1. **`kinetiqo_trigger_sync`** (`KINETIQO_MCP_ALLOW_SYNC=1`):
+   - Parameters: `sync_type: str = "fast"` ("fast" or "full"), `limit_days: int = 0` (lookback time limitation window in days, 0 for unbounded), `update_strava: bool = True`, `full_sync_ack: bool = False`.
+   - Full sync reconciliation strictly enforces explicit confirmation via `full_sync_ack=True`.
+   - Both fast and full syncs respect `limit_days` time limitations.
+   - Spawns background worker execution with job tracking (`kinetiqo_get_sync_job_status`).
+2. **`kinetiqo_update_strava_description`** (`KINETIQO_MCP_ALLOW_STRAVA_WRITE=1`):
+   - Parameters: `activity_id: Union[str, int]`, `preview_id: Optional[Union[str, int]] = None`, `custom_description: Optional[str] = None`.
+   - Allows updating Strava activity descriptions using either a pre-rendered template preview (`preview_id`) or an evidence-based custom description text formulated directly as part of an AI prompt or debrief.
+3. **`kinetiqo_update_athlete_profile`** (`KINETIQO_MCP_ALLOW_PROFILE_WRITE=1`):
+   - Parameters: `weight_kg: Optional[float] = None`, `ftp_watts: Optional[float] = None` (with strict physiological validation bounds).
+
+### 10.4 Pre-Packaged MCP Coaching & Operations Prompts
+
+Kinetiqo registers 13 specialized prompt workflows in `src/kinetiqo/mcp/prompts.py`:
+- `sync_and_update_strava`: Initiates fast or full sync with time limitation (`limit_days`), checks sync job status, inspects workout telemetry, formulates a summary, and updates the Strava description.
+- `post_ride_debrief`: Evidence-based post-activity debrief with sensor coverage verification, sustained power blocks, sprint surges, and Strava description updates.
+- Analytical prompts: `race_readiness_assessment`, `poster_creative_director`, `weekly_training_review`, `endurance_recovery_advisor`, `season_power_audit`, `training_habit_and_volume_profile`, `aerobic_decoupling_and_efficiency`, `ftp_breakthrough_and_power_zones_audit`, `training_stress_and_overreaching_check`, `cadence_and_pedaling_efficiency_analysis`, `interval_session_quality_audit`.
+
+### 10.5 Tool-call execution rules
 
 - Validate tool name and arguments against server-owned schemas (reuse MCP tool input schemas).
 - Coerce numeric activity IDs and collection arguments defensively (`normalize_tool_call_arguments`, `normalize_mcp_arguments`), supporting both string and integer formats for activity identifiers across all AI models and MCP clients.
@@ -875,6 +922,8 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | POST | `/api/settings/ai/kilo/models/validate` | Validate a Kilo AI Gateway model identifier via `GET /api/gateway/models/...` before adding. |
 | POST/DELETE | `/api/settings/ai/kilo/models` | Add (`+`) or remove (`–`) models from athlete's Kilo configuration. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
+| GET/POST | `/api/settings/ai/default-model` | Get or set the default AI model (`{"provider": "...", "model_id": "..."}`). |
+| GET/POST | `/api/settings/ai/fallback-models` | Get or set the fallback models list (up to 3 models in order: `[{"provider": "...", "model_id": "..."}, ...]`). |
 
 Request limits: message content max 32 KB of text; enforce with explicit validation errors, not truncation.
 

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 from kinetiqo.chat.encryption import ChatEncryptionError, decrypt_api_key, encrypt_api_key
 from kinetiqo.chat.errors import ChatAuthenticationError, ChatConfigurationError, ChatProviderResponseError, ChatRateLimitError
-from kinetiqo.chat.models import ChatMessage, ChatProviderModel
+from kinetiqo.chat.models import ChatMessage, ChatProviderModel, StreamEvent
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService, build_system_instruction
@@ -100,7 +100,7 @@ class TestChatService(unittest.TestCase):
         self.repository.create_session.assert_called_with("athlete", "vercel", "moonshotai/kimi-k2.6")
 
         self.service.create_session("athlete", provider="kilo")
-        self.repository.create_session.assert_called_with("athlete", "kilo", "kilo/kilo-auto/free")
+        self.repository.create_session.assert_called_with("athlete", "kilo", "kilo-auto/free")
 
     @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
     @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
@@ -250,6 +250,52 @@ class TestChatService(unittest.TestCase):
         self.assertIn("OUTDOOR vs INDOOR DISTINCTION", instruction)
         self.assertIn("VirtualRide", instruction)
         self.assertIn("VirtualRun", instruction)
+
+    @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
+    @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
+    def test_stream_turn_uses_fallback_when_primary_fails(self, registry, decrypt):
+        session = MagicMock(provider="gemini", model_id="gemini-2.5-flash")
+        user = ChatMessage("user-id", "session", "athlete", "user", "hello", 1, "complete", datetime.now(timezone.utc))
+        assistant = ChatMessage("assistant-id", "session", "athlete", "assistant", "", 2, "interrupted", datetime.now(timezone.utc))
+        self.repository.get_session.return_value = session
+        self.repository.add_message.side_effect = [user, assistant]
+        self.repository.list_messages.return_value = []
+        self.repository.get_provider_key.return_value = "ciphertext"
+        self.repository.get_fallback_models.return_value = [
+            {"provider": "openrouter", "model_id": "meta-llama/llama-3.3-70b-instruct"}
+        ]
+
+        primary_prov = MagicMock()
+        primary_prov.list_models.return_value = [ChatProviderModel("gemini-2.5-flash", "Flash")]
+        primary_prov.stream.side_effect = RuntimeError("Primary quota exceeded (429)")
+
+        fallback_prov = MagicMock()
+        fallback_prov.list_models.return_value = [ChatProviderModel("meta-llama/llama-3.3-70b-instruct", "Llama 3.3")]
+        fallback_prov.stream.return_value = iter([StreamEvent("text_delta", text="Hello from fallback!")])
+
+        def provider_factory(prov_name):
+            if prov_name == "gemini":
+                return MagicMock(return_value=primary_prov)
+            return MagicMock(return_value=fallback_prov)
+
+        registry.__getitem__.side_effect = provider_factory
+
+        _, events = self.service.stream_turn("athlete", "session", "hello")
+        event_list = list(events)
+        self.assertEqual(len(event_list), 1)
+        self.assertEqual(event_list[0].text, "Hello from fallback!")
+        self.repository.update_message.assert_called_with(
+            "athlete",
+            "assistant-id",
+            "Hello from fallback!",
+            "complete",
+            input_tokens=None,
+            output_tokens=None,
+            tool_provenance=None,
+            provider="openrouter",
+            model_id="meta-llama/llama-3.3-70b-instruct",
+        )
+        self.repository.update_session.assert_called_with("athlete", "session", provider="openrouter", model_id="meta-llama/llama-3.3-70b-instruct")
 
 
 

@@ -2442,6 +2442,22 @@ def _decorate_models_with_default(repository: ChatRepository, athlete_id: str, p
     return decorated, default_model
 
 
+def _get_ai_disclaimer_md() -> str:
+    """Read docs/AI-disclaimer.md from the repository or deployment root."""
+    candidates = [
+        pathlib.Path(__file__).resolve().parents[3] / "docs" / "AI-disclaimer.md",
+        pathlib.Path(__file__).resolve().parents[2] / "docs" / "AI-disclaimer.md",
+        pathlib.Path(os.getcwd()) / "docs" / "AI-disclaimer.md",
+    ]
+    for p in candidates:
+        if p.exists() and p.is_file():
+            try:
+                return p.read_text(encoding="utf-8")
+            except Exception:
+                pass
+    return ""
+
+
 @app.route('/chat', methods=['GET'])
 @app.route('/chat/<session_id>', methods=['GET'])
 @login_required
@@ -2476,7 +2492,16 @@ def chat_page(session_id: str | None = None):
         initial_session_id=session_id,
         user_name=user_name,
         initial_prompts=initial_prompts,
+        disclaimer_markdown=_get_ai_disclaimer_md(),
     )
+
+
+@app.route('/api/chat/disclaimer', methods=['GET'])
+@login_required
+def chat_disclaimer_api():
+    """Return the raw markdown content of docs/AI-disclaimer.md."""
+    content = _get_ai_disclaimer_md()
+    return jsonify({'disclaimer': content})
 
 
 @app.route('/api/chat/prompts', methods=['GET'])
@@ -2592,10 +2617,13 @@ def chat_models_api():
         service = _chat_service()
         athlete_id = _chat_user_id()
         models_data = service.models(athlete_id, provider)
-        default_model = _normalize_default_model(service.repository.get_default_model(athlete_id))
+        raw_default = service.repository.get_default_model(athlete_id) if hasattr(service.repository, 'get_default_model') else None
+        default_model = raw_default if isinstance(raw_default, dict) else None
+        raw_fallbacks = service.repository.get_fallback_models(athlete_id) if hasattr(service.repository, 'get_fallback_models') else []
+        fallback_models = raw_fallbacks if isinstance(raw_fallbacks, list) else []
         if provider == 'all':
-            return jsonify({'providers': models_data, 'default_model': default_model})
-        return jsonify({'models': models_data, 'default_model': default_model})
+            return jsonify({'providers': models_data, 'default_model': default_model, 'fallback_models': fallback_models})
+        return jsonify({'models': models_data, 'default_model': default_model, 'fallback_models': fallback_models})
     except (ChatError, ChatEncryptionError) as exc:
         return _chat_error(exc, 422)
 
@@ -2629,8 +2657,13 @@ def chat_providers_settings_api():
 def chat_default_model_settings_api():
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
+    raw_fallbacks = repository.get_fallback_models(athlete_id) if hasattr(repository, 'get_fallback_models') else []
+    fallback_models = raw_fallbacks if isinstance(raw_fallbacks, list) else []
     if request.method == 'GET':
-        return jsonify({'default_model': _normalize_default_model(repository.get_default_model(athlete_id))})
+        return jsonify({
+            'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
+            'fallback_models': fallback_models,
+        })
 
     data = request.get_json(silent=True) or {}
     provider = str(data.get('provider') or '').strip().lower()
@@ -2640,7 +2673,51 @@ def chat_default_model_settings_api():
     if not model_id:
         return _chat_error(ValueError('Model ID is required.'), 422)
     repository.set_default_model(athlete_id, provider, model_id)
-    return jsonify({'default_model': _normalize_default_model(repository.get_default_model(athlete_id))})
+    if hasattr(repository, 'clear_fallback_model'):
+        repository.clear_fallback_model(athlete_id, provider=provider, model_id=model_id)
+    updated_fallbacks = repository.get_fallback_models(athlete_id) if hasattr(repository, 'get_fallback_models') else []
+    return jsonify({
+        'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
+        'fallback_models': updated_fallbacks if isinstance(updated_fallbacks, list) else [],
+    })
+
+
+@app.route('/api/settings/ai/fallback-models', methods=['GET', 'POST'])
+@login_required
+def chat_fallback_models_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        return jsonify({'fallback_models': repository.get_fallback_models(athlete_id)})
+
+    data = request.get_json(silent=True) or {}
+    models_input = data.get('fallback_models')
+    if not isinstance(models_input, list):
+        return _chat_error(ValueError('fallback_models must be a list.'), 422)
+    if len(models_input) > 3:
+        return _chat_error(ValueError('Maximum 3 fallback models allowed.'), 422)
+
+    cleaned: list[dict[str, str]] = []
+    default_m = repository.get_default_model(athlete_id)
+    for item in models_input:
+        if not isinstance(item, dict):
+            return _chat_error(ValueError('Each fallback model item must be an object.'), 422)
+        provider = str(item.get('provider') or '').strip().lower()
+        model_id = str(item.get('model_id') or '').strip()
+        if not _is_supported_ai_provider(provider):
+            return _chat_error(ValueError(f"Unsupported AI provider '{provider}'."), 422)
+        if not model_id:
+            return _chat_error(ValueError('Model ID is required for each fallback model.'), 422)
+        if default_m and default_m.get('provider') == provider and default_m.get('model_id') == model_id:
+            return _chat_error(ValueError(f"Model '{model_id}' is currently the default model and cannot be a fallback."), 422)
+        if not any(x['provider'] == provider and x['model_id'] == model_id for x in cleaned):
+            cleaned.append({'provider': provider, 'model_id': model_id})
+
+    if len(cleaned) > 3:
+        return _chat_error(ValueError('Maximum 3 fallback models allowed.'), 422)
+
+    saved = repository.set_fallback_models(athlete_id, cleaned)
+    return jsonify({'fallback_models': saved})
 
 
 @app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
@@ -2683,6 +2760,7 @@ def chat_gemini_settings_api():
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'gemini')
         repository.clear_default_model(athlete_id, provider='gemini')
+        repository.clear_fallback_model(athlete_id, provider='gemini')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
@@ -2737,6 +2815,7 @@ def chat_openrouter_settings_api():
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'openrouter')
         repository.clear_default_model(athlete_id, provider='openrouter')
+        repository.clear_fallback_model(athlete_id, provider='openrouter')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
@@ -2802,6 +2881,7 @@ def chat_openrouter_models_api():
         cfg['models'] = new_models
         repository.save_provider_config(athlete_id, 'openrouter', cfg)
         repository.clear_default_model(athlete_id, provider='openrouter', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='openrouter', model_id=clean_id)
         models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', new_models)
         return jsonify({'models': models, 'default_model': default_model})
 
@@ -2864,6 +2944,7 @@ def chat_vercel_settings_api():
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'vercel')
         repository.clear_default_model(athlete_id, provider='vercel')
+        repository.clear_fallback_model(athlete_id, provider='vercel')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
@@ -2929,6 +3010,7 @@ def chat_vercel_models_api():
         cfg['models'] = new_models
         repository.save_provider_config(athlete_id, 'vercel', cfg)
         repository.clear_default_model(athlete_id, provider='vercel', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='vercel', model_id=clean_id)
         models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', new_models)
         return jsonify({'models': models, 'default_model': default_model})
 
@@ -2991,6 +3073,7 @@ def chat_kilo_settings_api():
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'kilo')
         repository.clear_default_model(athlete_id, provider='kilo')
+        repository.clear_fallback_model(athlete_id, provider='kilo')
         return Response(status=204)
     data = request.get_json(silent=True) or {}
     api_key = data.get('api_key')
@@ -3056,6 +3139,7 @@ def chat_kilo_models_api():
         cfg['models'] = new_models
         repository.save_provider_config(athlete_id, 'kilo', cfg)
         repository.clear_default_model(athlete_id, provider='kilo', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='kilo', model_id=clean_id)
         models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', new_models)
         return jsonify({'models': models, 'default_model': default_model})
 
@@ -3099,6 +3183,7 @@ def chat_ollama_settings_api():
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, 'ollama')
         repository.clear_default_model(athlete_id, provider='ollama')
+        repository.clear_fallback_model(athlete_id, provider='ollama')
         return Response(status=204)
 
     data = request.get_json(silent=True) or {}

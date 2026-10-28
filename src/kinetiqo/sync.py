@@ -323,13 +323,22 @@ class SyncService:
                     # within the last ~3 days is always rechecked. For gaps older than that,
                     # use FullSync with an appropriate window.
                     after_dt = (latest_dt - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+                    if limit_days > 0:
+                        limit_dt = datetime.now(timezone.utc) - timedelta(days=limit_days)
+                        if after_dt < limit_dt:
+                            after_dt = limit_dt
                     after = int(after_dt.timestamp())
+                    limit_msg = f" (limited to last {limit_days} days)" if limit_days > 0 else ""
                     yield yield_log(
                         f"Fast sync: fetching activities since {after_dt.strftime('%Y-%m-%d')} "
-                        f"(day prior to latest: {latest_dt.strftime('%Y-%m-%d %H:%M:%S UTC')})."
+                        f"(day prior to latest: {latest_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}){limit_msg}."
                     )
                 else:
-                    yield yield_log("Fast sync: no previous data found, falling back to full fetch.")
+                    if limit_days > 0:
+                        after = int((datetime.now(timezone.utc) - timedelta(days=limit_days)).timestamp())
+                        yield yield_log(f"Fast sync: no previous data found, limited to last {limit_days} days.")
+                    else:
+                        yield yield_log("Fast sync: no previous data found, falling back to full fetch.")
 
             # --- Fetch from Strava ---
             # The StravaClient.get_activities() implementation may either:

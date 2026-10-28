@@ -2,7 +2,7 @@
 {% block head %}
 <script src="{{ url_for('static', filename='vendor/chartjs/chart-4.5.1.umd.min.js', v=app_version) }}"></script>
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v31') }}" defer></script>
+<script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v38') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
   main {
@@ -62,65 +62,197 @@
     overflow: hidden;
   }
 
-  .chat-hero-icon {
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    max-width: 48px !important;
-    max-height: 48px !important;
-    border-radius: 12px;
-    background: rgba(249, 115, 22, 0.12);
-    color: #ea580c;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 12px;
+  /* Aesthetic Minimalist Chat Scrollbars */
+  #chat-scroll,
+  #chat-sessions,
+  .chat-text pre,
+  .chat-composer-textarea {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
   }
 
-  .chat-hero-icon svg {
-    width: 24px !important;
-    height: 24px !important;
-    max-width: 24px !important;
-    max-height: 24px !important;
-    display: block;
+  html.dark #chat-scroll,
+  html.dark #chat-sessions,
+  html.dark .chat-text pre,
+  html.dark .chat-composer-textarea {
+    scrollbar-color: rgba(113, 113, 122, 0.45) transparent;
+  }
+
+  #chat-scroll::-webkit-scrollbar,
+  #chat-sessions::-webkit-scrollbar,
+  .chat-text pre::-webkit-scrollbar,
+  .chat-composer-textarea::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #chat-scroll::-webkit-scrollbar-track,
+  #chat-sessions::-webkit-scrollbar-track,
+  .chat-text pre::-webkit-scrollbar-track,
+  .chat-composer-textarea::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  #chat-scroll::-webkit-scrollbar-thumb,
+  #chat-sessions::-webkit-scrollbar-thumb,
+  .chat-text pre::-webkit-scrollbar-thumb,
+  .chat-composer-textarea::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.35);
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s ease;
+  }
+
+  #chat-scroll::-webkit-scrollbar-thumb:hover,
+  #chat-sessions::-webkit-scrollbar-thumb:hover,
+  .chat-text pre::-webkit-scrollbar-thumb:hover,
+  .chat-composer-textarea::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(234, 88, 12, 0.65);
+  }
+
+  #chat-scroll::-webkit-scrollbar-thumb:active,
+  #chat-sessions::-webkit-scrollbar-thumb:active,
+  .chat-text pre::-webkit-scrollbar-thumb:active,
+  .chat-composer-textarea::-webkit-scrollbar-thumb:active {
+    background-color: rgba(234, 88, 12, 0.9);
+  }
+
+  html.dark #chat-scroll::-webkit-scrollbar-thumb,
+  html.dark #chat-sessions::-webkit-scrollbar-thumb,
+  html.dark .chat-text pre::-webkit-scrollbar-thumb,
+  html.dark .chat-composer-textarea::-webkit-scrollbar-thumb {
+    background-color: rgba(113, 113, 122, 0.4);
+  }
+
+  html.dark #chat-scroll::-webkit-scrollbar-thumb:hover,
+  html.dark #chat-sessions::-webkit-scrollbar-thumb:hover,
+  html.dark .chat-text pre::-webkit-scrollbar-thumb:hover,
+  html.dark .chat-composer-textarea::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(249, 115, 22, 0.75);
+  }
+
+  html.dark #chat-scroll::-webkit-scrollbar-thumb:active,
+  html.dark #chat-sessions::-webkit-scrollbar-thumb:active,
+  html.dark .chat-text pre::-webkit-scrollbar-thumb:active,
+  html.dark .chat-composer-textarea::-webkit-scrollbar-thumb:active {
+    background-color: rgba(249, 115, 22, 0.95);
+  }
+
+  #chat-scroll::-webkit-scrollbar-button,
+  #chat-sessions::-webkit-scrollbar-button,
+  .chat-text pre::-webkit-scrollbar-button,
+  .chat-composer-textarea::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  #chat-scroll::-webkit-scrollbar-corner,
+  #chat-sessions::-webkit-scrollbar-corner,
+  .chat-text pre::-webkit-scrollbar-corner,
+  .chat-composer-textarea::-webkit-scrollbar-corner {
+    background: transparent !important;
   }
 
   .chat-suggestions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 12px;
-    max-width: 100%;
-    margin: 20px auto 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    max-width: 860px;
+    margin: 18px auto 0;
     width: 100%;
-    text-align: left;
   }
 
   .chat-suggestion-chip {
-    padding: 12px 16px !important;
-    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 16px 8px 10px !important;
+    border-radius: 9999px;
     border: 1px solid #e5e7eb;
-    background: #fbfbf9;
+    background: #ffffff;
     font-size: 13px;
     font-weight: 500;
+    line-height: 1.35;
     color: #374151;
     cursor: pointer;
     text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: all 0.15s ease-in-out;
+    max-width: 420px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+    opacity: 1;
+    transform: scale(1);
+    flex: 0 1 auto;
+  }
+
+  .chat-suggestion-chip.swapping {
+    opacity: 0 !important;
+    transform: scale(0.92) translateY(3px) !important;
   }
 
   .chat-suggestion-chip:hover {
     border-color: #ea580c;
-    background: rgba(249, 115, 22, 0.05);
+    background: #fff7ed;
     color: #ea580c;
-    transform: translateY(-1px);
+    transform: translateY(-2px) scale(1.015);
+    box-shadow: 0 8px 20px -4px rgba(234, 88, 12, 0.16), 0 3px 8px -1px rgba(234, 88, 12, 0.08);
+  }
+
+  .chat-suggestion-chip:active {
+    transform: translateY(0) scale(0.99);
+  }
+
+  .chat-suggestion-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    background: rgba(249, 115, 22, 0.08);
+    flex-shrink: 0;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .chat-suggestion-chip:hover .chat-suggestion-icon {
+    transform: scale(1.12);
+    background: rgba(249, 115, 22, 0.18);
+  }
+
+  .chat-suggestion-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chat-suggestion-arrow {
+    width: 13px;
+    height: 13px;
+    opacity: 0.3;
+    flex-shrink: 0;
+    margin-left: 2px;
+    transition: opacity 0.2s, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s;
+  }
+
+  .chat-suggestion-chip:hover .chat-suggestion-arrow {
+    opacity: 0.95;
+    transform: translateX(2.5px);
+    color: #ea580c;
   }
 
   .chat-composer-box {
-    border-top: 1px solid #e5e7eb;
+    border-top: none !important;
     background: transparent;
     padding: 14px 24px 18px;
     flex-shrink: 0;
@@ -510,25 +642,35 @@
     background: transparent;
   }
 
-  html.dark .chat-hero-icon {
-    background: rgba(249, 115, 22, 0.2);
-    color: #fb923c;
-  }
-
   html.dark .chat-suggestion-chip {
-    border-color: #333336;
+    border-color: #3f3f46;
     background: #262629;
     color: #e4e4e7;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   }
 
   html.dark .chat-suggestion-chip:hover {
-    border-color: #ea580c;
-    background: rgba(249, 115, 22, 0.12);
+    border-color: #f97316;
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+    box-shadow: 0 8px 22px -4px rgba(249, 115, 22, 0.22), 0 3px 8px -1px rgba(249, 115, 22, 0.12);
+  }
+
+  html.dark .chat-suggestion-icon {
+    background: rgba(249, 115, 22, 0.15);
+  }
+
+  html.dark .chat-suggestion-chip:hover .chat-suggestion-icon {
+    background: rgba(249, 115, 22, 0.25);
+  }
+
+  html.dark .chat-suggestion-chip:hover .chat-suggestion-arrow {
     color: #fb923c;
   }
 
   html.dark .chat-composer-box {
-    border-color: #333336;
+    border-top: none !important;
+    border-color: transparent !important;
     background: transparent;
   }
 
@@ -600,7 +742,7 @@
     min-height: 36px;
     display: inline-flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 8px;
     padding: 8px 11px;
     border: 1px solid #e5e7eb;
@@ -623,7 +765,12 @@
     box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.18);
   }
 
+  #chat-model-trigger-icon {
+    flex-shrink: 0;
+  }
+
   .chat-model-trigger-label {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -636,6 +783,7 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+    margin-left: auto;
     color: #6b7280;
   }
 
@@ -708,6 +856,21 @@
     flex-shrink: 0;
   }
 
+  .chat-model-group-icon,
+  #chat-model-trigger-icon,
+  .ai-provider-icon,
+  img[src*="icons/ai_"] {
+    filter: brightness(0) invert(28%);
+    transition: filter 0.15s ease-in-out;
+  }
+
+  html.dark .chat-model-group-icon,
+  html.dark #chat-model-trigger-icon,
+  html.dark .ai-provider-icon,
+  html.dark img[src*="icons/ai_"] {
+    filter: brightness(0) invert(85%);
+  }
+
   .chat-model-group-label {
     padding: 0;
     font-size: 11px;
@@ -767,6 +930,9 @@
     pointer-events: none;
     user-select: none;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .chat-model-item-default-star.visible {
@@ -992,6 +1158,122 @@
   html.dark .chat-provenance-item {
     color: #a1a1aa !important;
   }
+
+  /* AI Disclaimer Modal */
+  #ai-disclaimer-modal {
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  #ai-disclaimer-modal.modal-open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  #ai-disclaimer-modal.modal-open #ai-disclaimer-modal-card {
+    transform: scale(1) translateY(0) !important;
+  }
+
+  .chat-disclaimer-modal-body {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+  }
+
+  .chat-disclaimer-modal-body::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .chat-disclaimer-modal-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 4px;
+  }
+
+  html.dark .chat-disclaimer-modal-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .chat-disclaimer-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.4);
+    border-radius: 4px;
+  }
+
+  .chat-disclaimer-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(234, 88, 12, 0.7);
+  }
+
+  html.dark .chat-disclaimer-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(113, 113, 122, 0.5);
+  }
+
+  html.dark .chat-disclaimer-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(249, 115, 22, 0.8);
+  }
+
+  /* Kinetiqo Markdown typography in disclaimer modal */
+  .chat-disclaimer-modal-body h1 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: #111827;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+  }
+
+  html.dark .chat-disclaimer-modal-body h1 {
+    color: #f9fafb;
+    border-color: #3f3f46;
+  }
+
+  .chat-disclaimer-modal-body h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #1f2937;
+  }
+
+  html.dark .chat-disclaimer-modal-body h2 {
+    color: #f3f4f6;
+  }
+
+  .chat-disclaimer-modal-body p {
+    margin-bottom: 0.75rem;
+    line-height: 1.65;
+  }
+
+  .chat-disclaimer-modal-body ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .chat-disclaimer-modal-body li {
+    margin-bottom: 0.35rem;
+    line-height: 1.55;
+  }
+
+  .chat-disclaimer-modal-body strong {
+    font-weight: 600;
+    color: #111827;
+  }
+
+  html.dark .chat-disclaimer-modal-body strong {
+    color: #f9fafb;
+  }
+
+  .chat-disclaimer-modal-body blockquote {
+    border-left: 3px solid #f97316;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    font-style: italic;
+    color: #4b5563;
+  }
+
+  html.dark .chat-disclaimer-modal-body blockquote {
+    color: #9ca3af;
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -1016,8 +1298,19 @@
       style="flex: 1; overflow-y: auto; padding: 4px 8px; display: flex; flex-direction: column; gap: 4px;"></div>
 
     <!-- Pinned Settings Panel at bottom of Left Nav -->
-    <div style="border-top: 1px solid #e5e7eb; padding: 12px; display: flex; flex-direction: column; gap: 10px;"
+    <div style="border-top: 1px solid #e5e7eb; padding: 12px; display: flex; flex-direction: column; gap: 8px;"
       class="dark:border-zinc-700 dark:bg-zinc-800">
+      <a href="{{ url_for('settings') }}#ai"
+        class="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-200 rounded text-sm font-medium transition h-[38px] w-full flex items-center justify-center shadow-sm select-none"
+        title="Open AI Provider Settings">
+        <svg class="w-4 h-4 mr-2 text-gray-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+        <span>AI Settings</span>
+      </a>
       <button id="clear-history" type="button"
         class="px-3 py-2 bg-gray-500 hover:bg-red-600 text-white rounded text-sm font-small transition h-[38px] w-full flex items-center justify-center shadow-sm"
         title="Clear all chat history">
@@ -1033,7 +1326,7 @@
   <!-- Right Column: Full Width Output & Bottom Composer -->
   <section class="chat-main-area">
     <!-- Scrollable Messages Area -->
-    <div id="chat-scroll" style="flex: 1; overflow-y: auto; padding: 20px 24px;">
+    <div id="chat-scroll" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 24px;">
       <div style="width: 100%; display: flex; flex-direction: column; gap: 16px;">
         <div id="chat-status" role="status"
           class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -1042,32 +1335,53 @@
           aria-live="polite"></div>
 
         <!-- Empty State Hero -->
-        <div id="chat-empty" style="padding: 40px 0; text-align: center;">
-          <div class="chat-hero-icon">
-            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-            </svg>
+        <div id="chat-empty" style="padding: 32px 0 20px; text-align: center;">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/80 dark:border-orange-900/60 shadow-sm mb-3 select-none">
+            <span class="flex h-2 w-2 relative">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+            </span>
+            <span>AI Training Companion</span>
           </div>
-          <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1.5">How can I help with your training?</h2>
-          <p class="mx-auto max-w-lg text-xs leading-relaxed text-gray-600 dark:text-gray-300">I have direct read-only
-            access to your Kinetiqo database to analyze workouts, power curves, totals, fitness trends, and milestones.
+          <h2 class="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 mb-2">How can I help with your training?</h2>
+          <p class="mx-auto max-w-lg text-xs leading-relaxed text-gray-600 dark:text-gray-300 mb-4">
+            I have direct read-only access to your Kinetiqo database to analyze workouts, power curves, totals, fitness trends, and milestones.
           </p>
-          <div class="chat-suggestions-grid">
-            <button type="button" class="chat-suggestion chat-suggestion-chip">
-              <span style="font-size: 16px; line-height: 1;">📊</span>
-              <span>Summarize my last four weeks of training</span>
+          <div id="chat-suggestions-grid" class="chat-suggestions-grid">
+            <button type="button" class="chat-suggestion chat-suggestion-chip" title="How fresh am I right now (CTL / ATL / TSB)?">
+              <span class="chat-suggestion-icon">⚡</span>
+              <span class="chat-suggestion-label">How fresh am I right now (CTL / ATL / TSB)?</span>
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
+              </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip">
-              <span style="font-size: 16px; line-height: 1;">⚡</span>
-              <span>How fresh am I right now (CTL/ATL/TSB)?</span>
+            <button type="button" class="chat-suggestion chat-suggestion-chip" title="Summarize my last 4 weeks of training">
+              <span class="chat-suggestion-icon">📊</span>
+              <span class="chat-suggestion-label">Summarize my last 4 weeks of training</span>
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
+              </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip">
-              <span style="font-size: 16px; line-height: 1;">📈</span>
-              <span>Compare this month's distance to last year</span>
+            <button type="button" class="chat-suggestion chat-suggestion-chip" title="What are my benchmark power records?">
+              <span class="chat-suggestion-icon">🏆</span>
+              <span class="chat-suggestion-label">What are my benchmark power records?</span>
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
+              </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip">
-              <span style="font-size: 16px; line-height: 1;">🏆</span>
-              <span>What are my benchmark power records?</span>
+            <button type="button" class="chat-suggestion chat-suggestion-chip" title="Compare this month's distance to last year">
+              <span class="chat-suggestion-icon">📈</span>
+              <span class="chat-suggestion-label">Compare this month's distance to last year</span>
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
+              </svg>
+            </button>
+            <button type="button" class="chat-suggestion chat-suggestion-chip" title="Show my FTP history and 5-min MAP progression">
+              <span class="chat-suggestion-icon">🚴</span>
+              <span class="chat-suggestion-label">Show my FTP history and 5-min MAP progression</span>
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
+              </svg>
             </button>
           </div>
         </div>
@@ -1086,7 +1400,7 @@
             class="chat-composer-textarea"></textarea>
           <div class="chat-composer-toolbar flex items-center justify-between gap-3 pt-2 mt-1">
             <!-- Left bottom: Model selector styled like activities date dropdown -->
-            <div class="chat-composer-model-wrap flex items-center gap-1.5 min-w-0">
+            <div class="chat-composer-model-wrap flex items-center gap-2 min-w-0">
               <label for="chat-model" class="sr-only">Select AI Model</label>
               <div class="chat-model-dropdown">
                 <select id="chat-model" aria-label="Select AI Model" class="sr-only">
@@ -1094,6 +1408,7 @@
                 </select>
                 <button id="chat-model-trigger" type="button" class="chat-model-trigger" aria-haspopup="listbox"
                   aria-expanded="false" aria-controls="chat-model-menu">
+                  <img id="chat-model-trigger-icon" class="chat-model-group-icon" src="" alt="" style="display:none;" />
                   <span id="chat-model-selected" class="chat-model-trigger-label">gemini-3.1-flash-lite</span>
                   <span class="chat-model-trigger-icons">
                     <span id="chat-model-default-indicator" class="chat-model-default-indicator" aria-hidden="true">★</span>
@@ -1104,6 +1419,17 @@
                 </button>
                 <div id="chat-model-menu" class="chat-model-menu" role="listbox" aria-label="Select AI Model"></div>
               </div>
+              <a href="{{ url_for('settings') }}#ai"
+                class="chat-ai-settings-link inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700/60 transition shrink-0 select-none"
+                title="Open AI Provider Settings">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span>AI Settings</span>
+              </a>
             </div>
 
             <!-- Right bottom: Tools text + Send button -->
@@ -1122,10 +1448,75 @@
             </div>
           </div>
         </form>
-        <p style="margin-top: 6px; text-align: center; font-size: 11px; color: #9ca3af;" class="dark:text-zinc-500">
-          Kinetiqo AI uses local fitness data tools. Training advice is informational.</p>
+        <div class="flex items-center justify-end gap-2 mt-2 px-1 text-[11px] text-gray-400 dark:text-zinc-500 select-none">
+          <span>Kinetiqo AI uses local fitness data tools. Training advice is informational.</span>
+          <button id="open-disclaimer-btn" type="button"
+            class="inline-flex items-center gap-1 text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 font-medium transition cursor-pointer"
+            title="Open Kinetiqo AI Training Disclaimer & Guidelines"
+            aria-label="Open Kinetiqo AI Training Disclaimer & Guidelines">
+            <svg class="w-3.5 h-3.5 text-orange-500/80 hover:text-orange-600 dark:text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span class="underline underline-offset-2">Disclaimer</span>
+          </button>
+        </div>
       </div>
     </div>
   </section>
+
+  <!-- AI Disclaimer Modal (80% screen space, styled scrollbar, formatted markdown) -->
+  <div id="ai-disclaimer-modal"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 opacity-0 pointer-events-none transition-opacity duration-200"
+    style="background-color: rgba(0, 0, 0, 0.65);"
+    role="dialog" aria-modal="true" aria-labelledby="ai-disclaimer-title">
+    <div id="ai-disclaimer-modal-card"
+      class="relative flex flex-col w-[80vw] max-w-5xl h-[80vh] max-h-[85vh] bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden transform transition-transform duration-200 scale-95">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-zinc-700 bg-gray-50/80 dark:bg-zinc-800/80 shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 id="ai-disclaimer-title" class="text-base font-bold text-gray-900 dark:text-white">
+              Kinetiqo AI Disclaimer &amp; Usage Guidelines
+            </h3>
+            <p class="text-xs text-gray-500 dark:text-zinc-400">Informational notice for AI-powered chat and telemetry insights</p>
+          </div>
+        </div>
+        <button id="close-disclaimer-x-btn" type="button"
+          class="p-2 text-gray-400 hover:text-gray-600 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
+          aria-label="Close disclaimer modal">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Body with formatted Markdown and styled scrollbar -->
+      <div id="ai-disclaimer-body"
+        class="chat-disclaimer-modal-body flex-1 overflow-y-auto px-6 py-6 text-sm text-gray-700 dark:text-zinc-300 leading-relaxed">
+        <!-- Rendered markdown inserted dynamically -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-zinc-700 bg-gray-50/80 dark:bg-zinc-800/80 shrink-0">
+        <span class="text-xs text-gray-500 dark:text-zinc-400">
+          Press <kbd class="px-1.5 py-0.5 text-[10px] font-semibold bg-gray-200 dark:bg-zinc-700 rounded border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-zinc-300">Esc</kbd> or click outside to dismiss
+        </span>
+        <button id="disclaimer-acknowledge-btn" type="button"
+          class="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition shadow-sm select-none">
+          I acknowledge
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script id="ai-disclaimer-raw" type="text/markdown">{{ disclaimer_markdown | safe }}</script>
 </div>
 {% endblock %}

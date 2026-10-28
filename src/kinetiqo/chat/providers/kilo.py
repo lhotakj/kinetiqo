@@ -22,7 +22,7 @@ logger = logging.getLogger("kinetiqo.chat.kilo")
 
 DEFAULT_KILO_MODELS = (
     {
-        "id": "kilo/kilo-auto/free",
+        "id": "kilo-auto/free",
         "name": "Kilo: Auto Free Tier (Free)",
         "context_length": 262144,
         "supports_tools": True,
@@ -76,7 +76,7 @@ DEFAULT_KILO_MODELS = (
 
 class KiloChatProvider(BaseChatProvider):
     provider_name = "kilo"
-    default_model = "kilo/kilo-auto/free"
+    default_model = "kilo-auto/free"
     preferred_models = tuple(m["id"] for m in DEFAULT_KILO_MODELS)
 
     def __init__(
@@ -167,7 +167,7 @@ class KiloChatProvider(BaseChatProvider):
         if "embed" in clean_lower:
             raise ValueError(
                 f"'{clean_id}' is an embedding model, not a generative chat model. "
-                "Kilo AI Gateway requires chat instruction models (such as kilo/kilo-auto/free, meta-llama/llama-3.3-70b-instruct, or deepseek/deepseek-r1) for AI Chat."
+                "Kilo AI Gateway requires chat instruction models (such as kilo-auto/free, meta-llama/llama-3.3-70b-instruct, or deepseek/deepseek-r1) for AI Chat."
             )
 
         with self.client_factory(timeout=httpx.Timeout(15.0, connect=8.0)) as client:
@@ -217,7 +217,7 @@ class KiloChatProvider(BaseChatProvider):
                         )
                     return parsed
 
-            # 2b. Candidate matching without provider prefix (e.g. 'kilo-auto/free' -> 'kilo/kilo-auto/free')
+            # 2b. Candidate matching without provider prefix (e.g. 'llama-3.3-70b-instruct' -> 'meta-llama/llama-3.3-70b-instruct')
             candidates: list[str] = []
             for item in models:
                 raw_id = item.get("id") or ""

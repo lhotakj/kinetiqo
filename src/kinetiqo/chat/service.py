@@ -412,6 +412,14 @@ class ChatService:
         chat_tools = get_chat_tools(provider=target_provider, config=self.config, repo_factory=lambda: self.repository.source_repository)
         provenance_records: list[dict[str, Any]] = []
 
+        fallback_configs = self.repository.get_fallback_models(athlete_id)
+        candidates: list[tuple[str, str]] = [(target_provider, selected_model)]
+        for fb in fallback_configs:
+            fb_p = fb.get("provider")
+            fb_m = fb.get("model_id")
+            if fb_p and fb_m and (fb_p, fb_m) not in candidates:
+                candidates.append((fb_p, fb_m))
+
         def execute_tool(name: str, args: dict[str, Any]) -> tuple[dict[str, Any], int]:
             result_payload, duration_ms = execute_chat_tool(
                 self.repository.source_repository,
@@ -430,42 +438,69 @@ class ChatService:
         def events() -> Iterator[StreamEvent]:
             assembled = ""
             input_tokens = output_tokens = None
-            try:
-                stream_kwargs: dict[str, Any] = {}
-                if chat_tools:
-                    stream_kwargs["tools"] = chat_tools
-                    stream_kwargs["tool_executor"] = execute_tool
-                for event in adapter.stream(selected_model, build_system_instruction(), history, user_message.content, **stream_kwargs):
-                    if event.type == "text_delta":
-                        assembled += event.text or ""
-                    elif event.type == "usage":
-                        input_tokens, output_tokens = event.input_tokens, event.output_tokens
-                    yield event
-                provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
-                self.repository.update_message(
-                    athlete_id,
-                    assistant.message_id,
-                    assembled,
-                    "complete",
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    tool_provenance=provenance_json,
-                )
-            except GeneratorExit:
-                provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
-                self.repository.update_message(
-                    athlete_id,
-                    assistant.message_id,
-                    assembled,
-                    "cancelled",
-                    "cancelled",
-                    input_tokens,
-                    output_tokens,
-                    tool_provenance=provenance_json,
-                )
-                raise
-            except Exception as exc:
-                code = getattr(exc, "error_code", "chat_error")
+            last_error: Exception | None = None
+            used_provider = target_provider
+            used_model = selected_model
+
+            for cand_idx, (cand_prov, cand_model) in enumerate(candidates):
+                assembled = ""
+                input_tokens = output_tokens = None
+                try:
+                    cand_adapter = adapter if (cand_prov == target_provider) else self._provider(athlete_id, cand_prov)
+                    cand_tools = chat_tools if (cand_prov == target_provider) else get_chat_tools(provider=cand_prov, config=self.config, repo_factory=lambda: self.repository.source_repository)
+                    stream_kwargs: dict[str, Any] = {}
+                    if cand_tools:
+                        stream_kwargs["tools"] = cand_tools
+                        stream_kwargs["tool_executor"] = execute_tool
+
+                    for event in cand_adapter.stream(cand_model, build_system_instruction(), history, user_message.content, **stream_kwargs):
+                        if event.type == "text_delta":
+                            assembled += event.text or ""
+                        elif event.type == "usage":
+                            input_tokens, output_tokens = event.input_tokens, event.output_tokens
+                        yield event
+
+                    used_provider = cand_prov
+                    used_model = cand_model
+                    last_error = None
+                    break
+                except GeneratorExit:
+                    provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
+                    self.repository.update_message(
+                        athlete_id,
+                        assistant.message_id,
+                        assembled,
+                        "cancelled",
+                        "cancelled",
+                        input_tokens,
+                        output_tokens,
+                        tool_provenance=provenance_json,
+                        provider=cand_prov,
+                        model_id=cand_model,
+                    )
+                    raise
+                except Exception as exc:
+                    last_error = exc
+                    if assembled:
+                        logger.warning("Model %s (%s) failed mid-stream after yielding text: %s", cand_model, cand_prov, exc)
+                        used_provider = cand_prov
+                        used_model = cand_model
+                        break
+                    if cand_idx + 1 < len(candidates):
+                        next_prov, next_model = candidates[cand_idx + 1]
+                        logger.warning(
+                            "Model %s (%s) failed before response (%s). Attempting fallback #%d: %s (%s)...",
+                            cand_model, cand_prov, exc, cand_idx + 1, next_model, next_prov
+                        )
+                        continue
+                    else:
+                        logger.error("All models including fallbacks failed. Last error on %s (%s): %s", cand_model, cand_prov, exc)
+                        used_provider = cand_prov
+                        used_model = cand_model
+                        break
+
+            if last_error is not None:
+                code = getattr(last_error, "error_code", "chat_error")
                 provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
                 self.repository.update_message(
                     athlete_id,
@@ -476,8 +511,25 @@ class ChatService:
                     input_tokens,
                     output_tokens,
                     tool_provenance=provenance_json,
+                    provider=used_provider,
+                    model_id=used_model,
                 )
-                raise
+                raise last_error
+
+            provenance_json = json.dumps(provenance_records, default=str) if provenance_records else None
+            self.repository.update_message(
+                athlete_id,
+                assistant.message_id,
+                assembled,
+                "complete",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                tool_provenance=provenance_json,
+                provider=used_provider,
+                model_id=used_model,
+            )
+            if (used_provider, used_model) != (target_provider, selected_model):
+                self.repository.update_session(athlete_id, session_id, provider=used_provider, model_id=used_model)
 
         return user_message, events()
 

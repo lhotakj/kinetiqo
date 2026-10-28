@@ -75,7 +75,7 @@ class TestKiloSettingsEndpoints(unittest.TestCase):
 
         mock_provider_instance = MagicMock()
         mock_provider_instance.validate_model.return_value = {
-            "id": "kilo/kilo-auto/free",
+            "id": "kilo-auto/free",
             "name": "Kilo Auto Free",
             "context_length": 262144,
             "supports_tools": True,
@@ -86,12 +86,12 @@ class TestKiloSettingsEndpoints(unittest.TestCase):
 
         resp = self.client.post(
             "/api/settings/ai/kilo/models/validate",
-            json={"model_id": "kilo/kilo-auto/free"},
+            json={"model_id": "kilo-auto/free"},
         )
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertTrue(data["valid"])
-        self.assertEqual(data["model"]["id"], "kilo/kilo-auto/free")
+        self.assertEqual(data["model"]["id"], "kilo-auto/free")
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")
@@ -105,7 +105,7 @@ class TestKiloSettingsEndpoints(unittest.TestCase):
 
         mock_provider_instance = MagicMock()
         mock_provider_instance.validate_model.return_value = {
-            "id": "kilo/kilo-auto/free",
+            "id": "kilo-auto/free",
             "name": "Kilo Auto Free",
             "context_length": 262144,
             "supports_tools": True,
@@ -117,12 +117,12 @@ class TestKiloSettingsEndpoints(unittest.TestCase):
         # 1. Add model
         add_resp = self.client.post(
             "/api/settings/ai/kilo/models",
-            json={"model_id": "kilo/kilo-auto/free"},
+            json={"model_id": "kilo-auto/free"},
         )
         self.assertEqual(add_resp.status_code, 201)
         add_data = add_resp.get_json()
         self.assertEqual(len(add_data["models"]), 1)
-        self.assertEqual(add_data["models"][0]["id"], "kilo/kilo-auto/free")
+        self.assertEqual(add_data["models"][0]["id"], "kilo-auto/free")
         self.assertEqual(add_data["models"][0]["max_output_tokens"], 8192)
         self.assertEqual(add_data["models"][0]["rate_limits"], {"requests_per_minute": 60})
         mock_repo.save_provider_config.assert_called_once()
@@ -130,11 +130,11 @@ class TestKiloSettingsEndpoints(unittest.TestCase):
 
         # 2. Delete model
         mock_repo.get_provider_config.return_value = {
-            "models": [{"id": "kilo/kilo-auto/free"}]
+            "models": [{"id": "kilo-auto/free"}]
         }
         del_resp = self.client.delete(
             "/api/settings/ai/kilo/models",
-            json={"model_id": "kilo/kilo-auto/free"},
+            json={"model_id": "kilo-auto/free"},
         )
         self.assertEqual(del_resp.status_code, 200)
         del_data = del_resp.get_json()
@@ -148,7 +148,7 @@ class TestKiloSettingsEndpoints(unittest.TestCase):
             {"provider": "gemini", "display_name": "Google Gemini", "models": [{"id": "gemini-3.1-flash-lite"}]},
             {"provider": "openrouter", "display_name": "OpenRouter AI", "models": [{"id": "anthropic/claude-3.5-sonnet"}]},
             {"provider": "vercel", "display_name": "Vercel AI Gateway", "models": [{"id": "moonshotai/kimi-k2.6"}]},
-            {"provider": "kilo", "display_name": "Kilo AI Gateway", "models": [{"id": "kilo/kilo-auto/free"}]},
+            {"provider": "kilo", "display_name": "Kilo AI Gateway", "models": [{"id": "kilo-auto/free"}]},
         ]
         mock_service_fn.return_value = mock_service
 
