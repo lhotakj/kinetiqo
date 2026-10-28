@@ -365,13 +365,14 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure your AI providers and models for AI
                     Chat. Prompts, relevant Kinetiqo data, and telemetry are processed using your own API keys.</p>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-xs text-gray-600 dark:text-gray-300">
-                    <div class="inline-flex items-center gap-1.5 font-medium">
-                        <span class="text-yellow-500 text-sm leading-none" aria-hidden="true">★</span>
-                        <span id="ai-default-model-label">Default model: No default model selected</span>
+                    <div class="inline-flex items-center gap-1.5 font-medium flex-wrap">
+                        <span>Default model:</span>
+                        <span id="ai-default-model-container" class="inline-flex items-center gap-1.5">
+                            <span class="text-gray-400 dark:text-gray-500 italic">No default model selected</span>
+                        </span>
                     </div>
                     <span class="text-gray-300 dark:text-zinc-600 select-none">|</span>
                     <div class="inline-flex items-center gap-1.5 font-medium flex-wrap">
-                        <span class="text-orange-500 font-bold" aria-hidden="true">◆</span>
                         <span>Fallback models:</span>
                         <span id="ai-fallback-models-container" class="inline-flex items-center gap-1.5 flex-wrap">
                             <span class="text-gray-400 dark:text-gray-500 italic">None selected (up to 3)</span>
@@ -382,17 +383,38 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </button>
-                            <div class="absolute left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-0 w-80 p-3.5 mt-1 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-gray-200 dark:border-zinc-700 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-20 text-xs text-gray-600 dark:text-gray-300 leading-relaxed pointer-events-none">
-                                <h4 class="font-bold text-gray-900 dark:text-gray-100 mb-1.5 flex items-center gap-1.5">
+                            <div class="absolute left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-0 w-84 p-5 mt-2 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-30 text-xs text-gray-600 dark:text-gray-300 leading-relaxed pointer-events-none">
+                                <h4 class="font-bold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
                                     <span>How Fallback Models Work</span>
                                 </h4>
-                                <p class="mb-2">If your primary/default model does not respond, encounters rate limits, or returns an error, Kinetiqo automatically attempts your fallback models in the order they were selected:</p>
-                                <ol class="space-y-1 list-decimal list-inside font-mono text-[11px] text-gray-700 dark:text-gray-300 mb-2">
-                                    <li><strong class="text-orange-600 dark:text-orange-400">Fallback 1</strong> (First alternate)</li>
-                                    <li><strong class="text-orange-600 dark:text-orange-400">Fallback 2</strong> (Second alternate)</li>
-                                    <li><strong class="text-orange-600 dark:text-orange-400">Fallback 3</strong> (Third alternate)</li>
-                                </ol>
-                                <p class="text-[11px] text-gray-500 dark:text-gray-400">Click the diamond fallback icon on any model row to add or remove it as a fallback. Up to 3 models can be assigned.</p>
+                                <p class="mb-3 text-xs leading-relaxed text-gray-600 dark:text-gray-300">If your primary model does not respond, encounters rate limits (429), or returns an error, Kinetiqo automatically attempts your fallback models in the order you selected them:</p>
+                                <ul class="space-y-2 mb-3 text-[12px]">
+                                    <li class="flex items-center gap-2.5 p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-700/60">
+                                        <svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="#e03d5a" stroke="#e03d5a" stroke-width="0.5" />
+                                            <text x="9" y="9.5" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#000000">1</text>
+                                        </svg>
+                                        <span class="text-gray-800 dark:text-gray-200"><strong style="color: #e03d5a;">Fallback 1</strong> &mdash; First alternate attempted</span>
+                                    </li>
+                                    <li class="flex items-center gap-2.5 p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-700/60">
+                                        <svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="#e37c47" stroke="#e37c47" stroke-width="0.5" />
+                                            <text x="9" y="9.5" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#000000">2</text>
+                                        </svg>
+                                        <span class="text-gray-800 dark:text-gray-200"><strong style="color: #e37c47;">Fallback 2</strong> &mdash; Second alternate if #1 fails</span>
+                                    </li>
+                                    <li class="flex items-center gap-2.5 p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-700/60">
+                                        <svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="#e37c47" stroke="#e37c47" stroke-width="0.5" />
+                                            <text x="9" y="9.5" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#000000">3</text>
+                                        </svg>
+                                        <span class="text-gray-800 dark:text-gray-200"><strong style="color: #e37c47;">Fallback 3</strong> &mdash; Third alternate if #2 fails</span>
+                                    </li>
+                                </ul>
+                                <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">Click the diamond fallback icon on any model row to add or remove it. Up to 3 models can be assigned.</p>
                             </div>
                         </div>
                     </div>
@@ -2005,10 +2027,28 @@
         };
 
         function updateDefaultModelLabel() {
-            if (!defaultModelLabel) return;
-            defaultModelLabel.textContent = defaultModel?.model_id
-                ? `Default model: ${defaultModel.model_id}`
-                : 'Default model: No default model selected';
+            const container = document.getElementById('ai-default-model-container') || document.getElementById('ai-default-model-label');
+            if (!container) return;
+            container.replaceChildren();
+            if (defaultModel && defaultModel.model_id) {
+                const badge = document.createElement('span');
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-[11px] font-mono text-gray-800 dark:text-gray-200 border border-yellow-400 dark:border-yellow-500 shadow-sm';
+                const star = document.createElement('span');
+                star.className = 'text-yellow-500 text-sm leading-none';
+                star.textContent = '★';
+                star.setAttribute('aria-hidden', 'true');
+                const name = document.createElement('span');
+                name.className = 'truncate max-w-[150px] font-sans font-medium';
+                name.textContent = defaultModel.model_id;
+                name.title = `${defaultModel.provider} / ${defaultModel.model_id}`;
+                badge.append(star, name);
+                container.appendChild(badge);
+            } else {
+                const none = document.createElement('span');
+                none.className = 'text-gray-400 dark:text-gray-500 italic';
+                none.textContent = 'No default model selected';
+                container.appendChild(none);
+            }
         }
 
         function setCurrentProvider(provider) {
@@ -2072,6 +2112,13 @@
             updateFallbackModelsLabel();
         }
 
+        function getFallbackColor(num) {
+            if (num === 1) return '#e03d5a';
+            if (num === 2) return '#e37c47';
+            if (num === 3) return '#e37c47';
+            return '#e37c47';
+        }
+
         function updateFallbackModelsLabel() {
             if (!fallbackModelsContainer) return;
             fallbackModelsContainer.replaceChildren();
@@ -2083,21 +2130,24 @@
                 return;
             }
             fallbackModels.forEach((fb, idx) => {
+                const num = idx + 1;
+                const color = getFallbackColor(num);
                 const badge = document.createElement('span');
-                badge.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 text-[11px] font-mono';
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-[11px] font-mono text-gray-800 dark:text-gray-200 shadow-sm';
+                badge.style.border = `1px solid ${color}`;
 
                 const numSpan = document.createElement('span');
                 numSpan.className = 'flex items-center';
-                numSpan.innerHTML = renderFallbackBadgeSvg(idx + 1);
+                numSpan.innerHTML = renderFallbackBadgeSvg(num);
 
                 const nameSpan = document.createElement('span');
-                nameSpan.className = 'truncate max-w-[130px] font-sans';
+                nameSpan.className = 'truncate max-w-[140px] font-sans font-medium';
                 nameSpan.textContent = fb.model_id;
                 nameSpan.title = `${fb.provider} / ${fb.model_id}`;
 
                 const rmBtn = document.createElement('button');
                 rmBtn.type = 'button';
-                rmBtn.className = 'text-orange-400 hover:text-red-500 dark:text-orange-400 dark:hover:text-red-400 font-bold leading-none cursor-pointer';
+                rmBtn.className = 'text-gray-400 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 font-bold leading-none cursor-pointer ml-0.5';
                 rmBtn.setAttribute('aria-label', `Remove fallback model ${fb.model_id}`);
                 rmBtn.textContent = '×';
                 rmBtn.addEventListener('click', async () => {
@@ -2152,29 +2202,35 @@
         }
 
         function renderFallbackBadgeSvg(num) {
-            return `<svg class="w-3.5 h-3.5 inline-block text-orange-500 flex-shrink-0" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="8" y="1" width="9" height="9" rx="1.5" transform="rotate(45 8 1)" fill="currentColor" stroke="#ea580c" stroke-width="0.5" />
-                <text x="8" y="10.2" text-anchor="middle" font-size="7.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" fill="white">${num}</text>
+            const color = getFallbackColor(num);
+            return `<svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="${color}" stroke="${color}" stroke-width="0.5" />
+                <text x="9" y="9.5" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#000000">${num}</text>
             </svg>`;
         }
 
         function renderEmptyFallbackBadgeSvg() {
-            return `<svg class="w-3.5 h-3.5 inline-block text-gray-400 dark:text-zinc-500 flex-shrink-0" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="8" y="1" width="9" height="9" rx="1.5" transform="rotate(45 8 1)" fill="none" stroke="currentColor" stroke-width="1.3" />
+            return `<svg class="w-4 h-4 inline-block text-gray-400 dark:text-zinc-500 flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="none" stroke="currentColor" stroke-width="1.3" />
             </svg>`;
         }
 
         function createFallbackButton(provider, item) {
             const fbIndex = fallbackModels.findIndex(m => m.provider === provider && m.model_id === item.id);
             const isFallback = fbIndex >= 0;
+            const num = fbIndex + 1;
+            const color = isFallback ? getFallbackColor(num) : '';
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = isFallback
-                ? 'inline-flex items-center justify-center w-7 h-7 rounded border border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition cursor-pointer'
+                ? 'inline-flex items-center justify-center w-7 h-7 rounded border bg-gray-100 dark:bg-zinc-800 transition cursor-pointer'
                 : 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-400 dark:text-zinc-500 hover:border-orange-400 hover:text-orange-500 transition cursor-pointer';
-            btn.setAttribute('aria-label', isFallback ? `Fallback model #${fbIndex + 1}: Click to remove` : `Set ${item.id} as fallback model`);
-            btn.setAttribute('title', isFallback ? `Fallback #${fbIndex + 1} (click to remove)` : 'Set as fallback model (up to 3)');
-            btn.innerHTML = isFallback ? renderFallbackBadgeSvg(fbIndex + 1) : renderEmptyFallbackBadgeSvg();
+            if (isFallback) {
+                btn.style.borderColor = color;
+            }
+            btn.setAttribute('aria-label', isFallback ? `Fallback model #${num}: Click to remove` : `Set ${item.id} as fallback model`);
+            btn.setAttribute('title', isFallback ? `Fallback #${num} (click to remove)` : 'Set as fallback model (up to 3)');
+            btn.innerHTML = isFallback ? renderFallbackBadgeSvg(num) : renderEmptyFallbackBadgeSvg();
 
             btn.addEventListener('click', async () => {
                 const isDefault = Boolean(defaultModel && defaultModel.provider === provider && defaultModel.model_id === item.id);

@@ -793,10 +793,20 @@
     pointer-events: none;
     user-select: none;
     transition: opacity 0.12s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    min-height: 18px;
   }
 
   .chat-model-default-indicator.visible {
     opacity: 1;
+  }
+
+  .chat-msg-user {
+    background-color: #4aaf9f !important;
+    color: #ffffff !important;
   }
 
   .chat-model-menu {
@@ -933,6 +943,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: 18px;
+    min-height: 18px;
   }
 
   .chat-model-item-default-star.visible {
@@ -1411,7 +1423,7 @@
                   <img id="chat-model-trigger-icon" class="chat-model-group-icon" src="" alt="" style="display:none;" />
                   <span id="chat-model-selected" class="chat-model-trigger-label">gemini-3.1-flash-lite</span>
                   <span class="chat-model-trigger-icons">
-                    <span id="chat-model-default-indicator" class="chat-model-default-indicator" aria-hidden="true">★</span>
+                    <span id="chat-model-default-indicator" class="chat-model-default-indicator" aria-hidden="true"></span>
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
                     </svg>

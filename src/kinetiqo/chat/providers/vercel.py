@@ -22,6 +22,22 @@ logger = logging.getLogger("kinetiqo.chat.vercel")
 
 DEFAULT_VERCEL_MODELS = (
     {
+        "id": "nvidia/nemotron-3.5-lightning-free",
+        "name": "NVIDIA: Nemotron 3.5 Lightning (Free)",
+        "context_length": 128000,
+        "supports_tools": True,
+        "supports_vision": False,
+        "pricing": {"prompt": "0", "completion": "0"},
+    },
+    {
+        "id": "poolside/laguna-s-2.1-free",
+        "name": "Poolside: Laguna S 2.1 (Free)",
+        "context_length": 128000,
+        "supports_tools": True,
+        "supports_vision": False,
+        "pricing": {"prompt": "0", "completion": "0"},
+    },
+    {
         "id": "moonshotai/kimi-k2.6",
         "name": "Moonshot AI: Kimi K2.6",
         "context_length": 262000,

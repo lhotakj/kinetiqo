@@ -19,7 +19,7 @@
     const activeModelBadge = document.getElementById('chat-active-model');
     const suggestionsPopup = document.getElementById('chat-suggestions-popup');
     let sessionId = JSON.parse(app.dataset.initialSessionId || 'null');
-    const userName = JSON.parse(app.dataset.userName || '"Athlete"') || 'Athlete';
+    const userName = JSON.parse(app.dataset.userName || '""') || '';
 
     const PREFERRED_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
@@ -457,15 +457,30 @@
         }
     };
 
-    const updateFooterModel = (article, modelId) => {
+    const updateFooterModel = (article, modelId, provider = null) => {
         if (!modelId) return;
         article._modelId = modelId;
+        if (provider) article._provider = provider;
         const footer = ensureFooter(article);
         const modelBadge = footer.querySelector('.chat-model-badge');
         if (!modelBadge) return;
         const displayName = modelNamesMap.get(modelId) || modelId;
-        modelBadge.textContent = displayName;
-        modelBadge.title = `Model: ${modelId}`;
+        const resolvedProvider = provider || article._provider || modelCatalog.find((m) => m.id === modelId)?.provider || (modelId.startsWith('gemini') ? 'gemini' : '');
+        const iconPath = getProviderIconPath(resolvedProvider);
+        modelBadge.replaceChildren();
+        if (iconPath) {
+            const img = document.createElement('img');
+            img.className = 'w-3.5 h-3.5 inline-block align-middle mr-1.5 flex-shrink-0 chat-model-group-icon';
+            img.src = iconPath;
+            img.alt = '';
+            img.dataset.provider = resolvedProvider;
+            img.setAttribute('aria-hidden', 'true');
+            modelBadge.appendChild(img);
+        }
+        const textSpan = document.createElement('span');
+        textSpan.textContent = displayName;
+        modelBadge.appendChild(textSpan);
+        modelBadge.title = `Model: ${modelId}${resolvedProvider ? ` (${resolvedProvider})` : ''}`;
         refreshSeparators(footer);
     };
 
@@ -544,9 +559,9 @@
             sepProv.textContent = '·';
             row.appendChild(sepProv);
 
-            // Model name badge (same style, font size, and color as tokens badge)
+            // Model name badge with provider logo
             const modelBadge = document.createElement('span');
-            modelBadge.className = 'chat-model-badge text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
+            modelBadge.className = 'chat-model-badge inline-flex items-center text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
             row.appendChild(modelBadge);
 
             // Separator between model and tokens (or download)
@@ -799,19 +814,20 @@
         refreshSeparators(footer);
     };
 
-    const messageNode = (role, content = '', toolProvenance = null, inputTokens = null, outputTokens = null, modelId = null) => {
+    const messageNode = (role, content = '', toolProvenance = null, inputTokens = null, outputTokens = null, modelId = null, provider = null) => {
         const article = document.createElement('article');
         article.dataset.role = role;
+        if (provider) article._provider = provider;
 
         if (role === 'user') {
             article.className = 'chat-msg-user';
-            article.style.cssText = 'margin-left: auto; max-width: 85%; border-radius: 16px 16px 4px 16px; background: #ea580c; color: white; padding: 12px 18px; font-size: 14px; line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06);';
+            article.style.cssText = 'margin-left: auto; max-width: 85%; border-radius: 16px 16px 4px 16px; background: #4aaf9f; color: white; padding: 12px 18px; font-size: 14px; line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.06);';
 
             const senderHeader = document.createElement('div');
             senderHeader.className = 'chat-sender-header';
             senderHeader.style.cssText = 'display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.92);';
             const nameEl = document.createElement('span');
-            nameEl.textContent = userName || 'Athlete';
+            nameEl.textContent = userName || 'You';
             senderHeader.appendChild(nameEl);
             article.appendChild(senderHeader);
         } else {
@@ -840,7 +856,7 @@
         if (role === 'assistant') {
             ensureFooter(article);
             if (modelId) {
-                updateFooterModel(article, modelId);
+                updateFooterModel(article, modelId, provider);
             }
             if (inputTokens || outputTokens) {
                 updateFooterInfo(article, inputTokens, outputTokens);
@@ -909,7 +925,7 @@
         messages.replaceChildren();
         currentChatHistory = [];
         (list || []).forEach((item) => {
-            messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens, item.model_id);
+            messageNode(item.role, item.content, item.tool_provenance, item.input_tokens, item.output_tokens, item.model_id, item.provider);
             if (item.role === 'user' && typeof item.content === 'string') {
                 const clean = item.content.trim();
                 if (clean && (currentChatHistory.length === 0 || currentChatHistory[currentChatHistory.length - 1] !== clean)) {
@@ -941,10 +957,18 @@
         return idx >= 0 ? idx + 1 : 0;
     };
 
+    const getFallbackColor = (num) => {
+        if (num === 1) return '#e03d5a';
+        if (num === 2) return '#e37c47';
+        if (num === 3) return '#edc859';
+        return '#e37c47';
+    };
+
     const renderFallbackBadgeSvg = (num) => {
-        return `<svg class="w-3.5 h-3.5 inline-block text-orange-500 flex-shrink-0" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="1" width="9" height="9" rx="1.5" transform="rotate(45 8 1)" fill="currentColor" stroke="#ea580c" stroke-width="0.5" />
-            <text x="8" y="10.2" text-anchor="middle" font-size="7.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" fill="white">${num}</text>
+        const color = getFallbackColor(num);
+        return `<svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="${color}" stroke="${color}" stroke-width="0.5" />
+            <text x="9" y="9.5" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#000000">${num}</text>
         </svg>`;
     };
 
@@ -1032,7 +1056,21 @@
             }
         }
         if (modelDefaultIndicator) {
-            modelDefaultIndicator.classList.toggle('visible', isDefaultModel(model.value, selectedProvider));
+            const isDef = isDefaultModel(model.value, selectedProvider);
+            const fbIdx = getFallbackIndex(model.value, selectedProvider);
+            if (isDef) {
+                modelDefaultIndicator.innerHTML = '<span class="text-yellow-500 leading-none">★</span>';
+                modelDefaultIndicator.classList.add('visible');
+                modelDefaultIndicator.title = 'Default model';
+            } else if (fbIdx > 0) {
+                modelDefaultIndicator.innerHTML = renderFallbackBadgeSvg(fbIdx);
+                modelDefaultIndicator.classList.add('visible');
+                modelDefaultIndicator.title = `Fallback model #${fbIdx}`;
+            } else {
+                modelDefaultIndicator.innerHTML = '';
+                modelDefaultIndicator.classList.remove('visible');
+                modelDefaultIndicator.title = '';
+            }
         }
         if (modelMenu) {
             modelMenu.querySelectorAll('.chat-model-item').forEach((itemEl) => {
@@ -1046,7 +1084,7 @@
                     const isDef = isDefaultModel(itemId, itemProvider);
                     const fbIdx = getFallbackIndex(itemId, itemProvider);
                     if (isDef) {
-                        starEl.textContent = '★';
+                        starEl.innerHTML = '<span class="text-yellow-500 leading-none">★</span>';
                         starEl.classList.add('visible');
                         starEl.title = 'Default model';
                     } else if (fbIdx > 0) {
@@ -1054,7 +1092,7 @@
                         starEl.classList.add('visible');
                         starEl.title = `Fallback model #${fbIdx}`;
                     } else {
-                        starEl.textContent = '★';
+                        starEl.innerHTML = '';
                         starEl.classList.remove('visible');
                         starEl.title = '';
                     }
@@ -1128,13 +1166,13 @@
                 starEl.className = 'chat-model-item-default-star' + (isDef || fbIdx > 0 ? ' visible' : '');
                 starEl.setAttribute('aria-hidden', 'true');
                 if (isDef) {
-                    starEl.textContent = '★';
+                    starEl.innerHTML = '<span class="text-yellow-500 leading-none">★</span>';
                     starEl.title = 'Default model';
                 } else if (fbIdx > 0) {
                     starEl.innerHTML = renderFallbackBadgeSvg(fbIdx);
                     starEl.title = `Fallback model #${fbIdx}`;
                 } else {
-                    starEl.textContent = '★';
+                    starEl.innerHTML = '';
                 }
 
                 btn.appendChild(mainWrap);
@@ -1233,12 +1271,13 @@
             || PREFERRED_MODELS.map((p) => flatModels.find((item) => item.id === p)).find(Boolean)
             || flatModels[0];
 
-        const defaultChoice = (matchedServerDefault
-            ? flatModels.find((item) => item.id === serverDefault.model_id && (!serverDefault.provider || item.provider === serverDefault.provider))
-            : null) || preferred;
-
-        defaultModelId = defaultChoice?.id || '';
-        defaultModelProvider = defaultChoice?.provider || '';
+        if (matchedServerDefault && serverDefault) {
+            defaultModelId = serverDefault.model_id || '';
+            defaultModelProvider = serverDefault.provider || '';
+        } else {
+            defaultModelId = '';
+            defaultModelProvider = '';
+        }
 
         model.value = preferred.id;
         localStorage.setItem('kinetiqo_chat_model', preferred.id);
@@ -1588,7 +1627,7 @@
                     try {
                         const res = await request('/api/chat/disclaimer');
                         md = (res?.disclaimer || '').trim();
-                    } catch (_) {}
+                    } catch (_) { }
                 }
                 if (md && typeof marked !== 'undefined') {
                     body.innerHTML = marked.parse(md);
@@ -1914,7 +1953,7 @@
             }
             input.value = '';
             messageNode('user', content);
-            answer = messageNode('assistant', '', null, null, null, chosenModelId);
+            answer = messageNode('assistant', '', null, null, null, chosenModelId, chosenProvider);
             ensureFooter(answer);
             answer._hideDownloadsPermanently = false;
             setFooterThinkingState(answer, 0);
@@ -1974,7 +2013,7 @@
                         scrollToBottom();
                     } else if (eventType === 'completed') {
                         if (payload.model_id) {
-                            updateFooterModel(answer, payload.model_id);
+                            updateFooterModel(answer, payload.model_id, payload.provider);
                             scrollToBottom();
                         }
                     } else if (eventType === 'text_delta') {

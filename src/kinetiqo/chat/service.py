@@ -382,25 +382,41 @@ class ChatService:
             if not target_provider:
                 target_provider = curr_prov
 
-        adapter = self._provider(athlete_id, target_provider)
-        deprecated = getattr(adapter, "deprecated_models", frozenset())
-        default_model = getattr(adapter, "default_model", "default")
-        if not isinstance(default_model, str) or not default_model.strip():
-            default_model = "default"
-        requested_model = model_id or (chat_session.model_id if target_provider == chat_session.provider else default_model)
-        if requested_model in deprecated:
-            requested_model = default_model
+        fallback_configs = self.repository.get_fallback_models(athlete_id)
+
+        adapter = None
+        deprecated = frozenset()
+        default_model = "default"
+        selected_model = None
+        requested_model = None
+        try:
+            adapter = self._provider(athlete_id, target_provider)
+            deprecated = getattr(adapter, "deprecated_models", frozenset())
+            default_model = getattr(adapter, "default_model", "default")
+            if not isinstance(default_model, str) or not default_model.strip():
+                default_model = "default"
+            requested_model = model_id or (chat_session.model_id if target_provider == chat_session.provider else default_model)
+            if requested_model in deprecated:
+                requested_model = default_model
+
+            available_models = adapter.list_models()
+            if available_models:
+                available_ids = {item.id for item in available_models}
+                selected_model = requested_model if (requested_model in available_ids and requested_model not in deprecated) else available_models[0].id
+                if selected_model != requested_model:
+                    logger.warning("Chat substituted unavailable model: requested=%s selected=%s", requested_model, selected_model)
+            elif not fallback_configs:
+                raise ChatConfigurationError(f"Provider '{target_provider}' returned no text-generation models for this API key.")
+        except Exception as prov_err:
+            if not fallback_configs:
+                raise
+            logger.warning("Primary provider '%s' failed pre-check (%s); will attempt fallback models.", target_provider, prov_err)
+
+        if not selected_model:
+            selected_model = requested_model or "default"
 
         user_message = self.repository.add_message(athlete_id, session_id, "user", content.strip())
         history = self._history(athlete_id, session_id, exclude_message_id=user_message.message_id)
-
-        available_models = adapter.list_models()
-        if not available_models:
-            raise ChatConfigurationError(f"Provider '{target_provider}' returned no text-generation models for this API key.")
-        available_ids = {item.id for item in available_models}
-        selected_model = requested_model if (requested_model in available_ids and requested_model not in deprecated) else available_models[0].id
-        if selected_model != requested_model:
-            logger.warning("Chat substituted unavailable model: requested=%s selected=%s", requested_model, selected_model)
 
         if target_provider != chat_session.provider:
             self.repository.update_session(athlete_id, session_id, provider=target_provider, model_id=selected_model)
@@ -409,10 +425,13 @@ class ChatService:
 
         assistant = self.repository.add_message(athlete_id, session_id, "assistant", "", "interrupted", target_provider, selected_model)
 
-        chat_tools = get_chat_tools(provider=target_provider, config=self.config, repo_factory=lambda: self.repository.source_repository)
+        chat_tools = None
+        try:
+            chat_tools = get_chat_tools(provider=target_provider, config=self.config, repo_factory=lambda: self.repository.source_repository)
+        except Exception:
+            chat_tools = None
         provenance_records: list[dict[str, Any]] = []
 
-        fallback_configs = self.repository.get_fallback_models(athlete_id)
         candidates: list[tuple[str, str]] = [(target_provider, selected_model)]
         for fb in fallback_configs:
             fb_p = fb.get("provider")
@@ -446,8 +465,8 @@ class ChatService:
                 assembled = ""
                 input_tokens = output_tokens = None
                 try:
-                    cand_adapter = adapter if (cand_prov == target_provider) else self._provider(athlete_id, cand_prov)
-                    cand_tools = chat_tools if (cand_prov == target_provider) else get_chat_tools(provider=cand_prov, config=self.config, repo_factory=lambda: self.repository.source_repository)
+                    cand_adapter = adapter if (cand_prov == target_provider and adapter is not None) else self._provider(athlete_id, cand_prov)
+                    cand_tools = chat_tools if (cand_prov == target_provider and chat_tools is not None) else get_chat_tools(provider=cand_prov, config=self.config, repo_factory=lambda: self.repository.source_repository)
                     stream_kwargs: dict[str, Any] = {}
                     if cand_tools:
                         stream_kwargs["tools"] = cand_tools

@@ -2466,7 +2466,7 @@ def chat_page(session_id: str | None = None):
     athlete_id = _chat_user_id()
     if session_id and not _chat_service().repository.get_session(athlete_id, session_id):
         return Response(status=404)
-    user_name = getattr(current_user, 'id', '') or 'Athlete'
+    user_name = ''
     try:
         profile = get_db().get_profile()
         if profile:
@@ -2476,9 +2476,11 @@ def chat_page(session_id: str | None = None):
             if full_name:
                 user_name = full_name
             elif profile.get('name'):
-                user_name = profile['name']
+                user_name = str(profile['name']).strip()
     except Exception:
         pass
+    if not user_name:
+        user_name = getattr(current_user, 'name', None) or getattr(current_user, 'username', None) or getattr(current_user, 'id', '') or 'You'
     initial_prompts = []
     try:
         service = _chat_service()
