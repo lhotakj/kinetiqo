@@ -66,6 +66,12 @@ Integrated prompt workflows in `src/kinetiqo/mcp/prompts.py` equip the AI with s
 
 ## 4. Multi-Provider Architecture
 
+### 3.1 Named Strava Description Agents
+
+The **Settings → Strava description templates** panel supports multiple specialized Kinetiqo Agents. Use the orange **+ Add Agent** action in the top-right of the agent panel to add one. A new row initially displays `{{agent-ai-<new>}}`; as its name is typed, its placeholder updates to the normalized lowercase slug, such as `{{agent-ai-indoor-bike}}` or `{{agent-ai-hike}}`. The variable picker lists only configured, enabled named-agent placeholders, never obsolete generic aliases. Each agent response is cached independently per activity. Saving an agent prompt clears that agent's cached responses so the next eligible sync generates fresh text; an empty prompt intentionally skips the AI call and resolves its placeholder to empty text. Description output uses the **✨ Kinetiqo AI** prefix only when an AI placeholder produced content; otherwise it uses **✨ Kinetiqo**. Template mini-headers use the AI label when their text contains a named `{{agent-ai-...}}` placeholder.
+
+Removing an agent used by templates requires confirmation, then removes its placeholder from those templates and refreshes Settings.
+
 Kinetiqo separates the chat orchestration service from underlying AI providers, allowing athletes to choose the intelligence engine that best fits their budget, speed, and privacy preferences:
 
 ```

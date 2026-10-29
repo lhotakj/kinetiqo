@@ -617,6 +617,12 @@ OpenRouter hosts hundreds of models that are updated, added, or deprecated regul
 ### 8.3 Multi-Provider Settings Architecture (`/settings`)
 The Settings page provides a unified **AI & API Providers** panel:
 
+#### Named Strava Description Agents
+
+Strava description generation persists the feature's complete user-specific state in `profile.strava_agents_config`, a JSON column with an `enabled` flag and named-agent list. Names are normalized to unique lowercase slugs and produce `{{agent-ai-<name>}}` placeholders. The Settings editor creates a first grid row with the draft token `{{agent-ai-<new>}}`, updates that token live as the name is typed, and fixes the name column width so long tokens truncate without reflowing the prompt column. Its top-right orange **+ Add Agent** action creates the draft row.
+
+Only enabled, configured named-agent tokens appear in the template-variable picker; obsolete generic aliases are excluded. Responses remain in each activity's `ai_responses` JSON object under the complete named token. Updating a prompt removes only that token's cached responses across activities, ensuring the next sync calls the configured provider with fresh instructions. An empty prompt is a deliberate no-op that resolves its placeholder to an empty string without an API call. The persisted description uses the AI prefix only when a resolved AI token supplied content; a skipped or failed request uses the standard Kinetiqo prefix. Deleting a referenced agent requires explicit confirmation, strips its placeholder from all affected `UPDATE_STRAVA_*` templates, purges its cached responses, and then deletes the agent record.
+
 1. **"+ Add AI Provider" Action**:
    - A dropdown or button bar allowing the athlete to add **Google Gemini** or **OpenRouter AI**.
 2. **Google Gemini Card**:

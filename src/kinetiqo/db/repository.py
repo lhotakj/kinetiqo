@@ -193,6 +193,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        """Remove cached responses for one named agent and return affected activities."""
+        pass
+
+    @abstractmethod
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
         pass
@@ -401,7 +406,8 @@ class DatabaseRepository(ABC):
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
-                       agent_prompt: str = "") -> None:
+                       agent_prompt: str = "",
+                       strava_agents_config: Optional[str] = None) -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).
@@ -510,6 +516,3 @@ class DatabaseRepository(ABC):
     ) -> List[Dict[str, Any]]:
         """Retrieve timestamp-aligned multi-channel stream samples within a window."""
         pass
-
-
-

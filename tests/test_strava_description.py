@@ -260,6 +260,24 @@ class TestMergeDescription(unittest.TestCase):
         self.assertNotIn("Old AI text.", result)
         self.assertNotIn(UPDATE_STRAVA_AI_PREFIX, result)
 
+    def test_enabled_state_sets_prefix_and_removes_all_previous_prefix_lines(self):
+        from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
+        existing = (
+            f"{UPDATE_STRAVA_PREFIX}\n"
+            f"{UPDATE_STRAVA_AI_PREFIX} Previous AI text.\n"
+            "Personal note."
+        )
+        result = merge_description(
+            existing,
+            "Recovery: {{workout-summary}}",
+            "Recovery | 23min @ 83bpm",
+            ai_enabled=True,
+        )
+        self.assertEqual(
+            result,
+            f"Personal note.\n\n{UPDATE_STRAVA_AI_PREFIX} Recovery | 23min @ 83bpm\n",
+        )
+
 
 class TestDescriptionContextResolution(unittest.TestCase):
     """Unit tests for DescriptionContext value resolution against a mocked repo."""
@@ -615,4 +633,3 @@ class TestValidateTemplate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

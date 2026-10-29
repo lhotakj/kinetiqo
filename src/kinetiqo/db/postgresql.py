@@ -634,6 +634,29 @@ class PostgresqlRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute("UPDATE activities SET ai_responses = NULL WHERE activity_id = ANY(%s)", (ids,))
 
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        self._ensure_connected()
+        tokens = {f"agent-ai-{agent_name}"}
+        if agent_name == "default":
+            tokens.update({"ai-agent", "agent-ai"})
+        affected = 0
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT activity_id, ai_responses FROM activities WHERE ai_responses IS NOT NULL")
+            for activity_id, raw in cur.fetchall():
+                try:
+                    responses = raw if isinstance(raw, dict) else json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(responses, dict) and tokens.intersection(responses):
+                    for token in tokens:
+                        responses.pop(token, None)
+                    cur.execute(
+                        "UPDATE activities SET ai_responses = %s WHERE activity_id = %s",
+                        (json.dumps(responses) if responses else None, activity_id),
+                    )
+                    affected += 1
+        return affected
+
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
         self._ensure_connected()
@@ -1068,7 +1091,7 @@ class PostgresqlRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification, agent_prompt "
+                "gps_simplification, agent_prompt, strava_agents_config "
                 "FROM profile LIMIT 1"
             )
             row = cur.fetchone()
@@ -1080,12 +1103,14 @@ class PostgresqlRepository(DatabaseRepository):
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
-                       agent_prompt: Optional[str] = None):
+                       agent_prompt: Optional[str] = None,
+                       strava_agents_config: Optional[str] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
         effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt') if existing else "")
+        effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config') if existing else "")
 
         with self.conn.cursor() as cur:
             cur.execute("""
@@ -1093,8 +1118,8 @@ class PostgresqlRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification, agent_prompt)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, agent_prompt, strava_agents_config)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
@@ -1108,12 +1133,13 @@ class PostgresqlRepository(DatabaseRepository):
                         update_strava_swimming         = EXCLUDED.update_strava_swimming,
                         refresh_token                  = EXCLUDED.refresh_token,
                         gps_simplification             = EXCLUDED.gps_simplification,
-                        agent_prompt                   = EXCLUDED.agent_prompt
+                        agent_prompt                   = EXCLUDED.agent_prompt,
+                        strava_agents_config           = EXCLUDED.strava_agents_config
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification, effective_agent_prompt or ""))
+                  effective_gps_simplification, effective_agent_prompt or "", effective_strava_agents_config or ""))
 
     # ------------------------------------------------------------------
     # Activity goals
@@ -1586,4 +1612,3 @@ class PostgresqlRepository(DatabaseRepository):
                 d["ts"] = d["ts"].isoformat()
             result.append(d)
         return result
-

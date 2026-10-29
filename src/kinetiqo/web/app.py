@@ -3498,6 +3498,156 @@ def get_profile_api():
         return jsonify({'error': str(e)}), 500
 
 
+def _normalize_strava_agent_name(value: object) -> str:
+    """Return the canonical slug used in ``{{agent-ai-<name>}}`` placeholders."""
+    normalized = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
+    return normalized[:64]
+
+
+def _strava_agents_config(profile: dict) -> dict:
+    """Read the profile-owned JSON configuration for Strava AI agents."""
+    raw = profile.get('strava_agents_config') or ''
+    try:
+        config_value = raw if isinstance(raw, dict) else json_module.loads(raw)
+    except (TypeError, ValueError):
+        config_value = {}
+    agents = (config_value.get('agents') or []) if isinstance(config_value, dict) else []
+    return {
+        'enabled': bool(config_value.get('enabled', True)) if isinstance(config_value, dict) else True,
+        'agents': [
+            {'name': str(agent.get('name') or ''), 'prompt': str(agent.get('prompt') or '')}
+            for agent in agents if isinstance(agent, dict) and agent.get('name')
+        ],
+    }
+
+
+def _save_strava_agents_config(repo, profile: dict, config_value: dict) -> None:
+    repo.upsert_profile(
+        int(profile['athlete_id']),
+        str(profile.get('first_name') or ''),
+        str(profile.get('last_name') or ''),
+        float(profile.get('weight') or 0),
+        refresh_token=str(profile.get('refresh_token') or ''),
+        ftp=profile.get('ftp'),
+        gps_simplification=profile.get('gps_simplification'),
+        agent_prompt=str(profile.get('agent_prompt') or ''),
+        strava_agents_config=json_module.dumps(config_value),
+        **{field: str(profile.get(field) or '') for field in UPDATE_STRAVA_FIELDS},
+    )
+
+
+@app.route('/api/profile/strava-agents', methods=['GET', 'POST', 'PUT'])
+@login_required
+def strava_agents_api():
+    """List or create named AI agents used by Strava description templates."""
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+    athlete_id = int(profile["athlete_id"])
+    agents_config = _strava_agents_config(profile)
+    agents = agents_config['agents']
+
+    if request.method == 'GET':
+        return jsonify({'agents': agents, 'enabled': agents_config['enabled']})
+
+    if request.method == 'PUT':
+        enabled = (request.get_json() or {}).get('enabled')
+        if not isinstance(enabled, bool):
+            return jsonify({'error': 'Enabled must be a boolean.', 'field': 'enabled'}), 422
+        agents_config['enabled'] = enabled
+        _save_strava_agents_config(repo, profile, agents_config)
+        return jsonify({'enabled': enabled})
+
+    data = request.get_json() or {}
+    name = _normalize_strava_agent_name(data.get('name'))
+    if not name:
+        return jsonify({'error': 'Agent name must contain letters or numbers.', 'field': 'name'}), 422
+    if any(agent['name'].lower() == name for agent in agents):
+        return jsonify({'error': f'An agent named "{name}" already exists.', 'field': 'name'}), 422
+    agent = {'name': name, 'prompt': str(data.get('prompt') or '').strip()}
+    agents_config['agents'].append(agent)
+    _save_strava_agents_config(repo, profile, agents_config)
+    return jsonify({'agent': agent}), 201
+
+
+@app.route('/api/profile/strava-agents/<string:name>', methods=['PUT', 'DELETE'])
+@login_required
+def strava_agent_api(name: str):
+    """Update an agent prompt or remove an agent and its template placeholders."""
+    normalized_name = _normalize_strava_agent_name(name)
+    if not normalized_name or normalized_name != name:
+        return jsonify({'error': 'Invalid agent name.', 'field': 'name'}), 422
+
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+    athlete_id = int(profile["athlete_id"])
+    agents_config = _strava_agents_config(profile)
+    agents = agents_config['agents']
+    if normalized_name not in {agent['name'] for agent in agents}:
+        return jsonify({'error': 'Agent not found.'}), 404
+
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        updated_name = _normalize_strava_agent_name(data.get('name', normalized_name))
+        if not updated_name:
+            return jsonify({'error': 'Agent name must contain letters or numbers.', 'field': 'name'}), 422
+        if updated_name != normalized_name and updated_name in {agent['name'] for agent in agents}:
+            return jsonify({'error': f'An agent named "{updated_name}" already exists.', 'field': 'name'}), 422
+
+        prompt = str(data.get('prompt') or '').strip()
+        if updated_name != normalized_name:
+            template_updates = {
+                field: str(profile.get(field) or "").replace(
+                    f"{{{{agent-ai-{normalized_name}}}}}",
+                    f"{{{{agent-ai-{updated_name}}}}}",
+                )
+                for field in UPDATE_STRAVA_FIELDS
+            }
+            for field, value in template_updates.items():
+                profile[field] = value
+                setattr(config, field, value)
+            agents_config['agents'] = [
+                {'name': updated_name, 'prompt': prompt} if agent['name'] == normalized_name else agent
+                for agent in agents
+            ]
+            _save_strava_agents_config(repo, profile, agents_config)
+        else:
+            agents_config['agents'] = [
+                {'name': agent['name'], 'prompt': prompt} if agent['name'] == normalized_name else agent
+                for agent in agents
+            ]
+            _save_strava_agents_config(repo, profile, agents_config)
+        invalidated = repo.purge_strava_agent_ai_responses(normalized_name)
+        return jsonify({
+            'agent': {'name': updated_name, 'prompt': prompt},
+            'invalidated_cache_entries': invalidated,
+        })
+
+    referenced_by = [
+        field for field in UPDATE_STRAVA_FIELDS
+        if f"{{{{agent-ai-{normalized_name}}}}}" in str(profile.get(field) or "")
+    ]
+    confirm = bool((request.get_json() or {}).get('confirm'))
+    if referenced_by and not confirm:
+        return jsonify({'requires_confirmation': True, 'referenced_by': referenced_by}), 409
+
+    if referenced_by:
+        template_updates = {
+            field: str(profile.get(field) or "").replace(f"{{{{agent-ai-{normalized_name}}}}}", "")
+            for field in UPDATE_STRAVA_FIELDS
+        }
+        for field, value in template_updates.items():
+            profile[field] = value
+            setattr(config, field, value)
+    agents_config['agents'] = [agent for agent in agents if agent['name'] != normalized_name]
+    _save_strava_agents_config(repo, profile, agents_config)
+    invalidated = repo.purge_strava_agent_ai_responses(normalized_name)
+    return jsonify({'deleted': normalized_name, 'referenced_by': referenced_by, 'invalidated_cache_entries': invalidated})
+
+
 @app.route('/api/profile/sync', methods=['POST'])
 @login_required
 def api_sync_profile_from_strava():
@@ -3565,6 +3715,7 @@ def update_profile_api():
         existing = repo.get_profile()
         if not existing:
             return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+        agent_names = {agent['name'] for agent in _strava_agents_config(existing)['agents']}
 
         first_name = data.get('first_name', existing['first_name'])
         last_name = data.get('last_name', existing['last_name'])
@@ -3617,7 +3768,7 @@ def update_profile_api():
             if field in data:
                 val = str(data[field] or '')
                 val = re.sub(r"^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]\s*", "", val).strip()
-                is_valid, err_msg = validate_template(val)
+                is_valid, err_msg = validate_template(val, agent_names)
                 if not is_valid:
                     return jsonify({'error': err_msg, 'field': field}), 422
                 template_updates[field] = val

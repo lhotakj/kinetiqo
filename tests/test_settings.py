@@ -80,6 +80,9 @@ class TestSettingsApi(unittest.TestCase):
         content = response.get_data(as_text=True)
         self.assertIn("Supported Template Variables", content)
         self.assertIn("strava-var-dropdown", content)
+        self.assertIn("bg-orange-500 hover:bg-orange-600", content)
+        self.assertIn("Add Agent", content)
+        self.assertNotIn('"token": "{{agent-ai}}"', content)
         for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
             self.assertEqual(content.count(f">{heading}</th>"), 5, heading)
 

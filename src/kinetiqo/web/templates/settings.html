@@ -177,28 +177,25 @@
                 </div>
             </div>
 
-            <!-- Kinetiqo Agent Prompt Box -->
+            <!-- Kinetiqo Agents -->
             <div id="kinetiqo-agent-box"
                 class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3 relative transition-all">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-base">🤖</span>
-                        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">Kinetiqo Agent</h4>
-                        <span
-                            class="font-mono font-bold px-2.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs">
-                            &#123;&#123;ai-agent&#125;&#125;
-                        </span>
-                        <span id="status-profile-agent-prompt"
-                            class="text-xs text-green-600 dark:text-green-400 font-medium opacity-0 transition-opacity duration-300 truncate">Saved ✓</span>
+                        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">Kinetiqo Agents</h4>
                     </div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">
-                        Evaluated once on first sync of eligible activities
+                    <div class="flex items-center gap-3">
+                        <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300" for="strava-agents-enabled">
+                            <input id="strava-agents-enabled" type="checkbox" class="rounded border-gray-300 dark:border-zinc-600 text-amber-600 focus:ring-amber-500">
+                            Enable AI Agent
+                        </label>
+                        <button id="strava-agent-add" type="button"
+                            class="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold shadow-sm transition">
+                            <span aria-hidden="true">+</span> Add Agent
+                        </button>
                     </div>
                 </div>
-
-                <p class="text-xs text-gray-600 dark:text-gray-300">
-                    Define custom prompt instructions for Kinetiqo Agent to analyze and enhance your synced activity descriptions.
-                </p>
 
                 <!-- AI Inactive Alert Banner -->
                 <div id="agent-inactive-alert" class="hidden p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
@@ -211,14 +208,28 @@
                     </a>
                 </div>
 
-                <!-- Prompt Input Field Container -->
-                <div id="agent-prompt-container" class="pt-2">
-                    <label for="profile-agent-prompt" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Agent Prompt Instructions
-                    </label>
-                    <textarea id="profile-agent-prompt" rows="3" aria-label="Kinetiqo Agent Prompt Instructions"
-                        class="w-full mt-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none font-sans resize-y"
-                        placeholder="e.g. Write a witty, single-sentence summary of this workout's pace and effort in the tone of a cycling commentator."></textarea>
+                <div id="agent-prompt-container" class="pt-2 space-y-3">
+                    <div id="strava-agents-grid" class="hidden overflow-x-auto">
+                        <div class="min-w-[680px] gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                                style="display: grid; grid-template-columns: 180px minmax(360px, 3fr) auto;">
+                                <span>Name</span>
+                                <span>Prompt</span>
+                                <span class="sr-only">Actions</span>
+                            </div>
+                            <div id="strava-agents-list" class="min-w-[680px]" aria-live="polite"></div>
+                        </div>
+                        <p id="strava-agent-feedback" class="text-xs text-gray-500 dark:text-gray-400">Names are normalized to lowercase slugs. Changes save when you leave a field.</p>
+                </div>
+            </div>
+
+            <div id="strava-agent-delete-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="strava-agent-delete-title">
+                <div class="w-full max-w-md rounded-xl bg-white dark:bg-zinc-800 p-5 shadow-xl border border-gray-200 dark:border-zinc-700">
+                    <h4 id="strava-agent-delete-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">Remove agent?</h4>
+                    <p id="strava-agent-delete-message" class="mt-2 text-xs text-gray-600 dark:text-gray-300"></p>
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button id="strava-agent-delete-cancel" type="button" class="px-3 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-gray-200">Cancel</button>
+                        <button id="strava-agent-delete-confirm" type="button" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white">Remove agent</button>
+                    </div>
                 </div>
             </div>
 
@@ -1265,14 +1276,6 @@
 <script id="strava-variables-data" type="application/json">
 [
     {
-        "token": "{{ai-agent}}",
-        "desc": "Custom AI-generated text based on your Kinetiqo Agent prompt"
-    },
-    {
-        "token": "{{agent-ai}}",
-        "desc": "Alias for {{ai-agent}}"
-    },
-    {
         "token": "{{current-month}}",
         "desc": "Full month name of the activity (e.g. July)"
     },
@@ -1997,8 +2000,17 @@
             update_strava_walking: document.getElementById('profile-update-strava-walking'),
             update_strava_swimming: document.getElementById('profile-update-strava-swimming'),
         };
-        const agentPromptInput = document.getElementById('profile-agent-prompt');
-        const statusAgentPrompt = document.getElementById('status-profile-agent-prompt');
+        const stravaAgentsList = document.getElementById('strava-agents-list');
+        const stravaAgentsGrid = document.getElementById('strava-agents-grid');
+        const stravaAgentsEnabled = document.getElementById('strava-agents-enabled');
+        const stravaAgentAddButton = document.getElementById('strava-agent-add');
+        const stravaAgentFeedback = document.getElementById('strava-agent-feedback');
+        const stravaAgentDeleteModal = document.getElementById('strava-agent-delete-modal');
+        const stravaAgentDeleteMessage = document.getElementById('strava-agent-delete-message');
+        const stravaAgentDeleteConfirm = document.getElementById('strava-agent-delete-confirm');
+        const stravaAgentDeleteCancel = document.getElementById('strava-agent-delete-cancel');
+        let stravaAgents = [];
+        let pendingAgentDelete = null;
         const profileStatus = document.getElementById('profile-status');
         // AI Multi-Provider two-pane workspace
         const aiHeaders = { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' };
@@ -2212,6 +2224,11 @@
             const hasDefault = Boolean(defaultModel && defaultModel.provider && defaultModel.model_id);
             const alertEl = document.getElementById('agent-inactive-alert');
             const containerEl = document.getElementById('agent-prompt-container');
+            if (stravaAgentsEnabled && !stravaAgentsEnabled.checked) {
+                if (alertEl) alertEl.classList.add('hidden');
+                if (containerEl) containerEl.classList.add('hidden');
+                return;
+            }
             if (!hasDefault) {
                 if (alertEl) alertEl.classList.remove('hidden');
                 if (containerEl) {
@@ -2220,6 +2237,7 @@
             } else {
                 if (alertEl) alertEl.classList.add('hidden');
                 if (containerEl) {
+                    containerEl.classList.remove('hidden');
                     containerEl.classList.remove('opacity-60', 'pointer-events-none');
                 }
             }
@@ -2982,10 +3000,6 @@
                 if (gpsSelect && data.gps_simplification !== undefined && data.gps_simplification !== null) {
                     gpsSelect.value = String(data.gps_simplification);
                 }
-                if (agentPromptInput && data.agent_prompt !== undefined) {
-                    agentPromptInput.value = data.agent_prompt || '';
-                    savedProfile.agent_prompt = data.agent_prompt || '';
-                }
             })
             .catch(() => showStatus('Failed to load settings.', true));
 
@@ -3029,7 +3043,7 @@
             const prefixEl = document.getElementById('prefix-' + inp.id);
             if (!prefixEl) return;
             const val = inp.value || '';
-            if (val.includes('{' + '{ai-agent}}') || val.includes('{' + '{agent-ai}}')) {
+            if (/\{\{agent-ai-[^}]+\}\}/.test(val)) {
                 prefixEl.textContent = '✨ Kinetiqo AI:';
             } else {
                 prefixEl.textContent = '✨ Kinetiqo:';
@@ -3134,43 +3148,6 @@
                     updateTemplatePrefix(inp);
                 });
             }
-        }
-
-        if (agentPromptInput) {
-            function saveAgentPrompt() {
-                const val = agentPromptInput.value.trim();
-                if (val === (savedProfile.agent_prompt || '')) return;
-                fetch('/api/profile', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agent_prompt: val })
-                })
-                    .then(r => {
-                        if (!r.ok) throw new Error('Save failed');
-                        return r.json();
-                    })
-                    .then(() => {
-                        savedProfile.agent_prompt = val;
-                        if (statusAgentPrompt) {
-                            statusAgentPrompt.textContent = 'Saved ✓';
-                            statusAgentPrompt.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-100 transition-opacity duration-300 truncate';
-                            setTimeout(() => {
-                                statusAgentPrompt.classList.remove('opacity-100');
-                                statusAgentPrompt.classList.add('opacity-0');
-                            }, 3000);
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Failed to save agent prompt:', err);
-                        if (statusAgentPrompt) {
-                            statusAgentPrompt.textContent = 'Failed to save';
-                            statusAgentPrompt.className = 'text-xs text-red-500 font-medium opacity-100 transition-opacity duration-300 truncate';
-                        }
-                    });
-            }
-
-            agentPromptInput.addEventListener('change', saveAgentPrompt);
-            agentPromptInput.addEventListener('blur', saveAgentPrompt);
         }
 
         // Settings API
@@ -3287,6 +3264,218 @@
             if (previewDesc) previewDesc.textContent = desc;
         }
 
+        function setStravaAgentFeedback(message, isError = false) {
+            if (!stravaAgentFeedback) return;
+            stravaAgentFeedback.textContent = message;
+            stravaAgentFeedback.className = isError
+                ? 'mt-2 text-xs text-red-600 dark:text-red-400'
+                : 'mt-2 text-xs text-gray-500 dark:text-gray-400';
+        }
+
+        const agentToken = (name) => '{' + `{agent-ai-${name}}}`;
+
+        function refreshAgentVariables() {
+            for (let index = STRAVA_VARIABLES.length - 1; index >= 0; index -= 1) {
+                if (STRAVA_VARIABLES[index].agentVariable) STRAVA_VARIABLES.splice(index, 1);
+            }
+            if (!stravaAgentsEnabled?.checked) {
+                renderDropdown(searchInput?.value || '');
+                return;
+            }
+            stravaAgents.filter((agent) => !agent.isDraft && agent.name).forEach((agent) => STRAVA_VARIABLES.push({
+                token: agentToken(agent.name),
+                desc: `Custom AI-generated text using the ${agent.name} agent`,
+                agentVariable: true,
+            }));
+            STRAVA_VARIABLES.sort((a, b) => a.token.localeCompare(b.token));
+            renderDropdown(searchInput?.value || '');
+        }
+
+        async function saveStravaAgent(agent, nameInput, promptInput, status) {
+            const name = nameInput.value.trim();
+            const prompt = promptInput.value.trim();
+            if (!name) {
+                status.textContent = 'Enter an agent name to create this row';
+                status.className = 'text-xs text-gray-500 dark:text-gray-400';
+                return;
+            }
+            const isDraft = Boolean(agent.isDraft);
+            const response = await fetch(
+                isDraft ? '/api/profile/strava-agents' : `/api/profile/strava-agents/${encodeURIComponent(agent.name)}`,
+                {
+                method: isDraft ? 'POST' : 'PUT',
+                headers: aiHeaders,
+                body: JSON.stringify({ name, prompt }),
+                },
+            );
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || 'Failed to save agent');
+            agent.name = payload.agent.name;
+            agent.prompt = payload.agent.prompt;
+            delete agent.isDraft;
+            nameInput.value = agent.name;
+            status.textContent = payload.invalidated_cache_entries
+                ? `Saved; cleared ${payload.invalidated_cache_entries} cached response(s)`
+                : 'Saved ✓';
+            status.className = 'text-xs text-green-600 dark:text-green-400 font-medium';
+            refreshAgentVariables();
+        }
+
+        function renderStravaAgents() {
+            if (!stravaAgentsList) return;
+            stravaAgentsList.replaceChildren();
+            if (!stravaAgents.length) {
+                stravaAgentsGrid?.classList.add('hidden');
+                refreshAgentVariables();
+                return;
+            }
+            stravaAgentsGrid?.classList.remove('hidden');
+            stravaAgents.forEach((agent) => {
+                const row = document.createElement('section');
+                row.className = 'items-start gap-3 px-3 py-3';
+                row.style.display = 'grid';
+                row.style.gridTemplateColumns = '180px minmax(360px, 3fr) auto';
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.value = agent.name;
+                nameInput.setAttribute('aria-label', 'Agent name');
+                nameInput.className = 'w-full min-w-0 px-2 py-1.5 text-xs font-medium rounded border border-gray-300 dark:border-zinc-600 bg-transparent text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-ellipsis';
+                const promptInput = document.createElement('textarea');
+                promptInput.rows = 3;
+                promptInput.setAttribute('aria-label', `Prompt instructions for ${agent.name}`);
+                promptInput.className = 'w-full px-2 py-1.5 text-xs rounded border border-gray-300 dark:border-zinc-600 bg-transparent text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-y';
+                promptInput.value = agent.prompt || '';
+                const metadata = document.createElement('div');
+                metadata.className = 'flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400';
+                metadata.style.gridColumn = '1 / span 2';
+                const token = document.createElement('code');
+                token.className = 'block max-w-[180px] truncate font-mono text-[11px] text-amber-700 dark:text-amber-300';
+                const updateDraftToken = () => {
+                    token.textContent = agentToken(agent.name || '<new>');
+                };
+                updateDraftToken();
+                const status = document.createElement('span');
+                status.className = 'text-xs text-gray-500 dark:text-gray-400';
+                status.textContent = agent.isDraft ? 'Enter a name to create this agent' : (agent.prompt ? '' : 'Empty prompt skips AI generation');
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'h-9 w-9 inline-flex items-center justify-center rounded-lg text-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40';
+                remove.textContent = '🗑';
+                remove.setAttribute('aria-label', `Remove ${agent.name} agent`);
+                remove.addEventListener('click', () => requestStravaAgentDeletion(agent));
+                const saveOnBlur = () => {
+                    if (!agent.isDraft && nameInput.value.trim() === agent.name && promptInput.value.trim() === (agent.prompt || '')) return;
+                    saveStravaAgent(agent, nameInput, promptInput, status).catch((error) => {
+                        status.textContent = error.message;
+                        status.className = 'text-xs text-red-600 dark:text-red-400 font-medium';
+                    });
+                };
+                nameInput.addEventListener('input', () => {
+                    const normalizedName = nameInput.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '')
+                        .slice(0, 64);
+                    agent.name = normalizedName;
+                    updateDraftToken();
+                });
+                nameInput.addEventListener('blur', saveOnBlur);
+                promptInput.addEventListener('blur', saveOnBlur);
+                metadata.append(token, status);
+                row.append(nameInput, promptInput, remove, metadata);
+                stravaAgentsList.appendChild(row);
+            });
+            refreshAgentVariables();
+        }
+
+        async function loadStravaAgents() {
+            try {
+                const response = await fetch('/api/profile/strava-agents');
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.error || 'Failed to load agents');
+                stravaAgents = Array.isArray(payload.agents) ? payload.agents : [];
+                stravaAgentsEnabled.checked = payload.enabled !== false;
+                Object.values(updateStravaInputs).forEach(updateTemplatePrefix);
+                document.getElementById('agent-prompt-container')?.classList.toggle('hidden', !stravaAgentsEnabled.checked);
+                updateAgentBoxState();
+                renderStravaAgents();
+            } catch (error) {
+                setStravaAgentFeedback(error.message, true);
+            }
+        }
+
+        stravaAgentsEnabled?.addEventListener('change', async () => {
+            const response = await fetch('/api/profile/strava-agents', {
+                method: 'PUT',
+                headers: aiHeaders,
+                body: JSON.stringify({ enabled: stravaAgentsEnabled.checked }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                stravaAgentsEnabled.checked = !stravaAgentsEnabled.checked;
+                setStravaAgentFeedback(payload.error || 'Failed to update AI Agent state', true);
+                return;
+            }
+            document.getElementById('agent-prompt-container')?.classList.toggle('hidden', !payload.enabled);
+            Object.values(updateStravaInputs).forEach(updateTemplatePrefix);
+            refreshAgentVariables();
+            updateAgentBoxState();
+        });
+
+        async function requestStravaAgentDeletion(agent) {
+            if (agent.isDraft) {
+                stravaAgents = stravaAgents.filter((item) => item !== agent);
+                renderStravaAgents();
+                return;
+            }
+            const response = await fetch(`/api/profile/strava-agents/${encodeURIComponent(agent.name)}`, {
+                method: 'DELETE',
+                headers: aiHeaders,
+                body: JSON.stringify({ confirm: false }),
+            });
+            const payload = await response.json();
+            if (response.status === 409 && payload.requires_confirmation) {
+                pendingAgentDelete = agent;
+                stravaAgentDeleteMessage.textContent = `This agent is used by ${payload.referenced_by.join(', ')}. Removing it will also remove ${agentToken(agent.name)} from those templates.`;
+                stravaAgentDeleteModal.classList.remove('hidden');
+                stravaAgentDeleteModal.classList.add('flex');
+                return;
+            }
+            if (!response.ok) {
+                setStravaAgentFeedback(payload.error || 'Failed to remove agent', true);
+                return;
+            }
+            stravaAgents = stravaAgents.filter((item) => item.name !== agent.name);
+            renderStravaAgents();
+        }
+
+        stravaAgentAddButton?.addEventListener('click', () => {
+            if (stravaAgents.some((agent) => agent.isDraft)) return;
+            stravaAgents.unshift({ name: '', prompt: '', isDraft: true });
+            renderStravaAgents();
+            stravaAgentsList.querySelector('input')?.focus();
+        });
+
+        stravaAgentDeleteCancel?.addEventListener('click', () => {
+            pendingAgentDelete = null;
+            stravaAgentDeleteModal.classList.remove('flex');
+            stravaAgentDeleteModal.classList.add('hidden');
+        });
+        stravaAgentDeleteConfirm?.addEventListener('click', async () => {
+            if (!pendingAgentDelete) return;
+            const response = await fetch(`/api/profile/strava-agents/${encodeURIComponent(pendingAgentDelete.name)}`, {
+                method: 'DELETE',
+                headers: aiHeaders,
+                body: JSON.stringify({ confirm: true }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                setStravaAgentFeedback(payload.error || 'Failed to remove agent', true);
+                return;
+            }
+            window.location.reload();
+        });
+
         if (dropdown && searchInput) {
             renderDropdown();
 
@@ -3317,6 +3506,7 @@
                 });
             }
         }
+        loadStravaAgents();
     });
 </script>
 {% endblock %}

@@ -392,6 +392,8 @@ SCHEMA_DEFINITION = {
             # Kinetiqo Agent custom prompt instructions for {{ai-agent}} Strava description updates.
             {"name": "agent_prompt", "type_mysql": "TEXT", "type_pg": "TEXT",
              "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "strava_agents_config", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"

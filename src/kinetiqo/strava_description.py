@@ -217,18 +217,22 @@ _CELEBRATION_SUFFIX = " 🎉"
 
 SPECIAL_TOKENS = {"new-line", "current-year", "current-month", "workout-summary", "ai-agent", "agent-ai"}
 AI_AGENT_TOKENS = frozenset({"ai-agent", "agent-ai"})
+AI_AGENT_TOKEN_PREFIX = "agent-ai-"
 
 
 def has_ai_agent_token(template: str) -> bool:
-    """Return True if template contains {{ai-agent}} or {{agent-ai}}."""
+    """Return whether a template contains a legacy or named AI-agent token."""
     if not template:
         return False
-    return any(f"{{{{{tok}}}}}" in template for tok in AI_AGENT_TOKENS)
+    return any(
+        token in AI_AGENT_TOKENS or token.startswith(AI_AGENT_TOKEN_PREFIX)
+        for token in PLACEHOLDER_RE.findall(template)
+    )
 
 PLACEHOLDER_RE = re.compile(r"\{\{([a-zA-Z0-9\-]+)\}\}")
 
 
-def validate_template(template: str) -> Tuple[bool, Optional[str]]:
+def validate_template(template: str, agent_names: Optional[set[str]] = None) -> Tuple[bool, Optional[str]]:
     """Validate an UPDATE_STRAVA_* template string.
 
     Validation rules:
@@ -264,6 +268,11 @@ def validate_template(template: str) -> Tuple[bool, Optional[str]]:
             continue
 
         if token in SPECIAL_TOKENS:
+            continue
+
+        if token.startswith(AI_AGENT_TOKEN_PREFIX) and (
+            agent_names is None or token.removeprefix(AI_AGENT_TOKEN_PREFIX) in agent_names
+        ):
             continue
 
         if _parse_placeholder(token) is not None:
@@ -492,11 +501,12 @@ def _build_prefixed_stats_line(rendered_block: str, has_ai: bool = False) -> str
 def build_match_pattern(template: str = "") -> re.Pattern:
     """Return a regex that matches any previously-inserted Kinetiqo or Kinetiqo AI stats line."""
     del template  # Prefix-based replacement matches all Kinetiqo prefix variants.
-    return re.compile(rf"(?m)^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s][^\n]*(?:\n|$)")
+    return re.compile(r"(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]")
 
 
 def merge_description(existing_description: str, template: str, rendered_block: str,
-                       placement: str = DEFAULT_UPDATE_STRAVA_PLACEMENT) -> str:
+                       placement: str = DEFAULT_UPDATE_STRAVA_PLACEMENT,
+                       ai_enabled: Optional[bool] = None) -> str:
     """Insert/replace *rendered_block* into *existing_description*.
 
     Any line starting with :data:`kinetiqo.config.UPDATE_STRAVA_PREFIX` or
@@ -507,10 +517,13 @@ def merge_description(existing_description: str, template: str, rendered_block: 
     ``"end"``, default ``"end"``). The rest of the description (anything the
     user or Strava wrote) is always preserved.
     """
-    has_ai = has_ai_agent_token(template)
+    has_ai = has_ai_agent_token(template) if ai_enabled is None else ai_enabled
     existing_description = _normalize_newlines(existing_description or "")
     pattern = build_match_pattern(template)
-    existing_without_kinetiqo = pattern.sub("", existing_description)
+    existing_without_kinetiqo = "\n".join(
+        line for line in existing_description.splitlines()
+        if not pattern.match(line)
+    ).strip("\n")
     rendered_block = _build_prefixed_stats_line(rendered_block, has_ai=has_ai)
 
     if not existing_without_kinetiqo.strip():
@@ -544,11 +557,19 @@ class DescriptionContext:
     fetched once.
     """
 
-    def __init__(self, config, repo, ai_handler: Optional[Callable[[Dict[str, Any]], Tuple[str, str]]] = None):
+    def __init__(
+        self,
+        config,
+        repo,
+        ai_handler: Optional[Callable[[Dict[str, Any], str], Tuple[str, str]]] = None,
+        ai_enabled: Optional[bool] = None,
+    ):
         self.config = config
         self.repo = repo
         self.ai_handler = ai_handler
+        self.ai_enabled = ai_enabled
         self.last_ai_status: Optional[str] = None
+        self._rendered_ai_content = False
         self._goals_by_type: Optional[Dict[int, Dict[str, Any]]] = None
 
     def _goals(self) -> Dict[int, Dict[str, Any]]:
@@ -609,7 +630,11 @@ class DescriptionContext:
             return generate_workout_summary(act_obj, watts_stream=watts_stream, ftp=athlete_ftp,
                                             peak_threshold_w=peak_threshold_w)
 
-        if token in AI_AGENT_TOKENS:
+        if token in AI_AGENT_TOKENS or token.startswith(AI_AGENT_TOKEN_PREFIX):
+            if self.ai_enabled is False:
+                self.last_ai_status = "disabled"
+                return ""
+            agent_name = "default" if token in AI_AGENT_TOKENS else token.removeprefix(AI_AGENT_TOKEN_PREFIX)
             act_obj = activity or {}
             ai_responses = act_obj.get("ai_responses")
             if isinstance(ai_responses, str):
@@ -618,19 +643,22 @@ class DescriptionContext:
                 except Exception:
                     ai_responses = {}
             if isinstance(ai_responses, dict):
-                for tok in AI_AGENT_TOKENS:
+                cached_tokens = (token, *AI_AGENT_TOKENS) if agent_name == "default" else (token,)
+                for tok in cached_tokens:
                     if tok in ai_responses and ai_responses[tok]:
                         self.last_ai_status = "cached"
+                        self._rendered_ai_content = True
                         return str(ai_responses.get(tok) or "")
 
             if self.ai_handler:
                 try:
-                    resp_text, status = self.ai_handler(act_obj)
+                    resp_text, status = self.ai_handler(act_obj, agent_name)
                     self.last_ai_status = status
                     if resp_text:
+                        self._rendered_ai_content = True
                         if not isinstance(ai_responses, dict):
                             ai_responses = {}
-                        ai_responses["ai-agent"] = resp_text
+                        ai_responses[token] = resp_text
                         act_obj["ai_responses"] = ai_responses
                         act_id = act_obj.get("id") or act_obj.get("activity_id")
                         if act_id and hasattr(self.repo, "update_activity_ai_responses"):
@@ -755,8 +783,15 @@ class DescriptionContext:
         placement = getattr(self.config, "update_strava_placement", DEFAULT_UPDATE_STRAVA_PLACEMENT) \
             or DEFAULT_UPDATE_STRAVA_PLACEMENT
         cache: dict = {}
+        self._rendered_ai_content = False
         rendered_block = render_template(template, lambda tok: self._resolve_token(tok, activity_dt, cache, activity=activity))
-        return merge_description(existing_description or "", template, rendered_block, placement=placement)
+        return merge_description(
+            existing_description or "",
+            template,
+            rendered_block,
+            placement=placement,
+            ai_enabled=self._rendered_ai_content,
+        )
 
 
 def render_and_merge_description(config, repo, activity: dict, existing_description: str) -> Optional[str]:

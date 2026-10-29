@@ -1,4 +1,5 @@
 import html
+import json
 import logging
 import time
 import os
@@ -9,7 +10,11 @@ import requests
 from kinetiqo.config import Config, UPDATE_STRAVA_MAX_ITEMS
 from kinetiqo.db.factory import create_repository
 from kinetiqo.strava import StravaClient, StravaFetchError
-from kinetiqo.profile_sync import sync_update_strava_from_env, sync_gps_simplification_from_env, sync_athlete_weight_from_env
+from kinetiqo.profile_sync import (
+    sync_update_strava_from_env,
+    sync_gps_simplification_from_env,
+    sync_athlete_weight_from_env,
+)
 from kinetiqo.strava_description import DescriptionContext, any_update_strava_template_configured, get_template_for_activity
 from kinetiqo.koms import (
     load_verified_koms,
@@ -299,10 +304,21 @@ class SyncService:
             description_update_ids: set[str] = set()
             if update_strava and any_update_strava_template_configured(self.config):
                 ai_handler = None
+                ai_enabled = False
                 try:
                     prof = self.db.get_profile() or {}
                     raw_athlete_id = str(prof.get("athlete_id") or "")
-                    agent_prompt = prof.get("agent_prompt") or getattr(self.config, "agent_prompt", "") or ""
+                    raw_agents_config = prof.get("strava_agents_config") or ""
+                    try:
+                        agents_config = raw_agents_config if isinstance(raw_agents_config, dict) else json.loads(raw_agents_config)
+                    except (TypeError, ValueError):
+                        agents_config = {}
+                    ai_enabled = bool(agents_config.get("enabled", True))
+                    agents = {
+                        str(agent.get("name") or ""): str(agent.get("prompt") or "")
+                        for agent in agents_config.get("agents", [])
+                        if isinstance(agent, dict) and agent.get("name")
+                    } if ai_enabled else {}
 
                     secret_key = getattr(self.config, "secret_key", "") or os.getenv("SECRET_KEY", "")
                     if not secret_key:
@@ -329,14 +345,22 @@ class SyncService:
                     if athlete_id and secret_key:
                         chat_svc = ChatService(chat_repo, secret_key, config=self.config)
 
-                        def _ai_runner(act: dict) -> tuple[str, str]:
-                            return run_agent_prompt(chat_svc, athlete_id, act, agent_prompt)
+                        def _ai_runner(act: dict, agent_name: str) -> tuple[str, str]:
+                            prompt = agents.get(agent_name, "")
+                            if not prompt.strip():
+                                return "", "skipped"
+                            return run_agent_prompt(chat_svc, athlete_id, act, prompt)
 
                         ai_handler = _ai_runner
                 except Exception as e:
                     logger.debug(f"Could not initialize AI Agent handler for sync: {e}")
 
-                description_context = DescriptionContext(self.config, self.db, ai_handler=ai_handler)
+                description_context = DescriptionContext(
+                    self.config,
+                    self.db,
+                    ai_handler=ai_handler,
+                    ai_enabled=ai_enabled,
+                )
 
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
