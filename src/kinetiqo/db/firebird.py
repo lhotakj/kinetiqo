@@ -526,7 +526,8 @@ class FirebirdRepository(DatabaseRepository):
                 "has_heartrate",
                 "workout_type",
                 "max_speed",
-                "trophies"
+                "trophies",
+                "ai_responses"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -543,6 +544,13 @@ class FirebirdRepository(DatabaseRepository):
                         trophies_parsed = json.loads(row[26]) if isinstance(row[26], str) else row[26]
                     except Exception:
                         trophies_parsed = None
+                ai_parsed = None
+                if len(row) > 27 and row[27]:
+                    val = row[27].read() if hasattr(row[27], 'read') else row[27]
+                    try:
+                        ai_parsed = json.loads(val) if isinstance(val, str) else val
+                    except Exception:
+                        ai_parsed = val
                 activity = {
                     'id': row[0],
                     'name': row[1],
@@ -570,7 +578,8 @@ class FirebirdRepository(DatabaseRepository):
                     'has_heartrate': row[23],
                     'workout_type': row[24],
                     'max_speed': row[25],
-                    'trophies': trophies_parsed
+                    'trophies': trophies_parsed,
+                    'ai_responses': ai_parsed
                 }
                 activities.append(activity)
             return activities
@@ -785,6 +794,10 @@ class FirebirdRepository(DatabaseRepository):
             if trophies_val is not None:
                 trophies_str = json.dumps(trophies_val) if isinstance(trophies_val, dict) else str(trophies_val)
                 cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (trophies_str, int(activity["id"])))
+            ai_responses_val = activity.get("ai_responses")
+            if ai_responses_val is not None:
+                ai_responses_str = json.dumps(ai_responses_val) if isinstance(ai_responses_val, dict) else str(ai_responses_val)
+                cur.execute('UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?', (ai_responses_str, int(activity["id"])))
             self.conn.commit()
 
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
@@ -793,6 +806,41 @@ class FirebirdRepository(DatabaseRepository):
         val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
         with self.conn.cursor() as cur:
             cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
+        self.conn.commit()
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
+        self.conn.commit()
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "ai_responses" FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                raw = row[0]
+                val = raw.read() if hasattr(raw, 'read') else raw
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        placeholders = ', '.join(['?'] * len(activity_ids))
+        with self.conn.cursor() as cur:
+            cur.execute(f'UPDATE "activities" SET "ai_responses" = NULL WHERE "activity_id" IN ({placeholders})', [int(aid) for aid in activity_ids])
         self.conn.commit()
 
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -1245,12 +1293,17 @@ class FirebirdRepository(DatabaseRepository):
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token", '
-                '"gps_simplification" '
+                '"gps_simplification", "agent_prompt" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
             if not row:
                 return None
+            agent_prompt_raw = row[13] if len(row) > 13 else None
+            if hasattr(agent_prompt_raw, 'read'):
+                agent_prompt_val = agent_prompt_raw.read()
+            else:
+                agent_prompt_val = agent_prompt_raw
             return {
                 'athlete_id': row[0],
                 'first_name': row[1],
@@ -1265,6 +1318,7 @@ class FirebirdRepository(DatabaseRepository):
                 'update_strava_swimming': row[10],
                 'refresh_token': row[11],
                 'gps_simplification': row[12],
+                'agent_prompt': agent_prompt_val or '',
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
@@ -1272,7 +1326,8 @@ class FirebirdRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       agent_prompt: Optional[str] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
@@ -1284,20 +1339,21 @@ class FirebirdRepository(DatabaseRepository):
         effective_walking = update_strava_walking
         effective_swimming = update_strava_swimming
         effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
+        effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt', '') if existing else '')
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
                 '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "agent_prompt") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight, effective_ftp,
                  effective_cycling_indoor, effective_cycling_outdoor,
                  effective_running_indoor, effective_running_outdoor,
                  effective_walking, effective_swimming, effective_refresh_token,
-                 effective_gps_simplification)
+                 effective_gps_simplification, effective_agent_prompt or '')
             )
         self.conn.commit()
 

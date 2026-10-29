@@ -231,11 +231,43 @@ def sync_athlete_weight_from_env(config: Config, repo) -> None:
             config.athlete_weight = db_weight
 
 
+def sync_agent_prompt_from_env(config: Config, repo) -> None:
+    """Synchronize `agent_prompt` setting between environment variable and DB."""
+    import os
+
+    existing = repo.get_profile()
+    if not existing or not isinstance(existing, dict):
+        return
+
+    env_val_raw = os.getenv("KINETIQO_AGENT_PROMPT")
+    db_val = existing.get("agent_prompt") or ""
+
+    if env_val_raw is not None and env_val_raw.strip() != "":
+        env_val = env_val_raw.strip()
+        if db_val != env_val:
+            preserved_templates = {field: (existing.get(field, "") or "") for field in UPDATE_STRAVA_FIELDS}
+            repo.upsert_profile(
+                existing["athlete_id"], existing["first_name"], existing["last_name"], existing["weight"],
+                refresh_token=existing.get("refresh_token", "") or "",
+                gps_simplification=existing.get("gps_simplification"),
+                agent_prompt=env_val,
+                **preserved_templates
+            )
+            config.agent_prompt = env_val
+            logger.info("Updated profile agent_prompt in DB from KINETIQO_AGENT_PROMPT env var.")
+        else:
+            config.agent_prompt = db_val
+    else:
+        if db_val:
+            config.agent_prompt = db_val
+
+
 def sync_all_profile_env_vars(config: Config, repo) -> None:
     """Synchronize all environment variable configurations to DB profile."""
     sync_update_strava_from_env(config, repo)
     sync_gps_simplification_from_env(config, repo)
     sync_athlete_weight_from_env(config, repo)
+    sync_agent_prompt_from_env(config, repo)
 
 
 

@@ -227,6 +227,16 @@
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 <span>Power Skills</span>
             </button>
+            {% if ai_configured %}
+            <button id="purgeAiBtn"
+                    class="px-3 py-2 bg-gray-400 text-white rounded text-sm font-small transition h-[40px] flex items-center"
+                    disabled title="Purge cached AI analysis for the selected activities so they can be regenerated on next sync">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>
+                </svg>
+                <span>Purge AI analysis</span>
+            </button>
+            {% endif %}
             <button id="selectColumnsBtn"
                     class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-small transition h-[40px] flex items-center"
                     title="Choose which columns to display in the table">
@@ -335,6 +345,7 @@
             <th class="py-3 px-4 w-28">Gear ID</th>
             <th class="py-3 px-4 w-20">Has HR</th>
             <th class="py-3 px-4 w-24">Workout Type</th>
+            <th class="py-3 px-4 w-44">AI Analysis</th>
             <th class="py-3 px-4 w-32">Link to Strava</th>
             <th class="py-3 px-4 w-20 text-center">Poster</th>
             <th class="py-3 px-4 w-20 text-center">Delete</th>
@@ -373,6 +384,7 @@
 #deleteSelectedBtn,
 #displayOnMapBtn,
 #powerSkillsBtn,
+#purgeAiBtn,
 #exportCsvBtn,
 #exportXlsxBtn,
 #selectAllOnPage,
@@ -430,7 +442,7 @@ function hideFlash() {
 const COLUMN_STORAGE_KEY = 'activities_column_selection';
 const COLUMN_ORDER_KEY   = 'activities_column_order';
 const SORT_STORAGE_KEY   = 'activities_sort_order';
-const SCHEMA_VERSION_KEY = 'activities_schema_v6';
+const SCHEMA_VERSION_KEY = 'activities_schema_v7';
 
 var columnDefs = [
     {label: 'Select',            mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder:  0, defaultSort: null  }, //  0
@@ -457,9 +469,10 @@ var columnDefs = [
     {label: 'Gear ID',           mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 21, defaultSort: null  }, // 21
     {label: 'Has HR',            mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 22, defaultSort: null  }, // 22
     {label: 'Workout Type',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 23, defaultSort: null  }, // 23
-    {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 24, defaultSort: null  }, // 24
-    {label: 'Poster',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 25, defaultSort: null  }, // 25
-    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 26, defaultSort: null  }  // 26
+    {label: 'AI Analysis',        mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 24, defaultSort: null  }, // 24
+    {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 25, defaultSort: null  }, // 25
+    {label: 'Poster',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 26, defaultSort: null  }, // 26
+    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 27, defaultSort: null  }  // 27
 ];
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -521,7 +534,7 @@ function applyColumnVisibility(visibleCols) {
 // Rebuilds the footer <tr> to match the currently visible columns in their
 // current visual order (from ColReorder). Sum cells (Distance/Elevation/
 // Moving Time) appear at their correct positions; everything else is empty.
-// The fixed columns (Select=0, Name=1, Actions=25) are always at the ends.
+// The fixed columns (Select=0, Name=1, Actions=27) are always at the ends.
 var _lastTotals = { distance: '0.0', elevation: '0.00', movingTime: '00:00:00' };
 
 function recalculateFooterColspans() {
@@ -1028,6 +1041,35 @@ var table = null;
                     "render": function (data, type, row) { return data || '-'; }
                 },
                 {
+                    "data": "ai_responses",
+                    "render": function (data, type, row) {
+                        if (!data) return '-';
+                        let text = '';
+                        if (typeof data === 'object') {
+                            text = data['ai-agent'] || Object.values(data)[0] || '';
+                        } else if (typeof data === 'string') {
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    text = parsed[0]['ai-agent'] || Object.values(parsed[0])[0] || '';
+                                } else if (typeof parsed === 'object') {
+                                    text = parsed['ai-agent'] || Object.values(parsed)[0] || '';
+                                }
+                            } catch (e) {
+                                text = data;
+                            }
+                        }
+                        if (!text) return '-';
+                        if (type === 'display') {
+                            const escaped = $('<div>').text(text).html();
+                            const titleAttr = escaped.replace(/"/g, '&quot;');
+                            return `<div class="max-w-[200px] truncate text-xs text-gray-700 dark:text-gray-300" title="${titleAttr}">` +
+                                   `<span class="inline-block mr-1 text-amber-500 font-bold" title="Kinetiqo Agent">✨</span>${escaped}</div>`;
+                        }
+                        return text;
+                    }
+                },
+                {
                     "data": null,
                     "orderable": false,
                     "render": function (data, type, row) {
@@ -1134,7 +1176,7 @@ var table = null;
                 onEnd: function (evt) {
                     if (evt.oldIndex === evt.newIndex) return;
 
-                    var currentOrder = readColumnOrder(); // full 26-col: position → origIdx
+                    var currentOrder = readColumnOrder(); // full column order: position → origIdx
 
                     // Build the pre-drag visible order (same set, ColReorder sequence)
                     var oldVisibleOrder = currentOrder.filter(function(origIdx) {
@@ -1146,7 +1188,7 @@ var table = null;
                     var moved = newVisibleOrder.splice(evt.oldIndex, 1)[0];
                     newVisibleOrder.splice(evt.newIndex, 0, moved);
 
-                    // Rebuild full 26-col order: weave hidden cols back in their relative slots
+                    // Rebuild full column order: weave hidden cols back in their relative slots
                     var hiddenInOrder = currentOrder.filter(function(origIdx) {
                         return !_currentVisibleCols || !_currentVisibleCols.includes(origIdx);
                     });
@@ -1406,6 +1448,9 @@ var table = null;
             setButtonState('#deleteSelectedBtn', hasSelection, 'bg-red-500 hover:bg-red-600', 'bg-gray-400');
             setButtonState('#displayOnMapBtn', hasSelection, 'bg-orange-500 hover:bg-orange-600', 'bg-gray-400');
             setButtonState('#powerSkillsBtn', hasSelection, 'bg-purple-600 hover:bg-purple-700', 'bg-gray-400');
+            if ($('#purgeAiBtn').length) {
+                setButtonState('#purgeAiBtn', hasSelection, 'bg-teal-600 hover:bg-teal-700', 'bg-gray-400');
+            }
             setButtonState('#exportCsvBtn', hasSelection, 'bg-blue-600 hover:bg-blue-700', 'bg-gray-400');
             setButtonState('#exportXlsxBtn', hasSelection, 'bg-green-600 hover:bg-green-700', 'bg-gray-400');
         }
@@ -1593,6 +1638,48 @@ var table = null;
             form.remove();
         });
 
+        // Purge AI Analysis for selected activities
+        $('#purgeAiBtn').on('click', async function () {
+            const count = selectedActivities.size;
+            if (count === 0) return;
+
+            if (!confirm(`Purge AI analysis for ${count} selected activities? This will clear cached responses so they can be regenerated on the next sync.`)) {
+                return;
+            }
+
+            const btn = this;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-60', 'cursor-wait');
+            btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+
+            try {
+                const response = await fetch('/api/activities/purge-ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ activity_ids: Array.from(selectedActivities) })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    showFlash(data.error || 'Failed to purge AI analysis.', 'error');
+                } else {
+                    showFlash(`Successfully purged AI analysis for ${data.purged_count || count} activities.`, 'info');
+                    selectedActivities.clear();
+                    saveSelection();
+                    updateSelectionButtons();
+                    updateSelectionSummary();
+                    table.ajax.reload(null, false);
+                }
+            } catch (err) {
+                showFlash('Network error while purging AI analysis: ' + (err.message || err), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-60', 'cursor-wait');
+                btn.innerHTML = origHtml;
+            }
+        });
+
         // Export to CSV
         $('#exportCsvBtn').on('click', async function () {
             if (selectedActivities.size === 0) return;
@@ -1683,7 +1770,7 @@ var table = null;
                 if (selectedData.length === 0) return;
 
                 // Columns whose content cannot be meaningfully exported (UI-only)
-                const SKIP_COLS = new Set([0, 25, 26]); // Select checkbox, Poster, Actions/Delete
+                const SKIP_COLS = new Set([0, 26, 27]); // Select checkbox, Poster, Actions/Delete
 
                 // Per-column data extractor: originalColIndex → function(row) → cell value
                 // Mirrors the render logic in the DataTables column definitions above.
@@ -1718,7 +1805,22 @@ var table = null;
                     21: row => row.gear_id || '',
                     22: row => row.has_heartrate ? 'Yes' : 'No',
                     23: row => row.workout_type || '',
-                    24: row => 'https://www.strava.com/activities/' + row.id
+                    24: row => {
+                            if (!row.ai_responses) return '';
+                            if (typeof row.ai_responses === 'object') {
+                                return row.ai_responses['ai-agent'] || Object.values(row.ai_responses)[0] || '';
+                            }
+                            try {
+                                const parsed = JSON.parse(row.ai_responses);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    return parsed[0]['ai-agent'] || Object.values(parsed[0])[0] || '';
+                                }
+                                return parsed['ai-agent'] || Object.values(parsed)[0] || '';
+                            } catch (e) {
+                                return String(row.ai_responses);
+                            }
+                        },
+                    25: row => 'https://www.strava.com/activities/' + row.id
                 };
 
                 // Determine which columns to export: current visual order, visible, and exportable

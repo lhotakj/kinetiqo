@@ -65,6 +65,8 @@ SCHEMA_DEFINITION = {
              "type_firebird": "INTEGER"},
             {"name": "trophies", "type_mysql": "TEXT", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(255)"},
+            {"name": "ai_responses", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
         ],
         "indexes": [
             {
@@ -387,6 +389,9 @@ SCHEMA_DEFINITION = {
             # Map GPS track decimation level (scale 0-10, 0=disabled, 1-10=3m-100m thresholds).
             {"name": "gps_simplification", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0",
              "type_firebird": "INTEGER DEFAULT 0"},
+            # Kinetiqo Agent custom prompt instructions for {{ai-agent}} Strava description updates.
+            {"name": "agent_prompt", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"

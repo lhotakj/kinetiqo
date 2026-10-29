@@ -15,6 +15,7 @@ UPDATE_STRAVA_PLACEMENT = (UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMEN
 DEFAULT_UPDATE_STRAVA_PLACEMENT = UPDATE_STRAVA_PLACEMENT_END
 UPDATE_STRAVA_MAX_ITEMS = 30
 UPDATE_STRAVA_PREFIX = "✨ Kinetiqo:"
+UPDATE_STRAVA_AI_PREFIX = "✨ Kinetiqo AI:"
 
 
 VALID_DATABASE_TYPES = ("postgresql", "mysql", "firebird")
@@ -125,6 +126,9 @@ class Config:
     update_strava_walking: str = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
     update_strava_swimming: str = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
 
+    # Kinetiqo Agent custom prompt instructions for {{ai-agent}} placeholder
+    agent_prompt: str = os.getenv("KINETIQO_AGENT_PROMPT", "") or ""
+
     # Where the rendered block goes: "begin" (start of the description) or
     # "end" (appended after any existing text). Invalid values fall back to
     # the default with a logged warning (see __post_init__).
@@ -212,6 +216,7 @@ class Config:
         self.update_strava_running_outdoor = os.getenv("UPDATE_STRAVA_RUNNING_OUTDOOR", "") or ""
         self.update_strava_walking = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
         self.update_strava_swimming = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
+        self.agent_prompt = os.getenv("KINETIQO_AGENT_PROMPT", "") or ""
 
         raw_placement = os.getenv("UPDATE_STRAVA_PLACEMENT", DEFAULT_UPDATE_STRAVA_PLACEMENT) or DEFAULT_UPDATE_STRAVA_PLACEMENT
         self.update_strava_placement = raw_placement.strip().lower()

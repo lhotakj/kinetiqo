@@ -298,7 +298,45 @@ class SyncService:
             description_context = None
             description_update_ids: set[str] = set()
             if update_strava and any_update_strava_template_configured(self.config):
-                description_context = DescriptionContext(self.config, self.db)
+                ai_handler = None
+                try:
+                    prof = self.db.get_profile() or {}
+                    raw_athlete_id = str(prof.get("athlete_id") or "")
+                    agent_prompt = prof.get("agent_prompt") or getattr(self.config, "agent_prompt", "") or ""
+
+                    secret_key = getattr(self.config, "secret_key", "") or os.getenv("SECRET_KEY", "")
+                    if not secret_key:
+                        try:
+                            from flask import current_app
+                            if current_app:
+                                secret_key = current_app.secret_key
+                        except Exception:
+                            pass
+                    if not secret_key:
+                        try:
+                            from kinetiqo.web.app import app
+                            secret_key = getattr(app, "secret_key", "")
+                        except Exception:
+                            pass
+
+                    from kinetiqo.chat.agent_runner import run_agent_prompt
+                    from kinetiqo.chat.repository import ChatRepository
+                    from kinetiqo.chat.service import ChatService
+                    db_type = getattr(self.config, "database_type", None) or getattr(self.db, "db_type", "postgresql")
+                    chat_repo = ChatRepository(self.db, db_type)
+                    athlete_id = chat_repo.resolve_athlete_id(raw_athlete_id)
+
+                    if athlete_id and secret_key:
+                        chat_svc = ChatService(chat_repo, secret_key, config=self.config)
+
+                        def _ai_runner(act: dict) -> tuple[str, str]:
+                            return run_agent_prompt(chat_svc, athlete_id, act, agent_prompt)
+
+                        ai_handler = _ai_runner
+                except Exception as e:
+                    logger.debug(f"Could not initialize AI Agent handler for sync: {e}")
+
+                description_context = DescriptionContext(self.config, self.db, ai_handler=ai_handler)
 
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
@@ -503,9 +541,21 @@ class SyncService:
                             msg = f"Activity {activity_id} has no stream data."
                             logger.warning(msg)
                             sync_warnings.append(msg)
+                    ai_suffix = ""
                     if description_context is not None:
                         if act_id_str in description_update_ids:
+                            if is_existing and "ai_responses" not in activity and hasattr(self.db, "get_activity_ai_responses"):
+                                try:
+                                    cached_ai = self.db.get_activity_ai_responses(activity_id)
+                                    if cached_ai:
+                                        activity["ai_responses"] = cached_ai
+                                except Exception as ai_fetch_err:
+                                    logger.debug(f"Failed to fetch cached ai_responses: {ai_fetch_err}")
                             status, warning = self._update_strava_description(description_context, activity, detail=detail)
+                            if description_context.last_ai_status:
+                                ai_suffix = f" [AI: {description_context.last_ai_status}]"
+                                if description_context.last_ai_status == "failed":
+                                    sync_warnings.append(f"AI Agent generation failed for activity {activity_id} ('{name}').")
                         else:
                             # Template may be absent for this activity's bucket;
                             # preserve the old "no status suffix" behavior there.
@@ -514,7 +564,7 @@ class SyncService:
                         desc_suffix = _description_status_suffix(status)
                         if warning:
                             sync_warnings.append(warning)
-                    yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}){trophies_suffix}{desc_suffix}")
+                    yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}){trophies_suffix}{ai_suffix}{desc_suffix}")
                 except Exception as e:
                     msg = f"Error syncing activity {activity_id}: {e}"
                     sync_warnings.append(msg)

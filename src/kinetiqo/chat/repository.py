@@ -182,9 +182,56 @@ class ChatRepository:
                     break
         return prompts
 
+    def resolve_athlete_id(self, athlete_id: str | None = None) -> str:
+        """Resolve the effective athlete_id holding AI provider keys and settings.
+
+        In Kinetiqo, settings are typically configured by the logged-in web user
+        (e.g. 'admin' or WEB_LOGIN), while sync operations pass the numeric
+        Strava athlete_id from the profile table.
+
+        Resolution precedence:
+        1. If the provided athlete_id has any configured provider keys or global settings, use it.
+        2. If WEB_LOGIN / 'admin' has configured provider keys, use that.
+        3. If any other athlete_id has configured provider keys, use that athlete_id.
+        4. Otherwise, return the given athlete_id or 'admin'.
+        """
+        candidate = str(athlete_id or "").strip()
+        p = self.placeholder
+        import os
+        web_user = os.environ.get("WEB_LOGIN", "admin").strip()
+
+        try:
+            if candidate:
+                row = self._one(f"SELECT 1 FROM chat_provider_keys WHERE athlete_id = {p}", (candidate,))
+                if row:
+                    return candidate
+
+            if web_user and web_user != candidate:
+                row = self._one(f"SELECT 1 FROM chat_provider_keys WHERE athlete_id = {p}", (web_user,))
+                if row:
+                    return web_user
+
+            if "admin" not in (candidate, web_user):
+                row = self._one(f"SELECT 1 FROM chat_provider_keys WHERE athlete_id = {p}", ("admin",))
+                if row:
+                    return "admin"
+
+            # Check if ANY athlete_id exists in chat_provider_keys
+            row = self._one(
+                "SELECT athlete_id FROM chat_provider_keys WHERE (provider != '__global__' AND enabled = 1) OR config_json IS NOT NULL",
+                (),
+            )
+            if row and row[0]:
+                return str(row[0])
+        except Exception:
+            pass
+
+        return candidate or web_user or "admin"
+
     def get_provider_key(self, athlete_id: str, provider: str) -> str | None:
         p = self.placeholder
-        row = self._one(f"SELECT api_key_enc FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
+        eff_id = self.resolve_athlete_id(athlete_id)
+        row = self._one(f"SELECT api_key_enc FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (eff_id, provider))
         if not row or not row[0]:
             return None
         val = row[0]
@@ -192,7 +239,8 @@ class ChatRepository:
 
     def get_provider_config(self, athlete_id: str, provider: str) -> dict[str, Any]:
         p = self.placeholder
-        row = self._one(f"SELECT config_json FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (athlete_id, provider))
+        eff_id = self.resolve_athlete_id(athlete_id)
+        row = self._one(f"SELECT config_json FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}", (eff_id, provider))
         if not row or not row[0]:
             return {}
         val = row[0]
@@ -244,9 +292,10 @@ class ChatRepository:
 
     def list_configured_providers(self, athlete_id: str) -> list[str]:
         p = self.placeholder
+        eff_id = self.resolve_athlete_id(athlete_id)
         rows = self._all(
             f"SELECT provider, api_key_enc, enabled FROM chat_provider_keys WHERE athlete_id = {p}",
-            (athlete_id,),
+            (eff_id,),
         )
         result = []
         for row in rows:
@@ -262,9 +311,10 @@ class ChatRepository:
 
     def list_enabled_providers(self, athlete_id: str) -> list[str]:
         p = self.placeholder
+        eff_id = self.resolve_athlete_id(athlete_id)
         rows = self._all(
             f"SELECT provider, enabled FROM chat_provider_keys WHERE athlete_id = {p}",
-            (athlete_id,),
+            (eff_id,),
         )
         enabled: list[str] = []
         for provider, is_enabled in rows:
@@ -276,9 +326,10 @@ class ChatRepository:
 
     def has_provider(self, athlete_id: str, provider: str) -> bool:
         p = self.placeholder
+        eff_id = self.resolve_athlete_id(athlete_id)
         row = self._one(
             f"SELECT enabled FROM chat_provider_keys WHERE athlete_id = {p} AND provider = {p}",
-            (athlete_id, provider),
+            (eff_id, provider),
         )
         return bool(row and row[0])
 

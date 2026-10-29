@@ -330,7 +330,8 @@ class MySQLRepository(DatabaseRepository):
                 has_heartrate,
                 workout_type,
                 max_speed,
-                trophies
+                trophies,
+                ai_responses
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -350,6 +351,12 @@ class MySQLRepository(DatabaseRepository):
                 if trophies and isinstance(trophies, str):
                     try:
                         activity['trophies'] = json.loads(trophies)
+                    except Exception:
+                        pass
+                ai_responses = activity.get('ai_responses')
+                if ai_responses and isinstance(ai_responses, str):
+                    try:
+                        activity['ai_responses'] = json.loads(ai_responses)
                     except Exception:
                         pass
                 activities.append(activity)
@@ -494,6 +501,12 @@ class MySQLRepository(DatabaseRepository):
         elif not isinstance(trophies_val, str):
             trophies_val = None
 
+        ai_responses_val = activity.get("ai_responses")
+        if isinstance(ai_responses_val, dict):
+            ai_responses_val = json.dumps(ai_responses_val)
+        elif not isinstance(ai_responses_val, str):
+            ai_responses_val = None
+
         row = (
             start_date,
             activity_id,
@@ -524,7 +537,8 @@ class MySQLRepository(DatabaseRepository):
             activity.get("suffer_score"),
             activity.get("weighted_average_watts"),
             activity.get("workout_type"),
-            trophies_val
+            trophies_val,
+            ai_responses_val
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to MySQL...")
@@ -537,9 +551,9 @@ class MySQLRepository(DatabaseRepository):
                                                 average_watts, max_watts, achievement_count, average_temp,
                                                 calories, device_watts, elev_high, elev_low, gear_id,
                                                 has_heartrate, kilojoules, pr_count, suffer_score,
-                                                weighted_average_watts, workout_type, trophies)
+                                                weighted_average_watts, workout_type, trophies, ai_responses)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
                         UPDATE
                             start_date = VALUES (start_date),
                             name = VALUES (name),
@@ -569,13 +583,52 @@ class MySQLRepository(DatabaseRepository):
                             suffer_score = VALUES (suffer_score),
                             weighted_average_watts = VALUES (weighted_average_watts),
                             workout_type = VALUES (workout_type),
-                            trophies = COALESCE(VALUES (trophies), trophies)
+                            trophies = COALESCE(VALUES (trophies), trophies),
+                            ai_responses = COALESCE(VALUES (ai_responses), ai_responses)
                         """, row)
         self.conn.commit()
 
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
         """Update placement achievements (trophies ranks 1-10) for an activity."""
         self._ensure_connected()
+        val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
+        self.conn.commit()
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET ai_responses = %s WHERE activity_id = %s", (val, int(activity_id)))
+        self.conn.commit()
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT ai_responses FROM activities WHERE activity_id = %s", (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                val = row[0]
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        placeholders = ', '.join(['%s'] * len(activity_ids))
+        with self.conn.cursor() as cur:
+            cur.execute(f"UPDATE activities SET ai_responses = NULL WHERE activity_id IN ({placeholders})", [int(aid) for aid in activity_ids])
+        self.conn.commit()
         val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
         with self.conn.cursor() as cur:
             cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
@@ -1000,7 +1053,7 @@ class MySQLRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification "
+                "gps_simplification, agent_prompt "
                 "FROM profile LIMIT 1"
             )
             return cur.fetchone()
@@ -1010,11 +1063,13 @@ class MySQLRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       agent_prompt: Optional[str] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+        effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt') if existing else "")
 
         with self.conn.cursor() as cur:
             cur.execute("""
@@ -1022,8 +1077,8 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, agent_prompt)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
@@ -1036,12 +1091,13 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_walking          = VALUES(update_strava_walking),
                     update_strava_swimming         = VALUES(update_strava_swimming),
                     refresh_token                  = VALUES(refresh_token),
-                    gps_simplification             = VALUES(gps_simplification)
+                    gps_simplification             = VALUES(gps_simplification),
+                    agent_prompt                   = VALUES(agent_prompt)
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification))
+                  effective_gps_simplification, effective_agent_prompt or ""))
         self.conn.commit()
 
     # ------------------------------------------------------------------

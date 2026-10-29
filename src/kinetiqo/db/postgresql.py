@@ -338,7 +338,8 @@ class PostgresqlRepository(DatabaseRepository):
                 has_heartrate,
                 workout_type,
                 max_speed,
-                trophies
+                trophies,
+                ai_responses
             FROM activities
             {where_clause}
             ORDER BY {order_col} {sort_order}
@@ -361,6 +362,12 @@ class PostgresqlRepository(DatabaseRepository):
                 if trophies and isinstance(trophies, str):
                     try:
                         activity['trophies'] = json.loads(trophies)
+                    except Exception:
+                        pass
+                ai_responses = activity.get('ai_responses')
+                if ai_responses and isinstance(ai_responses, str):
+                    try:
+                        activity['ai_responses'] = json.loads(ai_responses)
                     except Exception:
                         pass
                 activities.append(activity)
@@ -501,6 +508,12 @@ class PostgresqlRepository(DatabaseRepository):
         elif not isinstance(trophies_val, str):
             trophies_val = None
 
+        ai_responses_val = activity.get("ai_responses")
+        if isinstance(ai_responses_val, dict):
+            ai_responses_val = json.dumps(ai_responses_val)
+        elif not isinstance(ai_responses_val, str):
+            ai_responses_val = None
+
         row = (
             start_date,
             activity_id,
@@ -531,7 +544,8 @@ class PostgresqlRepository(DatabaseRepository):
             activity.get("suffer_score"),
             activity.get("weighted_average_watts"),
             activity.get("workout_type"),
-            trophies_val
+            trophies_val,
+            ai_responses_val
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to PostgreSQL...")
@@ -544,10 +558,10 @@ class PostgresqlRepository(DatabaseRepository):
                                                 average_watts, max_watts, achievement_count, average_temp,
                                                 calories, device_watts, elev_high, elev_low, gear_id,
                                                 has_heartrate, kilojoules, pr_count, suffer_score,
-                                                weighted_average_watts, workout_type, trophies)
+                                                weighted_average_watts, workout_type, trophies, ai_responses)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
                         UPDATE SET
                             start_date = EXCLUDED.start_date,
                             name = EXCLUDED.name,
@@ -577,7 +591,8 @@ class PostgresqlRepository(DatabaseRepository):
                             suffer_score = EXCLUDED.suffer_score,
                             weighted_average_watts = EXCLUDED.weighted_average_watts,
                             workout_type = EXCLUDED.workout_type,
-                            trophies = COALESCE(EXCLUDED.trophies, activities.trophies)
+                            trophies = COALESCE(EXCLUDED.trophies, activities.trophies),
+                            ai_responses = COALESCE(EXCLUDED.ai_responses, activities.ai_responses)
                         """, row)
 
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
@@ -586,6 +601,38 @@ class PostgresqlRepository(DatabaseRepository):
         val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
         with self.conn.cursor() as cur:
             cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET ai_responses = %s WHERE activity_id = %s", (val, int(activity_id)))
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT ai_responses FROM activities WHERE activity_id = %s", (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                val = row[0]
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        ids = [int(aid) for aid in activity_ids]
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET ai_responses = NULL WHERE activity_id = ANY(%s)", (ids,))
 
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
@@ -1021,7 +1068,7 @@ class PostgresqlRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification "
+                "gps_simplification, agent_prompt "
                 "FROM profile LIMIT 1"
             )
             row = cur.fetchone()
@@ -1032,11 +1079,13 @@ class PostgresqlRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       agent_prompt: Optional[str] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+        effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt') if existing else "")
 
         with self.conn.cursor() as cur:
             cur.execute("""
@@ -1044,8 +1093,8 @@ class PostgresqlRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, agent_prompt)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
@@ -1058,12 +1107,13 @@ class PostgresqlRepository(DatabaseRepository):
                         update_strava_walking          = EXCLUDED.update_strava_walking,
                         update_strava_swimming         = EXCLUDED.update_strava_swimming,
                         refresh_token                  = EXCLUDED.refresh_token,
-                        gps_simplification             = EXCLUDED.gps_simplification
+                        gps_simplification             = EXCLUDED.gps_simplification,
+                        agent_prompt                   = EXCLUDED.agent_prompt
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification))
+                  effective_gps_simplification, effective_agent_prompt or ""))
 
     # ------------------------------------------------------------------
     # Activity goals

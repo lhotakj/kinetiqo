@@ -178,6 +178,21 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        pass
+
+    @abstractmethod
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI generated variable responses for an activity."""
+        pass
+
+    @abstractmethod
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        pass
+
+    @abstractmethod
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
         pass
@@ -385,7 +400,8 @@ class DatabaseRepository(ABC):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None) -> None:
+                       gps_simplification: Optional[int] = None,
+                       agent_prompt: str = "") -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).

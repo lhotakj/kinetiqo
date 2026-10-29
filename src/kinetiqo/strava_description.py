@@ -49,6 +49,7 @@ practice it will usually reference ``{{running-...}}`` ones.
 """
 
 import calendar
+import json
 import logging
 import re
 from datetime import datetime, timedelta
@@ -60,6 +61,7 @@ from kinetiqo.config import (
     UPDATE_STRAVA_PLACEMENT_BEGIN,
     UPDATE_STRAVA_PLACEMENT_END,
     UPDATE_STRAVA_PREFIX,
+    UPDATE_STRAVA_AI_PREFIX,
 )
 from kinetiqo.db.repository import GOAL_TYPE_CYCLING, GOAL_TYPE_WALKING
 from kinetiqo.web.stats import (
@@ -213,7 +215,15 @@ _PERIOD_GOAL_PREFIX = {"year": "yearly", "month": "monthly", "week": "weekly"}
 
 _CELEBRATION_SUFFIX = " 🎉"
 
-SPECIAL_TOKENS = {"new-line", "current-year", "current-month", "workout-summary"}
+SPECIAL_TOKENS = {"new-line", "current-year", "current-month", "workout-summary", "ai-agent", "agent-ai"}
+AI_AGENT_TOKENS = frozenset({"ai-agent", "agent-ai"})
+
+
+def has_ai_agent_token(template: str) -> bool:
+    """Return True if template contains {{ai-agent}} or {{agent-ai}}."""
+    if not template:
+        return False
+    return any(f"{{{{{tok}}}}}" in template for tok in AI_AGENT_TOKENS)
 
 PLACEHOLDER_RE = re.compile(r"\{\{([a-zA-Z0-9\-]+)\}\}")
 
@@ -440,8 +450,8 @@ def extract_placeholders(template: str) -> List[str]:
 def render_template(template: str, resolver: Callable[[str], str]) -> str:
     """Render *template*, calling ``resolver(token)`` for every ``{{token}}`` found."""
     # Strip any user-pasted prefix from template before rendering
-    if template and template.startswith(UPDATE_STRAVA_PREFIX):
-        template = template[len(UPDATE_STRAVA_PREFIX):].strip()
+    if template:
+        template = re.sub(r"^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]\s*", "", template).strip()
 
     parts = []
     for kind, val in _iter_template_parts(template):
@@ -466,42 +476,42 @@ def _normalize_newlines(value: str) -> str:
     return (value or "").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _build_prefixed_stats_line(rendered_block: str) -> str:
+def _build_prefixed_stats_line(rendered_block: str, has_ai: bool = False) -> str:
     """Build the canonical one-line stats block persisted in Strava descriptions."""
     rendered = _normalize_newlines(rendered_block).strip("\n")
     # New behavior stores Kinetiqo stats as a single line; flatten any
     # accidental embedded newlines from templates.
     rendered = " ".join(part.strip() for part in rendered.split("\n") if part.strip())
-    if rendered.startswith(UPDATE_STRAVA_PREFIX):
-        rendered = rendered[len(UPDATE_STRAVA_PREFIX):].strip()
+    rendered = re.sub(r"^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]\s*", "", rendered).strip()
+    prefix = UPDATE_STRAVA_AI_PREFIX if has_ai else UPDATE_STRAVA_PREFIX
     if rendered:
-        return f"{UPDATE_STRAVA_PREFIX} {rendered}\n"
-    return f"{UPDATE_STRAVA_PREFIX}\n"
+        return f"{prefix} {rendered}\n"
+    return f"{prefix}\n"
 
 
-def build_match_pattern(template: str) -> re.Pattern:
-    """Return a regex that matches one previously-inserted Kinetiqo stats line."""
-    del template  # Prefix-based replacement no longer derives matching from template text.
-    prefix = re.escape(UPDATE_STRAVA_PREFIX)
-    return re.compile(rf"(?m)^{prefix}[^\n]*(?:\n|$)")
+def build_match_pattern(template: str = "") -> re.Pattern:
+    """Return a regex that matches any previously-inserted Kinetiqo or Kinetiqo AI stats line."""
+    del template  # Prefix-based replacement matches all Kinetiqo prefix variants.
+    return re.compile(rf"(?m)^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s][^\n]*(?:\n|$)")
 
 
 def merge_description(existing_description: str, template: str, rendered_block: str,
                        placement: str = DEFAULT_UPDATE_STRAVA_PLACEMENT) -> str:
     """Insert/replace *rendered_block* into *existing_description*.
 
-    Any line starting with :data:`kinetiqo.config.UPDATE_STRAVA_PREFIX` is
-    treated as Kinetiqo-owned and removed before inserting the newly rendered
-    line. The fresh line is inserted at the beginning or end of
-    *existing_description*, per *placement* (one of
-    :data:`kinetiqo.config.UPDATE_STRAVA_PLACEMENT` — ``"begin"`` or
+    Any line starting with :data:`kinetiqo.config.UPDATE_STRAVA_PREFIX` or
+    :data:`kinetiqo.config.UPDATE_STRAVA_AI_PREFIX` is treated as Kinetiqo-owned
+    and removed before inserting the newly rendered line. The fresh line is
+    inserted at the beginning or end of *existing_description*, per *placement*
+    (one of :data:`kinetiqo.config.UPDATE_STRAVA_PLACEMENT` — ``"begin"`` or
     ``"end"``, default ``"end"``). The rest of the description (anything the
     user or Strava wrote) is always preserved.
     """
+    has_ai = has_ai_agent_token(template)
     existing_description = _normalize_newlines(existing_description or "")
     pattern = build_match_pattern(template)
     existing_without_kinetiqo = pattern.sub("", existing_description)
-    rendered_block = _build_prefixed_stats_line(rendered_block)
+    rendered_block = _build_prefixed_stats_line(rendered_block, has_ai=has_ai)
 
     if not existing_without_kinetiqo.strip():
         return rendered_block
@@ -534,9 +544,11 @@ class DescriptionContext:
     fetched once.
     """
 
-    def __init__(self, config, repo):
+    def __init__(self, config, repo, ai_handler: Optional[Callable[[Dict[str, Any]], Tuple[str, str]]] = None):
         self.config = config
         self.repo = repo
+        self.ai_handler = ai_handler
+        self.last_ai_status: Optional[str] = None
         self._goals_by_type: Optional[Dict[int, Dict[str, Any]]] = None
 
     def _goals(self) -> Dict[int, Dict[str, Any]]:
@@ -596,6 +608,46 @@ class DescriptionContext:
             peak_threshold_w = getattr(self.config, "workout_summary_peak_threshold_w", None)
             return generate_workout_summary(act_obj, watts_stream=watts_stream, ftp=athlete_ftp,
                                             peak_threshold_w=peak_threshold_w)
+
+        if token in AI_AGENT_TOKENS:
+            act_obj = activity or {}
+            ai_responses = act_obj.get("ai_responses")
+            if isinstance(ai_responses, str):
+                try:
+                    ai_responses = json.loads(ai_responses)
+                except Exception:
+                    ai_responses = {}
+            if isinstance(ai_responses, dict):
+                for tok in AI_AGENT_TOKENS:
+                    if tok in ai_responses and ai_responses[tok]:
+                        self.last_ai_status = "cached"
+                        return str(ai_responses.get(tok) or "")
+
+            if self.ai_handler:
+                try:
+                    resp_text, status = self.ai_handler(act_obj)
+                    self.last_ai_status = status
+                    if resp_text:
+                        if not isinstance(ai_responses, dict):
+                            ai_responses = {}
+                        ai_responses["ai-agent"] = resp_text
+                        act_obj["ai_responses"] = ai_responses
+                        act_id = act_obj.get("id") or act_obj.get("activity_id")
+                        if act_id and hasattr(self.repo, "update_activity_ai_responses"):
+                            try:
+                                self.repo.update_activity_ai_responses(act_id, ai_responses)
+                            except Exception as save_err:
+                                logger.warning(f"UPDATE_STRAVA: failed to save ai_responses for activity {act_id}: {save_err}")
+                        return resp_text
+                    else:
+                        return ""
+                except Exception as exc:
+                    logger.warning(f"UPDATE_STRAVA: AI handler failed for activity: {exc}")
+                    self.last_ai_status = "failed"
+                    return ""
+
+            self.last_ai_status = None
+            return ""
 
         parsed = _parse_placeholder(token)
         if parsed is None:

@@ -329,6 +329,90 @@ class ChatService:
             return groups
         return self._known_models_for_provider(athlete_id, provider)
 
+    def generate_single_turn(
+        self,
+        athlete_id: str,
+        prompt: str,
+        system_instruction: str = "",
+        provider: str | None = None,
+        model_id: str | None = None,
+    ) -> tuple[str, str]:
+        """Generate a single-turn completion across default and fallback models without creating a session.
+
+        :return: A tuple of ``(result_text, status)`` where status is ``"generated"`` or ``"fallback <model>"``.
+        """
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("A prompt is required.")
+
+        eff_athlete_id = (
+            self.repository.resolve_athlete_id(athlete_id)
+            if hasattr(self.repository, "resolve_athlete_id")
+            else athlete_id
+        )
+
+        target_provider = provider
+        target_model = model_id
+
+        if not target_provider or not target_model:
+            default_config = self.repository.get_default_model(eff_athlete_id) if hasattr(self.repository, "get_default_model") else None
+            if default_config and default_config.get("provider") and default_config.get("model_id"):
+                if not target_provider:
+                    target_provider = default_config["provider"]
+                if not target_model:
+                    target_model = default_config["model_id"]
+
+        if not target_provider:
+            configured = self.configured_providers(eff_athlete_id)
+            if not configured:
+                raise ChatConfigurationError("No configured AI providers.")
+            target_provider = configured[0]
+
+        if not target_model:
+            models = self._known_models_for_provider(eff_athlete_id, target_provider)
+            target_model = models[0]["id"] if models else "default"
+
+        raw_fallbacks = self.repository.get_fallback_models(eff_athlete_id) if hasattr(self.repository, "get_fallback_models") else []
+        fallback_configs = raw_fallbacks if isinstance(raw_fallbacks, list) else []
+
+        candidates: list[tuple[str, str]] = [(target_provider, target_model)]
+        for fb in fallback_configs:
+            if isinstance(fb, dict):
+                fb_p = fb.get("provider")
+                fb_m = fb.get("model_id")
+                if fb_p and fb_m and (fb_p, fb_m) not in candidates:
+                    candidates.append((fb_p, fb_m))
+
+        last_error = None
+        for idx, (cand_prov, cand_model) in enumerate(candidates):
+            try:
+                adapter = self._provider(eff_athlete_id, cand_prov)
+                events = adapter.stream(
+                    model_id=cand_model,
+                    system_instruction=system_instruction,
+                    history=[],
+                    prompt=prompt.strip(),
+                    tools=None,
+                )
+                text_parts = []
+                for ev in events:
+                    ev_type = getattr(ev, "type", None)
+                    if ev_type in ("text", "text_delta"):
+                        content = getattr(ev, "text", None) or getattr(ev, "content", None)
+                        if content:
+                            text_parts.append(content)
+                result_text = "".join(text_parts).strip()
+                if result_text:
+                    status = "generated" if idx == 0 else f"fallback {cand_model}"
+                    return result_text, status
+            except Exception as exc:
+                last_error = exc
+                logger.warning("Single-turn generation candidate %s/%s failed: %s", cand_prov, cand_model, exc)
+                continue
+
+        if last_error:
+            raise last_error
+        raise ChatProviderResponseError("AI provider generated an empty response.")
+
     def stream_turn(
         self,
         athlete_id: str,

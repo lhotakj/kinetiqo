@@ -7,6 +7,7 @@ import logging
 import mimetypes
 import os
 import pathlib
+import re
 import secrets
 import shutil
 import threading
@@ -127,12 +128,24 @@ AI_PROVIDER_META = {
 
 # CSRF protection: enabled when Flask-WTF is available. In development, a generated secret is acceptable.
 app = Flask(__name__, template_folder='./templates', static_folder='./static', static_url_path='/static')
-# Secret key from environment in production; generate a dev key otherwise.
+# Secret key from environment in production; persist/reuse dev key otherwise.
 secret = os.environ.get('SECRET_KEY')
 if not secret:
     if os.environ.get('KINETIQO_PRODUCTION') == '1':
         raise RuntimeError('SECRET_KEY must be set in production!')
-    secret = secrets.token_hex(32)
+    dev_secret_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.cache', '.dev_secret_key'))
+    try:
+        if os.path.exists(dev_secret_file):
+            with open(dev_secret_file, 'r', encoding='utf-8') as f:
+                secret = f.read().strip()
+        if not secret:
+            secret = secrets.token_hex(32)
+            os.makedirs(os.path.dirname(dev_secret_file), exist_ok=True)
+            with open(dev_secret_file, 'w', encoding='utf-8') as f:
+                f.write(secret)
+    except Exception:
+        secret = secrets.token_hex(32)
+    os.environ['SECRET_KEY'] = secret
 app.secret_key = secret
 
 # Session & Remember Cookie Security
@@ -699,7 +712,18 @@ def activities():
         flash(f"Error fetching activities: {e}")
         data = []
 
-    return render_template('activities.html', title="Activities", activities=data)
+    ai_configured = False
+    try:
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        raw_default = service.repository.get_default_model(athlete_id) if hasattr(service.repository, 'get_default_model') else None
+        configured = service.configured_providers(athlete_id) if hasattr(service, 'configured_providers') else []
+        if configured and raw_default and raw_default.get('provider') and raw_default.get('model_id'):
+            ai_configured = True
+    except Exception:
+        ai_configured = False
+
+    return render_template('activities.html', title="Activities", activities=data, ai_configured=ai_configured)
 
 
 # Available base map tile providers with Leaflet-compatible URL templates.
@@ -3592,8 +3616,7 @@ def update_profile_api():
         for field in UPDATE_STRAVA_FIELDS:
             if field in data:
                 val = str(data[field] or '')
-                if val.startswith("✨ Kinetiqo:"):
-                    val = val[11:].strip()
+                val = re.sub(r"^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]\s*", "", val).strip()
                 is_valid, err_msg = validate_template(val)
                 if not is_valid:
                     return jsonify({'error': err_msg, 'field': field}), 422
@@ -3604,10 +3627,18 @@ def update_profile_api():
                 template_updates[field] = val
                 setattr(config, field, val)
 
+        if 'agent_prompt' in data:
+            agent_prompt = str(data['agent_prompt'] or '')
+            config.agent_prompt = agent_prompt
+        else:
+            agent_prompt = existing.get('agent_prompt', '')
+            config.agent_prompt = agent_prompt
+
         repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
                             refresh_token=existing.get('refresh_token', '') or '',
                             ftp=ftp,
                             gps_simplification=gps_simplification,
+                            agent_prompt=agent_prompt,
                             **template_updates)
 
         response_payload = {
@@ -3617,6 +3648,7 @@ def update_profile_api():
             'weight': weight,
             'ftp': ftp,
             'gps_simplification': gps_simplification,
+            'agent_prompt': agent_prompt,
         }
         response_payload.update(template_updates)
         return jsonify(response_payload)
@@ -3841,7 +3873,8 @@ def get_activities_api():
                 'elev_low': float(a.get('elev_low')) if a.get('elev_low') is not None else None,
                 'gear_id': a.get('gear_id') or None,
                 'has_heartrate': bool(a.get('has_heartrate')) if a.get('has_heartrate') is not None else False,
-                'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None
+                'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None,
+                'ai_responses': a.get('ai_responses') or None
             })
 
         return jsonify({
@@ -3916,6 +3949,34 @@ def delete_activities_api():
         return jsonify({'success': True, 'message': f'{len(activity_ids)} activities deleted successfully'})
     except Exception as e:
         logger.exception(f"Error deleting activities: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/activities/purge-ai', methods=['POST'])
+@login_required
+def purge_ai_analysis_api():
+    """Purge cached AI responses for specified activity IDs.
+
+    Expects a JSON body: {"activity_ids": ["123", "456", ...]}.
+
+    Returns:
+        flask.Response: JSON success or error payload.
+    """
+    data = request.get_json(silent=True) or {}
+    activity_ids = data.get('activity_ids', [])
+    if not activity_ids:
+        return jsonify({'success': False, 'error': 'No activity IDs provided'}), 400
+
+    try:
+        repo = get_db()
+        repo.purge_activities_ai_responses(activity_ids)
+        return jsonify({
+            'success': True,
+            'message': f'AI analysis purged for {len(activity_ids)} activities.',
+            'purged_count': len(activity_ids),
+        })
+    except Exception as e:
+        logger.exception(f"Error purging AI analysis: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

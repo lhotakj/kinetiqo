@@ -297,6 +297,41 @@ class TestChatService(unittest.TestCase):
         )
         self.repository.update_session.assert_called_with("athlete", "session", provider="openrouter", model_id="meta-llama/llama-3.3-70b-instruct")
 
+    @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
+    @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
+    def test_stream_turn_uses_fallback_when_primary_init_fails(self, registry, decrypt):
+        session = MagicMock(provider="gemini", model_id="gemini-2.5-flash")
+        user = ChatMessage("user-id", "session", "athlete", "user", "hello", 1, "complete", datetime.now(timezone.utc))
+        assistant = ChatMessage("assistant-id", "session", "athlete", "assistant", "", 2, "interrupted", datetime.now(timezone.utc))
+        self.repository.get_session.return_value = session
+        self.repository.add_message.side_effect = [user, assistant]
+        self.repository.list_messages.return_value = []
+        self.repository.get_provider_key.return_value = "ciphertext"
+        self.repository.get_fallback_models.return_value = [
+            {"provider": "openrouter", "model_id": "meta-llama/llama-3.3-70b-instruct"}
+        ]
+
+        primary_prov = MagicMock()
+        primary_prov.list_models.side_effect = RuntimeError("Primary API network error")
+        primary_prov.stream.side_effect = RuntimeError("Primary API network error")
+
+        fallback_prov = MagicMock()
+        fallback_prov.list_models.return_value = [ChatProviderModel("meta-llama/llama-3.3-70b-instruct", "Llama 3.3")]
+        fallback_prov.stream.return_value = iter([StreamEvent("text_delta", text="Recovered via fallback!")])
+
+        def provider_factory(prov_name):
+            if prov_name == "gemini":
+                return MagicMock(return_value=primary_prov)
+            return MagicMock(return_value=fallback_prov)
+
+        registry.__getitem__.side_effect = provider_factory
+
+        _, events = self.service.stream_turn("athlete", "session", "hello")
+        event_list = list(events)
+        self.assertEqual(len(event_list), 1)
+        self.assertEqual(event_list[0].text, "Recovered via fallback!")
+        self.repository.update_session.assert_called_with("athlete", "session", provider="openrouter", model_id="meta-llama/llama-3.3-70b-instruct")
+
 
 
 class TestChatRepository(unittest.TestCase):
