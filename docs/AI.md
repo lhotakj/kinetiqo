@@ -3,7 +3,7 @@
 > **Version:** 3.0  
 > **Status:** Active / Production Ready  
 > **Primary Interfaces:** `/chat`, `/settings`, FastMCP tools layer  
-> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Ollama (Local AI)  
+> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI)
 > **Database Compatibility:** PostgreSQL, MySQL, Firebird (100% Parameterized Raw SQL)
 
 ---
@@ -119,23 +119,29 @@ Kinetiqo Flask Application Server
 - **Live Validation & Suggestions**: Validates models via Kilo's model registry (`GET /api/gateway/models/{id}` and `/models`), automatically discovering context window size, tool-calling capabilities, vision support, pricing, and rate limits. Suggests canonical slugs when prefixes are omitted (e.g. `llama-3.3-70b-instruct` → `meta-llama/llama-3.3-70b-instruct`).
 - **Multi-Turn Tool Execution**: Fully supports Kinetiqo's in-process FastMCP tool calling across endurance telemetry, MMP power curves, and fitness metrics.
 
-### 4.5 Ollama (Local Hardware AI)
+### 4.5 Poe
+- Connects configured Poe bot handles through Poe's OpenAI-compatible Chat Completions API (`https://api.poe.com/v1/chat/completions`).
+- Save a Poe API key in **Settings → AI & API Providers**, then add a bot handle. Kinetiqo validates the handle using Poe's bot endpoint and only retains metadata explicitly returned by Poe.
+- Poe does not assume a default bot; configure at least one handle and mark the desired model as the default in its Settings table.
+- Supports streaming responses and Kinetiqo's in-process read-only tool calling through the shared OpenAI-compatible adapter.
+
+### 4.6 Ollama (Local Hardware AI)
 - **100% Private On-Premise Inference**: Connect to models running on your own PC or homelab server via Ollama's OpenAI-compatible API.
 - **Automatic Model Discovery**: Detects all locally installed models (`qwen3:1.7b`, `qwen2.5:7b-instruct`, `llama3.1:8b`, etc.) without manual configuration.
 - **Optional API Token**: No API key is required on your local network. An optional token field is available if Ollama is hosted behind a reverse proxy.
 - **Remote Host Setup**: To connect across machines on your LAN, set `OLLAMA_HOST=0.0.0.0:11434` on the Ollama PC and provide its local IP (e.g. `http://192.168.1.150:11434`).
 - **Provider-specific model details**: Ollama reports the local parameter size when available; pricing, context limits, and rate limits are not inferred.
 
-### 4.6 Unified Provider Model Tables
-- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, and Ollama use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
+### 4.7 Unified Provider Model Tables
+- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, and Ollama use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
 - Values such as Gemini context and output-token limits or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
 - Remove actions are available only for providers with user-managed model lists; other providers show `-` in the Actions column.
 
-### 4.7 Dynamic Mid-Session Provider & Model Switching
+### 4.8 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
 - If a quota or rate limit is reached on OpenRouter, Vercel, or Kilo, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
-### 4.8 Default Model & Multi-Model Automated Fallbacks
+### 4.9 Default Model & Multi-Model Automated Fallbacks
 - **Default Model Designation (`★`)**:
   - Click the star icon in any provider's model table under **Settings → AI & API Providers** to designate your preferred default model.
   - New chat sessions automatically select this model. The active default model is highlighted with a gold star badge in the AI Settings header and on the right side of the `/chat` model dropdown.

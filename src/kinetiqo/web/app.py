@@ -82,6 +82,7 @@ from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
+from kinetiqo.chat.providers.poe import PoeChatProvider
 from kinetiqo.chat.providers.vercel import VercelChatProvider
 
 
@@ -123,6 +124,7 @@ AI_PROVIDER_META = {
     "openrouter": "OpenRouter AI",
     "vercel": "Vercel AI Gateway",
     "kilo": "Kilo AI Gateway",
+    "poe": "Poe",
     "ollama": "Ollama (Local AI)",
 }
 
@@ -3186,6 +3188,97 @@ def chat_kilo_models_api():
     cfg['models'] = current_models
     repository.save_provider_config(athlete_id, 'kilo', cfg)
     models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
+
+
+@app.route('/api/settings/ai/poe', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_poe_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'poe') is not None
+        cfg = repository.get_provider_config(athlete_id, 'poe')
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', cfg.get('models', []))
+        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'poe')
+        repository.clear_default_model(athlete_id, provider='poe')
+        repository.clear_fallback_model(athlete_id, provider='poe')
+        return Response(status=204)
+
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid Poe API key.'), 422)
+    try:
+        cfg = repository.get_provider_config(athlete_id, 'poe')
+        repository.save_provider_key(athlete_id, 'poe', encrypt_api_key(api_key.strip(), app.secret_key), config=cfg)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', cfg.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/poe/models/validate', methods=['POST'])
+@login_required
+def chat_poe_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'poe')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError('Configure Poe API key first.'), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError('Poe bot handle is required.'), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        model_info = PoeChatProvider(api_key).validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception('Poe bot validation failed: %s', exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/poe/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_poe_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'poe')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError('Configure Poe API key first.'), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError('Poe bot handle is required.'), 422)
+    clean_id = model_id.strip()
+    cfg = repository.get_provider_config(athlete_id, 'poe')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        updated_models = [item for item in current_models if item.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = updated_models
+        repository.save_provider_config(athlete_id, 'poe', cfg)
+        repository.clear_default_model(athlete_id, provider='poe', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='poe', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', updated_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    if any(item.get('id', '').lower() == clean_id.lower() for item in current_models):
+        return jsonify({'models': current_models})
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        model_info = PoeChatProvider(api_key).validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'poe', cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', current_models)
     return jsonify({'models': models, 'default_model': default_model}), 201
 
 

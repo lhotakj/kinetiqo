@@ -1,8 +1,8 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, and Kilo AI Gateway adapters implemented with live validation and dynamic tool calling)  
+> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, and Poe adapters implemented with live validation and dynamic tool calling)
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
-> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Ollama (Local AI).  
+> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI).
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
 > **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
 > **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
@@ -65,6 +65,7 @@ A user can:
 - **Google Gemini Provider**: API key encryption, automatic model discovery, text streaming, supported multimodal inputs, usage extraction, and error mapping.
 - **OpenRouter AI Provider**: OpenAI-compatible REST completions gateway supporting arbitrary models (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, Nemotron, etc.), user-managed free-text model registration, live model validation (`GET /api/v1/model/{author}/{slug}`), and a responsive management table with `+` and `-` actions in Settings.
 - **Vercel AI Gateway Provider**: OpenAI-compatible edge gateway (`https://ai-gateway.vercel.sh/v1`) providing low-latency routing to leading models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic, OpenAI, etc.), free-text model registration, live model validation (`GET /v1/models/{model_id}` and `/v1/models`), fuzzy suggestion matching, and responsive management table with `+` and `-` actions in Settings.
+- **Poe Provider**: OpenAI-compatible streaming API at `https://api.poe.com/v1`, Bearer-key authentication, configurable Poe bot handles validated via `GET https://api.poe.com/bots/{handle}`, and provider-reported optional metadata only. Poe has no assumed default bot; its model list contains only explicitly configured handles.
 - Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
 - Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
 - `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
@@ -739,6 +740,13 @@ Kilo AI Gateway (`https://api.kilo.ai/api/gateway`) is an OpenAI-compatible gate
    - `POST /api/settings/ai/kilo/models`: Validates and appends model to athlete configuration.
    - `DELETE /api/settings/ai/kilo/models`: Removes model from configuration.
 
+### 8.8 Poe Provider
+Poe uses its OpenAI-compatible Chat Completions endpoint at `https://api.poe.com/v1/chat/completions`. API keys are encrypted and sent as Bearer credentials; users add bot handles in Settings, where Kinetiqo validates each one against `GET https://api.poe.com/bots/{handle}`. Poe model metadata is retained only when explicitly supplied by the bot endpoint, and the provider does not synthesize a default model when no bot is configured.
+
+- `GET/POST/DELETE /api/settings/ai/poe`: Read Poe configuration, save an encrypted API key, or remove the key.
+- `POST /api/settings/ai/poe/models/validate`: Validate a Poe bot handle and return available bot metadata.
+- `POST/DELETE /api/settings/ai/poe/models`: Add or remove a configured Poe bot handle.
+
 ---
 
 ## 9. API key encryption and secret management
@@ -927,6 +935,9 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | POST/DELETE | `/api/settings/ai/vercel/models` | Add (`+`) or remove (`–`) models from athlete's Vercel configuration. |
 | POST | `/api/settings/ai/kilo/models/validate` | Validate a Kilo AI Gateway model identifier via `GET /api/gateway/models/...` before adding. |
 | POST/DELETE | `/api/settings/ai/kilo/models` | Add (`+`) or remove (`–`) models from athlete's Kilo configuration. |
+| GET/POST/DELETE | `/api/settings/ai/poe` | Read Poe configuration, save an encrypted API key, or remove the key. |
+| POST | `/api/settings/ai/poe/models/validate` | Validate a Poe bot handle and return available bot metadata. |
+| POST/DELETE | `/api/settings/ai/poe/models` | Add or remove a configured Poe bot handle. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 | GET/POST | `/api/settings/ai/default-model` | Get or set the default AI model (`{"provider": "...", "model_id": "..."}`). |
 | GET/POST | `/api/settings/ai/fallback-models` | Get or set the fallback models list (up to 3 models in order: `[{"provider": "...", "model_id": "..."}, ...]`). |

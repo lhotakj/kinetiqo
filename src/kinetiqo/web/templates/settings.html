@@ -740,27 +740,27 @@
                                 </div>
                             </div>
                             <!-- Vercel Key Form -->
-                            <form id="vercel-key-form" class="flex flex-wrap items-end gap-3 mb-8 pt-1">
-                                <div class="flex-1 min-w-72">
+                            <form id="vercel-key-form" class="mb-8 pt-1">
+                                <div class="w-full">
                                     <label for="vercel-api-key"
                                         class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Vercel
                                         AI Gateway API key</label>
-                                    <input id="vercel-api-key" type="password" autocomplete="off"
-                                        aria-label="Vercel AI Gateway API key"
-                                        class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-black/20 focus:border-zinc-500 outline-none transition"
-                                        placeholder="vck_... or gw_... (from vercel.com/~/ai-gateway/api-keys)">
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <input id="vercel-api-key" type="password" autocomplete="off"
+                                            aria-label="Vercel AI Gateway API key"
+                                            class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-black/20 focus:border-zinc-500 outline-none transition"
+                                            placeholder="vck_... or gw_... (from vercel.com/~/ai-gateway/api-keys)">
+                                        <button type="submit"
+                                            class="min-h-11 shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
+                                        <button id="remove-vercel-key" type="button"
+                                            class="min-h-11 shrink-0 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
+                                    </div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Generate your key at <a
                                             href="https://vercel.com/~/ai-gateway/api-keys" target="_blank"
                                             rel="noopener noreferrer"
                                             class="underline hover:text-orange-500">vercel.com/~/ai-gateway/api-keys</a>.
                                         Requires a verified payment method on your Vercel team.</p>
                                 </div>
-                                <button type="submit"
-                                    class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save
-                                    key</button>
-                                <button id="remove-vercel-key" type="button"
-                                    class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
-                                    key</button>
                             </form>
 
                             <!-- Nested Configured Models Section -->
@@ -861,26 +861,26 @@
                                 </div>
                             </div>
                             <!-- Kilo Key Form -->
-                            <form id="kilo-key-form" class="flex flex-wrap items-end gap-3 mb-8 pt-1">
-                                <div class="flex-1 min-w-72">
+                            <form id="kilo-key-form" class="mb-8 pt-1">
+                                <div class="w-full">
                                     <label for="kilo-api-key"
                                         class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Kilo
                                         AI Gateway API key</label>
-                                    <input id="kilo-api-key" type="password" autocomplete="off"
-                                        aria-label="Kilo AI Gateway API key"
-                                        class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-black/20 focus:border-zinc-500 outline-none transition"
-                                        placeholder="kilo_... or api key (from kilo.ai)">
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <input id="kilo-api-key" type="password" autocomplete="off"
+                                            aria-label="Kilo AI Gateway API key"
+                                            class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-black/20 focus:border-zinc-500 outline-none transition"
+                                            placeholder="kilo_... or api key (from kilo.ai)">
+                                        <button type="submit"
+                                            class="min-h-11 shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
+                                        <button id="remove-kilo-key" type="button"
+                                            class="min-h-11 shrink-0 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
+                                    </div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Generate your key at <a
                                             href="https://kilo.ai" target="_blank" rel="noopener noreferrer"
                                             class="underline hover:text-orange-500">kilo.ai</a>. Access free
                                         auto-routing or frontier models at zero markup.</p>
                                 </div>
-                                <button type="submit"
-                                    class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save
-                                    key</button>
-                                <button id="remove-kilo-key" type="button"
-                                    class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
-                                    key</button>
                             </form>
 
                             <!-- Nested Configured Models Section -->
@@ -962,6 +962,60 @@
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Poe Provider Card -->
+                        <div id="ai-provider-card-poe" data-provider="poe"
+                            class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
+                            <div class="flex items-center gap-3 pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6">
+                                <img src="{{ url_for('static', filename='icons/ai_poe.svg') }}" alt="Poe"
+                                    class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
+                                <div>
+                                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Poe</h3>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Use Poe bots through its OpenAI-compatible API.</p>
+                                </div>
+                            </div>
+                            <form id="poe-key-form" class="flex flex-wrap items-end gap-3 mb-8">
+                                <div class="flex-1 min-w-72">
+                                    <label for="poe-api-key" class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Poe API key</label>
+                                    <input id="poe-api-key" type="password" autocomplete="off" aria-label="Poe API key"
+                                        class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white"
+                                        placeholder="API key from poe.com">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Create a key in Poe API Keys.</p>
+                                </div>
+                                <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600">Save key</button>
+                                <button id="remove-poe-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 dark:border-red-800 dark:text-red-300">Remove key</button>
+                                <span id="poe-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+                            </form>
+                            <div class="mb-6">
+                                <label for="poe-new-model-id" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Poe bot handle</label>
+                                <div class="flex gap-3">
+                                    <input id="poe-new-model-id" type="text" autocomplete="off" aria-label="Poe bot handle"
+                                        class="flex-1 rounded-lg border border-gray-300 bg-white p-2.5 text-xs font-mono text-gray-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+                                        placeholder="e.g. Claude-Sonnet-4">
+                                    <button id="poe-add-model-btn" type="button" class="min-h-10 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600">
+                                        <span aria-hidden="true">+</span><span>Add bot</span>
+                                    </button>
+                                </div>
+                                <p id="poe-model-feedback" class="text-xs mt-2 hidden"></p>
+                            </div>
+                            <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700">
+                                <table class="min-w-full text-left text-xs">
+                                    <thead class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                        <tr>
+                                            <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                            <th scope="col" class="px-5 py-3.5">Context</th>
+                                            <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                            <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
+                                            <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                            <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="poe-models-table-body" class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                        <tr><td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">Add Poe bot handles to configure models.</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -2019,6 +2073,7 @@
             openrouter: { name: 'OpenRouter AI', endpoint: '/api/settings/ai/openrouter' },
             vercel: { name: 'Vercel AI Gateway', endpoint: '/api/settings/ai/vercel' },
             kilo: { name: 'Kilo AI Gateway', endpoint: '/api/settings/ai/kilo' },
+            poe: { name: 'Poe', endpoint: '/api/settings/ai/poe' },
             ollama: { name: 'Ollama (Local AI)', endpoint: '/api/settings/ai/ollama' },
         };
 
@@ -2077,6 +2132,15 @@
         const kiloAddModelBtn = document.getElementById('kilo-add-model-btn');
         const kiloModelFeedback = document.getElementById('kilo-model-feedback');
         const kiloTableBody = document.getElementById('kilo-models-table-body');
+        const poeCard = document.getElementById('ai-provider-card-poe');
+        const poeForm = document.getElementById('poe-key-form');
+        const poeInput = document.getElementById('poe-api-key');
+        const poeStatus = document.getElementById('poe-key-status');
+        const removePoeBtn = document.getElementById('remove-poe-key');
+        const poeNewModelInput = document.getElementById('poe-new-model-id');
+        const poeAddModelBtn = document.getElementById('poe-add-model-btn');
+        const poeModelFeedback = document.getElementById('poe-model-feedback');
+        const poeTableBody = document.getElementById('poe-models-table-body');
 
         const ollamaCard = document.getElementById('ai-provider-card-ollama');
         const ollamaForm = document.getElementById('ollama-config-form');
@@ -2089,12 +2153,13 @@
         const ollamaTableBody = document.getElementById('ollama-models-table-body');
         const ollamaModelsCount = document.getElementById('ollama-models-count');
 
-        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, ollama: ollamaCard };
+        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard };
         const providerData = {
             gemini: { configured: false, models: [] },
             openrouter: { configured: false, models: [] },
             vercel: { configured: false, models: [] },
             kilo: { configured: false, models: [] },
+            poe: { configured: false, models: [] },
             ollama: { configured: false, models: [] },
         };
 
@@ -2482,7 +2547,7 @@
             defaultCell.appendChild(groupWrap);
             const actionsCell = document.createElement('td');
             actionsCell.className = 'px-4 py-3 align-middle text-right whitespace-nowrap';
-            if (provider === 'openrouter' || provider === 'vercel' || provider === 'kilo') {
+            if (provider === 'openrouter' || provider === 'vercel' || provider === 'kilo' || provider === 'poe') {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
@@ -2497,7 +2562,8 @@
                     updateDefaultModelLabel();
                     if (provider === 'openrouter') renderOpenRouterModels(providerData.openrouter.models);
                     else if (provider === 'vercel') renderVercelModels(providerData.vercel.models);
-                    else renderKiloModels(providerData.kilo.models);
+                    else if (provider === 'kilo') renderKiloModels(providerData.kilo.models);
+                    else renderPoeModels(providerData.poe.models);
                 });
                 actionsCell.appendChild(removeBtn);
             } else {
@@ -2543,6 +2609,18 @@
             models.forEach((item) => kiloTableBody.appendChild(createModelRow(item, 'kilo')));
         }
 
+        function renderPoeModels(models) {
+            if (!poeTableBody) return;
+            poeTableBody.replaceChildren();
+            if (!Array.isArray(models) || !models.length) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">Add Poe bot handles to configure models.</td>';
+                poeTableBody.appendChild(tr);
+                return;
+            }
+            models.forEach((item) => poeTableBody.appendChild(createModelRow(item, 'poe')));
+        }
+
         function renderOllamaModels(models) {
             if (!ollamaTableBody) return;
             ollamaTableBody.replaceChildren();
@@ -2566,13 +2644,14 @@
             renderOpenRouterModels(providerData.openrouter.models || []);
             renderVercelModels(providerData.vercel.models || []);
             renderKiloModels(providerData.kilo.models || []);
+            renderPoeModels(providerData.poe.models || []);
             renderOllamaModels(providerData.ollama.models || []);
         };
 
         const markAiDirty = () => { aiDirty = true; };
         const clearAiDirty = () => { aiDirty = false; };
 
-        [geminiInput, openrouterInput, vercelInput, kiloInput, ollamaUrlInput, ollamaKeyInput].forEach((input) => input?.addEventListener('input', markAiDirty));
+        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput].forEach((input) => input?.addEventListener('input', markAiDirty));
 
         async function loadGeminiStatus() {
             try {
@@ -2614,6 +2693,16 @@
                 setStatusPill(kiloStatus, 'Status error', false, true);
             }
         }
+        async function loadPoeStatus() {
+            try {
+                const r = await fetch('/api/settings/ai/poe');
+                const d = await r.json();
+                providerData.poe = { configured: Boolean(d.configured), models: d.models || [] };
+                setStatusPill(poeStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+            } catch {
+                setStatusPill(poeStatus, 'Status error', false, true);
+            }
+        }
         async function loadOllamaStatus() {
             try {
                 const r = await fetch('/api/settings/ai/ollama');
@@ -2634,6 +2723,7 @@
                 openrouter: { url: '/api/settings/ai/openrouter', body: { api_key: openrouterInput?.value.trim() || '' } },
                 vercel: { url: '/api/settings/ai/vercel', body: { api_key: vercelInput?.value.trim() || '' } },
                 kilo: { url: '/api/settings/ai/kilo', body: { api_key: kiloInput?.value.trim() || '' } },
+                poe: { url: '/api/settings/ai/poe', body: { api_key: poeInput?.value.trim() || '' } },
                 ollama: {
                     url: '/api/settings/ai/ollama',
                     body: {
@@ -2648,13 +2738,13 @@
             if (!res.ok) throw new Error(data.error?.message || 'Save failed');
             clearAiDirty();
             if (currentProvider !== 'ollama') {
-                const inputByProvider = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput };
+                const inputByProvider = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput };
                 if (inputByProvider[currentProvider]) inputByProvider[currentProvider].value = '';
             } else if (ollamaKeyInput?.value.trim()) {
                 ollamaKeyInput.value = '';
                 ollamaKeyInput.placeholder = '•••••••• (API key saved)';
             }
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         }
 
@@ -2669,7 +2759,7 @@
             try {
                 await saveCurrentProvider();
             } catch (err) {
-                const statusByProvider = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, ollama: ollamaStatus };
+                const statusByProvider = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus };
                 setStatusPill(statusByProvider[currentProvider], err.message || 'Save failed', false, true);
             } finally {
                 if (submitBtn) {
@@ -2680,7 +2770,7 @@
             }
         }
 
-        [geminiForm, openrouterForm, vercelForm, kiloForm, ollamaForm].forEach((form) => form?.addEventListener('submit', (e) => {
+        [geminiForm, openrouterForm, vercelForm, kiloForm, poeForm, ollamaForm].forEach((form) => form?.addEventListener('submit', (e) => {
             e.preventDefault();
             handleProviderFormSubmit(form);
         }));
@@ -2710,7 +2800,7 @@
             if (!res.ok) return;
             closeModal(deleteModal);
             aiDirty = false;
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         });
 
@@ -2774,13 +2864,14 @@
         const removeProviderByKey = async (key) => {
             const res = await fetch(providerMeta[key].endpoint, { method: 'DELETE', headers: aiHeaders });
             if (!res.ok) return;
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         };
         removeGeminiBtn?.addEventListener('click', () => removeProviderByKey('gemini'));
         removeOpenrouterBtn?.addEventListener('click', () => removeProviderByKey('openrouter'));
         removeVercelBtn?.addEventListener('click', () => removeProviderByKey('vercel'));
         removeKiloBtn?.addEventListener('click', () => removeProviderByKey('kilo'));
+        removePoeBtn?.addEventListener('click', () => removeProviderByKey('poe'));
         ollamaRemoveBtn?.addEventListener('click', () => removeProviderByKey('ollama'));
 
         openrouterAddModelBtn?.addEventListener('click', async () => {
@@ -2873,6 +2964,30 @@
             }
         });
 
+        poeAddModelBtn?.addEventListener('click', async () => {
+            const modelId = poeNewModelInput?.value.trim();
+            if (!modelId) return;
+            const origBtnHtml = poeAddModelBtn.innerHTML;
+            poeAddModelBtn.disabled = true;
+            poeAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
+            try {
+                const res = await fetch('/api/settings/ai/poe/models', { method: 'POST', headers: aiHeaders, body: JSON.stringify({ model_id: modelId }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || 'Failed to add Poe bot.');
+                poeNewModelInput.value = '';
+                providerData.poe.models = data.models || [];
+                renderPoeModels(providerData.poe.models);
+                poeModelFeedback.className = 'text-xs mt-2 text-emerald-600 dark:text-emerald-400';
+                poeModelFeedback.textContent = `Poe bot '${modelId}' added.`;
+            } catch (err) {
+                poeModelFeedback.className = 'text-xs mt-2 text-red-600 dark:text-red-400';
+                poeModelFeedback.textContent = err.message;
+            } finally {
+                poeAddModelBtn.disabled = false;
+                poeAddModelBtn.innerHTML = origBtnHtml;
+            }
+        });
+
         ollamaTestBtn?.addEventListener('click', async () => {
             const baseUrl = ollamaUrlInput?.value.trim() || 'http://localhost:11434';
             const apiKey = ollamaKeyInput?.value.trim() || '';
@@ -2898,7 +3013,7 @@
         });
 
         (async () => {
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels()]);
             renderAllModelTables();
             await refreshProvidersIndex();
         })();

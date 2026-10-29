@@ -300,6 +300,11 @@ class ChatService:
         provider_cls = self._provider_class(provider)
         deprecated = getattr(provider_cls, "deprecated_models", frozenset())
         default_model = getattr(provider_cls, "default_model", "default")
+        if provider == "poe" and not model_id:
+            configured_models = self._known_models_for_provider(athlete_id, provider)
+            if not configured_models:
+                raise ChatConfigurationError("Configure a Poe bot before starting a chat.")
+            model_id = configured_models[0]["id"]
         if not isinstance(default_model, str) or not default_model.strip():
             default_model = "default"
         chosen_model = model_id if model_id and model_id not in deprecated else default_model
@@ -315,6 +320,7 @@ class ChatService:
             "ollama": "Ollama (Local AI)",
             "vercel": "Vercel AI Gateway",
             "kilo": "Kilo AI Gateway",
+            "poe": "Poe",
         }
         if provider == "all":
             groups: list[dict[str, Any]] = []
@@ -661,7 +667,7 @@ class ChatService:
         if not encrypted_key:
             raise ChatConfigurationError()
         api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
-        if provider in ("openrouter", "vercel", "kilo"):
+        if provider in ("openrouter", "vercel", "kilo", "poe"):
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)
 
@@ -714,4 +720,3 @@ class ChatService:
             return PROVIDER_REGISTRY[provider]
         except KeyError as exc:
             raise ChatConfigurationError("Unsupported AI provider.") from exc
-

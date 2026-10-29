@@ -5,6 +5,7 @@ from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
+from kinetiqo.chat.providers.poe import PoeChatProvider
 from kinetiqo.chat.providers.vercel import VercelChatProvider
 
 PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
@@ -12,6 +13,7 @@ PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
     "openrouter": OpenRouterChatProvider,
     "vercel": VercelChatProvider,
     "kilo": KiloChatProvider,
+    "poe": PoeChatProvider,
     "ollama": OllamaChatProvider,
 }
 
@@ -26,9 +28,9 @@ __all__ = [
     "GeminiChatProvider",
     "KiloChatProvider",
     "OllamaChatProvider",
+    "PoeChatProvider",
     "OpenRouterChatProvider",
     "VercelChatProvider",
     "PROVIDER_REGISTRY",
     "register_provider",
 ]
-

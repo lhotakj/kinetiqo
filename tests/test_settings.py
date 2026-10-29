@@ -82,9 +82,14 @@ class TestSettingsApi(unittest.TestCase):
         self.assertIn("strava-var-dropdown", content)
         self.assertIn("bg-orange-500 hover:bg-orange-600", content)
         self.assertIn("Add Agent", content)
+        for provider in ("vercel", "kilo"):
+            self.assertIn(f'id="{provider}-key-form" class="mb-8 pt-1"', content)
+            self.assertIn(f'id="{provider}-api-key"', content)
+            self.assertIn(f'id="remove-{provider}-key"', content)
+            self.assertIn("flex flex-wrap items-center gap-3", content)
         self.assertNotIn('"token": "{{agent-ai}}"', content)
         for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
-            self.assertEqual(content.count(f">{heading}</th>"), 5, heading)
+            self.assertEqual(content.count(f">{heading}</th>"), 6, heading)
 
     def test_settings_page_contains_section_anchors(self):
         repo = MagicMock()

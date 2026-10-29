@@ -76,6 +76,7 @@ DEFAULT_KILO_MODELS = (
 
 class KiloChatProvider(BaseChatProvider):
     provider_name = "kilo"
+    base_url = _BASE_URL
     default_model = "kilo-auto/free"
     preferred_models = tuple(m["id"] for m in DEFAULT_KILO_MODELS)
 
@@ -172,7 +173,7 @@ class KiloChatProvider(BaseChatProvider):
 
         with self.client_factory(timeout=httpx.Timeout(15.0, connect=8.0)) as client:
             # 1. Try single model endpoint directly (e.g. GET /models/{clean_id})
-            single_url = f"{_BASE_URL}/models/{clean_id}"
+            single_url = f"{self.base_url}/models/{clean_id}"
             try:
                 single_resp = client.get(single_url, headers=self._headers())
                 if single_resp.status_code == 200:
@@ -192,7 +193,7 @@ class KiloChatProvider(BaseChatProvider):
                 logger.debug("Kilo AI Gateway direct model lookup failed (%s); falling back to catalog search: %s", single_url, exc)
 
             # 2. Fall back to catalog query for exact / fuzzy matching
-            cat_url = f"{_BASE_URL}/models"
+            cat_url = f"{self.base_url}/models"
             resp = client.get(cat_url, headers=self._headers())
             self._raise_for_status(resp)
             payload = resp.json()
@@ -323,7 +324,7 @@ class KiloChatProvider(BaseChatProvider):
             messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": prompt})
 
-        url = f"{_BASE_URL}/chat/completions"
+        url = f"{self.base_url}/chat/completions"
         logger.debug("Kilo AI Gateway stream starting: model=%s history_messages=%d tools_provided=%d", model_id, len(history), len(tools or []))
 
         try:
@@ -463,4 +464,3 @@ class KiloChatProvider(BaseChatProvider):
         except httpx.RequestError as exc:
             logger.warning("Kilo AI Gateway stream network error: model=%s error=%s", model_id, exc)
             raise ChatProviderUnavailableError() from exc
-
