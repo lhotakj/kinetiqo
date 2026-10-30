@@ -7,7 +7,7 @@ import os
 import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import requests
 
@@ -187,10 +187,11 @@ def fetch_visual_crossing_hour(
     *,
     api_key: str | None = None,
     reserve_quota: Callable[[int], int | None],
+    hourly_cache: MutableMapping[tuple[str, str], dict[int, dict[str, Any]]] | None = None,
     get: Callable[..., Any] = requests.get,
     sleep: Callable[[float], None] = time.sleep,
 ) -> tuple[dict[str, Any], int]:
-    """Fetch one historic hourly record; return normalized values and query cost."""
+    """Fetch an hourly record, reusing response hours within the current sync."""
     credential = api_key if api_key is not None else os.getenv("VISUAL_CROSSING_API_KEY", "")
     if not credential:
         raise WeatherProviderError("VISUAL_CROSSING_API_KEY is not configured.", stop_run=True)
@@ -201,6 +202,12 @@ def fetch_visual_crossing_hour(
         raise ValueError("Weather request time must be an exact UTC hour.")
     end = start + timedelta(hours=1)
     location = f"{latitude:.5f},{longitude:.5f}"
+    requested_epoch = int(start.timestamp())
+    cache_key = (location, start.date().isoformat())
+    if hourly_cache is not None:
+        cached_hour = hourly_cache.get(cache_key, {}).get(requested_epoch)
+        if cached_hour is not None:
+            return dict(cached_hour), 0
     url = f"{TIMELINE_URL}/{location}/{start.strftime('%Y-%m-%dT%H:%M:%S')}/{end.strftime('%Y-%m-%dT%H:%M:%S')}"
     params = {
         "key": credential,
@@ -266,10 +273,29 @@ def fetch_visual_crossing_hour(
                 f"Visual Crossing request cost ({query_cost} records) exceeded the local "
                 f"rolling 24-hour quota cap of {QUOTA_HARD_CAP}."
             )
-        hour = _weather_hour(data, int(start.timestamp()))
+        hour = _weather_hour(data, requested_epoch)
         if hour is None:
             raise WeatherProviderError("Visual Crossing has no record for the requested hour.")
-        return normalize_visual_crossing_hour(hour), query_cost
+        normalized_hour = normalize_visual_crossing_hour(hour)
+        if hourly_cache is not None:
+            cached_day = hourly_cache.setdefault(cache_key, {})
+            for day in data.get("days", []):
+                if not isinstance(day, Mapping):
+                    continue
+                for returned_hour in day.get("hours", []):
+                    if not isinstance(returned_hour, Mapping):
+                        continue
+                    try:
+                        returned_epoch = int(returned_hour.get("datetimeEpoch", -1))
+                        returned_date = datetime.fromtimestamp(
+                            returned_epoch, tz=timezone.utc,
+                        ).date().isoformat()
+                    except (OverflowError, OSError, TypeError, ValueError):
+                        continue
+                    if returned_date == cache_key[1]:
+                        cached_day[returned_epoch] = normalize_visual_crossing_hour(returned_hour)
+            cached_day[requested_epoch] = normalized_hour
+        return normalized_hour, query_cost
     raise WeatherProviderError("Visual Crossing request exhausted retries.")
 
 

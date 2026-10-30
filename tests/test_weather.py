@@ -243,6 +243,40 @@ class WeatherMCPToolTests(unittest.TestCase):
 
 
 class VisualCrossingClientTests(unittest.TestCase):
+    def test_fetch_reuses_other_returned_hours_for_same_location_and_day(self):
+        hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
+        next_hour = hour + timedelta(hours=1)
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = {
+            "queryCost": 24,
+            "days": [{
+                "hours": [
+                    {"datetimeEpoch": int(hour.timestamp()), "temp": 12},
+                    {"datetimeEpoch": int(next_hour.timestamp()), "temp": 13},
+                ],
+            }],
+        }
+        request = Mock(return_value=response)
+        reserve = Mock(side_effect=[1, 24])
+        hourly_cache = {}
+
+        first_values, first_cost = fetch_visual_crossing_hour(
+            50, 14, hour, api_key="test-key", reserve_quota=reserve,
+            hourly_cache=hourly_cache, get=request, sleep=Mock(),
+        )
+        second_values, second_cost = fetch_visual_crossing_hour(
+            50, 14, next_hour, api_key="test-key", reserve_quota=reserve,
+            hourly_cache=hourly_cache, get=request, sleep=Mock(),
+        )
+
+        self.assertEqual(first_values["temperature_c"], 12)
+        self.assertEqual(first_cost, 24)
+        self.assertEqual(second_values["temperature_c"], 13)
+        self.assertEqual(second_cost, 0)
+        request.assert_called_once()
+        self.assertEqual(reserve.call_count, 2)
+
     def test_fetch_reserves_quota_and_normalizes_hourly_weather(self):
         hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
         response = Mock()

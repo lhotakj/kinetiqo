@@ -6,6 +6,7 @@ import os
 import secrets
 import threading
 from datetime import datetime, timezone, timedelta
+from typing import Any, Callable
 
 import requests
 
@@ -805,6 +806,7 @@ class SyncService:
                         f"(hourly; Visual Crossing free-tier guard: {QUOTA_HARD_CAP} records/rolling 24h)."
                     )
                     quota_exhausted = False
+                    hourly_weather_cache: dict[tuple[str, str], dict[int, dict[str, Any]]] = {}
 
                     def reserve_weather_quota(units: int) -> int | None:
                         nonlocal quota_warned
@@ -824,6 +826,21 @@ class SyncService:
                                 "local records reserved in the rolling 24-hour window."
                             )
                         return reserved
+
+                    def fetch_cached_weather_hour(
+                        latitude: float,
+                        longitude: float,
+                        hour_start: datetime,
+                        *,
+                        reserve_quota: Callable[[int], int | None],
+                    ) -> tuple[dict[str, Any], int]:
+                        return fetch_visual_crossing_hour(
+                            latitude,
+                            longitude,
+                            hour_start,
+                            reserve_quota=reserve_quota,
+                            hourly_cache=hourly_weather_cache,
+                        )
 
                     def weather_should_stop() -> bool:
                         nonlocal stopped
@@ -881,7 +898,7 @@ class SyncService:
                             payload = build_activity_weather(
                                 candidate,
                                 points,
-                                fetch_visual_crossing_hour,
+                                fetch_cached_weather_hour,
                                 reserve_weather_quota,
                                 should_stop=weather_should_stop,
                             )
