@@ -39,7 +39,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     - [7. Database Settings vs. Environment Variable Synchronization Architecture](#7-database-settings-vs-environment-variable-synchronization-architecture)
     - [8. Display Configuration](#8-display-configuration)
     - [9. Map Configuration](#9-map-configuration)
-    - [10. Strava Description Auto-Update (`UPDATE_STRAVA_*`)](#10-strava-description-auto-update-update_strava_)
+    - [10. Historical Activity Weather](#10-historical-activity-weather)
+    - [11. Strava Description Auto-Update (`UPDATE_STRAVA_*`)](#11-strava-description-auto-update-update_strava_)
 - [Command-Line Interface (CLI)](#command-line-interface-cli)
   - [CLI Commands](#cli-commands)
   - [Manual Sync](#manual-sync)
@@ -81,6 +82,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year, half-year, quarter, and custom-period statistics with 365-day activity calendar heatmaps. Features custom background photo upload (PNG, JPG, WEBP, or HEIC with reset), configurable tint color overlay and opacity slider, typography font selector (Inter, Italiana, Outfit, etc.), unified collapsible control panels (Stats Options, Appearance, Size, Period), responsive column width layout with stacked default (20%) and expanded full-width row layout (>20% up to 50%), metrics for Most Active Month by Distance and Most Active Month by Elevation, visible stat toggles with dynamic 1px hairline auto-cleanup, complete `localStorage` state persistence, and vector PDF / PNG Playwright export.
 - 🎯 **Fondo-o-meter Infographic**: Showcase infographic celebrating milestone endurance efforts with dynamic concentric radial progress rings and smart distance binning (up to 8 harmonic rings from sport threshold to single longest activity with bold distance label, e.g. **213.2 km**). Features dedicated Gran Fondo emblem (`gran-fondo.svg`), hero-sized total Fondos completed counter, KOMs conquered on cycling activities and PR segment badges across seasons, discipline-specific thresholds (≥100km cycling, ≥42.2km marathon running/walking, ≥50km skiing, ≥10km swimming), customizable canvas size (1280–2048px, 4:3 fixed), custom background photo upload with tint/opacity controls, arc base color & width customizer, typography selectors, dynamic auto-expanding layout, complete `localStorage` state persistence, and vector PDF / PNG Playwright export. See [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md).
 - ✍️ **Strava Description Auto-Update Engine**: Automatically render custom templates with 150+ dynamic placeholders into synced Strava activity descriptions. Includes the `{{workout-summary}}` engine (power zones, normalized power % FTP, sustained blocks, peak surges via `WORKOUT_SUMMARY_PEAK_THRESHOLD_W`), 6 independent activity buckets, begin/end placement, milestone handling (🎉), server-side validation, and a 30-activity-per-sync safety cap. See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
+- 🌦️ **Historical Activity Weather**: Optionally enrich eligible outdoor GPS activities with stored hourly Visual Crossing weather, including conditions, temperature, precipitation, wind, gusts, and calculated headwind. Provider limits stop only weather enrichment; sync continues. See [docs/weather.md](docs/weather.md).
 - 🗺️ **Interactive Canvas Maps**: Multi-provider Leaflet map with Canvas renderer for thousands of GPS points, 16 basemaps across 7 providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, and Esri). Includes built-in server-side OSM tile proxy (`/tiles/osm/...`), distance-based GPS track simplification (`GPS_SIMPLIFICATION` levels 1–10) for 10–30× payload reduction, persistent route/map styling, tone controls, fullscreen mode, and viewport PNG export.
 - 💾 **Multi-DB Zero-ORM Warehouse**: Direct parameterized raw SQL execution with strict SQL injection immunity and zero ORM overhead across **PostgreSQL** (12+), **MySQL 8 / MariaDB 10+**, and **Firebird** (3.0, 4.0, 5.0). Includes automated built-in benchmark utility (`kinetiqo benchmark` with `-s, --scope` and `-d, --database-type`). See [docs/DATABASE.md](docs/DATABASE.md).
 - 🎯 **Activity Goals**: Set weekly, monthly, and yearly distance and elevation goals per activity type (Cycling, Running, Hiking, etc.) with progress tracking on the Settings page.
@@ -268,6 +270,8 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
     THUNDERFOREST_API_KEY=thunderforest-api-key
     MAPTILER_API_KEY=maptiler-api-key
     GEOAPIFY_API_KEY=geoapify-api-key
+    # Optional historical activity weather
+    VISUAL_CROSSING_API_KEY=your_visual_crossing_api_key
     CARTO_API_KEY=carto-api-key
     ```
     - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
@@ -542,7 +546,22 @@ The setting is stored in the database (`profile.gps_simplification`) and can be 
 
 > **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
 
-#### 10. Strava Description Auto-Update (`UPDATE_STRAVA_*`)
+#### 10. Historical Activity Weather
+
+Set `VISUAL_CROSSING_API_KEY` to make server-side hourly historical weather
+available during enabled syncs. The key alone does not fetch weather: enable
+the saved Weather data preference for Fast Sync or select **Fetch weather
+data** for a run. Full Sync remains opt-in.
+
+Eligible outdoor GPS activities store provider conditions, temperature,
+precipitation, wind, gusts, and calculated headwind. GPS coordinates are used
+only for the provider lookup and are never saved in weather payloads or
+returned by AI/MCP tools. A valid `X-RateLimit-Remaining: 0` response or HTTP
+429 stops only weather requests in that server process until UTC midnight; the
+rest of the sync completes with a warning. See [docs/weather.md](docs/weather.md)
+for provider setup, privacy, retries, and rate-limit details.
+
+#### 11. Strava Description Auto-Update (`UPDATE_STRAVA_*`)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -578,7 +597,7 @@ performed and no extra Strava API calls are made.
 Basic example — a single template applied to outdoor rides only:
 
 ```bash
-UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled ({{cycling-distance-percent-total-year}} of the {{current-year}} goal, {{cycling-distance-deviation-total-year}}).{{new-line}}"
+UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled ({{cycling-distance-percent-total-year}} of the {{current-year}} goal, {{cycling-distance-deviation-total-year}})."
 ```
 
 This renders to something like:
@@ -1150,6 +1169,7 @@ docker run -d \
   -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
+  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
@@ -1159,12 +1179,12 @@ docker run -d \
   -e DATE_FORMAT="%b %d, %Y" \
   -e GPS_SIMPLIFICATION="0" \
   -e LOG_LEVEL="INFO" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}" \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}.{{new-line}}" \
-  -e UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run.{{new-line}}" \
-  -e UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}.{{new-line}}" \
-  -e UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked.{{new-line}}" \
-  -e UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum.{{new-line}}" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled." \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}." \
+  -e UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run." \
+  -e UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}." \
+  -e UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked." \
+  -e UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum." \
   -e UPDATE_STRAVA_PLACEMENT="end" \
   -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
   -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
@@ -1188,6 +1208,8 @@ services:
       - "4444:4444"
     env_file:
       - .env
+    environment:
+      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
     depends_on:
       postgresql:
         condition: service_healthy
@@ -1249,6 +1271,9 @@ POSTGRESQL_SSL_MODE=disable
 FAST_SYNC="*/15 * * * *"
 FULL_SYNC="0 3 * * *"
 
+# Optional Historical Activity Weather
+VISUAL_CROSSING_API_KEY=
+
 # Grafana Dashboard Password
 GRAFANA_ADMIN_PASSWORD=your_secure_grafana_password
 
@@ -1266,12 +1291,12 @@ GPS_SIMPLIFICATION=0
 LOG_LEVEL=INFO
 
 # Strava Description Auto-Update Templates (Optional)
-UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}"
-UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}.{{new-line}}"
-UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run.{{new-line}}"
-UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}.{{new-line}}"
-UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked.{{new-line}}"
-UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum.{{new-line}}"
+UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled."
+UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}."
+UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run."
+UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}."
+UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked."
+UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum."
 UPDATE_STRAVA_PLACEMENT=end
 WORKOUT_SUMMARY_PEAK_THRESHOLD_W=300
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=
@@ -1326,6 +1351,7 @@ docker run -d \
   -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
+  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
@@ -1335,12 +1361,12 @@ docker run -d \
   -e DATE_FORMAT="%b %d, %Y" \
   -e GPS_SIMPLIFICATION="0" \
   -e LOG_LEVEL="INFO" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}" \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}.{{new-line}}" \
-  -e UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run.{{new-line}}" \
-  -e UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}.{{new-line}}" \
-  -e UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked.{{new-line}}" \
-  -e UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum.{{new-line}}" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled." \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}." \
+  -e UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run." \
+  -e UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}." \
+  -e UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked." \
+  -e UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum." \
   -e UPDATE_STRAVA_PLACEMENT="end" \
   -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
   -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
@@ -1375,6 +1401,7 @@ services:
       - KINETIQO_MCP_ALLOW_SYNC=${KINETIQO_MCP_ALLOW_SYNC:-0}
       - KINETIQO_MCP_ALLOW_PROFILE_WRITE=${KINETIQO_MCP_ALLOW_PROFILE_WRITE:-0}
       - KINETIQO_MCP_ALLOW_STRAVA_WRITE=${KINETIQO_MCP_ALLOW_STRAVA_WRITE:-0}
+      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
     depends_on:
       postgresql:
         condition: service_healthy
@@ -1436,6 +1463,9 @@ POSTGRESQL_SSL_MODE=disable
 FAST_SYNC="*/15 * * * *"
 FULL_SYNC="0 3 * * *"
 
+# Optional Historical Activity Weather
+VISUAL_CROSSING_API_KEY=
+
 # FastMCP Server Options
 ENABLE_MCP=1
 MCP_PORT=8000
@@ -1464,12 +1494,12 @@ GPS_SIMPLIFICATION=0
 LOG_LEVEL=INFO
 
 # Strava Description Auto-Update Templates (Optional)
-UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}"
-UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}.{{new-line}}"
-UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run.{{new-line}}"
-UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}.{{new-line}}"
-UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked.{{new-line}}"
-UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum.{{new-line}}"
+UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled."
+UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}."
+UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run."
+UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}."
+UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked."
+UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum."
 UPDATE_STRAVA_PLACEMENT=end
 WORKOUT_SUMMARY_PEAK_THRESHOLD_W=300
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=
@@ -1550,6 +1580,7 @@ Once connected, your AI assistant automatically discovers all 35 analytical tool
 | | `FIREBIRD_HOST` / `PORT` / ... | `3050` | Equivalent parameters for Firebird 3/4/5 backend. |
 | **Scheduling** | `FAST_SYNC` | `*/15 * * * *` | Cron schedule for fast incremental sync (picks up new workouts). |
 | | `FULL_SYNC` | `0 3 * * *` | Cron schedule for full audit sync (reconciles history & deleted activities). |
+| **Weather (Optional)** | `VISUAL_CROSSING_API_KEY` | _(empty)_ | Visual Crossing API key for server-side hourly historical weather during enabled syncs. See [docs/weather.md](docs/weather.md). |
 | **Athlete** | `ATHLETE_WEIGHT` | `0` | Athlete body weight in kg (used for VO₂max and W/kg computations). |
 | | `DATE_FORMAT` | `%b %d, %Y` | Python `strftime` format used for charts, tables, and infographics. |
 | | `GPS_SIMPLIFICATION` | `0` | Coordinate decimation level (0=disabled, 1–10=3m–100m thresholds). |

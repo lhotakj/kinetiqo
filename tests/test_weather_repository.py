@@ -90,24 +90,6 @@ class WeatherRepositoryTests(unittest.TestCase):
                     self.assertIn("= %s", job_sql)
                 repository.conn.commit.assert_called_once()
 
-    def test_quota_reservation_uses_dialect_parameters_and_commits(self):
-        for database_type in ("postgresql", "mysql", "firebird"):
-            with self.subTest(database_type=database_type):
-                repository, cursor = self._repository(PostgresqlRepository, database_type)
-                cursor.rowcount = 1
-                cursor.fetchone.return_value = (4,)
-                total = repository.reserve_weather_api_request(
-                    datetime(2026, 1, 1, tzinfo=timezone.utc),
-                    quota_units=1,
-                    hard_cap=900,
-                )
-                self.assertEqual(total, 5)
-                self.assertEqual(cursor.execute.call_count, 3)
-                sql = cursor.execute.call_args_list[0].args[0]
-                self.assertIn("weather_api_quota_lock", sql)
-                self.assertEqual("?" in sql, database_type == "firebird")
-                repository.conn.commit.assert_called_once()
-
     def test_expired_web_lease_marks_its_job_interrupted_before_reclaim(self):
         now = datetime.now(timezone.utc)
         for database_type in ("postgresql", "mysql", "firebird"):

@@ -203,6 +203,7 @@ docker run -d \
   -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
+  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
   -e ATHLETE_WEIGHT="75" \
   -e DATE_FORMAT="%b %d, %Y" \
   -e GPS_SIMPLIFICATION="0" \
@@ -242,6 +243,7 @@ services:
       - KINETIQO_MCP_ALLOW_SYNC=${KINETIQO_MCP_ALLOW_SYNC:-0}
       - KINETIQO_MCP_ALLOW_PROFILE_WRITE=${KINETIQO_MCP_ALLOW_PROFILE_WRITE:-0}
       - KINETIQO_MCP_ALLOW_STRAVA_WRITE=${KINETIQO_MCP_ALLOW_STRAVA_WRITE:-0}
+      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
     depends_on:
       postgresql:
         condition: service_healthy

@@ -23,6 +23,7 @@ from kinetiqo.strava_description import (
     extract_placeholders,
     get_template_for_activity,
     merge_description,
+    normalize_template,
     render_and_merge_description,
     render_template,
 )
@@ -204,25 +205,39 @@ class TestMergeDescription(unittest.TestCase):
         result = merge_description(existing, template, rendered, placement="somewhere-else")
         self.assertTrue(result.endswith(f"{UPDATE_STRAVA_PREFIX} {rendered}\n"))
 
-    def test_replaces_prefixed_block_and_honors_placement(self):
-        template = "Stats: {{value}}.{{new-line}}"
+    def test_replaces_prefixed_block_in_place(self):
+        template = "Stats: {{value}}."
         old_rendered = f"{UPDATE_STRAVA_PREFIX} Stats: 41.\n"
         new_rendered = "Stats: 42.\n"
         existing = old_rendered + "My hand-written ride notes."
         for placement in (UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMENT_END):
             with self.subTest(placement=placement):
                 result = merge_description(existing, template, new_rendered, placement=placement)
-                if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
-                    self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} Stats: 42.\nMy hand-written ride notes.")
-                else:
-                    self.assertEqual(result, f"My hand-written ride notes.\n\n{UPDATE_STRAVA_PREFIX} Stats: 42.\n")
+                self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} Stats: 42.\nMy hand-written ride notes.")
 
     def test_empty_existing_description_just_uses_rendered_block(self):
         result = merge_description("", "Stats: {{value}}.", "Stats: 42.")
         self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} Stats: 42.\n")
 
+    def test_replaces_only_first_prefixed_line(self):
+        from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
+        existing = (
+            f"{UPDATE_STRAVA_PREFIX} Old summary\n"
+            "Preserved generated or user text\n"
+            f"{UPDATE_STRAVA_AI_PREFIX} Other Kinetiqo line\n"
+        )
+
+        result = merge_description(existing, "Stats: {{value}}", "Stats: 42.")
+
+        self.assertEqual(
+            result,
+            f"{UPDATE_STRAVA_PREFIX} Stats: 42.\n"
+            "Preserved generated or user text\n"
+            f"{UPDATE_STRAVA_AI_PREFIX} Other Kinetiqo line\n",
+        )
+
     def test_user_text_is_never_lost(self):
-        template = "Stats: {{value}}.{{new-line}}"
+        template = "Stats: {{value}}."
         existing = f"{UPDATE_STRAVA_PREFIX} Stats: 10.\nGreat ride with @friend, saw a fox!"
         rendered = "Stats: 20.\n"
         result = merge_description(existing, template, rendered)
@@ -230,16 +245,16 @@ class TestMergeDescription(unittest.TestCase):
         self.assertNotIn("Stats: 10.", result)
         self.assertIn(f"{UPDATE_STRAVA_PREFIX} Stats: 20.\n", result)
 
-    def test_ai_template_uses_ai_prefix_and_replaces_standard_prefix(self):
+    def test_ai_template_uses_ai_prefix_and_replaces_standard_prefix_in_place(self):
         from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
         old_desc = f"{UPDATE_STRAVA_PREFIX} Old stats.\nNice ride!"
         template = "Workout: {{ai-agent}}"
         rendered = "Workout: Great effort on hills"
         result = merge_description(old_desc, template, rendered)
-        self.assertTrue(result.endswith(f"{UPDATE_STRAVA_AI_PREFIX} {rendered}\n"))
+        self.assertTrue(result.startswith(f"{UPDATE_STRAVA_AI_PREFIX} {rendered}\n"))
         self.assertIn("Nice ride!", result)
         self.assertNotIn("Old stats.", result)
-        self.assertNotIn(UPDATE_STRAVA_PREFIX, result)
+        self.assertNotIn(f"{UPDATE_STRAVA_PREFIX} Old stats.", result)
 
     def test_agent_ai_alias_token_uses_ai_prefix(self):
         from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
@@ -249,18 +264,18 @@ class TestMergeDescription(unittest.TestCase):
         result = merge_description(old_desc, template, rendered)
         self.assertEqual(result, f"Nice ride!\n\n{UPDATE_STRAVA_AI_PREFIX} {rendered}\n")
 
-    def test_replaces_ai_prefix_with_standard_when_template_changes_to_non_ai(self):
+    def test_replaces_ai_prefix_with_standard_when_template_changes_to_non_ai_in_place(self):
         from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
         old_desc = f"{UPDATE_STRAVA_AI_PREFIX} Old AI text.\nTrail run."
         template = "Distance: {{value}}"
         rendered = "Distance: 10km"
         result = merge_description(old_desc, template, rendered)
-        self.assertTrue(result.endswith(f"{UPDATE_STRAVA_PREFIX} {rendered}\n"))
+        self.assertTrue(result.startswith(f"{UPDATE_STRAVA_PREFIX} {rendered}\n"))
         self.assertIn("Trail run.", result)
         self.assertNotIn("Old AI text.", result)
-        self.assertNotIn(UPDATE_STRAVA_AI_PREFIX, result)
+        self.assertNotIn(f"{UPDATE_STRAVA_AI_PREFIX} Old AI text.", result)
 
-    def test_enabled_state_sets_prefix_and_removes_all_previous_prefix_lines(self):
+    def test_enabled_state_sets_prefix_and_replaces_first_previous_prefix_line(self):
         from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
         existing = (
             f"{UPDATE_STRAVA_PREFIX}\n"
@@ -275,7 +290,24 @@ class TestMergeDescription(unittest.TestCase):
         )
         self.assertEqual(
             result,
-            f"Personal note.\n\n{UPDATE_STRAVA_AI_PREFIX} Recovery | 23min @ 83bpm\n",
+            f"{UPDATE_STRAVA_AI_PREFIX} Recovery | 23min @ 83bpm\n"
+            f"{UPDATE_STRAVA_AI_PREFIX} Previous AI text.\n"
+            "Personal note.",
+        )
+
+    def test_matching_prefixed_line_returns_existing_description_unchanged(self):
+        existing = f"{UPDATE_STRAVA_PREFIX} Stats: 42.\nPersonal note."
+
+        result = merge_description(existing, "Stats: {{value}}", "Stats: 42.")
+
+        self.assertEqual(result, existing)
+
+    def test_normalize_template_replaces_all_line_break_forms_with_spaces(self):
+        template = "Weather:\r\n{{weather-basic}}\rDone"
+
+        self.assertEqual(
+            normalize_template(template),
+            "Weather: {{weather-basic}} Done",
         )
 
 
@@ -418,11 +450,11 @@ class TestDescriptionContextResolution(unittest.TestCase):
         result = ctx.render_for_activity("{{totally-not-a-thing}}", "2026-07-22T08:00:00Z", "")
         self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX}\n")
 
-    def test_current_year_and_month_and_new_line(self):
+    def test_current_year_and_month(self):
         repo = self._make_repo()
         ctx = DescriptionContext(config=MagicMock(), repo=repo)
         result = ctx.render_for_activity(
-            "{{current-year}}-{{current-month}}{{new-line}}end", "2026-07-22T08:00:00Z", ""
+            "{{current-year}}-{{current-month}} end", "2026-07-22T08:00:00Z", ""
         )
         self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} 2026-July end\n")
 
@@ -443,7 +475,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
     def test_merge_replaces_previous_render_for_same_context(self):
         repo = self._make_repo(count=5)
         ctx = DescriptionContext(config=MagicMock(update_strava_placement="begin"), repo=repo)
-        template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
+        template = "You have done {{cycling-count-total-year}} rides."
         first = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "")
         self.assertEqual(first, f"{UPDATE_STRAVA_PREFIX} You have done 5 rides.\n")
 
@@ -456,7 +488,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         repo = self._make_repo(count=5)
         config = MagicMock(spec=[])  # no attributes at all, including update_strava_placement
         ctx = DescriptionContext(config=config, repo=repo)
-        template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
+        template = "You have done {{cycling-count-total-year}} rides."
         result = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "My own notes.")
         self.assertEqual(result, f"My own notes.\n\n{UPDATE_STRAVA_PREFIX} You have done 5 rides.\n")
 
@@ -464,7 +496,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         repo = self._make_repo(count=5)
         config = MagicMock(update_strava_placement="begin")
         ctx = DescriptionContext(config=config, repo=repo)
-        template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
+        template = "You have done {{cycling-count-total-year}} rides."
         result = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "My own notes.")
         self.assertEqual(result, f"{UPDATE_STRAVA_PREFIX} You have done 5 rides.\nMy own notes.")
 
@@ -472,7 +504,7 @@ class TestDescriptionContextResolution(unittest.TestCase):
         repo = self._make_repo(count=5)
         config = MagicMock(update_strava_placement="end")
         ctx = DescriptionContext(config=config, repo=repo)
-        template = "You have done {{cycling-count-total-year}} rides.{{new-line}}"
+        template = "You have done {{cycling-count-total-year}} rides."
         result = ctx.render_for_activity(template, "2026-07-22T08:00:00Z", "My own notes.")
         self.assertEqual(result, f"My own notes.\n\n{UPDATE_STRAVA_PREFIX} You have done 5 rides.\n")
 
@@ -584,7 +616,6 @@ class TestValidateTemplate(unittest.TestCase):
             "Just text with no placeholders",
             "Year: {{current-year}} Month: {{current-month}}",
             "Summary: {{workout-summary}}",
-            "Line break: {{new-line}}",
             "Distance: {{cycling-distance-total-year}}",
             "Goal: {{cycling-distance-goal-outdoor-month}}",
             "Multiple: {{running-count-indoor-week}} and {{walking-distance-total-month}}",
@@ -615,6 +646,12 @@ class TestValidateTemplate(unittest.TestCase):
         is_valid, err = validate_template("Distance: {{unknown-var-name}}")
         self.assertFalse(is_valid)
         self.assertIn("Unknown variable: {{unknown-var-name}}", err)
+
+    def test_new_line_placeholder_is_rejected(self):
+        from kinetiqo.strava_description import validate_template
+        is_valid, err = validate_template("Line break: {{new-line}}")
+        self.assertFalse(is_valid)
+        self.assertIn("Unknown variable: {{new-line}}", err)
 
     def test_unknown_variables_multiple(self):
         from kinetiqo.strava_description import validate_template

@@ -75,13 +75,6 @@
         increasing the risk of exceeding API limits. Consider limiting the scope.
     </div>
     {% endif %}
-    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-        Weather uses Visual Crossing historical data and is limited locally to 900 records per rolling 24 hours (warning at 800; current provider free allowance is 1,000). Resync replaces weather in this sync scope and consumes the same quota.
-    </p>
-    <div id="resyncWeatherNotice" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200" role="status" aria-live="polite">
-        Resync replaces stored weather in this sync scope and consumes the same quota. Kinetiqo stops at 900 locally tracked records per rolling 24 hours; the provider free allowance is currently 1,000.
-    </div>
-
     <div id="sync-log-area">
         <div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-8 border border-gray-100 dark:border-gray-700 text-center min-h-[200px] flex items-center justify-center">
             <div class="text-gray-500 dark:text-gray-400">
@@ -139,15 +132,11 @@
 
     const weatherDataCheckbox = document.getElementById('weatherData');
     const resyncWeatherCheckbox = document.getElementById('resyncWeather');
-    const resyncWeatherNotice = document.getElementById('resyncWeatherNotice');
     if (weatherDataCheckbox && resyncWeatherCheckbox) {
         weatherDataCheckbox.addEventListener('change', function () {
             if (!weatherDataCheckbox.checked) {
                 resyncWeatherCheckbox.checked = false;
                 resyncWeatherCheckbox.disabled = true;
-                if (resyncWeatherNotice) {
-                    resyncWeatherNotice.classList.add('hidden');
-                }
             } else {
                 resyncWeatherCheckbox.disabled = false;
             }
@@ -155,9 +144,6 @@
         resyncWeatherCheckbox.addEventListener('change', function () {
             if (resyncWeatherCheckbox.checked) {
                 weatherDataCheckbox.checked = true;
-            }
-            if (resyncWeatherNotice) {
-                resyncWeatherNotice.classList.toggle('hidden', !resyncWeatherCheckbox.checked);
             }
         });
     }

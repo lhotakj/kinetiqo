@@ -300,19 +300,6 @@ class FirebirdRepository(DatabaseRepository):
                 except Exception:
                     pass
 
-            try:
-                cur.execute("""
-                    CREATE GLOBAL TEMPORARY TABLE "gtt_activity_ids" (
-                        "activity_id" BIGINT NOT NULL PRIMARY KEY
-                    ) ON COMMIT DELETE ROWS
-                """)
-                self.conn.commit()
-            except Exception:
-                try:
-                    self.conn.rollback()
-                except Exception:
-                    pass
-
         schema_manager.ensure_schema()
 
         # --- Migration: BLOB → VARCHAR for the name column ----------------

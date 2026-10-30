@@ -19,6 +19,7 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Fondo-o-meter Infographic**: Dynamic endurance showcase infographic displaying up to 8 harmonic concentric rings with smart distance binning, sport thresholds (100km cycling, 42.2km marathon running/walking, 50km skiing, 10km swimming), KOMs, PRs, custom background photo upload with tint/opacity controls, arc color and arch width customization, and vector PDF / PNG export via Playwright.
 - **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, background photo mode (with clear image option) or interactive Leaflet map mode (tile provider selection, map opacity control, route line color/opacity/weight), collapsible control boxes with element checkboxes, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), configurable placement (`begin`/`end`), workout summary with power zones / NP (% FTP), sustained blocks, and high-power sprint peak surge detection (`≥ 1000W` adjectives).
+- **Historical Activity Weather**: Optional `VISUAL_CROSSING_API_KEY` enriches eligible outdoor GPS activities during enabled syncs with stored hourly weather and calculated headwind. Never expose route coordinates or fetch weather on demand; a valid `X-RateLimit-Remaining: 0` or HTTP 429 stops only this process's weather requests until UTC midnight, without a database quota counter.
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
 - **Model Context Protocol (MCP) Server**: FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO or FastMCP SSE over HTTP (`0.0.0.0:8000/sse`). Exposes 35 evidence-based tools across activity discovery, telemetry streams, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact exports, with strictly gated mutation flags (`KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`).
 - **Security & Performance**: Session auth (`flask-login`), CSRF validation (`flask-wtf`), response compression (`flask-compress`), self-hosted base fonts, and compiled Tailwind CSS.
@@ -349,5 +350,4 @@ When running commands in developer environments (e.g., PyCharm SSH terminal vs. 
 - SSH / POSIX path: `~/WORKING/kinetiqo`
 
 Commands run inside an SSH session must use POSIX paths (`cd ~/WORKING/kinetiqo && python -m pytest -o pythonpath=src`).
-
 

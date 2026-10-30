@@ -804,7 +804,7 @@ Kinetiqo implements **in-process read-only tool calling** via `src/kinetiqo/chat
 Build the tool catalog dynamically from registered FastMCP tool definitions and explicitly exclude all mutating tools. In Kinetiqo v3.0, 32 read-only telemetry and analytics tools are exposed:
 
 - `kinetiqo_search_activities`, `kinetiqo_get_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`.
-- `kinetiqo_get_activity_weather` returns saved hourly historical observations and provenance for an activity. It makes no provider request, excludes GPS coordinates, and is bounded by the requested hourly sample limit.
+- `kinetiqo_get_activity_weather` returns saved hourly historical observations and provenance for an activity. It makes no provider request, excludes GPS coordinates, and is bounded by the requested hourly sample limit. `VISUAL_CROSSING_API_KEY` is used only during enabled sync-time enrichment, never by chat.
 - `kinetiqo_get_fitness_and_freshness` (CTL/ATL/TSB models), `kinetiqo_calculate_power_curve` (MMP), `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`.
 - `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_weekly_training_profile`, `kinetiqo_analyze_recovery_turnaround`.
 - `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.

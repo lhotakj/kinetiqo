@@ -425,13 +425,6 @@ SCHEMA_DEFINITION = {
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
     },
-    "gtt_activity_ids": {
-        "columns": [
-            {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"}
-        ],
-        "indexes": [],
-        "engine_mysql": "ENGINE=InnoDB"
-    },
     "sync_jobs": {
         "columns": [
             {"name": "job_id", "type_mysql": "VARCHAR(64) PRIMARY KEY", "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
@@ -474,43 +467,6 @@ SCHEMA_DEFINITION = {
              "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
             {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL",
              "type_firebird": "TIMESTAMP NOT NULL"},
-        ],
-        "constraints": [
-            {
-                "name": "fk_weather_activity",
-                "def_mysql": "CONSTRAINT fk_weather_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
-                "def_pg": "CONSTRAINT fk_weather_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
-                "def_firebird": 'CONSTRAINT fk_weather_activity FOREIGN KEY("activity_id") REFERENCES "activities"("activity_id") ON DELETE CASCADE',
-            }
-        ],
-        "indexes": [],
-        "engine_mysql": "ENGINE=InnoDB",
-    },
-    "weather_api_usage": {
-        "columns": [
-            {"name": "attempt_id", "type_mysql": "VARCHAR(64) PRIMARY KEY",
-             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
-            {"name": "attempted_at", "type_mysql": "TIMESTAMP NOT NULL",
-             "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
-            {"name": "quota_units", "type_mysql": "INTEGER NOT NULL",
-             "type_pg": "INTEGER NOT NULL", "type_firebird": "INTEGER NOT NULL"},
-        ],
-        "indexes": [
-            {
-                "name": "idx_weather_api_usage_attempted_at",
-                "def_mysql": "CREATE INDEX idx_weather_api_usage_attempted_at ON weather_api_usage (attempted_at)",
-                "def_pg": "CREATE INDEX idx_weather_api_usage_attempted_at ON weather_api_usage (attempted_at)",
-                "def_firebird": 'CREATE INDEX idx_weather_api_usage_attempted_at ON "weather_api_usage" ("attempted_at")',
-            }
-        ],
-        "engine_mysql": "ENGINE=InnoDB",
-    },
-    "weather_api_quota_lock": {
-        "columns": [
-            {"name": "quota_key", "type_mysql": "VARCHAR(64) PRIMARY KEY",
-             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
-            {"name": "lock_version", "type_mysql": "BIGINT NOT NULL DEFAULT 0",
-             "type_pg": "BIGINT NOT NULL DEFAULT 0", "type_firebird": "BIGINT DEFAULT 0 NOT NULL"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB",
@@ -704,15 +660,20 @@ class SchemaManager:
     def ensure_schema(self):
         """Ensures the database schema matches the definition.
 
-        Safe to call on every startup — existing objects are left
-        untouched.  Tables are created/updated first, then all indexes
-        are verified (and created when missing).  A summary line is
-        logged so operators can tell at a glance what happened.
+        Safe to call on every startup — tables that are not in
+        ``SCHEMA_DEFINITION`` are removed, then defined tables are
+        created or updated.  Finally, all indexes are verified (and
+        created when missing).  A summary line is logged so operators
+        can tell at a glance what happened.
         """
         logger.info(f"{self.db_type.upper()}: Checking schema consistency...")
 
+        self._drop_undefined_tables()
+
         for table_name, definition in SCHEMA_DEFINITION.items():
             self._ensure_table(table_name, definition)
+
+        self._remove_legacy_weather_activity_constraint()
 
         total_checked = 0
         total_created = 0
@@ -725,7 +686,7 @@ class SchemaManager:
                 total_created += created
                 total_failed += failed
 
-        self._seed_weather_control_rows()
+        self._seed_sync_control_rows()
 
         if total_failed:
             logger.warning(
@@ -738,12 +699,103 @@ class SchemaManager:
                 f"indexes: {total_checked} checked, {total_created} created."
             )
 
-    def _seed_weather_control_rows(self) -> None:
-        """Create stable rows used to serialize quota reservations and sync leases."""
-        seeds = (
-            ("weather_api_quota_lock", "quota_key", "visual-crossing", "lock_version", 0),
-            ("sync_execution_lock", "lock_key", "global", None, None),
-        )
+    def _remove_legacy_weather_activity_constraint(self) -> None:
+        """Remove the legacy weather cascade so restored activities reuse cached weather."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == "postgresql":
+                cur.execute(
+                    'ALTER TABLE "weather" DROP CONSTRAINT IF EXISTS "fk_weather_activity"'
+                )
+            elif self.db_type == "mysql":
+                cur.execute(
+                    "SELECT COUNT(*) FROM information_schema.table_constraints "
+                    "WHERE table_schema = DATABASE() AND table_name = %s "
+                    "AND constraint_name = %s AND constraint_type = 'FOREIGN KEY'",
+                    ("weather", "fk_weather_activity"),
+                )
+                result = cur.fetchone()
+                if result and result[0]:
+                    cur.execute(
+                        "ALTER TABLE `weather` DROP FOREIGN KEY `fk_weather_activity`"
+                    )
+            else:
+                cur.execute(
+                    "SELECT COUNT(*) FROM RDB$RELATION_CONSTRAINTS "
+                    "WHERE TRIM(RDB$RELATION_NAME) = ? "
+                    "AND TRIM(RDB$CONSTRAINT_NAME) = ? "
+                    "AND RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'",
+                    ("WEATHER", "FK_WEATHER_ACTIVITY"),
+                )
+                result = cur.fetchone()
+                if result and result[0]:
+                    cur.execute(
+                        'ALTER TABLE "weather" DROP CONSTRAINT "fk_weather_activity"'
+                    )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            logger.exception(
+                "%s: Failed to remove the legacy weather activity constraint.",
+                self.db_type.upper(),
+            )
+            raise
+        finally:
+            cur.close()
+
+    def _drop_undefined_tables(self) -> None:
+        """Drop application tables that are no longer part of the schema."""
+        defined_tables = {table_name.lower() for table_name in SCHEMA_DEFINITION}
+        existing_tables = self._get_existing_table_names()
+
+        for table_name in sorted(
+            table_name for table_name in existing_tables if table_name.lower() not in defined_tables
+        ):
+            logger.info(f"{self.db_type.upper()}: Dropping obsolete table '{table_name}'...")
+            cur = self.conn.cursor()
+            try:
+                cur.execute(f"DROP TABLE {self._quote_identifier(table_name)}")
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                logger.exception(
+                    "%s: Failed to drop obsolete table '%s'.",
+                    self.db_type.upper(),
+                    table_name,
+                )
+                raise
+            finally:
+                cur.close()
+
+    def _get_existing_table_names(self) -> set[str]:
+        """Return names of user-created base tables in the active schema."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == "mysql":
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+                )
+            elif self.db_type == "postgresql":
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
+                )
+            elif self.db_type == "firebird":
+                cur.execute(
+                    "SELECT TRIM(RDB$RELATION_NAME) FROM RDB$RELATIONS "
+                    "WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND RDB$VIEW_BLR IS NULL"
+                )
+            else:
+                raise ValueError(f"Unsupported database type: {self.db_type}")
+
+            return {row[0] for row in cur.fetchall()}
+        finally:
+            cur.close()
+
+    def _seed_sync_control_rows(self) -> None:
+        """Create the stable row used to serialize sync execution."""
+        seeds = (("sync_execution_lock", "lock_key", "global", None, None),)
         cur = self.conn.cursor()
         try:
             for table, key_column, key, value_column, value in seeds:
@@ -778,7 +830,7 @@ class SchemaManager:
             self.conn.commit()
         except Exception:
             self.conn.rollback()
-            logger.exception("%s: Failed to initialize weather/sync control rows.", self.db_type.upper())
+            logger.exception("%s: Failed to initialize sync control rows.", self.db_type.upper())
             raise
         finally:
             cur.close()
@@ -949,9 +1001,8 @@ class SchemaManager:
     def _quote_identifier(self, identifier):
         """Quotes an identifier based on the database dialect."""
         if self.db_type == 'mysql':
-            return f"`{identifier}`"
-        else:
-            return f'"{identifier}"'
+            return f"`{identifier.replace('`', '``')}`"
+        return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
 
     def _ensure_table(self, table_name, definition):
         if not self._table_exists(table_name):

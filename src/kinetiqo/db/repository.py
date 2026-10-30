@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Set, List, Dict, Any, Tuple
 import json
-import secrets
 from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
@@ -584,43 +583,20 @@ class DatabaseRepository(ABC):
             cur.execute(sql, params)
         self.conn.commit()
 
-    def get_weather_quota_usage(self, now_utc: datetime | None = None) -> int:
-        """Return units reserved during the local rolling 24-hour window."""
-        self._ensure_connected()
-        now = now_utc or datetime.now(timezone.utc)
-        cutoff = now - timedelta(hours=24)
-        placeholder = "?" if self.db_type == "firebird" else "%s"
-        table = self._weather_ident("weather_api_usage")
-        with self.conn.cursor() as cur:
-            cur.execute(
-                f"SELECT COALESCE(SUM({self._weather_ident('quota_units')}), 0) FROM {table} "
-                f"WHERE {self._weather_ident('attempted_at')} >= {placeholder}",
-                (cutoff.replace(tzinfo=None) if self.db_type == "firebird" else cutoff,),
-            )
-            row = cur.fetchone()
-        return int(row[0] or 0) if row else 0
-
-    def prune_weather_history(self, now_utc: datetime | None = None) -> None:
-        """Bound local quota/job history while preserving the active replay window."""
+    def prune_sync_history(self, now_utc: datetime | None = None) -> None:
+        """Bound completed sync-job history while preserving the active replay window."""
         self._ensure_connected()
         placeholder = "?" if self.db_type == "firebird" else "%s"
         now = now_utc or datetime.now(timezone.utc)
-        usage_cutoff = now - timedelta(days=30)
         event_cutoff = now - timedelta(hours=24)
         job_cutoff = now - timedelta(days=30)
         if self.db_type in ("firebird", "mysql"):
-            usage_cutoff = usage_cutoff.replace(tzinfo=None)
             event_cutoff = event_cutoff.replace(tzinfo=None)
             job_cutoff = job_cutoff.replace(tzinfo=None)
         jobs = self._weather_ident("sync_jobs")
         events = self._weather_ident("sync_job_events")
-        usage = self._weather_ident("weather_api_usage")
         try:
             with self.conn.cursor() as cur:
-                cur.execute(
-                    f"DELETE FROM {usage} WHERE {self._weather_ident('attempted_at')} < {placeholder}",
-                    (usage_cutoff,),
-                )
                 cur.execute(
                     f"DELETE FROM {events} WHERE {self._weather_ident('created_at')} < {placeholder} "
                     f"AND EXISTS (SELECT 1 FROM {jobs} j WHERE "
@@ -635,56 +611,6 @@ class DatabaseRepository(ABC):
                     (job_cutoff,),
                 )
             self.conn.commit()
-        except Exception:
-            self.conn.rollback()
-            raise
-
-    def reserve_weather_api_request(
-        self,
-        now_utc: datetime | None = None,
-        quota_units: int = 1,
-        hard_cap: int = 900,
-    ) -> int | None:
-        """Atomically reserve provider records before dispatch; return usage or None at cap."""
-        if quota_units <= 0 or quota_units > hard_cap:
-            raise ValueError("Quota reservation must be positive and no larger than the local hard cap.")
-        self._ensure_connected()
-        now = now_utc or datetime.now(timezone.utc)
-        cutoff = now - timedelta(hours=24)
-        placeholder = "?" if self.db_type == "firebird" else "%s"
-        lock_table = self._weather_ident("weather_api_quota_lock")
-        usage_table = self._weather_ident("weather_api_usage")
-        attempt_id = secrets.token_hex(24)
-        attempted_at = now.replace(tzinfo=None) if self.db_type == "firebird" else now
-        cutoff_value = cutoff.replace(tzinfo=None) if self.db_type == "firebird" else cutoff
-        try:
-            with self.conn.cursor() as cur:
-                cur.execute(
-                    f"UPDATE {lock_table} SET {self._weather_ident('lock_version')} = "
-                    f"{self._weather_ident('lock_version')} + 1 "
-                    f"WHERE {self._weather_ident('quota_key')} = {placeholder}",
-                    ("visual-crossing",),
-                )
-                if cur.rowcount != 1:
-                    raise RuntimeError("Weather quota lock row is missing.")
-                cur.execute(
-                    f"SELECT COALESCE(SUM({self._weather_ident('quota_units')}), 0) FROM {usage_table} "
-                    f"WHERE {self._weather_ident('attempted_at')} >= {placeholder}",
-                    (cutoff_value,),
-                )
-                row = cur.fetchone()
-                current = int(row[0] or 0) if row else 0
-                if current + quota_units > hard_cap:
-                    self.conn.commit()
-                    return None
-                cur.execute(
-                    f"INSERT INTO {usage_table} ({self._weather_ident('attempt_id')}, "
-                    f"{self._weather_ident('attempted_at')}, {self._weather_ident('quota_units')}) "
-                    f"VALUES ({placeholder}, {placeholder}, {placeholder})",
-                    (attempt_id, attempted_at, quota_units),
-                )
-            self.conn.commit()
-            return current + quota_units
         except Exception:
             self.conn.rollback()
             raise

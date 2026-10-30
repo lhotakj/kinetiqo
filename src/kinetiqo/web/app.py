@@ -46,7 +46,11 @@ if hasattr(flask_login.login_manager, 'datetime'):
     flask_login.login_manager.datetime = _FlaskLoginDateTime
 from kinetiqo.config import Config
 from kinetiqo.gps_simplify import simplify_track, GPS_SIMPLIFICATION_THRESHOLDS
-from kinetiqo.strava_description import any_update_strava_template_configured, validate_template
+from kinetiqo.strava_description import (
+    any_update_strava_template_configured,
+    normalize_template,
+    validate_template,
+)
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 from kinetiqo.logging_utils import configure_logging
@@ -3886,6 +3890,7 @@ def update_profile_api():
             if field in data:
                 val = str(data[field] or '')
                 val = re.sub(r"^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]\s*", "", val).strip()
+                val = normalize_template(val)
                 is_valid, err_msg = validate_template(val, agent_names)
                 if not is_valid:
                     return jsonify({'error': err_msg, 'field': field}), 422

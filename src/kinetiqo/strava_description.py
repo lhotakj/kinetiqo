@@ -40,7 +40,7 @@ Every placeholder is of the form ``{{<activity>-<metric>[-<modifier>]-<scope>-<p
 * ``scope``: ``total`` | ``outdoor`` | ``indoor``
 * ``period``: ``year`` | ``month`` | ``week`` (year/month/week **to date of the activity**)
 
-Plus the special tokens ``{{current-year}}``, ``{{current-month}}`` and ``{{new-line}}``.
+Plus the special tokens ``{{current-year}}`` and ``{{current-month}}``.
 
 Note that the placeholder grammar itself is independent of which of the six
 templates is being rendered — e.g. the ``UPDATE_STRAVA_RUNNING_OUTDOOR``
@@ -194,8 +194,19 @@ def get_template_for_activity(config, sport_type: str) -> Optional[str]:
     bucket = classify_activity_bucket(sport_type)
     if bucket is None:
         return None
-    template = getattr(config, CONFIG_FIELD_BY_BUCKET[bucket], "") or ""
+    template = normalize_template(getattr(config, CONFIG_FIELD_BY_BUCKET[bucket], ""))
     return template if template.strip() else None
+
+
+def normalize_template(template: str) -> str:
+    """Normalize an UPDATE_STRAVA template to its one-line storage form."""
+    return (
+        str(template or "")
+        .replace("\r\n", " ")
+        .replace("\r", " ")
+        .replace("\n", " ")
+        .strip()
+    )
 
 
 def any_update_strava_template_configured(config) -> bool:
@@ -204,7 +215,10 @@ def any_update_strava_template_configured(config) -> bool:
     Used by the sync loop to decide whether to pay the cost of fetching each
     activity's current description at all.
     """
-    return any((getattr(config, field, "") or "").strip() for field in CONFIG_FIELD_BY_BUCKET.values())
+    return any(
+        normalize_template(getattr(config, field, ""))
+        for field in CONFIG_FIELD_BY_BUCKET.values()
+    )
 
 
 _METRIC_TOKENS = {"distance", "elevation", "activities", "count", "ordinal"}
@@ -216,7 +230,7 @@ _PERIOD_GOAL_PREFIX = {"year": "yearly", "month": "monthly", "week": "weekly"}
 _CELEBRATION_SUFFIX = " 🎉"
 
 SPECIAL_TOKENS = {
-    "new-line", "current-year", "current-month", "workout-summary",
+    "current-year", "current-month", "workout-summary",
     "ai-agent", "agent-ai",
     "weather-basic", "weather-start",
     "weather-precipitation", "weather-wind",
@@ -515,23 +529,28 @@ def merge_description(existing_description: str, template: str, rendered_block: 
     """Insert/replace *rendered_block* into *existing_description*.
 
     Any line starting with :data:`kinetiqo.config.UPDATE_STRAVA_PREFIX` or
-    :data:`kinetiqo.config.UPDATE_STRAVA_AI_PREFIX` is treated as Kinetiqo-owned
-    and removed before inserting the newly rendered line. The fresh line is
-    inserted at the beginning or end of *existing_description*, per *placement*
-    (one of :data:`kinetiqo.config.UPDATE_STRAVA_PLACEMENT` — ``"begin"`` or
-    ``"end"``, default ``"end"``). The rest of the description (anything the
-    user or Strava wrote) is always preserved.
+    :data:`kinetiqo.config.UPDATE_STRAVA_AI_PREFIX` is Kinetiqo-owned. The first
+    such line is compared with the newly rendered line: an exact match leaves
+    the description unchanged, while a difference replaces only that line.
+    When no Kinetiqo-owned line exists, the fresh line is inserted at the
+    configured beginning or end. All other description lines are preserved.
     """
     has_ai = has_ai_agent_token(template) if ai_enabled is None else ai_enabled
     existing_description = _normalize_newlines(existing_description or "")
     pattern = build_match_pattern(template)
-    existing_without_kinetiqo = "\n".join(
-        line for line in existing_description.splitlines()
-        if not pattern.match(line)
-    ).strip("\n")
     rendered_block = _build_prefixed_stats_line(rendered_block, has_ai=has_ai)
+    rendered_line = rendered_block.rstrip("\n")
 
-    if not existing_without_kinetiqo.strip():
+    lines = existing_description.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if not pattern.match(line):
+            continue
+        if line.rstrip("\n") == rendered_line:
+            return existing_description
+        lines[index] = rendered_block
+        return "".join(lines)
+
+    if not existing_description.strip():
         return rendered_block
 
     if placement not in UPDATE_STRAVA_PLACEMENT:
@@ -542,12 +561,10 @@ def merge_description(existing_description: str, template: str, rendered_block: 
         placement = DEFAULT_UPDATE_STRAVA_PLACEMENT
 
     if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
-        joiner = "" if rendered_block.endswith("\n") else "\n\n"
-        return rendered_block + joiner + existing_without_kinetiqo
+        return rendered_block + existing_description
 
     assert placement == UPDATE_STRAVA_PLACEMENT_END
-    joiner = "" if existing_without_kinetiqo.endswith("\n") else "\n\n"
-    return existing_without_kinetiqo + joiner + rendered_block
+    return existing_description.rstrip("\n") + "\n\n" + rendered_block
 
 
 # ---------------------------------------------------------------------------
@@ -574,6 +591,7 @@ class DescriptionContext:
         self.ai_handler = ai_handler
         self.ai_enabled = ai_enabled
         self.last_ai_status: Optional[str] = None
+        self.last_weather_placeholder_missing = False
         self._rendered_ai_content = False
         self._goals_by_type: Optional[Dict[int, Dict[str, Any]]] = None
 
@@ -605,8 +623,6 @@ class DescriptionContext:
         return result
 
     def _resolve_token(self, token: str, activity_dt: datetime, cache: dict, activity: Optional[dict] = None) -> str:
-        if token == "new-line":
-            return "\n"
         if token == "current-year":
             return str(activity_dt.year)
         if token == "current-month":
@@ -652,7 +668,10 @@ class DescriptionContext:
                 except Exception as error:
                     logger.warning("UPDATE_STRAVA: failed to load activity weather for %s: %s", activity_id, error)
                     weather_cache[cache_key] = {}
-            return str(weather_cache[cache_key].get(token, ""))
+            value = str(weather_cache[cache_key].get(token, ""))
+            if not value:
+                self.last_weather_placeholder_missing = True
+            return value
 
         if token in AI_AGENT_TOKENS or token.startswith(AI_AGENT_TOKEN_PREFIX):
             if self.ai_enabled is False:
@@ -808,6 +827,7 @@ class DescriptionContext:
             or DEFAULT_UPDATE_STRAVA_PLACEMENT
         cache: dict = {}
         self._rendered_ai_content = False
+        self.last_weather_placeholder_missing = False
         rendered_block = render_template(template, lambda tok: self._resolve_token(tok, activity_dt, cache, activity=activity))
         return merge_description(
             existing_description or "",

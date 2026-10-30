@@ -10,6 +10,7 @@ no live network/database is ever contacted.
 import unittest
 import os
 import tempfile
+import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -24,6 +25,7 @@ from kinetiqo.sync import (
     DESC_SKIPPED,
     DESC_UPDATED,
     DESC_FAILED,
+    DESC_DEFERRED,
     _description_status_suffix,
 )
 from kinetiqo.strava_description import DescriptionContext
@@ -120,7 +122,7 @@ class TestSyncServiceUpdateStravaDescription(unittest.TestCase):
         service.strava.get_activity_detail.return_value = {"description": "✨ Kinetiqo: Year: 2026\n"}
         ctx = DescriptionContext(config=service.config, repo=MagicMock())
         activity = {"id": 1, "sport_type": "Ride", "start_date": "2026-07-22T08:00:00Z"}
-        service.config.update_strava_cycling_outdoor = "Year: {{current-year}}{{new-line}}"
+        service.config.update_strava_cycling_outdoor = "Year: {{current-year}}"
 
         status, message = service._update_strava_description(ctx, activity)
         service.strava.update_activity_description.assert_not_called()
@@ -139,6 +141,86 @@ class TestSyncServiceUpdateStravaDescription(unittest.TestCase):
         self.assertEqual(status, DESC_UPDATED)
         self.assertIsNone(message)
 
+    def test_missing_weather_defers_description_update(self):
+        service = self._make_service()
+        service.config.update_strava_walking = "{{weather-basic}}"
+        service.strava.get_activity_detail.return_value = {"description": "✨ Kinetiqo:\n"}
+        service.db.get_activity_weather.return_value = None
+        ctx = DescriptionContext(config=service.config, repo=service.db)
+        activity = {"id": 1, "sport_type": "Hike", "start_date": "2026-07-22T08:00:00Z"}
+
+        status, message = service._update_strava_description(ctx, activity)
+
+        self.assertEqual(status, DESC_DEFERRED)
+        self.assertIsNone(message)
+        service.strava.update_activity_description.assert_not_called()
+
+    def test_complete_stored_weather_replaces_legacy_prefixed_line(self):
+        service = self._make_service()
+        service.config.update_strava_walking = "{{weather-basic}}"
+        service.strava.get_activity_detail.return_value = {
+            "description": "✨ Kinetiqo:\nRecovery | 1h56min @ 77bpm\n\nvia restortrain.com",
+        }
+        service.db.get_activity_weather.return_value = {
+            "weather_json": json.dumps({
+                "status": "complete",
+                "activity": {
+                    "start_utc": "2026-10-29T11:28:10+00:00",
+                    "end_utc": "2026-10-29T13:24:03+00:00",
+                    "sport_type": "Hike",
+                },
+                "samples": [
+                    {
+                        "time_utc": "2026-10-29T12:00:00+00:00",
+                        "interval_seconds": 3600,
+                        "temperature_c": 10.2,
+                        "apparent_temperature_c": 10.2,
+                        "precipitation_mm": 0.0,
+                        "snowfall_cm": 0.0,
+                        "conditions": "Partially cloudy",
+                        "wind_direction_deg": 325.0,
+                        "wind_speed_ms": 2.9166666666666665,
+                        "wind_gusts_ms": 4.111111111111112,
+                        "headwind_component_ms": 2.037306541545804,
+                    },
+                    {
+                        "time_utc": "2026-10-29T13:00:00+00:00",
+                        "interval_seconds": 1443,
+                        "temperature_c": 11.2,
+                        "apparent_temperature_c": 11.2,
+                        "precipitation_mm": 0.0,
+                        "snowfall_cm": 0.0,
+                        "conditions": "Partially cloudy",
+                        "wind_direction_deg": 328.0,
+                        "wind_speed_ms": 3.611111111111111,
+                        "wind_gusts_ms": 3.888888888888889,
+                        "headwind_component_ms": 2.5243519683850755,
+                    },
+                ],
+            }),
+        }
+        ctx = DescriptionContext(config=service.config, repo=service.db)
+        activity = {
+            "id": 20780336364,
+            "sport_type": "Hike",
+            "start_date": "2026-10-29T11:28:10Z",
+        }
+
+        status, message = service._update_strava_description(ctx, activity)
+
+        self.assertEqual(status, DESC_UPDATED)
+        self.assertIsNone(message)
+        service.strava.update_activity_description.assert_called_once()
+        self.assertEqual(
+            service.strava.update_activity_description.call_args.args,
+            (
+                20780336364,
+                "✨ Kinetiqo: Partially cloudy, around 10°C, feels like 10°C, "
+                "NW wind 3.1 m/s, up to 4.1 m/s.\n"
+                "Recovery | 1h56min @ 77bpm\n\nvia restortrain.com",
+            ),
+        )
+
 
 class TestDescriptionStatusSuffix(unittest.TestCase):
     """Unit tests for the brief per-activity log-line status suffix helper."""
@@ -147,16 +229,22 @@ class TestDescriptionStatusSuffix(unittest.TestCase):
         self.assertEqual(_description_status_suffix(DESC_NOT_CONFIGURED), "")
 
     def test_unchanged_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_UNCHANGED), " | Kinetiqo description skipped")
+        self.assertEqual(_description_status_suffix(DESC_UNCHANGED), " | Skipping Strava description update")
 
     def test_skipped_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_SKIPPED), " | Kinetiqo description skipped")
+        self.assertEqual(_description_status_suffix(DESC_SKIPPED), " | Skipping Strava description update")
 
     def test_updated_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_UPDATED), " | Kinetiqo description updated")
+        self.assertEqual(_description_status_suffix(DESC_UPDATED), " | Strava description updated")
 
     def test_failed_suffix(self):
-        self.assertEqual(_description_status_suffix(DESC_FAILED), " | Kinetiqo description skipped")
+        self.assertEqual(_description_status_suffix(DESC_FAILED), " | Skipping Strava description update")
+
+    def test_deferred_suffix(self):
+        self.assertEqual(
+            _description_status_suffix(DESC_DEFERRED),
+            " | Strava description deferred: weather unavailable",
+        )
 
 
 class TestSyncSurfacesWarningsInUi(unittest.TestCase):
@@ -267,9 +355,12 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.strava.update_activity_description.return_value = None
 
         events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
-        synced_line = next(e for e in events if "Morning Ride (Ride)" in e and "[1/1]" in e)
+        synced_line = next(
+            event for event in events
+            if "[1/1] (100%) Morning Ride (Ride)" in event
+        )
 
-        self.assertIn("| Kinetiqo description updated", synced_line)
+        self.assertIn("| Strava description updated", synced_line)
 
     def test_existing_activity_log_line_shows_status_inline(self):
         service = self._make_service()
@@ -280,13 +371,83 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.db.get_synced_activity_ids.return_value = {"1"}
         service.strava.get_activities.return_value = iter([[activity]])
         service.strava.get_activity_detail.return_value = {"description": "✨ Kinetiqo: Year: 2026\n"}
-        service.config.update_strava_cycling_outdoor = "Year: {{current-year}}{{new-line}}"
+        service.config.update_strava_cycling_outdoor = "Year: {{current-year}}"
 
         events = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
-        updated_line = next(e for e in events if "Morning Ride (Ride)" in e and "[1/1]" in e)
+        updated_line = next(
+            event for event in events
+            if "[1/1] (100%) Morning Ride (Ride)" in event
+        )
 
-        self.assertIn("| Kinetiqo description skipped", updated_line)
+        self.assertIn("| Skipping Strava description update", updated_line)
         service.strava.update_activity_description.assert_not_called()
+
+    @patch("kinetiqo.sync.build_activity_weather")
+    def test_weather_placeholder_retries_existing_activity_and_updates_after_weather_is_persisted(self, mock_build_weather):
+        service = self._make_service()
+        activity = {
+            "id": 1,
+            "sport_type": "Hike",
+            "name": "Morning Hike",
+            "start_date": "2026-07-22T08:00:00Z",
+        }
+        weather_payload = {
+            "status": "complete",
+            "activity": {"sport_type": "Hike"},
+            "samples": [{
+                "interval_seconds": 3600,
+                "conditions": "Clear",
+                "temperature_c": 18,
+                "apparent_temperature_c": 18,
+                "precipitation_mm": 0,
+                "snowfall_cm": 0,
+                "precipitation_types": [],
+                "wind_speed_ms": 1,
+                "wind_direction_deg": 90,
+                "wind_gusts_ms": 1,
+                "headwind_component_ms": 0,
+            }],
+        }
+        persisted_weather = {}
+        operation_order = []
+
+        service.config.update_strava_cycling_outdoor = ""
+        service.config.update_strava_walking = "{{weather-basic}}"
+        service.db.get_profile.return_value = {"enable_weather_data": False}
+        service.db.get_synced_activity_ids.return_value = {"1"}
+        service.db.get_latest_activity_time.return_value = None
+        service.strava.get_activities.return_value = iter([[activity]])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+        service.db.get_activity_stream_window.return_value = [
+            {"ts": 1, "lat": 50.0, "lng": 14.0, "distance": 0.0},
+        ]
+        service.strava.get_activity_detail.return_value = {"description": ""}
+        service.strava.get_athlete.return_value = None
+        mock_build_weather.return_value = weather_payload
+
+        def persist_weather(activity_id, payload):
+            operation_order.append(("weather", activity_id))
+            persisted_weather[activity_id] = {"weather_json": payload}
+
+        def get_weather(activity_id):
+            return persisted_weather.get(activity_id)
+
+        def update_description(activity_id, description):
+            operation_order.append(("description", activity_id))
+            self.assertIn("Clear", description)
+
+        service.db.upsert_activity_weather.side_effect = persist_weather
+        service.db.get_activity_weather.side_effect = get_weather
+        service.strava.update_activity_description.side_effect = update_description
+
+        with patch("kinetiqo.sync.sync_update_strava_from_env"):
+            events = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0))
+
+        self.assertEqual(operation_order, [("weather", 1), ("description", 1)])
+        self.assertIn(
+            "[1/1] (100%) Morning Hike (Hike) | Strava description updated",
+            "".join(events),
+        )
 
     def test_sync_limits_description_updates_to_latest_eligible_activities(self):
         service = self._make_service()
@@ -348,4 +509,3 @@ class TestCliUpdateStravaFlag(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

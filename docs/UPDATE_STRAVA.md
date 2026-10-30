@@ -79,13 +79,16 @@ An invalid/unrecognized value falls back to `end` with a `WARNING` logged.
      historically-correct numbers for old activities), and automatically
      prefixes it with `✨ Kinetiqo:` in the final Strava description line.
      Do **not** include this prefix in your template value.
-   - Removes any existing description line starting with `✨ Kinetiqo:` (see
-     [Smart merge](#smart-merge-never-loses-your-text) below), then inserts
-     the freshly rendered line at the position configured by
-     `UPDATE_STRAVA_PLACEMENT` (**end** of the description by default, or
-     **beginning** if configured).
-   - If the resulting description is identical to what's already on Strava,
-     **no update API call is made** (saves your Strava API rate limit).
+   - Builds one generated line beginning with `✨ Kinetiqo:` or, for a template
+     containing an AI placeholder, `✨ Kinetiqo AI:`. If an existing line has
+     either prefix, Kinetiqo compares that first matching line with the newly
+     generated line. An exact match skips the Strava update; a difference
+     replaces only that line in place. Otherwise, the new line is inserted at
+     the configured `UPDATE_STRAVA_PLACEMENT` (**end** by default, or
+     **beginning**).
+   - The generated line always ends with a newline. Literal template line
+     breaks are normalized to spaces so Kinetiqo-owned content is always one
+     line.
    - To protect API rate limits, description writes are attempted only for the
      latest 30 eligible activities per sync run.
 2. Any failure while resolving a single placeholder, fetching the current
@@ -96,13 +99,21 @@ An invalid/unrecognized value falls back to `end` with a `WARNING` logged.
 ## Smart merge — never loses your text
 
 Kinetiqo stores its stats as one dedicated line that always starts with
-`✨ Kinetiqo:`. During sync it removes any existing line with that prefix and
-inserts the newly rendered one, leaving the rest of your description untouched.
+`✨ Kinetiqo:` or `✨ Kinetiqo AI:`. During sync it compares the first matching
+line with the generated result. It leaves an exact match untouched; otherwise,
+it replaces only that line and preserves every other description line.
 
 ```
 Year-to-date: 6,500.0 km cycled (55.80% of the goal).
 <-- rest of your own hand-written description below, always preserved -->
 ```
+
+### One-line templates
+
+Templates saved in Settings normalize literal line breaks to spaces. Templates
+supplied through `UPDATE_STRAVA_*` environment variables receive the same
+normalization at render time. Do not include a Kinetiqo prefix in a template:
+Kinetiqo chooses the standard or AI prefix automatically.
 
 ## Placeholder grammar
 
@@ -124,13 +135,32 @@ Every placeholder has the shape:
 |---|---|
 | `{{current-year}}` | The 4-digit year of the activity being synced (e.g. `2026`). |
 | `{{current-month}}` | The full month name of the activity being synced (e.g. `July`). |
-| `{{new-line}}` | A literal line break (`\n`) — Strava descriptions don't render Markdown, so use this instead of a raw newline in your `UPDATE_STRAVA_*` env var. |
 | `{{workout-summary}}` | Inserts a RestOrTrain-style workout summary (e.g. `Endurance | 120min @ 191W`, `Tempo | 120min @ 224W`, `Endurance | 49min @ 150W + peak 2min @380W`, `Endurance | 90min @ 180W + 3x surges 1-2min @360-400W`, `Endurance | 4h @ 209W normalized (74% FTP), with 10-15min blocks @ 220-243W (78-86%)`, or HR fallback `Endurance | About 2h30m aerobic riding @ 125bpm average HR`). Significant high-watt peaks (≥1min) are highlighted as best moments — see [Peak highlights](#peak-highlights-in-workout-summary). |
 
 Any placeholder that doesn't match this grammar, or references data that can't
 be resolved (e.g. no goal configured, running with a `goal`/`percent`/`deviation`
 modifier since only cycling & walking support goals), resolves to an **empty
 string** and logs a `WARNING` explaining why — it never breaks the render.
+
+### Historical weather placeholders
+
+`{{weather-basic}}`, `{{weather-start}}`, `{{weather-precipitation}}`, and
+`{{weather-wind}}` render deterministic summaries from weather already stored
+for the activity. They never call Visual Crossing or an AI/MCP tool while
+updating a Strava description.
+
+To populate them, configure `VISUAL_CROSSING_API_KEY` on the server. A newly
+downloaded activity whose selected description template uses a weather
+placeholder automatically receives weather enrichment during that sync, even
+when **Fetch weather data** is not selected. The control still enables weather
+enrichment for other eligible activities. Weather is hourly historical data
+along eligible outdoor GPS routes; the placeholders are empty when weather is
+unavailable, skipped, or incomplete. When a selected template needs a weather
+placeholder but complete weather is unavailable, Kinetiqo defers the Strava
+description write instead of replacing its content with an empty value. A later
+fast sync retries weather enrichment and the description update. See
+[Weather enrichment](weather.md) for provider-limit, privacy, and retry
+behavior.
 
 ### Peak highlights in `{{workout-summary}}`
 
@@ -242,7 +272,7 @@ only require updating these two constants and their formatting helpers.
 ## Example
 
 ```bash
-UPDATE_STRAVA_CYCLING_OUTDOOR="Total {{cycling-distance-total-year}} cycled in {{current-year}}, this is your {{cycling-ordinal-total-year}} cycling activity this year. Achieved {{cycling-distance-percent-total-year}} of the yearly goal, {{cycling-distance-deviation-total-year}}.{{new-line}}"
+UPDATE_STRAVA_CYCLING_OUTDOOR="Total {{cycling-distance-total-year}} cycled in {{current-year}}, this is your {{cycling-ordinal-total-year}} cycling activity this year. Achieved {{cycling-distance-percent-total-year}} of the yearly goal, {{cycling-distance-deviation-total-year}}."
 ```
 
 Might render as:
@@ -255,7 +285,7 @@ A different bucket can use an entirely different wording/format — for
 example a much shorter swim template:
 
 ```bash
-UPDATE_STRAVA_SWIMMING="{{swimming-distance-total-year}} swum in {{current-year}} ({{swimming-count-total-year}} sessions).{{new-line}}"
+UPDATE_STRAVA_SWIMMING="{{swimming-distance-total-year}} swum in {{current-year}} ({{swimming-count-total-year}} sessions)."
 ```
 
 By default this block is appended to the **end** of the description. To

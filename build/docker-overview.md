@@ -7,6 +7,7 @@ Visualize your progress with our **built-in Web UI** or dive deep with the inclu
 ## Features
 
 - 📊 **Rich Visualization**: Includes a sleek Web UI for quick access and powerful Grafana dashboards for deep analysis.
+- 🌦️ **Historical Activity Weather**: Optionally stores hourly Visual Crossing weather for eligible outdoor GPS activities during sync. See [docs/weather.md](../docs/weather.md).
 - 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics with activity calendar heatmaps, configurable metrics and persisted layout settings for any year or period. Export as PNG or PDF.
 - 📸 **Activity Poster Generator**: Create professional posters with self-hosted fonts, colors, draggable layouts, 4:3/16:9/1:1 ratios, background photos or configurable Leaflet maps, persistent map center/zoom, and Playwright-powered PNG export.
 - 🗺️ **Map Export**: Use multiple tile providers, fullscreen mode, persistent route/map styling, tone controls, and viewport PNG export with attribution and watermarking.
@@ -55,6 +56,7 @@ docker run -d \
   -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
+  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
@@ -64,8 +66,8 @@ docker run -d \
   -e DATE_FORMAT="%b %d, %Y" \
   -e GPS_SIMPLIFICATION="0" \
   -e LOG_LEVEL="INFO" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}" \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far.{{new-line}}" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled." \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far." \
   -e UPDATE_STRAVA_PLACEMENT="end" \
   -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
   -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
@@ -86,6 +88,8 @@ services:
       - "4444:4444"
     env_file:
       - .env
+    environment:
+      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
     depends_on:
       postgresql:
         condition: service_healthy
@@ -147,6 +151,7 @@ docker run -d \
   -e POSTGRESQL_SSL_MODE="disable" \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
+  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
   -e MAPY_API_KEY="your_mapy_com_api_token" \
   -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
   -e MAPTILER_API_KEY="your_maptiler_api_token" \
@@ -156,8 +161,8 @@ docker run -d \
   -e DATE_FORMAT="%b %d, %Y" \
   -e GPS_SIMPLIFICATION="0" \
   -e LOG_LEVEL="INFO" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled.{{new-line}}" \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far.{{new-line}}" \
+  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled." \
+  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far." \
   -e UPDATE_STRAVA_PLACEMENT="end" \
   -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
   -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
@@ -188,6 +193,7 @@ services:
       - KINETIQO_MCP_ALLOW_SYNC=${KINETIQO_MCP_ALLOW_SYNC:-0}
       - KINETIQO_MCP_ALLOW_PROFILE_WRITE=${KINETIQO_MCP_ALLOW_PROFILE_WRITE:-0}
       - KINETIQO_MCP_ALLOW_STRAVA_WRITE=${KINETIQO_MCP_ALLOW_STRAVA_WRITE:-0}
+      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
     depends_on:
       postgresql:
         condition: service_healthy
@@ -244,6 +250,17 @@ For Firebird, use `FIREBIRD_HOST`, `FIREBIRD_PORT` (default `3050`),
 |----------|-------------|---------|
 | `FULL_SYNC` | Cron schedule for a full sync | `0 3 * * *` (Daily at 3 AM) |
 | `FAST_SYNC` | Cron schedule for a fast sync | `*/15 * * * *` (Every 15 mins) |
+
+### Historical activity weather (optional)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VISUAL_CROSSING_API_KEY` | Visual Crossing API key for server-side hourly historical weather during enabled syncs. | _(empty)_ |
+
+Set the key only when you want weather enrichment. It does not enable weather by
+itself: enable it in Settings or for an individual sync. When Visual Crossing
+reports no remaining quota or returns HTTP 429, Kinetiqo stops only weather
+requests until the next UTC midnight and completes the rest of the sync. See
+[Weather enrichment](../docs/weather.md).
 
 ### Web UI & Security
 | Variable | Description | Default |

@@ -163,7 +163,7 @@ Tools designed to help the LLM filter, search, compare, and summarize the athlet
 * **Description**: Retrieve comprehensive metadata for a specific activity by ID.
 * **Inputs**:
   * `activity_id` (string or integer, required): Locally synced activity ID.
-* **Output**: Locally stored activity columns with explicit units (`distance_km`, `moving_time_s`, `elapsed_time_s`, `elevation_gain_m`, `average_speed_kmh`, `max_speed_kmh`, `average_watts`, `max_watts`, `average_heartrate_bpm`, `max_heartrate_bpm`, `average_cadence_rpm`, `calories_kcal`, `suffer_score`) plus coverage and source. Temperature is available when recorded; description, weather, timezone, gear details and segment-level trophies are **not** in the current local schema. Never fabricate them or silently fetch Strava.
+* **Output**: Locally stored activity columns with explicit units (`distance_km`, `moving_time_s`, `elapsed_time_s`, `elevation_gain_m`, `average_speed_kmh`, `max_speed_kmh`, `average_watts`, `max_watts`, `average_heartrate_bpm`, `max_heartrate_bpm`, `average_cadence_rpm`, `calories_kcal`, `suffer_score`) plus coverage and source. Temperature is available when recorded; description, timezone, gear details and segment-level trophies are **not** in the current local schema. Historical weather, when previously populated during sync, is available only through the dedicated bounded read-only weather tool; never fabricate it or silently fetch a provider.
 
 #### 3. `kinetiqo_get_activity_totals` [P0 / MVP]
 * **Description**: Compute aggregated distance, elevation, moving time, and count across a specified scope or sport type.

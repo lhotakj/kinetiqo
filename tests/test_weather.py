@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 from kinetiqo.weather import (
     WeatherProviderError,
-    WeatherQuotaExceeded,
+    WeatherRateLimitState,
     build_activity_weather,
     fetch_visual_crossing_hour,
     format_weather_placeholders,
@@ -57,7 +57,7 @@ class WeatherCalculationTests(unittest.TestCase):
             {"ts": start + timedelta(minutes=15), "lat": 50.0, "lng": 14.01, "distance": 1000.0},
             {"ts": start + timedelta(minutes=30), "lat": 50.0, "lng": 14.02, "distance": 2000.0},
         ]
-        fetch_hour = Mock(return_value=({"wind_speed_ms": 4.0, "wind_direction_deg": 270.0}, 1))
+        fetch_hour = Mock(return_value={"wind_speed_ms": 4.0, "wind_direction_deg": 270.0})
         payload = build_activity_weather(
             {
                 "start_date": start,
@@ -66,7 +66,6 @@ class WeatherCalculationTests(unittest.TestCase):
             },
             points,
             fetch_hour,
-            Mock(return_value=1),
         )
 
         self.assertEqual(payload["status"], "complete")
@@ -179,44 +178,21 @@ class WeatherCalculationTests(unittest.TestCase):
                 self.assertIn(expected_label, rendered["weather-basic"])
                 self.assertIn(expected_minimum, rendered["weather-basic"])
 
-    def test_fetch_reserves_actual_additional_query_cost_and_returns_requested_hour(self):
-        hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
-        response = Mock()
-        response.status_code = 200
-        response.json.return_value = {
-            "queryCost": 24,
-            "days": [{
-                "hours": [{
-                    "datetimeEpoch": int(hour.timestamp()),
-                    "temp": 12,
-                    "feelslike": 10,
-                    "conditions": "Clear",
-                }],
-            }],
-        }
-        reserve = Mock(side_effect=[1, 24])
-        values, cost = fetch_visual_crossing_hour(
-            50, 14, hour, api_key="test-key", reserve_quota=reserve,
-            get=Mock(return_value=response), sleep=Mock(),
+    def test_activity_weather_discards_partial_samples_when_rate_limit_is_reached(self):
+        start = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
+        points = [
+            {"ts": start + timedelta(minutes=25), "lat": 50.0, "lng": 14.0, "distance": 0.0},
+            {"ts": start + timedelta(minutes=35), "lat": 50.0, "lng": 14.01, "distance": 100.0},
+        ]
+        payload = build_activity_weather(
+            {"start_date": start, "elapsed_time": 7200, "sport_type": "Ride"},
+            points,
+            Mock(return_value={"wind_speed_ms": 4.0, "wind_direction_deg": 270.0}),
+            rate_limit_reached=Mock(return_value=True),
         )
-        self.assertEqual(reserve.call_args_list[0].args, (1,))
-        self.assertEqual(reserve.call_args_list[1].args, (23,))
-        self.assertEqual(cost, 24)
-        self.assertEqual(values["temperature_c"], 12)
 
-    def test_fetch_rejects_response_when_actual_cost_cannot_be_reserved(self):
-        hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
-        response = Mock()
-        response.status_code = 200
-        response.json.return_value = {"queryCost": 24, "days": []}
-        reserve = Mock(side_effect=[1, None])
-        with self.assertRaises(WeatherQuotaExceeded):
-            fetch_visual_crossing_hour(
-                50, 14, hour, api_key="test-key", reserve_quota=reserve,
-                get=Mock(return_value=response), sleep=Mock(),
-            )
-        self.assertEqual(reserve.call_args_list[0].args, (1,))
-        self.assertEqual(reserve.call_args_list[1].args, (23,))
+        self.assertEqual(payload["status"], "deferred_rate_limit")
+        self.assertEqual(payload["samples"], [])
 
 
 class WeatherMCPToolTests(unittest.TestCase):
@@ -249,7 +225,6 @@ class VisualCrossingClientTests(unittest.TestCase):
         response = Mock()
         response.status_code = 200
         response.json.return_value = {
-            "queryCost": 24,
             "days": [{
                 "hours": [
                     {"datetimeEpoch": int(hour.timestamp()), "temp": 12},
@@ -258,31 +233,26 @@ class VisualCrossingClientTests(unittest.TestCase):
             }],
         }
         request = Mock(return_value=response)
-        reserve = Mock(side_effect=[1, 24])
         hourly_cache = {}
 
-        first_values, first_cost = fetch_visual_crossing_hour(
-            50, 14, hour, api_key="test-key", reserve_quota=reserve,
+        first_values = fetch_visual_crossing_hour(
+            50, 14, hour, api_key="test-key",
             hourly_cache=hourly_cache, get=request, sleep=Mock(),
         )
-        second_values, second_cost = fetch_visual_crossing_hour(
-            50, 14, next_hour, api_key="test-key", reserve_quota=reserve,
+        second_values = fetch_visual_crossing_hour(
+            50, 14, next_hour, api_key="test-key",
             hourly_cache=hourly_cache, get=request, sleep=Mock(),
         )
 
         self.assertEqual(first_values["temperature_c"], 12)
-        self.assertEqual(first_cost, 24)
         self.assertEqual(second_values["temperature_c"], 13)
-        self.assertEqual(second_cost, 0)
         request.assert_called_once()
-        self.assertEqual(reserve.call_count, 2)
 
-    def test_fetch_reserves_quota_and_normalizes_hourly_weather(self):
+    def test_fetch_normalizes_hourly_weather(self):
         hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
         response = Mock()
         response.status_code = 200
         response.json.return_value = {
-            "queryCost": 1,
             "days": [{
                 "hours": [{
                     "datetimeEpoch": int(hour.timestamp()),
@@ -300,27 +270,93 @@ class VisualCrossingClientTests(unittest.TestCase):
             }],
         }
         request = Mock(return_value=response)
-        reservation = Mock(return_value=4)
-        values, cost = fetch_visual_crossing_hour(
-            50, 14, hour, api_key="test-key", reserve_quota=reservation,
+        values = fetch_visual_crossing_hour(
+            50, 14, hour, api_key="test-key",
             get=request, sleep=Mock(),
         )
-        reservation.assert_called_once_with(1)
-        self.assertEqual(cost, 1)
         self.assertEqual(values["wind_speed_ms"], 5)
         self.assertEqual(values["wind_gusts_ms"], 10)
         self.assertEqual(values["source"], "obs")
         self.assertEqual(request.call_args.kwargs["params"]["timezone"], "Z")
 
-    def test_fetch_does_not_dispatch_when_quota_reservation_fails(self):
-        request = Mock()
-        with self.assertRaises(WeatherQuotaExceeded):
+    def test_zero_remaining_header_stops_future_requests_until_utc_midnight(self):
+        hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
+        response = Mock()
+        response.status_code = 200
+        response.headers = {"X-RateLimit-Remaining": "0"}
+        response.json.return_value = {
+            "days": [{"hours": [{"datetimeEpoch": int(hour.timestamp()), "temp": 12}]}],
+        }
+        request = Mock(return_value=response)
+        state = WeatherRateLimitState()
+
+        self.assertEqual(
             fetch_visual_crossing_hour(
-                50, 14, datetime(2026, 1, 1, tzinfo=timezone.utc),
-                api_key="test-key", reserve_quota=Mock(return_value=None),
+                50, 14, hour, api_key="test-key", rate_limit_state=state,
                 get=request, sleep=Mock(),
+            )["temperature_c"],
+            12,
+        )
+        with self.assertRaises(WeatherProviderError) as raised:
+            fetch_visual_crossing_hour(
+                50, 14, hour + timedelta(hours=1), api_key="test-key",
+                rate_limit_state=state, get=request, sleep=Mock(),
             )
-        request.assert_not_called()
+        self.assertTrue(raised.exception.stop_run)
+        request.assert_called_once()
+        self.assertTrue(state.is_exhausted())
+
+    def test_rate_limit_state_expires_at_utc_midnight(self):
+        state = WeatherRateLimitState()
+        state.mark_exhausted(datetime(2026, 1, 1, 10, tzinfo=timezone.utc))
+
+        self.assertTrue(state.is_exhausted(datetime(2026, 1, 1, 23, 59, tzinfo=timezone.utc)))
+        self.assertFalse(state.is_exhausted(datetime(2026, 1, 2, tzinfo=timezone.utc)))
+
+    def test_missing_or_invalid_remaining_header_does_not_stop_requests(self):
+        hour = datetime(2026, 1, 1, 10, tzinfo=timezone.utc)
+        state = WeatherRateLimitState()
+        request = Mock(side_effect=[
+            self._weather_response(hour, headers={}),
+            self._weather_response(hour + timedelta(hours=1), headers={"X-RateLimit-Remaining": "unknown"}),
+        ])
+
+        fetch_visual_crossing_hour(
+            50, 14, hour, api_key="test-key", rate_limit_state=state, get=request, sleep=Mock(),
+        )
+        fetch_visual_crossing_hour(
+            50, 14, hour + timedelta(hours=1), api_key="test-key",
+            rate_limit_state=state, get=request, sleep=Mock(),
+        )
+
+        self.assertFalse(state.is_exhausted(hour))
+        self.assertEqual(request.call_count, 2)
+
+    def test_http_429_marks_rate_limit_state(self):
+        response = Mock()
+        response.status_code = 429
+        response.headers = {"Retry-After": "60"}
+        state = WeatherRateLimitState()
+
+        with self.assertRaises(WeatherProviderError) as raised:
+            fetch_visual_crossing_hour(
+                50, 14, datetime(2026, 1, 1, 10, tzinfo=timezone.utc),
+                api_key="test-key", rate_limit_state=state, get=Mock(return_value=response), sleep=Mock(),
+            )
+
+        self.assertTrue(raised.exception.stop_run)
+        self.assertEqual(raised.exception.retry_after, "60")
+        self.assertTrue(state.is_exhausted())
+
+    @staticmethod
+    def _weather_response(hour, headers):
+        response = Mock()
+        response.status_code = 200
+        response.headers = headers
+        response.json.return_value = {
+            "days": [{"hours": [{"datetimeEpoch": int(hour.timestamp()), "temp": 12}]}],
+        }
+        return response
 
 
 if __name__ == "__main__":

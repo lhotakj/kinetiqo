@@ -369,7 +369,7 @@
             <p class="text-xs text-gray-500 dark:text-gray-400">
                 Weather is fetched only during sync, stored per activity, and never requested on demand by AI. Configure <code>VISUAL_CROSSING_API_KEY</code> on the server to use
                 <a href="https://www.visualcrossing.com/" target="_blank" rel="noopener noreferrer" class="underline">Weather data by Visual Crossing</a>.
-                Kinetiqo applies a conservative local guard of 900 records per rolling 24 hours and warns at 800. The provider's free allowance is currently 1,000 records in any 24-hour period; other clients using the same key can also consume that allowance. Fast sync uses this preference for newly added activities; full sync remains off unless explicitly enabled. Historical route sampling is hourly, not 15-minute.
+                When Visual Crossing reports no remaining quota, Kinetiqo stops weather requests until the next UTC midnight. Fast sync uses this preference for newly added activities; full sync remains off unless explicitly enabled. Historical route sampling is hourly, not 15-minute.
             </p>
             <p id="status-weather-data" class="text-xs text-gray-400 dark:text-gray-500 h-4"></p>
         </div>
@@ -1701,10 +1701,6 @@
     {
         "token": "{{cycling-ordinal-total-year}}",
         "desc": "Total cycling ordinal count of the year with 🎉 milestone (e.g. 42nd)"
-    },
-    {
-        "token": "{{new-line}}",
-        "desc": "Literal line break (\\\\n) in description template"
     },
     {
         "token": "{{running-activities-indoor-month}}",

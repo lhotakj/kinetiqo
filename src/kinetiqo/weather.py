@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import os
+import threading
 import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -19,10 +20,6 @@ TIMELINE_URL = "https://weather.visualcrossing.com/VisualCrossingWebServices/res
 REQUEST_TIMEOUT_SECONDS = 20
 MAX_GPS_BRACKET_SECONDS = 15 * 60
 WEATHER_INTERVAL_SECONDS = 60 * 60
-QUOTA_WARNING_UNITS = 800
-QUOTA_HARD_CAP = 900
-PROVIDER_DAILY_LIMIT = 1000
-LEDGER_RETENTION_DAYS = 30
 
 HEADWIND_BANDS = (
     (2.7, "Light breeze"),
@@ -53,8 +50,58 @@ class WeatherProviderError(RuntimeError):
         self.stop_run = stop_run
 
 
-class WeatherQuotaExceeded(RuntimeError):
-    """Raised when the local rolling quota guard refuses a reservation."""
+class WeatherRateLimitState:
+    """Best-effort per-process Visual Crossing limit state."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._exhausted_until: datetime | None = None
+
+    @staticmethod
+    def _next_utc_midnight(now_utc: datetime) -> datetime:
+        return (now_utc + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+
+    def is_exhausted(self, now_utc: datetime | None = None) -> bool:
+        now = now_utc or datetime.now(timezone.utc)
+        with self._lock:
+            if self._exhausted_until is not None and now >= self._exhausted_until:
+                self._exhausted_until = None
+            return self._exhausted_until is not None
+
+    def mark_exhausted(self, now_utc: datetime | None = None) -> None:
+        now = now_utc or datetime.now(timezone.utc)
+        with self._lock:
+            self._exhausted_until = self._next_utc_midnight(now)
+
+    def observe_remaining(
+        self,
+        headers: Mapping[str, Any] | None,
+        now_utc: datetime | None = None,
+    ) -> bool:
+        """Record a valid zero remaining-quota response header."""
+        if not isinstance(headers, Mapping) or not headers:
+            return False
+        value = next(
+            (
+                header_value
+                for header_name, header_value in headers.items()
+                if str(header_name).lower() == "x-ratelimit-remaining"
+            ),
+            None,
+        )
+        try:
+            remaining = int(str(value).strip())
+        except (TypeError, ValueError):
+            return False
+        if remaining != 0:
+            return False
+        self.mark_exhausted(now_utc)
+        return True
+
+
+WEATHER_RATE_LIMIT_STATE = WeatherRateLimitState()
 
 
 def parse_utc(value: Any) -> datetime | None:
@@ -186,11 +233,11 @@ def fetch_visual_crossing_hour(
     hour_start: datetime,
     *,
     api_key: str | None = None,
-    reserve_quota: Callable[[int], int | None],
     hourly_cache: MutableMapping[tuple[str, str], dict[int, dict[str, Any]]] | None = None,
+    rate_limit_state: WeatherRateLimitState = WEATHER_RATE_LIMIT_STATE,
     get: Callable[..., Any] = requests.get,
     sleep: Callable[[float], None] = time.sleep,
-) -> tuple[dict[str, Any], int]:
+) -> dict[str, Any]:
     """Fetch an hourly record, reusing response hours within the current sync."""
     credential = api_key if api_key is not None else os.getenv("VISUAL_CROSSING_API_KEY", "")
     if not credential:
@@ -200,6 +247,11 @@ def fetch_visual_crossing_hour(
     start = parse_utc(hour_start)
     if start is None or start.minute or start.second or start.microsecond:
         raise ValueError("Weather request time must be an exact UTC hour.")
+    if rate_limit_state.is_exhausted():
+        raise WeatherProviderError(
+            "Visual Crossing rate limit is exhausted until the next UTC midnight.",
+            stop_run=True,
+        )
     end = start + timedelta(hours=1)
     location = f"{latitude:.5f},{longitude:.5f}"
     requested_epoch = int(start.timestamp())
@@ -207,7 +259,7 @@ def fetch_visual_crossing_hour(
     if hourly_cache is not None:
         cached_hour = hourly_cache.get(cache_key, {}).get(requested_epoch)
         if cached_hour is not None:
-            return dict(cached_hour), 0
+            return dict(cached_hour)
     url = f"{TIMELINE_URL}/{location}/{start.strftime('%Y-%m-%dT%H:%M:%S')}/{end.strftime('%Y-%m-%dT%H:%M:%S')}"
     params = {
         "key": credential,
@@ -220,10 +272,6 @@ def fetch_visual_crossing_hour(
     }
 
     for attempt in range(2):
-        if reserve_quota(1) is None:
-            raise WeatherQuotaExceeded(
-                f"Weather request quota reached ({QUOTA_HARD_CAP} local requests per rolling 24 hours)."
-            )
         try:
             response = get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
         except (requests.Timeout, requests.ConnectionError) as exc:
@@ -236,6 +284,7 @@ def fetch_visual_crossing_hour(
 
         status_code = int(getattr(response, "status_code", 0))
         if status_code == 429:
+            rate_limit_state.mark_exhausted()
             raise WeatherProviderError(
                 "Visual Crossing rate limit reached.",
                 status_code=429,
@@ -259,20 +308,6 @@ def fetch_visual_crossing_hour(
             raise WeatherProviderError("Visual Crossing returned invalid JSON.") from exc
         if not isinstance(data, Mapping):
             raise WeatherProviderError("Visual Crossing returned an unexpected response.")
-        try:
-            query_cost = int(data.get("queryCost", 0))
-        except (TypeError, ValueError) as exc:
-            raise WeatherProviderError("Visual Crossing returned an invalid query cost.") from exc
-        if query_cost < 1:
-            raise WeatherProviderError(
-                f"Visual Crossing returned an invalid query cost ({query_cost}).",
-                stop_run=True,
-            )
-        if query_cost > 1 and reserve_quota(query_cost - 1) is None:
-            raise WeatherQuotaExceeded(
-                f"Visual Crossing request cost ({query_cost} records) exceeded the local "
-                f"rolling 24-hour quota cap of {QUOTA_HARD_CAP}."
-            )
         hour = _weather_hour(data, requested_epoch)
         if hour is None:
             raise WeatherProviderError("Visual Crossing has no record for the requested hour.")
@@ -295,7 +330,8 @@ def fetch_visual_crossing_hour(
                     if returned_date == cache_key[1]:
                         cached_day[returned_epoch] = normalize_visual_crossing_hour(returned_hour)
             cached_day[requested_epoch] = normalized_hour
-        return normalized_hour, query_cost
+        rate_limit_state.observe_remaining(getattr(response, "headers", None))
+        return normalized_hour
     raise WeatherProviderError("Visual Crossing request exhausted retries.")
 
 
@@ -343,10 +379,10 @@ def normalize_visual_crossing_hour(hour: Mapping[str, Any]) -> dict[str, Any]:
 def build_activity_weather(
     activity: Mapping[str, Any],
     gps_points: Sequence[Mapping[str, Any]],
-    fetch_hour: Callable[..., tuple[dict[str, Any], int]],
-    reserve_quota: Callable[[int], int | None],
+    fetch_hour: Callable[[float, float, datetime], dict[str, Any]],
     *,
     should_stop: Callable[[], bool] | None = None,
+    rate_limit_reached: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Fetch one Visual Crossing record per valid route-hour and derive headwind."""
     start = parse_utc(activity.get("start_date") or activity.get("start_date_utc"))
@@ -355,7 +391,8 @@ def build_activity_weather(
         raise ValueError("Activity has no valid start time or elapsed duration.")
     end = start + timedelta(seconds=int(elapsed))
     samples: list[dict[str, Any]] = []
-    for hour_start, _ in hourly_intervals(start, end):
+    intervals = hourly_intervals(start, end)
+    for index, (hour_start, _) in enumerate(intervals):
         if should_stop and should_stop():
             break
         interval_start = max(start, hour_start)
@@ -375,10 +412,7 @@ def build_activity_weather(
             and distance_end.get("distance_m") is not None
         ):
             route_distance = max(0.0, distance_end["distance_m"] - distance_start["distance_m"])
-        values, query_cost = fetch_hour(
-            position["latitude"], position["longitude"], hour_start,
-            reserve_quota=reserve_quota,
-        )
+        values = fetch_hour(position["latitude"], position["longitude"], hour_start)
         wind_speed = values.get("wind_speed_ms")
         wind_direction = values.get("wind_direction_deg")
         bearing = position["bearing_deg"]
@@ -392,11 +426,17 @@ def build_activity_weather(
             "route_bearing_deg": bearing,
             "headwind_component_ms": headwind,
             "route_distance_m": route_distance,
-            "query_cost": query_cost,
         })
+        if rate_limit_reached and rate_limit_reached() and index < len(intervals) - 1:
+            samples = []
+            break
     return {
         "schema_version": 1,
-        "status": "complete" if samples else "deferred_no_route_coverage",
+        "status": (
+            "deferred_rate_limit"
+            if rate_limit_reached and rate_limit_reached() and not samples
+            else "complete" if samples else "deferred_no_route_coverage"
+        ),
         "provider": "visual-crossing",
         "resolution": "hourly",
         "attribution_url": "https://www.visualcrossing.com/",
