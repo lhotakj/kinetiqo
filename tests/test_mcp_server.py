@@ -40,6 +40,7 @@ class TestMCPServer(unittest.TestCase):
             self.assertIn("kinetiqo_get_fitness_and_freshness", tool_names)
             self.assertIn("kinetiqo_get_verified_koms", tool_names)
             self.assertIn("kinetiqo_generate_activity_poster", tool_names)
+            self.assertEqual(len(tool_names), 32)
 
             # Mutating tools MUST be absent
             self.assertNotIn("kinetiqo_update_training_goals", tool_names)
@@ -62,6 +63,7 @@ class TestMCPServer(unittest.TestCase):
             self.assertIn("kinetiqo_trigger_sync", tool_names)
             self.assertIn("kinetiqo_update_strava_description", tool_names)
             self.assertIn("kinetiqo_update_athlete_profile", tool_names)
+            self.assertEqual(len(tool_names), 36)
 
     def test_server_resources_registered(self):
         """Verify all 6 core resources are registered."""
@@ -125,7 +127,7 @@ class TestMCPServer(unittest.TestCase):
         )
 
     def test_mcp_server_fast_smoke_listing_with_mutations(self):
-        """Fast smoke test with mutation gates enabled verifying all 35 tools are registered."""
+        """Fast smoke test with mutation gates enabled verifying all 36 tools are registered."""
         import asyncio
         env_patch = {
             "KINETIQO_MCP_ALLOW_PROFILE_WRITE": "1",

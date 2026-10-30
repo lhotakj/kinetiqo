@@ -408,7 +408,6 @@ class DatabaseRepository(ABC):
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
-                       agent_prompt: str = "",
                        strava_agents_config: Optional[str] = None) -> None:
         """Insert or update the athlete profile row.
 

@@ -1,12 +1,12 @@
-"""Mocked unit tests for the Kinetiqo Agent ({{ai-agent}} Strava description integration).
+"""Mocked unit tests for named Kinetiqo Agent Strava description integration.
 
 Tests all layers:
-1. Special token & template validation for {{ai-agent}}
+1. Named-agent template validation
 2. DescriptionContext caching, generation, and fallback behavior
 3. Telemetry prompt generation and Agent runner
 4. ChatService.generate_single_turn across primary and fallback models
-5. DatabaseRepository AI response methods and profile agent_prompt
-6. Web API endpoints (/api/activities/purge-ai, /api/profile agent_prompt, /api/activities)
+5. DatabaseRepository AI response methods
+6. Web API endpoints (/api/activities/purge-ai and /api/activities)
 7. Sync single-line logging with AI status suffix
 """
 
@@ -32,15 +32,14 @@ from kinetiqo.web.app import app, mark_startup_sync_done
 
 
 class TestTemplateValidationAndSpecialTokens(unittest.TestCase):
-    """Unit tests for template validation and SPECIAL_TOKENS with {{ai-agent}}."""
+    """Unit tests for named-agent template validation."""
 
-    def test_special_tokens_contains_ai_agent(self):
-        self.assertIn("ai-agent", SPECIAL_TOKENS)
-
-    def test_validate_template_with_ai_agent_valid(self):
-        valid, err = validate_template("Great workout!\n{{ai-agent}}\n{{current-year}}")
-        self.assertTrue(valid)
-        self.assertIsNone(err)
+    def test_validate_template_rejects_retired_generic_agent_tokens(self):
+        for token in ("ai-agent", "agent-ai"):
+            with self.subTest(token=token):
+                valid, err = validate_template(f"Great workout! {{{{{token}}}}}")
+                self.assertFalse(valid)
+                self.assertIn(token, err)
 
     def test_validate_template_accepts_registered_named_agent_only(self):
         valid, err = validate_template("{{agent-ai-indoor-bike}}", {"indoor-bike"})
@@ -72,116 +71,7 @@ class TestDescriptionContextAIAgent(unittest.TestCase):
         self.config.update_strava_placement = "end"
         self.repo = MagicMock()
         self.repo.get_goals.return_value = []
-        self.repo.get_profile.return_value = {"athlete_id": 1, "agent_prompt": "Analyze workout"}
-
-    def test_cached_ai_response_used_without_calling_handler(self):
-        """When activity has existing cached ai_responses, use it directly without calling AI handler."""
-        mock_handler = MagicMock()
-        ctx = DescriptionContext(config=self.config, repo=self.repo, ai_handler=mock_handler)
-
-        activity = {
-            "id": 12345,
-            "start_date": "2026-06-10T10:00:00Z",
-            "sport_type": "Ride",
-            "ai_responses": {"ai-agent": "Cached AI summary from database."},
-        }
-
-        template = "Workout info: {{ai-agent}}"
-        rendered = ctx.render_for_activity(template, activity["start_date"], "", activity=activity)
-
-        mock_handler.assert_not_called()
-        self.assertIn("Cached AI summary from database.", rendered)
-        self.assertEqual(ctx.last_ai_status, "cached")
-
-    def test_cached_ai_response_json_string_supported(self):
-        """When activity.ai_responses is a serialized JSON string, parse and use it."""
-        mock_handler = MagicMock()
-        ctx = DescriptionContext(config=self.config, repo=self.repo, ai_handler=mock_handler)
-
-        activity = {
-            "id": 12345,
-            "start_date": "2026-06-10T10:00:00Z",
-            "sport_type": "Ride",
-            "ai_responses": json.dumps({"ai-agent": "Parsed string summary."}),
-        }
-
-        template = "Summary: {{ai-agent}}"
-        rendered = ctx.render_for_activity(template, activity["start_date"], "", activity=activity)
-
-        mock_handler.assert_not_called()
-        self.assertIn("Parsed string summary.", rendered)
-        self.assertEqual(ctx.last_ai_status, "cached")
-
-    def test_uncached_ai_response_calls_handler_and_persists_to_db(self):
-        """When activity has no cached AI response, invoke ai_handler and save to repository."""
-        mock_handler = MagicMock(return_value=("Strong sustained tempo effort on climbs.", "generated"))
-        ctx = DescriptionContext(config=self.config, repo=self.repo, ai_handler=mock_handler)
-
-        activity = {
-            "id": 12345,
-            "start_date": "2026-06-10T10:00:00Z",
-            "sport_type": "Ride",
-            "ai_responses": None,
-        }
-
-        template = "AI Feedback: {{ai-agent}}"
-        rendered = ctx.render_for_activity(template, activity["start_date"], "", activity=activity)
-
-        mock_handler.assert_called_once_with(activity, "default")
-        self.repo.update_activity_ai_responses.assert_called_once_with(
-            12345, {"ai-agent": "Strong sustained tempo effort on climbs."}
-        )
-        self.assertIn("Strong sustained tempo effort on climbs.", rendered)
-        self.assertEqual(ctx.last_ai_status, "generated")
-
-    def test_uncached_ai_response_fallback_model_tracked(self):
-        """When ai_handler uses a fallback model, track the fallback status."""
-        mock_handler = MagicMock(return_value=("Fallback summary.", "fallback gemini-2.5-flash"))
-        ctx = DescriptionContext(config=self.config, repo=self.repo, ai_handler=mock_handler)
-
-        activity = {
-            "id": 12345,
-            "start_date": "2026-06-10T10:00:00Z",
-            "sport_type": "Ride",
-            "ai_responses": {},
-        }
-
-        template = "{{ai-agent}}"
-        rendered = ctx.render_for_activity(template, activity["start_date"], "", activity=activity)
-
-        mock_handler.assert_called_once_with(activity, "default")
-        self.assertIn("Fallback summary.", rendered)
-        self.assertEqual(ctx.last_ai_status, "fallback gemini-2.5-flash")
-
-    def test_ai_handler_failure_leaves_placeholder_empty_and_does_not_crash(self):
-        """When ai_handler returns failure or raises, {{ai-agent}} is empty and last_ai_status is failed."""
-        mock_handler = MagicMock(side_effect=RuntimeError("AI API quota exhausted"))
-        ctx = DescriptionContext(config=self.config, repo=self.repo, ai_handler=mock_handler)
-
-        activity = {
-            "id": 12345,
-            "start_date": "2026-06-10T10:00:00Z",
-            "sport_type": "Ride",
-            "ai_responses": None,
-        }
-
-        template = "Analysis: [{{ai-agent}}]"
-        rendered = ctx.render_for_activity(template, activity["start_date"], "", activity=activity)
-
-        self.assertIn("Analysis: []", rendered)
-        self.assertEqual(ctx.last_ai_status, "failed")
-        self.repo.update_activity_ai_responses.assert_not_called()
-
-    def test_agent_ai_alias_works_identically(self):
-        """{{agent-ai}} alias resolves and outputs with ✨ Kinetiqo AI: prefix."""
-        from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
-        mock_handler = MagicMock(return_value=("Great alias run.", "generated"))
-        ctx = DescriptionContext(config=self.config, repo=self.repo, ai_handler=mock_handler)
-        activity = {"id": 999, "start_date": "2026-06-10T10:00:00Z", "sport_type": "Run"}
-        template = "Note: {{agent-ai}}"
-        rendered = ctx.render_for_activity(template, activity["start_date"], "", activity=activity)
-        self.assertTrue(rendered.startswith(f"{UPDATE_STRAVA_AI_PREFIX} Note: Great alias run."))
-        self.assertEqual(ctx.last_ai_status, "generated")
+        self.repo.get_profile.return_value = {"athlete_id": 1}
 
     def test_named_agent_uses_its_own_cache_key_and_handler_prompt(self):
         mock_handler = MagicMock(return_value=("Indoor intervals completed.", "generated"))
@@ -408,7 +298,7 @@ class TestChatRepositoryAthleteResolution(unittest.TestCase):
 
 
 class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
-    """Test suite for /api/activities/purge-ai and /api/profile agent_prompt."""
+    """Test suite for AI cache and named-agent web APIs."""
 
     def setUp(self):
         mark_startup_sync_done()
@@ -446,28 +336,6 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
         mock_repo.purge_activities_ai_responses.assert_called_once_with(['1001', '1002'])
 
     @patch('kinetiqo.web.app.get_db')
-    def test_update_profile_saves_agent_prompt(self, mock_get_db):
-        mock_repo = MagicMock()
-        mock_get_db.return_value = mock_repo
-        mock_repo.get_profile.return_value = {
-            "athlete_id": 1,
-            "first_name": "Jaroslav",
-            "last_name": "Lhotak",
-            "ftp": 250,
-            "weight": 70.0,
-            "agent_prompt": "",
-            "strava_agents_config": '{"enabled": true, "agents": []}',
-        }
-
-        resp = self.client.post('/api/profile', json={'agent_prompt': 'Short 1-sentence recap'})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.get_json()
-        self.assertEqual(data['agent_prompt'], 'Short 1-sentence recap')
-        mock_repo.upsert_profile.assert_called_once()
-        _, kwargs = mock_repo.upsert_profile.call_args
-        self.assertEqual(kwargs['agent_prompt'], 'Short 1-sentence recap')
-
-    @patch('kinetiqo.web.app.get_db')
     def test_create_strava_agent_normalizes_name(self, mock_get_db):
         mock_repo = MagicMock()
         mock_get_db.return_value = mock_repo
@@ -476,7 +344,6 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
             "first_name": "Jaroslav",
             "last_name": "Lhotak",
             "weight": 70.0,
-            "agent_prompt": "",
             "strava_agents_config": '{"enabled": true, "agents": []}',
         }
         mock_repo.get_strava_agents.return_value = [{"name": "default", "prompt": ""}]
@@ -492,6 +359,144 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
         self.assertIn('"name": "indoor-bike"', kwargs['strava_agents_config'])
 
     @patch('kinetiqo.web.app.get_db')
+    def test_strava_agent_activity_search_is_scoped_and_returns_summaries(self, mock_get_db):
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 12345,
+            'strava_agents_config': '{"enabled": true, "agents": []}',
+        }
+        mock_repo.search_activities.return_value = ([
+            {
+                'activity_id': 987654,
+                'name': 'Morning Ride',
+                'sport': 'Ride',
+                'start_date': '2026-10-30T08:00:00Z',
+                'average_watts': 210,
+            },
+        ], None, False)
+
+        response = self.client.get('/api/profile/strava-agents/activities?query=mor')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['activities'], [{
+            'id': '987654',
+            'name': 'Morning Ride',
+            'sport': 'Ride',
+            'start_date': '2026-10-30T08:00:00Z',
+        }])
+        mock_repo.search_activities.assert_called_once_with(
+            athlete_id=12345,
+            filters={'keyword': 'mor', 'sort_by': 'start_date', 'sort_order': 'desc'},
+            limit=10,
+        )
+
+    def test_strava_agent_activity_search_requires_two_characters(self):
+        response = self.client.get('/api/profile/strava-agents/activities?query=x')
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json()['field'], 'query')
+
+    def test_try_strava_agent_prompt_requires_json_object(self):
+        response = self.client.post('/api/profile/strava-agents/try', json=[])
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('JSON object', response.get_json()['error'])
+
+    @patch('kinetiqo.chat.agent_runner.run_agent_prompt', return_value=('Strong tempo effort.', 'fallback test-model'))
+    @patch('kinetiqo.web.app._chat_service')
+    @patch('kinetiqo.web.app.get_db')
+    def test_try_strava_agent_prompt_uses_current_prompt_without_caching(
+        self, mock_get_db, mock_chat_service, mock_run_agent
+    ):
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        profile = {
+            'athlete_id': 12345,
+            'strava_agents_config': '{"enabled": true, "agents": []}',
+        }
+        mock_repo.get_profile.return_value = profile
+        activity = {
+            'activity_id': 987654,
+            'name': 'Morning Ride',
+            'sport': 'Ride',
+            'start_date': '2026-10-30T08:00:00Z',
+        }
+        mock_repo.search_activities.return_value = ([activity], None, False)
+        chat_service = MagicMock()
+        chat_service.repository.resolve_athlete_id.return_value = 'admin'
+        chat_service.repository.get_default_model.return_value = {
+            'provider': 'gemini', 'model_id': 'gemini-3.1-flash-lite',
+        }
+        mock_chat_service.return_value = chat_service
+
+        response = self.client.post('/api/profile/strava-agents/try', json={
+            'activity_id': '987654',
+            'prompt': 'Use the current unsaved instructions.',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            'response': 'Strong tempo effort.',
+            'status': 'fallback test-model',
+        })
+        mock_run_agent.assert_called_once_with(
+            chat_service, '12345', activity, 'Use the current unsaved instructions.'
+        )
+        mock_repo.update_activity_ai_responses.assert_not_called()
+
+    @patch('kinetiqo.web.app._chat_service')
+    @patch('kinetiqo.web.app.get_db')
+    def test_try_strava_agent_prompt_requires_default_model(self, mock_get_db, mock_chat_service):
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 12345,
+            'strava_agents_config': '{"enabled": true, "agents": []}',
+        }
+        chat_service = MagicMock()
+        chat_service.repository.resolve_athlete_id.return_value = 'admin'
+        chat_service.repository.get_default_model.return_value = None
+        mock_chat_service.return_value = chat_service
+
+        response = self.client.post('/api/profile/strava-agents/try', json={
+            'activity_id': '987654',
+            'prompt': 'Summarize this activity.',
+        })
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json()['field'], 'default_model')
+        mock_repo.search_activities.assert_not_called()
+
+    @patch('kinetiqo.web.app._chat_service')
+    @patch('kinetiqo.web.app.get_db')
+    def test_try_strava_agent_prompt_rejects_activity_outside_athlete_scope(
+        self, mock_get_db, mock_chat_service
+    ):
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 12345,
+            'strava_agents_config': '{"enabled": true, "agents": []}',
+        }
+        mock_repo.search_activities.return_value = ([], None, False)
+        chat_service = MagicMock()
+        chat_service.repository.resolve_athlete_id.return_value = 'admin'
+        chat_service.repository.get_default_model.return_value = {
+            'provider': 'gemini', 'model_id': 'gemini-3.1-flash-lite',
+        }
+        mock_chat_service.return_value = chat_service
+
+        response = self.client.post('/api/profile/strava-agents/try', json={
+            'activity_id': '987654',
+            'prompt': 'Summarize this activity.',
+        })
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()['field'], 'activity_id')
+        mock_repo.update_activity_ai_responses.assert_not_called()
+
+    @patch('kinetiqo.web.app.get_db')
     def test_delete_strava_agent_requires_confirmation_when_referenced(self, mock_get_db):
         mock_repo = MagicMock()
         mock_get_db.return_value = mock_repo
@@ -500,7 +505,6 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
             "first_name": "Jaroslav",
             "last_name": "Lhotak",
             "weight": 70.0,
-            "agent_prompt": "",
             "strava_agents_config": '{"enabled": true, "agents": [{"name": "indoor-bike", "prompt": "Analyze intervals"}]}',
             "update_strava_cycling_indoor": "{{agent-ai-indoor-bike}}",
         }
@@ -514,6 +518,23 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
         mock_repo.delete_strava_agent.assert_not_called()
 
     @patch('kinetiqo.web.app.get_db')
+    def test_delete_strava_agent_requires_confirmation_when_unreferenced(self, mock_get_db):
+        mock_repo = MagicMock()
+        mock_get_db.return_value = mock_repo
+        mock_repo.get_profile.return_value = {
+            "athlete_id": 1,
+            "first_name": "Jaroslav",
+            "last_name": "Lhotak",
+            "weight": 70.0,
+            "strava_agents_config": '{"enabled": true, "agents": [{"name": "road", "prompt": "Analyze ride"}]}',
+        }
+
+        response = self.client.delete('/api/profile/strava-agents/road', json={'confirm': False})
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()['referenced_by'], [])
+
+    @patch('kinetiqo.web.app.get_db')
     def test_rename_strava_agent_rewrites_referenced_template(self, mock_get_db):
         mock_repo = MagicMock()
         mock_get_db.return_value = mock_repo
@@ -522,7 +543,6 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
             "first_name": "Jaroslav",
             "last_name": "Lhotak",
             "weight": 70.0,
-            "agent_prompt": "",
             "strava_agents_config": '{"enabled": true, "agents": [{"name": "indoor-bike", "prompt": "Analyze intervals"}]}',
             "update_strava_cycling_indoor": "{{agent-ai-indoor-bike}}",
         }
@@ -571,7 +591,7 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
                 'gear_id': 'g1',
                 'has_heartrate': 1,
                 'workout_type': 0,
-                'ai_responses': {'ai-agent': 'Nice tempo effort'},
+                'ai_responses': {'agent-ai-road': 'Nice tempo effort'},
             }
         ]
         mock_repo.get_activities_totals.return_value = {
@@ -587,7 +607,7 @@ class TestWebAPIPurgeAndAgentPrompt(unittest.TestCase):
         self.assertEqual(len(data['data']), 1)
         row = data['data'][0]
         self.assertIn('ai_responses', row)
-        self.assertEqual(row['ai_responses'], {'ai-agent': 'Nice tempo effort'})
+        self.assertEqual(row['ai_responses'], {'agent-ai-road': 'Nice tempo effort'})
 
     @patch('kinetiqo.web.app._chat_user_id', return_value='12345')
     @patch('kinetiqo.web.app._chat_service')
@@ -646,15 +666,14 @@ class TestCliSyncWithAiAgent(unittest.TestCase):
             "first_name": "Test",
             "last_name": "User",
             "weight": 70.0,
-            "agent_prompt": "Summarize run",
-            "strava_agents_config": '{"enabled": true, "agents": [{"name": "default", "prompt": "Summarize run"}]}',
-            "update_strava_cycling_outdoor": "{{ai-agent}}",
+            "strava_agents_config": '{"enabled": true, "agents": [{"name": "road", "prompt": "Summarize run"}]}',
+            "update_strava_cycling_outdoor": "{{agent-ai-road}}",
         }
         mock_repo.get_synced_activity_ids.return_value = set()
         mock_repo.get_synced_activity_ids_since.return_value = set()
         mock_repo.get_activities_totals.return_value = {"total_distance": 0, "total_elevation": 0, "total_moving_time": 0}
         mock_repo.get_activity_ai_responses.return_value = None
-        mock_repo.get_strava_agents.return_value = [{"name": "default", "prompt": "Summarize run"}]
+        mock_repo.get_strava_agents.return_value = [{"name": "road", "prompt": "Summarize run"}]
 
         mock_strava = MagicMock()
         mock_strava_cls.return_value = mock_strava
@@ -674,7 +693,7 @@ class TestCliSyncWithAiAgent(unittest.TestCase):
         mock_run_agent.return_value = ("Crushed the morning ride!", "generated")
 
         config = Config()
-        config.update_strava_cycling_outdoor = "{{ai-agent}}"
+        config.update_strava_cycling_outdoor = "{{agent-ai-road}}"
         config.database_type = "postgresql"
 
         service = SyncService(config)

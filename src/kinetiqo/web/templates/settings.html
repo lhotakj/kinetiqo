@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="">
+<div id="settings-page">
     <div class="mb-8">
         <h1 class="text-3xl font-serif font-bold text-warm-900 dark:text-gray-100 mb-2">Settings</h1>
         <p class="text-gray-500 dark:text-gray-400">Manage Strava activity description templates, view sync schedules,
@@ -12,7 +12,14 @@
     <div id="templates"
         class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Strava Description Templates</h2>
+            <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
+                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 4h8l4 4v12H4V4h4Z" /><path d="M16 4v5h4M8 13h8M8 17h6" />
+                    </svg>
+                </span>
+                <span>Strava Description Templates</span>
+            </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure auto-update templates per activity type.
                 Changes are saved automatically on blur with server validation.</p>
         </div>
@@ -182,7 +189,11 @@
                 class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3 relative transition-all">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
-                        <span class="text-base">🤖</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-800 dark:text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 8V4H8" />
+                            <rect width="16" height="12" x="4" y="8" rx="2" />
+                            <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+                        </svg>
                         <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">Kinetiqo Agents</h4>
                     </div>
                     <div class="flex items-center gap-3">
@@ -192,7 +203,12 @@
                         </label>
                         <button id="strava-agent-add" type="button"
                             class="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold shadow-sm transition">
-                            <span aria-hidden="true">+</span> Add Agent
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 8V4H8" />
+                                <rect width="16" height="12" x="4" y="8" rx="2" />
+                                <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+                            </svg>
+                            Add Agent
                         </button>
                     </div>
                 </div>
@@ -222,13 +238,40 @@
                 </div>
             </div>
 
-            <div id="strava-agent-delete-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="strava-agent-delete-title">
+            <div id="strava-agent-delete-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background-color: rgba(0, 0, 0, 0.65);" role="dialog" aria-modal="true" aria-labelledby="strava-agent-delete-title">
                 <div class="w-full max-w-md rounded-xl bg-white dark:bg-zinc-800 p-5 shadow-xl border border-gray-200 dark:border-zinc-700">
-                    <h4 id="strava-agent-delete-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">Remove agent?</h4>
+                    <h4 id="strava-agent-delete-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">Are you sure to delete this agent?</h4>
                     <p id="strava-agent-delete-message" class="mt-2 text-xs text-gray-600 dark:text-gray-300"></p>
                     <div class="mt-4 flex justify-end gap-2">
-                        <button id="strava-agent-delete-cancel" type="button" class="px-3 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-gray-200">Cancel</button>
-                        <button id="strava-agent-delete-confirm" type="button" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white">Remove agent</button>
+                        <button id="strava-agent-delete-cancel" type="button" class="px-3 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-gray-200">No</button>
+                        <button id="strava-agent-delete-confirm" type="button" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white">Yes</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="strava-agent-try-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background-color: rgba(0, 0, 0, 0.65);" role="dialog" aria-modal="true" aria-labelledby="strava-agent-try-title">
+                <div class="w-full max-w-3xl rounded-xl bg-white dark:bg-zinc-800 p-6 shadow-xl border border-gray-200 dark:border-zinc-700">
+                    <h4 id="strava-agent-try-title" class="text-sm font-semibold text-gray-900 dark:text-gray-100">AI Agent preview</h4>
+                    <div id="strava-agent-try-selection" class="mt-4">
+                        <label for="strava-agent-try-search" class="block text-xs font-medium text-gray-700 dark:text-gray-300">Activity</label>
+                        <input id="strava-agent-try-search" type="text" placeholder="Start typing name of the activity or Strava ID" aria-label="Activity to try the agent prompt on" class="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-zinc-600 bg-transparent text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        <div id="strava-agent-try-search-results" class="hidden mt-2" aria-live="polite" aria-label="Matching activities"></div>
+                        <p id="strava-agent-try-feedback" class="mt-2 text-xs text-red-600 dark:text-red-400" aria-live="polite"></p>
+                    </div>
+                    <div id="strava-agent-try-progress" class="hidden mt-6 flex flex-col items-center gap-3 py-6 text-center text-sm text-gray-600 dark:text-gray-300" aria-live="polite">
+                        <img src="{{ url_for('static', filename='img/kinetiqo-loading-32x32.webp') }}" alt="Loading..." class="h-8 w-8 flex-shrink-0" width="32" height="32">
+                        <div>
+                            <p id="strava-agent-try-progress-message" class="font-medium text-gray-800 dark:text-gray-100">Preparing your activity context…</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Your AI model is working on the preview.</p>
+                        </div>
+                    </div>
+                    <div id="strava-agent-try-result" class="hidden mt-4">
+                        <p id="strava-agent-try-response" class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100"></p>
+                        <p id="strava-agent-try-status" class="mt-3 text-xs text-gray-500 dark:text-gray-400"></p>
+                    </div>
+                    <div class="mt-5 flex justify-end gap-2">
+                        <button id="strava-agent-try-close" type="button" class="px-3 py-2 text-xs font-medium rounded-lg border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-gray-200 disabled:cursor-not-allowed disabled:opacity-50">Close</button>
+                        <button id="strava-agent-try-submit" type="button" disabled class="inline-flex min-w-14 items-center justify-center rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">Try</button>
                     </div>
                 </div>
             </div>
@@ -307,7 +350,16 @@
         <div
             class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-2">
             <div>
-                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Authorization &amp; Athlete Profile
+                <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
+                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 32 32" fill="currentColor">
+                            <path d="M15 20H9a3 3 0 0 0-3 3v2h2v-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2h2v-2a3 3 0 0 0-3-3Z" />
+                            <path d="M12 19a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0-6a2 2 0 1 1-2 2 2 2 0 0 1 2-2Z" />
+                            <path d="M28 19v9H4V8h12V6H4a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h24a2 2 0 0 0 2-2V19Z" />
+                            <path d="M20 19h6v2h-6zm2 4h4v2h-4zM32 10V8h-2.1a5 5 0 0 0-.7-1.75l1.46-1.5-1.42-1.41-1.49 1.49A5 5 0 0 0 26 4.1V2h-2v2.1a5 5 0 0 0-1.75.73l-1.49-1.49-1.42 1.41 1.49 1.5A5 5 0 0 0 20.1 8H18v2h2.1a5 5 0 0 0 .73 1.75l-1.49 1.49 1.42 1.42 1.49-1.49A5 5 0 0 0 24 13.9V16h2v-2.1a5 5 0 0 0 1.75-.73l1.49 1.49 1.42-1.42-1.49-1.49A5 5 0 0 0 30 10Zm-7 2a3 3 0 1 1 3-3 3 3 0 0 1-3 3Z" />
+                        </svg>
+                    </span>
+                    <span>Authorization &amp; Athlete Profile</span>
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage Strava API OAuth connection and manual
                     athlete profile synchronization.</p>
@@ -319,27 +371,42 @@
         </div>
         <div class="p-6 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-4">
-                <p class="text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
+                <p class="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400 max-w-2xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5" />
+                        <path d="M9 8v4m0-7h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                    <span>
                     Need to refresh your Strava authorization? Reconnecting requests <code
                         class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">profile:read_all</code>
                     so the app can read your profile details, and <code
                         class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">activity:write</code>
                     so the <code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-zinc-700">UPDATE_STRAVA_*</code> feature
                     can update activity descriptions.
+                    </span>
                 </p>
                 <div class="flex flex-wrap items-center gap-3">
                     <button id="btn-sync-profile" type="button"
-                        class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white dark:bg-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-600 text-gray-700 dark:text-gray-200 text-sm font-medium border border-gray-300 dark:border-zinc-600 shadow-sm transition whitespace-nowrap min-w-[140px] h-[38px]">
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium shadow-sm transition whitespace-nowrap min-w-[140px] h-[38px]">
+                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 32 32" fill="currentColor">
+                                <path d="M29 8h-4c1.735 1.999 2.497 4.328 2.497 7.001-.001 2.94-1.145 5.701-3.222 7.778-2.145 2.145-4.963 3.217-7.78 3.217H16V22h.495c1.793 0 3.587-.685 4.952-2.05 1.322-1.322 2.05-3.08 2.05-4.95.001-1.569-.551-2.78-1.497-4v4h-4l.033-11H29V8ZM15.505 9.996H16V6h-.495c-2.818 0-5.635 1.072-7.78 3.217-2.077 2.077-3.221 4.839-3.222 7.778 0 2.672.762 5.002 2.497 7.001H3v4h11V17h-4v3.996c-.946-1.22-1.497-2.431-1.497-4 0-1.87.729-3.629 2.05-4.95 1.365-1.366 3.159-2.051 4.952-2.05Z" />
+                            </svg>
+                        </span>
                         <span>Sync Profile</span>
                     </button>
                     <a href="{{ url_for('strava_reconnect') }}"
-                        class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition whitespace-nowrap h-[38px]">
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition whitespace-nowrap h-[38px]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" viewBox="0 0 64 64" aria-hidden="true">
+                            <path d="M41.03 47.852l-5.572-10.976h-8.172L41.03 64l13.736-27.124h-8.18" fill="#f9b797" />
+                            <path d="M27.898 21.944l7.564 14.928h11.124L27.898 0 9.234 36.876H20.35" fill="#f05222" />
+                        </svg>
                         Reconnect with Strava
                     </a>
                 </div>
             </div>
             <div id="athlete-profile-summary"
-                class="text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-100 dark:border-zinc-700/60 flex flex-wrap items-center justify-between gap-2">
+                class="text-xs text-gray-500 dark:text-gray-400 p-4 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-900/50 flex flex-wrap items-center justify-between gap-3">
                 <div class="flex items-center gap-4">
                     <span>Athlete: <strong id="athlete-summary-name"
                             class="font-medium text-gray-800 dark:text-gray-200">—</strong></span>
@@ -347,8 +414,11 @@
                             class="font-medium text-gray-800 dark:text-gray-200">—</strong></span>
                 </div>
                 <a href="{{ url_for('profile_page') }}"
-                    class="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                    Edit Profile &amp; FTP &rarr;
+                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m16 4 4 4M4 20l4-.8L19 8a2.1 2.1 0 0 0-3-3L5 16l-1 4Z" />
+                    </svg>
+                    Edit profile and FTP
                 </a>
             </div>
         </div>
@@ -358,7 +428,14 @@
     <div id="weather-info"
         class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Weather info</h2>
+            <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
+                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 16.2A4.5 4.5 0 0 0 18 7.5a6 6 0 0 0-11.6 1.8A4 4 0 0 0 7 17h11a4 4 0 0 0 2-0.8Z" /><path d="m8 20 1-2m4 2 1-2m4 2 1-2" />
+                    </svg>
+                </span>
+                <span>Weather info</span>
+            </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Enrich eligible synced activities with hourly historical weather along the GPS route.</p>
         </div>
         <div class="p-6 space-y-3">
@@ -381,7 +458,18 @@
         <div
             class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex items-center justify-between">
             <div>
-                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">GPS Track Simplification</h2>
+                <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
+                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m13.5 6.5-3.148-3.148a1.205 1.205 0 0 0-1.704 0L6.352 5.648a1.205 1.205 0 0 0 0 1.704L9.5 10.5" />
+                            <path d="M16.5 7.5 19 5" />
+                            <path d="m17.5 10.5 3.148 3.148a1.205 1.205 0 0 1 0 1.704l-2.296 2.296a1.205 1.205 0 0 1-1.704 0L13.5 14.5" />
+                            <path d="M9 21a6 6 0 0 0-6-6" />
+                            <path d="M9.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l4.296-4.296a1.205 1.205 0 0 0 0-1.704l-2.296-2.296a1.205 1.205 0 0 0-1.704 0z" />
+                        </svg>
+                    </span>
+                    <span>GPS Track Simplification</span>
+                </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure coordinate decimation scale (0–10) to
                     speed up map reading and rendering.</p>
             </div>
@@ -416,7 +504,11 @@
             <div
                 class="p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 text-xs text-gray-600 dark:text-gray-300 space-y-2">
                 <div class="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
-                    <span>💡 How Simplification & Persistence Work:</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5" />
+                        <path d="M9 8v4m0-7h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                    <span>How Simplification &amp; Persistence Work:</span>
                 </div>
                 <ul class="list-disc list-inside space-y-1 pl-1">
                     <li><strong>O(N) Haversine Sampling:</strong> Retains route terminus points and filters intermediate
@@ -438,7 +530,14 @@
         class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
             <div>
-                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">AI</h2>
+                <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
+                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="M19 14v6m-3-3h6M5 3v4M3 5h4" />
+                        </svg>
+                    </span>
+                    <span>AI</span>
+                </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure your AI providers and models for AI
                     Chat. Prompts, relevant Kinetiqo data, and telemetry are processed using your own API keys.</p>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-xs text-gray-600 dark:text-gray-300">
@@ -704,7 +803,10 @@
                                         <button id="openrouter-add-model-btn" type="button"
                                             class="min-h-10 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer"
                                             title="Validate and add model">
-                                            <span class="text-base font-bold leading-none">+</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                                                <circle cx="34.52" cy="11.43" r="5.82" /><circle cx="53.63" cy="31.6" r="5.82" /><circle cx="34.52" cy="50.57" r="5.82" /><circle cx="15.16" cy="42.03" r="5.82" /><circle cx="15.16" cy="19.27" r="5.82" /><circle cx="34.51" cy="29.27" r="4.7" />
+                                                <path d="m20.17 16.3 8.73-3.37M38.6 15.59l10.88 11.93M50.07 36.2 38.67 46.49M18.36 24.13l12.55 21.88m-10.6-1.27 8.39 3.89m-11.36-12 14.03-20.31m-10.83 5.24 9.82 5.55m8.88 2.7 8.59.65m-13.3 3.53v10.76" />
+                                            </svg>
                                             <span>Add model</span>
                                         </button>
                                     </div>
@@ -824,7 +926,10 @@
                                         <button id="vercel-add-model-btn" type="button"
                                             class="min-h-10 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer"
                                             title="Validate and add model">
-                                            <span class="text-base font-bold leading-none">+</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                                                <circle cx="34.52" cy="11.43" r="5.82" /><circle cx="53.63" cy="31.6" r="5.82" /><circle cx="34.52" cy="50.57" r="5.82" /><circle cx="15.16" cy="42.03" r="5.82" /><circle cx="15.16" cy="19.27" r="5.82" /><circle cx="34.51" cy="29.27" r="4.7" />
+                                                <path d="m20.17 16.3 8.73-3.37M38.6 15.59l10.88 11.93M50.07 36.2 38.67 46.49M18.36 24.13l12.55 21.88m-10.6-1.27 8.39 3.89m-11.36-12 14.03-20.31m-10.83 5.24 9.82 5.55m8.88 2.7 8.59.65m-13.3 3.53v10.76" />
+                                            </svg>
                                             <span>Add model</span>
                                         </button>
                                     </div>
@@ -947,7 +1052,10 @@
                                         <button id="kilo-add-model-btn" type="button"
                                             class="min-h-10 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer"
                                             title="Validate and add model">
-                                            <span class="text-base font-bold leading-none">+</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                                                <circle cx="34.52" cy="11.43" r="5.82" /><circle cx="53.63" cy="31.6" r="5.82" /><circle cx="34.52" cy="50.57" r="5.82" /><circle cx="15.16" cy="42.03" r="5.82" /><circle cx="15.16" cy="19.27" r="5.82" /><circle cx="34.51" cy="29.27" r="4.7" />
+                                                <path d="m20.17 16.3 8.73-3.37M38.6 15.59l10.88 11.93M50.07 36.2 38.67 46.49M18.36 24.13l12.55 21.88m-10.6-1.27 8.39 3.89m-11.36-12 14.03-20.31m-10.83 5.24 9.82 5.55m8.88 2.7 8.59.65m-13.3 3.53v10.76" />
+                                            </svg>
                                             <span>Add model</span>
                                         </button>
                                     </div>
@@ -1253,6 +1361,11 @@
     </div>
 
     <style>
+        #settings-page button {
+            font-family: inherit;
+            font-size: 0.875rem;
+        }
+
         /* Ensure AI controls keep consistent inner spacing in all themes/render paths. */
         #ai-provider-detail-panel input[type="text"],
         #ai-provider-detail-panel input[type="password"],
@@ -1266,7 +1379,14 @@
     <div id="sync"
         class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
         <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Sync Schedules & Database</h2>
+            <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
+                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5m-16 6v6c0 1.7 3.6 3 8 3" /><path d="M20 11v2m-2.5 2.5A3.5 3.5 0 1 1 14 19" /><path d="M14 15v4h4" />
+                    </svg>
+                </span>
+                <span>Sync Schedules &amp; Database</span>
+            </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">These schedules are defined by environment
                 variables.</p>
         </div>
@@ -2096,9 +2216,118 @@
         const stravaAgentDeleteMessage = document.getElementById('strava-agent-delete-message');
         const stravaAgentDeleteConfirm = document.getElementById('strava-agent-delete-confirm');
         const stravaAgentDeleteCancel = document.getElementById('strava-agent-delete-cancel');
+        const stravaAgentTryModal = document.getElementById('strava-agent-try-modal');
+        const stravaAgentTryProgress = document.getElementById('strava-agent-try-progress');
+        const stravaAgentTryResult = document.getElementById('strava-agent-try-result');
+        const stravaAgentTryResponse = document.getElementById('strava-agent-try-response');
+        const stravaAgentTryStatus = document.getElementById('strava-agent-try-status');
+        const stravaAgentTryProgressMessage = document.getElementById('strava-agent-try-progress-message');
+        const stravaAgentTryClose = document.getElementById('strava-agent-try-close');
+        const stravaAgentTrySelection = document.getElementById('strava-agent-try-selection');
+        const stravaAgentTrySearch = document.getElementById('strava-agent-try-search');
+        const stravaAgentTrySearchResults = document.getElementById('strava-agent-try-search-results');
+        const stravaAgentTryFeedback = document.getElementById('strava-agent-try-feedback');
+        const stravaAgentTrySubmit = document.getElementById('strava-agent-try-submit');
         let stravaAgents = [];
         let pendingAgentDelete = null;
+        let stravaAgentTryStates = [];
+        let activeStravaAgentTryState = null;
+        let stravaAgentTrySearchAbortController = null;
+        let stravaAgentTrySearchRequestId = 0;
+        let stravaAgentTrySearchTimer = null;
+        let stravaAgentTryProgressTimer = null;
         const profileStatus = document.getElementById('profile-status');
+
+        const settingsButtonIcons = {
+            add: 'M12 5v14M5 12h14',
+            check: 'm5 12 4 4L19 6',
+            copy: 'M8 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2M16 4h2a2 2 0 0 1 2 2v8M8 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z',
+            info: 'M12 16v-4m0-4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+            refresh: 'M20 11a8 8 0 1 0 2.3 5.7M20 11V5m0 6h-6',
+            save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2ZM7 3v6h8V3m-7 18v-6h8v6',
+            sparkle: 'm12 3-1.6 5.4L5 10l5.4 1.6L12 17l1.6-5.4L19 10l-5.4-1.6L12 3ZM5 3v4M3 5h4m12 10v6m-3-3h6',
+            star: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z',
+            test: 'm13 2-9 12h7l-1 8 9-12h-7l1-8Z',
+            trash: 'M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m-9 0 1 13h10l1-13',
+            x: 'M6 6l12 12M18 6 6 18',
+        };
+
+        function createSettingsButtonIcon(iconName) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'settings-action-icon h-4 w-4 shrink-0');
+            svg.setAttribute('fill', 'none');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '2');
+            svg.setAttribute('stroke-linecap', 'round');
+            svg.setAttribute('stroke-linejoin', 'round');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('aria-hidden', 'true');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', settingsButtonIcons[iconName]);
+            svg.appendChild(path);
+            return svg;
+        }
+
+        function settingsButtonIconName(button) {
+            const label = `${button.id} ${button.getAttribute('aria-label') || ''} ${button.title || ''} ${button.textContent || ''}`.toLowerCase();
+            if (/(cancel|close|(^|\s)no(\s|$)|discard)/.test(label)) return 'x';
+            if (/(save|confirm|(^|\s)yes(\s|$))/.test(label)) return label.includes('save') ? 'save' : 'check';
+            if (/(delete|remove)/.test(label)) return 'trash';
+            if (/(sync|refresh)/.test(label)) return 'refresh';
+            if (/copy/.test(label)) return 'copy';
+            if (/test connection/.test(label)) return 'test';
+            if (/(try|preview)/.test(label)) return 'sparkle';
+            if (/(add|\+)/.test(label)) return 'add';
+            if (/(default model|★|☆)/.test(label)) return 'star';
+            if (/information/.test(label)) return 'info';
+            return null;
+        }
+
+        function enhanceSettingsButton(button) {
+            if (button.dataset.settingsButtonEnhanced === 'true'
+                || button.dataset.settingsButtonExempt === 'true'
+                || button.classList.contains('underline')
+                || button.classList.contains('nav-item')) {
+                return;
+            }
+            const iconName = settingsButtonIconName(button);
+            if (!iconName) return;
+            button.dataset.settingsButtonEnhanced = 'true';
+            button.classList.add(
+                'inline-flex', 'items-center', 'justify-center', 'gap-2', 'rounded-lg',
+                'transition', 'focus:outline-none', 'focus:ring-2', 'focus:ring-orange-500',
+                'focus:ring-offset-2', 'dark:focus:ring-offset-zinc-800',
+            );
+            if (iconName !== 'info' && !button.classList.contains('w-7')) {
+                button.classList.add('min-h-10');
+            }
+            if (!button.querySelector('svg')) {
+                const symbol = button.textContent.trim();
+                if (['+', '−', '×', '★', '☆'].includes(symbol)) {
+                    button.replaceChildren(createSettingsButtonIcon(iconName));
+                } else {
+                    button.querySelectorAll('span').forEach((span) => {
+                        if (span.textContent.trim() === '+') span.remove();
+                    });
+                    button.prepend(createSettingsButtonIcon(iconName));
+                }
+            }
+        }
+
+        function enhanceSettingsButtons(root = document) {
+            if (root instanceof HTMLButtonElement) enhanceSettingsButton(root);
+            root.querySelectorAll?.('button').forEach(enhanceSettingsButton);
+        }
+
+        enhanceSettingsButtons();
+        new MutationObserver((records) => {
+            records.forEach((record) => {
+                record.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) enhanceSettingsButtons(node);
+                });
+            });
+        }).observe(document.body, { childList: true, subtree: true });
+
         // AI Multi-Provider two-pane workspace
         const aiHeaders = { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '' };
         const providerMeta = {
@@ -2231,19 +2460,86 @@
             modal.classList.add('hidden');
         };
 
+        function stopStravaAgentTryProgress() {
+            clearInterval(stravaAgentTryProgressTimer);
+            stravaAgentTryProgressTimer = null;
+        }
+
+        function startStravaAgentTryProgress() {
+            const messages = [
+                'Preparing your activity context…',
+                'Sending instructions to your AI model…',
+                'Generating your preview…',
+                'Finishing the response…',
+            ];
+            let messageIndex = 0;
+            if (stravaAgentTryProgressMessage) {
+                stravaAgentTryProgressMessage.textContent = messages[messageIndex];
+            }
+            stopStravaAgentTryProgress();
+            stravaAgentTryProgressTimer = setInterval(() => {
+                messageIndex = Math.min(messageIndex + 1, messages.length - 1);
+                if (stravaAgentTryProgressMessage) {
+                    stravaAgentTryProgressMessage.textContent = messages[messageIndex];
+                }
+            }, 1200);
+        }
+
+        function resetStravaAgentTryModal() {
+            stopStravaAgentTryProgress();
+            stravaAgentTrySelection?.classList.remove('hidden');
+            stravaAgentTryProgress?.classList.add('hidden');
+            stravaAgentTryResult?.classList.add('hidden');
+            if (stravaAgentTryResponse) stravaAgentTryResponse.textContent = '';
+            if (stravaAgentTryStatus) stravaAgentTryStatus.textContent = '';
+            if (stravaAgentTrySearch) stravaAgentTrySearch.value = '';
+            stravaAgentTrySearchResults?.replaceChildren();
+            stravaAgentTrySearchResults?.classList.add('hidden');
+            if (stravaAgentTryFeedback) stravaAgentTryFeedback.textContent = '';
+            if (stravaAgentTryClose) stravaAgentTryClose.disabled = false;
+            if (stravaAgentTrySubmit) {
+                stravaAgentTrySubmit.disabled = true;
+                stravaAgentTrySubmit.classList.remove('hidden');
+            }
+        }
+
+        function showStravaAgentTryResult(message, status, isError = false) {
+            stopStravaAgentTryProgress();
+            stravaAgentTrySelection?.classList.add('hidden');
+            stravaAgentTryProgress?.classList.add('hidden');
+            stravaAgentTryResult?.classList.remove('hidden');
+            if (stravaAgentTryResponse) {
+                stravaAgentTryResponse.textContent = message;
+                stravaAgentTryResponse.className = isError
+                    ? 'whitespace-pre-wrap text-sm text-red-600 dark:text-red-400'
+                    : 'whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100';
+            }
+            if (stravaAgentTryStatus) stravaAgentTryStatus.textContent = status || '';
+            if (stravaAgentTryClose) stravaAgentTryClose.disabled = false;
+            if (stravaAgentTrySubmit) stravaAgentTrySubmit.classList.add('hidden');
+        }
+
+        stravaAgentTryClose?.addEventListener('click', () => {
+            stravaAgentTrySearchAbortController?.abort();
+            clearTimeout(stravaAgentTrySearchTimer);
+            stopStravaAgentTryProgress();
+            activeStravaAgentTryState = null;
+            closeModal(stravaAgentTryModal);
+        });
+
         function updateDefaultModelLabel() {
             const container = document.getElementById('ai-default-model-container') || document.getElementById('ai-default-model-label');
             if (!container) return;
             container.replaceChildren();
             if (defaultModel && defaultModel.model_id) {
                 const badge = document.createElement('span');
-                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-[11px] font-mono text-gray-800 dark:text-gray-200 border border-yellow-400 dark:border-yellow-500 shadow-sm';
+                badge.className = 'inline-flex h-6 box-border items-center gap-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 px-2.5 text-[11px] font-mono text-gray-800 dark:text-gray-200 border border-yellow-400 dark:border-yellow-500 shadow-sm';
                 const star = document.createElement('span');
                 star.className = 'text-yellow-500 text-sm leading-none';
                 star.textContent = '★';
                 star.setAttribute('aria-hidden', 'true');
                 const name = document.createElement('span');
-                name.className = 'truncate max-w-[150px] font-sans font-medium';
+                name.className = 'whitespace-nowrap font-sans font-medium';
                 name.textContent = defaultModel.model_id;
                 name.title = `${defaultModel.provider} / ${defaultModel.model_id}`;
                 badge.append(star, name);
@@ -2325,6 +2621,7 @@
             if (stravaAgentsEnabled && !stravaAgentsEnabled.checked) {
                 if (alertEl) alertEl.classList.add('hidden');
                 if (containerEl) containerEl.classList.add('hidden');
+                refreshStravaAgentTryButtons();
                 return;
             }
             if (!hasDefault) {
@@ -2339,6 +2636,7 @@
                     containerEl.classList.remove('opacity-60', 'pointer-events-none');
                 }
             }
+            refreshStravaAgentTryButtons();
         }
 
         function getFallbackColor(num) {
@@ -2362,15 +2660,15 @@
                 const num = idx + 1;
                 const color = getFallbackColor(num);
                 const badge = document.createElement('span');
-                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-800 text-[11px] font-mono text-gray-800 dark:text-gray-200 shadow-sm';
+                badge.className = 'inline-flex h-6 box-border items-center gap-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 px-2.5 text-[11px] font-mono text-gray-800 dark:text-gray-200 shadow-sm';
                 badge.style.border = `1px solid ${color}`;
 
                 const numSpan = document.createElement('span');
-                numSpan.className = 'flex items-center';
+                numSpan.className = 'flex items-center text-sm leading-none';
                 numSpan.innerHTML = renderFallbackBadgeSvg(num);
 
                 const nameSpan = document.createElement('span');
-                nameSpan.className = 'truncate max-w-[140px] font-sans font-medium';
+                nameSpan.className = 'whitespace-nowrap font-sans font-medium';
                 nameSpan.textContent = fb.model_id;
                 nameSpan.title = `${fb.provider} / ${fb.model_id}`;
 
@@ -2428,11 +2726,12 @@
             updateDefaultModelLabel();
             updateFallbackModelsLabel();
             renderAllModelTables();
+            updateAgentBoxState();
         }
 
         function renderFallbackBadgeSvg(num) {
             const color = getFallbackColor(num);
-            return `<svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            return `<svg class="w-3.5 h-3.5 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="3.5" y="3.5" width="11" height="11" rx="2" transform="rotate(45 9 9)" fill="${color}" stroke="${color}" stroke-width="0.5" />
                 <text x="9" y="9.5" text-anchor="middle" dominant-baseline="central" font-size="9.5" font-family="system-ui, -apple-system, sans-serif" font-weight="800" fill="#000000">${num}</text>
             </svg>`;
@@ -2583,9 +2882,9 @@
             if (provider === 'openrouter' || provider === 'vercel' || provider === 'kilo' || provider === 'poe') {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
-                removeBtn.className = 'inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 hover:border-red-400 dark:border-zinc-600 dark:hover:border-red-500 text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 font-bold text-base transition-colors';
+                removeBtn.className = 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-600 dark:text-gray-300 dark:hover:border-red-500 dark:hover:text-red-400 transition-colors';
                 removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
-                removeBtn.textContent = '−';
+                removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m-9 0 1 13h10l1-13" /></svg><span>Delete model</span>';
                 removeBtn.addEventListener('click', async () => {
                     const res = await fetch(`/api/settings/ai/${provider}/models`, { method: 'DELETE', headers: aiHeaders, body: JSON.stringify({ model_id: item.id }) });
                     const data = await res.json().catch(() => ({}));
@@ -2593,6 +2892,7 @@
                     providerData[provider].models = data.models || [];
                     defaultModel = data.default_model || defaultModel;
                     updateDefaultModelLabel();
+                    updateAgentBoxState();
                     if (provider === 'openrouter') renderOpenRouterModels(providerData.openrouter.models);
                     else if (provider === 'vercel') renderVercelModels(providerData.vercel.models);
                     else if (provider === 'kilo') renderKiloModels(providerData.kilo.models);
@@ -3276,7 +3576,12 @@
                 .then(updated => {
                     for (const field in updateStravaInputs) {
                         if (field in payload && updateStravaInputs[field]) {
-                            savedProfile[field] = updateStravaInputs[field].value;
+                            const persistedValue = typeof updated[field] === 'string'
+                                ? updated[field]
+                                : payload[field];
+                            updateStravaInputs[field].value = persistedValue;
+                            savedProfile[field] = persistedValue;
+                            updateTemplatePrefix(updateStravaInputs[field]);
                             setInputErrorState(updateStravaInputs[field], false);
                             const statusEl = document.getElementById('status-' + updateStravaInputs[field].id);
                             if (statusEl) {
@@ -3451,6 +3756,145 @@
 
         const agentToken = (name) => '{' + `{agent-ai-${name}}}`;
 
+        function updateStravaAgentTryButton(state) {
+            const hasDefault = Boolean(defaultModel && defaultModel.provider && defaultModel.model_id);
+            state.launchButton.disabled = state.pending
+                || !stravaAgentsEnabled?.checked
+                || !hasDefault
+                || !state.promptInput.value.trim();
+        }
+
+        function refreshStravaAgentTryButtons() {
+            stravaAgentTryStates.forEach(updateStravaAgentTryButton);
+        }
+
+        function updateStravaAgentTrySubmit() {
+            if (!stravaAgentTrySubmit) return;
+            stravaAgentTrySubmit.disabled = !activeStravaAgentTryState
+                || activeStravaAgentTryState.pending
+                || !activeStravaAgentTryState.selectedActivity;
+        }
+
+        function activitySummary(activity) {
+            return `${activity.name || 'Untitled activity'} · ${activity.id} · ${activity.sport || 'Unknown sport'} · ${activity.start_date || 'Unknown date'}`;
+        }
+
+        function renderStravaAgentSearchResults(activities) {
+            if (!stravaAgentTrySearchResults) return;
+            stravaAgentTrySearchResults.replaceChildren();
+            if (!activities.length) {
+                const empty = document.createElement('p');
+                empty.className = 'px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400';
+                empty.textContent = 'No matching activities.';
+                stravaAgentTrySearchResults.appendChild(empty);
+            } else {
+                const list = document.createElement('ul');
+                list.className = 'overflow-hidden rounded-lg border border-gray-200 dark:border-zinc-700 divide-y divide-gray-200 dark:divide-zinc-700';
+                activities.forEach((activity) => {
+                    const item = document.createElement('li');
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'w-full px-3 py-2 text-left text-xs text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-950/30';
+                    button.textContent = activitySummary(activity);
+                    button.addEventListener('click', () => {
+                        if (!activeStravaAgentTryState) return;
+                        activeStravaAgentTryState.selectedActivity = activity;
+                        stravaAgentTrySearch.value = activitySummary(activity);
+                        stravaAgentTrySearchResults.replaceChildren();
+                        stravaAgentTrySearchResults.classList.add('hidden');
+                        if (stravaAgentTryFeedback) stravaAgentTryFeedback.textContent = '';
+                        updateStravaAgentTrySubmit();
+                    });
+                    item.appendChild(button);
+                    list.appendChild(item);
+                });
+                stravaAgentTrySearchResults.appendChild(list);
+            }
+            stravaAgentTrySearchResults.classList.remove('hidden');
+        }
+
+        async function searchStravaAgentActivities() {
+            const query = stravaAgentTrySearch?.value.trim() || '';
+            if (query.length < 2) {
+                stravaAgentTrySearchResults?.replaceChildren();
+                stravaAgentTrySearchResults?.classList.add('hidden');
+                return;
+            }
+            stravaAgentTrySearchAbortController?.abort();
+            stravaAgentTrySearchAbortController = new AbortController();
+            const requestId = ++stravaAgentTrySearchRequestId;
+            try {
+                const response = await fetch(`/api/profile/strava-agents/activities?query=${encodeURIComponent(query)}`, {
+                    signal: stravaAgentTrySearchAbortController.signal,
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (requestId !== stravaAgentTrySearchRequestId) return;
+                if (!response.ok) throw new Error(payload.error || 'Unable to search activities.');
+                renderStravaAgentSearchResults(Array.isArray(payload.activities) ? payload.activities : []);
+            } catch (error) {
+                if (error.name === 'AbortError') return;
+                stravaAgentTrySearchResults?.replaceChildren();
+                stravaAgentTrySearchResults?.classList.add('hidden');
+                if (stravaAgentTryFeedback) stravaAgentTryFeedback.textContent = error.message;
+            }
+        }
+
+        function openStravaAgentTryModal(state) {
+            activeStravaAgentTryState = state;
+            state.selectedActivity = null;
+            resetStravaAgentTryModal();
+            openModal(stravaAgentTryModal);
+            stravaAgentTrySearch?.focus();
+        }
+
+        async function tryStravaAgentPrompt() {
+            const state = activeStravaAgentTryState;
+            if (!state?.selectedActivity) return;
+            state.pending = true;
+            updateStravaAgentTryButton(state);
+            updateStravaAgentTrySubmit();
+            const origHtml = stravaAgentTrySubmit.innerHTML;
+            stravaAgentTrySubmit.classList.add('opacity-60', 'cursor-wait');
+            stravaAgentTrySubmit.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+            state.promptInput.readOnly = true;
+            state.promptInput.classList.add('ring-2', 'ring-amber-500', 'focus:ring-amber-500');
+            stravaAgentTrySelection?.classList.add('hidden');
+            stravaAgentTryProgress?.classList.remove('hidden');
+            stravaAgentTryClose.disabled = true;
+            startStravaAgentTryProgress();
+            try {
+                const response = await fetch('/api/profile/strava-agents/try', {
+                    method: 'POST',
+                    headers: aiHeaders,
+                    body: JSON.stringify({
+                        activity_id: state.selectedActivity.id,
+                        prompt: state.promptInput.value,
+                    }),
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(payload.error || 'AI could not generate a preview.');
+                showStravaAgentTryResult(payload.response || '', payload.status || '');
+            } catch (error) {
+                showStravaAgentTryResult(error.message, '', true);
+            } finally {
+                state.pending = false;
+                stravaAgentTrySubmit.classList.remove('opacity-60', 'cursor-wait');
+                stravaAgentTrySubmit.innerHTML = origHtml;
+                state.promptInput.readOnly = false;
+                state.promptInput.classList.remove('ring-2', 'ring-amber-500', 'focus:ring-amber-500');
+                updateStravaAgentTryButton(state);
+            }
+        }
+
+        stravaAgentTrySearch?.addEventListener('input', () => {
+            if (!activeStravaAgentTryState) return;
+            activeStravaAgentTryState.selectedActivity = null;
+            updateStravaAgentTrySubmit();
+            clearTimeout(stravaAgentTrySearchTimer);
+            stravaAgentTrySearchTimer = setTimeout(searchStravaAgentActivities, 250);
+        });
+        stravaAgentTrySubmit?.addEventListener('click', tryStravaAgentPrompt);
+
         function refreshAgentVariables() {
             for (let index = STRAVA_VARIABLES.length - 1; index >= 0; index -= 1) {
                 if (STRAVA_VARIABLES[index].agentVariable) STRAVA_VARIABLES.splice(index, 1);
@@ -3500,6 +3944,8 @@
 
         function renderStravaAgents() {
             if (!stravaAgentsList) return;
+            stravaAgentTrySearchAbortController?.abort();
+            stravaAgentTryStates = [];
             stravaAgentsList.replaceChildren();
             if (!stravaAgents.length) {
                 stravaAgentsGrid?.classList.add('hidden');
@@ -3507,26 +3953,33 @@
                 return;
             }
             stravaAgentsGrid?.classList.remove('hidden');
-            stravaAgents.forEach((agent) => {
+            stravaAgents.forEach((agent, index) => {
                 const row = document.createElement('section');
-                row.className = 'items-start gap-3 px-3 py-3';
+                row.className = `items-start gap-3 px-3 py-3${index > 0 ? ' border-t border-gray-200 dark:border-zinc-700' : ''}`;
                 row.style.display = 'grid';
                 row.style.gridTemplateColumns = '180px minmax(360px, 3fr) auto';
+                const nameColumn = document.createElement('div');
+                nameColumn.className = 'min-w-0';
                 const nameInput = document.createElement('input');
                 nameInput.type = 'text';
                 nameInput.value = agent.name;
                 nameInput.setAttribute('aria-label', 'Agent name');
                 nameInput.className = 'w-full min-w-0 px-2 py-1.5 text-xs font-medium rounded border border-gray-300 dark:border-zinc-600 bg-transparent text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-ellipsis';
+                const variableInfo = document.createElement('p');
+                variableInfo.className = 'mt-1 flex min-w-0 flex-wrap items-baseline gap-x-1 text-[11px] text-gray-500 dark:text-gray-400';
+                const variableLabel = document.createElement('span');
+                variableLabel.textContent = 'Variable:';
+                const token = document.createElement('code');
+                token.className = 'max-w-[155px] truncate font-mono text-[11px] text-amber-700 dark:text-amber-300';
+                const explanation = document.createElement('span');
+                explanation.textContent = 'Explanation: Custom AI-generated text using this agent';
                 const promptInput = document.createElement('textarea');
-                promptInput.rows = 3;
+                promptInput.rows = 6;
                 promptInput.setAttribute('aria-label', `Prompt instructions for ${agent.name}`);
-                promptInput.className = 'w-full px-2 py-1.5 text-xs rounded border border-gray-300 dark:border-zinc-600 bg-transparent text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-y';
+                promptInput.className = 'w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-zinc-600 bg-transparent text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-y';
                 promptInput.value = agent.prompt || '';
                 const metadata = document.createElement('div');
                 metadata.className = 'flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400';
-                metadata.style.gridColumn = '1 / span 2';
-                const token = document.createElement('code');
-                token.className = 'block max-w-[180px] truncate font-mono text-[11px] text-amber-700 dark:text-amber-300';
                 const updateDraftToken = () => {
                     token.textContent = agentToken(agent.name || '<new>');
                 };
@@ -3536,10 +3989,38 @@
                 status.textContent = agent.isDraft ? 'Enter a name to create this agent' : (agent.prompt ? '' : 'Empty prompt skips AI generation');
                 const remove = document.createElement('button');
                 remove.type = 'button';
-                remove.className = 'h-9 w-9 inline-flex items-center justify-center rounded-lg text-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40';
-                remove.textContent = '🗑';
+                remove.className = 'inline-flex h-10 items-center rounded bg-gray-400 px-3 py-2 text-sm font-medium text-white transition hover:bg-gray-500';
+                const removeIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                removeIcon.setAttribute('class', 'mr-2 h-4 w-4');
+                removeIcon.setAttribute('fill', 'none');
+                removeIcon.setAttribute('stroke', 'currentColor');
+                removeIcon.setAttribute('viewBox', '0 0 24 24');
+                removeIcon.setAttribute('aria-hidden', 'true');
+                const removePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                removePath.setAttribute('stroke-linecap', 'round');
+                removePath.setAttribute('stroke-linejoin', 'round');
+                removePath.setAttribute('stroke-width', '2');
+                removePath.setAttribute('d', 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3');
+                removeIcon.appendChild(removePath);
+                remove.append(removeIcon, document.createTextNode('Delete agent'));
                 remove.setAttribute('aria-label', `Remove ${agent.name} agent`);
                 remove.addEventListener('click', () => requestStravaAgentDeletion(agent));
+                const launchButton = document.createElement('button');
+                launchButton.type = 'button';
+                launchButton.className = 'inline-flex min-w-14 items-center justify-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50';
+                launchButton.textContent = 'Try this prompt with your activity';
+                launchButton.setAttribute('aria-label', `Try ${agent.name || 'new'} agent prompt`);
+                const actions = document.createElement('div');
+                actions.className = 'flex flex-col items-stretch gap-2';
+                const tryState = {
+                    pending: false,
+                    promptInput,
+                    launchButton,
+                    selectedActivity: null,
+                };
+                stravaAgentTryStates.push(tryState);
+                launchButton.addEventListener('click', () => openStravaAgentTryModal(tryState));
+                promptInput.addEventListener('input', () => updateStravaAgentTryButton(tryState));
                 const saveOnBlur = () => {
                     if (!agent.isDraft && nameInput.value.trim() === agent.name && promptInput.value.trim() === (agent.prompt || '')) return;
                     saveStravaAgent(agent, nameInput, promptInput, status).catch((error) => {
@@ -3558,8 +4039,12 @@
                 });
                 nameInput.addEventListener('blur', saveOnBlur);
                 promptInput.addEventListener('blur', saveOnBlur);
-                metadata.append(token, status);
-                row.append(nameInput, promptInput, remove, metadata);
+                actions.append(launchButton, remove);
+                variableInfo.append(variableLabel, token, explanation);
+                nameColumn.append(nameInput, variableInfo);
+                metadata.append(status);
+                row.append(nameColumn, promptInput, actions, metadata);
+                updateStravaAgentTryButton(tryState);
                 stravaAgentsList.appendChild(row);
             });
             refreshAgentVariables();
@@ -3601,8 +4086,9 @@
 
         async function requestStravaAgentDeletion(agent) {
             if (agent.isDraft) {
-                stravaAgents = stravaAgents.filter((item) => item !== agent);
-                renderStravaAgents();
+                pendingAgentDelete = agent;
+                stravaAgentDeleteMessage.textContent = 'This unsaved agent will be discarded.';
+                openModal(stravaAgentDeleteModal);
                 return;
             }
             const response = await fetch(`/api/profile/strava-agents/${encodeURIComponent(agent.name)}`, {
@@ -3613,9 +4099,10 @@
             const payload = await response.json();
             if (response.status === 409 && payload.requires_confirmation) {
                 pendingAgentDelete = agent;
-                stravaAgentDeleteMessage.textContent = `This agent is used by ${payload.referenced_by.join(', ')}. Removing it will also remove ${agentToken(agent.name)} from those templates.`;
-                stravaAgentDeleteModal.classList.remove('hidden');
-                stravaAgentDeleteModal.classList.add('flex');
+                stravaAgentDeleteMessage.textContent = payload.referenced_by.length
+                    ? `This agent is used by ${payload.referenced_by.join(', ')}. Deleting it also removes ${agentToken(agent.name)} from those templates.`
+                    : 'This cannot be undone.';
+                openModal(stravaAgentDeleteModal);
                 return;
             }
             if (!response.ok) {
@@ -3628,7 +4115,7 @@
 
         stravaAgentAddButton?.addEventListener('click', () => {
             if (stravaAgents.some((agent) => agent.isDraft)) return;
-            stravaAgents.unshift({ name: '', prompt: '', isDraft: true });
+            stravaAgents.push({ name: '', prompt: '', isDraft: true });
             renderStravaAgents();
             stravaAgentsList.querySelector('input')?.focus();
         });
@@ -3640,6 +4127,13 @@
         });
         stravaAgentDeleteConfirm?.addEventListener('click', async () => {
             if (!pendingAgentDelete) return;
+            if (pendingAgentDelete.isDraft) {
+                stravaAgents = stravaAgents.filter((item) => item !== pendingAgentDelete);
+                pendingAgentDelete = null;
+                closeModal(stravaAgentDeleteModal);
+                renderStravaAgents();
+                return;
+            }
             const response = await fetch(`/api/profile/strava-agents/${encodeURIComponent(pendingAgentDelete.name)}`, {
                 method: 'DELETE',
                 headers: aiHeaders,

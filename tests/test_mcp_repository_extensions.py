@@ -144,6 +144,7 @@ class TestPostgresqlMcpExtensions(unittest.TestCase):
         self.assertIn("distance >= %s", sql)
         self.assertIn("distance <= %s", sql)
         self.assertIn("name ILIKE %s", sql)
+        self.assertIn("CAST(activity_id AS TEXT) LIKE %s", sql)
         self.assertIn("ORDER BY distance DESC", sql)
         self.assertIn(10000.0, params)
         self.assertIn(100000.0, params)
@@ -162,7 +163,9 @@ class TestPostgresqlMcpExtensions(unittest.TestCase):
         )
         sql, params = self.mock_cur.execute.call_args[0]
         self.assertIn("name ILIKE %s", sql)
+        self.assertIn("CAST(activity_id AS TEXT) LIKE %s", sql)
         self.assertIn("%Jonas%", params)
+        self.assertEqual(params.count("%Jonas%"), 2)
         self.assertIn("distance >= %s", sql)
         self.assertIn(5000.0, params)
         self.assertIn("total_elevation_gain >= %s", sql)
@@ -280,6 +283,7 @@ class TestMySQLMcpExtensions(unittest.TestCase):
 
         sql, params = self.mock_cur.execute.call_args[0]
         self.assertIn("name LIKE %s", sql)
+        self.assertIn("CAST(activity_id AS CHAR) LIKE %s", sql)
         self.assertIn("average_watts >= %s", sql)
         self.assertIn("average_watts <= %s", sql)
 
@@ -323,7 +327,7 @@ class TestFirebirdMcpExtensions(unittest.TestCase):
 
         activities, next_cursor, has_more = self.repo.search_activities(
             athlete_id=3,
-            filters={"min_elevation_m": 500.0, "sort_by": "elevation", "sort_order": "desc"},
+            filters={"keyword": "301", "min_elevation_m": 500.0, "sort_by": "elevation", "sort_order": "desc"},
             limit=5,
         )
 
@@ -337,6 +341,7 @@ class TestFirebirdMcpExtensions(unittest.TestCase):
         self.assertIn('SELECT FIRST 6', sql)
         self.assertIn('"athlete_id" = ?', sql)
         self.assertIn('"total_elevation_gain" >= ?', sql)
+        self.assertIn('CAST("activity_id" AS VARCHAR(20)) LIKE ?', sql)
         self.assertIn('ORDER BY "total_elevation_gain" DESC', sql)
 
 

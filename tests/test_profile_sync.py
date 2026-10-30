@@ -151,7 +151,7 @@ class TestUnifiedProfileSync(unittest.TestCase):
     """Test unified env var vs DB persistence logic across all settings."""
 
     @patch.dict(os.environ, {"UPDATE_STRAVA_CYCLING_OUTDOOR": "New Template"}, clear=True)
-    def test_update_strava_env_var_updates_different_db(self):
+    def test_update_strava_env_var_preserves_existing_settings_value(self):
         mock_repo = MagicMock()
         mock_repo.get_profile.return_value = {
             'athlete_id': 123,
@@ -163,9 +163,25 @@ class TestUnifiedProfileSync(unittest.TestCase):
         config = Config()
         sync_update_strava_from_env(config, mock_repo)
 
+        mock_repo.upsert_profile.assert_not_called()
+        self.assertEqual(config.update_strava_cycling_outdoor, 'Old Template')
+
+    @patch.dict(os.environ, {"UPDATE_STRAVA_CYCLING_OUTDOOR": "Initial Template"}, clear=True)
+    def test_update_strava_env_var_seeds_empty_db_template(self):
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            'athlete_id': 123,
+            'first_name': 'Jane',
+            'last_name': 'Doe',
+            'weight': 65.0,
+            'update_strava_cycling_outdoor': '',
+        }
+        config = Config()
+        sync_update_strava_from_env(config, mock_repo)
+
         mock_repo.upsert_profile.assert_called_once()
         _, kwargs = mock_repo.upsert_profile.call_args
-        self.assertEqual(kwargs.get('update_strava_cycling_outdoor'), 'New Template')
+        self.assertEqual(kwargs.get('update_strava_cycling_outdoor'), 'Initial Template')
 
     @patch.dict(os.environ, {}, clear=True)
     def test_update_strava_env_not_set_preserves_db(self):
@@ -381,6 +397,5 @@ class TestCliStartupSync(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
 
 

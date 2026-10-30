@@ -124,6 +124,11 @@ def test_sync_start_loading_indicator(monkeypatch):
         assert 'sse-connect=' in html_text
         assert 'Sync in progress...' in html_text
         assert dummy_repo.options['full_sync'] is (sync_type == 'full')
+        assert dummy_repo.options['retrigger_ai_agents'] is False
+
+    resp = client.post('/sync/start/fast', data={'retrigger_ai_agents': 'on'})
+    assert resp.status_code == 200
+    assert dummy_repo.options['retrigger_ai_agents'] is True
 
 def test_web_startup_interrupts_persisted_sync_jobs_once(monkeypatch):
     import importlib
@@ -189,6 +194,7 @@ def test_fastsync_post_accepts_rendered_form_csrf_token(monkeypatch):
     assert page.status_code == 200
     page_html = page.get_data(as_text=True)
     assert '#syncCsrfToken' in page_html
+    assert 'id="retriggerAiAgents"' in page_html
     assert 'window.confirm' not in page_html
     match = re.search(r'id="syncCsrfToken" type="hidden" name="csrf_token" value="([^"]+)"',
                       page_html)

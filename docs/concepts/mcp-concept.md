@@ -1,7 +1,13 @@
-# Kinetiqo MCP Server — Architecture, Toolset & Implementation Plan
+# Kinetiqo MCP Server — Historical Architecture & Implementation Blueprint
 
-> **Document Status**: Reviewed implementation blueprint; proposed feature, not yet implemented
-> **Target Version**: Kinetiqo 2.x
+> **Document Status**: Historical design record. The MCP server is implemented; use
+> [`docs/MCP.md`](../MCP.md), the current source, and MCP tests as authoritative
+> operational documentation.
+> **Implemented Version**: Kinetiqo 3.x
+>
+> **Inventory note**: This historical blueprint describes an earlier 35-tool
+> catalog. The implemented server exposes 32 read-only tools by default and 36
+> tools when all mutation gates are enabled.
 > **Author**: Kinetiqo Architectural Team  
 > **Location**: `docs/mcp-concept.md`
 
@@ -85,7 +91,8 @@ To deliver maximum utility without overwhelming LLM context windows, tools are c
 
 > **Unified Initial Analytical Release**: The implementation roadmap groups **Phases 0, 1, and 2** into a cohesive initial read-only analytical release (Tools 1–19, 34–35), delivering full activity discovery, telemetry downsampling, power curves, personal records, and exercise physiology models (CTL/ATL/TSB, FTP history, VO₂max, Power Skills, weekly profiles, recovery turnaround) together via local stdio before progressing to visual rendering and write automations.
 
-The table below provides the authoritative master index of all 35 Kinetiqo MCP tools, their functional grouping, target Python module in `src/kinetiqo/mcp/tools/`, delivery phase, priority, and mutation gating:
+The table below is the historical 35-tool planning index, retained for design
+context only; it is not the current operational inventory.
 
 | # | Tool Name | Group | Target Module | Phase & Priority | Mutating? (Gate Flag) | Purpose Summary |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

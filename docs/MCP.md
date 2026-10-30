@@ -11,7 +11,7 @@ With Kinetiqo MCP, your AI assistant transforms into an evidence-based personal 
 - 🔒 **Privacy-First & Local**: Your raw sensor streams, GPS coordinates, and heart rates remain completely on your machine. AI assistants query your local PostgreSQL/MySQL/Firebird database through standard STDIO JSON-RPC frames.
 - ⚡ **Zero Cloud Leak**: No third-party servers or fitness aggregators sit between your AI and your data.
 - 🛡️ **Read-Only by Default**: The MCP server is strictly read-only out of the box. Mutating actions (triggering syncs, editing athlete FTP, publishing Strava descriptions) are completely hidden from the AI tool catalog unless explicitly enabled by you.
-- 📊 **35 Evidence-Based Tools**: Comprehensive access to historical workouts, continuous Mean Maximal Power (MMP), Normalized Power (NP), aerobic decoupling, suffer-score fitness (CTL/ATL/TSB), weekly power profiles, recovery turnaround, and Playwright visual poster exports.
+- 📊 **32 Read-Only Tools by Default, up to 36 with Gates**: Comprehensive access to historical workouts, continuous Mean Maximal Power (MMP), Normalized Power (NP), aerobic decoupling, suffer-score fitness (CTL/ATL/TSB), weekly power profiles, recovery turnaround, and Playwright visual poster exports. Four mutating tools appear only when their three explicit gates are enabled.
 
 ---
 
@@ -170,7 +170,7 @@ Kinetiqo publishes two official Docker variants:
 - **`kinetiqo/web:latest` (Standalone)**: Runs the Web Dashboard on port `4444` and the background Cron sync daemon. MCP is disabled by default (`ENABLE_MCP=0`).
 - **`kinetiqo/web-mcp:latest` (Kinetiqo + MCP)**: Runs the Web Dashboard on port `4444`, the Cron sync daemon, and the **FastMCP SSE Server on standard port `8000`** in parallel (`ENABLE_MCP=1`).
 
-Both variants include full system Chromium and Playwright, supporting all 35 MCP tools including Group E visual poster and infographic exports.
+Both variants include full system Chromium and Playwright, supporting all 32 default read-only MCP tools—including Group E visual poster and infographic exports—and up to 36 tools when mutation gates are enabled.
 
 #### A. Docker Run with Embedded FastMCP (All Options)
 
@@ -293,7 +293,14 @@ When Kinetiqo is running as a Docker daemon on your computer or local network, c
 }
 ```
 
-#### Method B: Ephemeral Execution via STDIO
+#### Method B: Streamable HTTP
+
+For an MCP client that supports streamable HTTP, start Kinetiqo with
+`python kinetiqo.py mcp --transport streamable-http --port 8000` and configure
+the client using its FastMCP streamable-HTTP connection flow. Use the
+client-supported FastMCP endpoint rather than the SSE-only `/sse` URL.
+
+#### Method C: Ephemeral Execution via STDIO
 
 If you prefer to run an on-demand container without keeping Kinetiqo running as a persistent daemon:
 
@@ -365,12 +372,18 @@ Once connected, your AI assistant automatically discovers Kinetiqo's tools. Here
 Kinetiqo includes pre-configured coaching workflows that you can invoke directly in supported clients (such as Claude Desktop):
 
 1. **`post_ride_debrief`**: A structured post-workout session debrief. Checks sensor coverage, evaluates Normalized Power and intensity factor, reviews heart-rate decoupling, checks freshness fatigue, and offers to render an activity art poster.
-2. **`race_readiness_assessment`**: An objective readiness check prior to an upcoming target event. Evaluates your current TSB form, acute:chronic workload ratio, and 5-minute / 20-minute power breakthroughs.
-3. **`poster_creative_director`**: Recommends typography, aspect ratios, and map tile layers (Mapy.cz Outdoor, Thunderforest, CARTO Dark Matter) to best showcase an epic route.
-4. **`weekly_training_review`**: Multi-week review of training volume (km, elevation), mechanical work (kJ, average watts, NP), goal pacing, and Acute:Chronic Workload Ratio (ACWR).
-5. **`endurance_recovery_advisor`**: Deep recovery analysis following 100km+ rides, evaluating your median turnaround rest days, days until your next hard ride, and TSB form rebound duration.
-6. **`season_power_audit`**: Comprehensive performance review tracking your standout power week of the year, Mean Maximal Power (MMP) curve, FTP breakthrough history, and benchmark PRs.
-7. **`training_habit_and_volume_profile`**: Behavioral audit of typical weekly kilometers, elevation gain, ride frequency, and preferred days of the week (Monday through Sunday).
+2. **`sync_and_update_strava`**: Guided fast/full sync, telemetry review, description preview, and gated publishing workflow.
+3. **`race_readiness_assessment`**: An objective readiness check prior to an upcoming target event. Evaluates current TSB form, acute:chronic workload ratio, and power breakthroughs.
+4. **`poster_creative_director`**: Recommends typography, aspect ratios, and map tile layers to best showcase an epic route.
+5. **`weekly_training_review`**: Multi-week review of training volume, mechanical work, goal pacing, and Acute:Chronic Workload Ratio (ACWR).
+6. **`endurance_recovery_advisor`**: Deep recovery analysis following 100km+ rides, evaluating turnaround and TSB rebound duration.
+7. **`season_power_audit`**: Comprehensive performance review tracking standout power weeks, Mean Maximal Power (MMP), FTP history, and benchmark PRs.
+8. **`training_habit_and_volume_profile`**: Behavioral audit of typical weekly kilometers, elevation gain, ride frequency, and preferred days.
+9. **`aerobic_decoupling_and_efficiency`**: Aerobic efficiency, cardiac-drift, and power-to-heart-rate review.
+10. **`ftp_breakthrough_and_power_zones_audit`**: FTP review, power breakthroughs, and Coggan-zone guidance.
+11. **`training_stress_and_overreaching_check`**: CTL/ATL/TSB, ramp-rate, and acute-to-chronic workload assessment.
+12. **`cadence_and_pedaling_efficiency_analysis`**: Cadence dynamics and pedaling-efficiency analysis.
+13. **`interval_session_quality_audit`**: Interval execution, recovery, consistency, and power-fade scorecard.
 
 ---
 

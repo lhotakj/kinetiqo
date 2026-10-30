@@ -350,11 +350,12 @@ def _parse_bool_option(value) -> bool:
 @click.option('--cache-ttl', type=int, default=60, help='Cache TTL in minutes.')
 @click.option('--clear-cache', is_flag=True, help='Clear the cache before syncing.')
 @click.option('--update-strava-description', '--update-strava', '-U', 'update_strava_description', default='true', help='Update Strava activity descriptions (true/false, 1/0, yes/no). Default: true.')
+@click.option('--retrigger-ai-agents', is_flag=True, help='Regenerate named AI-agent responses for eligible activities in this sync scope.')
 @click.option('--weather-data/--no-weather-data', default=None, help='Fetch missing historical weather data (default: enabled for fast sync only when the profile preference is enabled).')
 @click.option('--resync-weather', is_flag=True, help='Replace stored weather data in this sync scope; uses the same rolling quota guard.')
 @database_option
 @click.pass_context
-def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache, update_strava_description, weather_data, resync_weather, database):
+def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache, update_strava_description, retrigger_ai_agents, weather_data, resync_weather, database):
     """Synchronize activities with database."""
     _prepare_db(ctx.obj.config, database)
 
@@ -393,6 +394,7 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
                 user="-",
                 limit_days=limit_days,
                 update_strava=update_strava_flag,
+                retrigger_ai_agents=retrigger_ai_agents,
                 update_weather=weather_data,
                 resync_weather=resync_weather,
             ),

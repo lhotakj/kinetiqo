@@ -40,6 +40,15 @@ swim description:
   (matches the original single-`UPDATE_STRAVA` opt-in design) — no extra
   Strava API calls are made at all during sync.
 
+### Settings persistence
+
+Non-empty `UPDATE_STRAVA_*` environment values seed a blank stored template
+when the profile is initialized. After you save a non-empty template in
+**Settings**, that database value is authoritative on later application starts;
+the original environment value no longer overwrites it. This lets you use
+environment variables as deployment defaults while safely editing templates in
+the web interface.
+
 ## Placement (beginning or end)
 
 | Environment variable | Values | Default |

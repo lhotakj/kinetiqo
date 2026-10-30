@@ -231,22 +231,30 @@ _CELEBRATION_SUFFIX = " 🎉"
 
 SPECIAL_TOKENS = {
     "current-year", "current-month", "workout-summary",
-    "ai-agent", "agent-ai",
     "weather-basic", "weather-start",
     "weather-precipitation", "weather-wind",
 }
-AI_AGENT_TOKENS = frozenset({"ai-agent", "agent-ai"})
 AI_AGENT_TOKEN_PREFIX = "agent-ai-"
 
 
 def has_ai_agent_token(template: str) -> bool:
-    """Return whether a template contains a legacy or named AI-agent token."""
+    """Return whether a template contains a named AI-agent token."""
     if not template:
         return False
-    return any(
-        token in AI_AGENT_TOKENS or token.startswith(AI_AGENT_TOKEN_PREFIX)
-        for token in PLACEHOLDER_RE.findall(template)
-    )
+    return any(token.startswith(AI_AGENT_TOKEN_PREFIX) for token in PLACEHOLDER_RE.findall(template))
+
+
+def named_agent_tokens(template: str, agent_names: set[str]) -> list[str]:
+    """Return distinct configured named-agent tokens in template order."""
+    tokens: list[str] = []
+    for token in PLACEHOLDER_RE.findall(template or ""):
+        if (
+            token.startswith(AI_AGENT_TOKEN_PREFIX)
+            and token.removeprefix(AI_AGENT_TOKEN_PREFIX) in agent_names
+            and token not in tokens
+        ):
+            tokens.append(token)
+    return tokens
 
 PLACEHOLDER_RE = re.compile(r"\{\{([a-zA-Z0-9\-]+)\}\}")
 
@@ -673,11 +681,11 @@ class DescriptionContext:
                 self.last_weather_placeholder_missing = True
             return value
 
-        if token in AI_AGENT_TOKENS or token.startswith(AI_AGENT_TOKEN_PREFIX):
+        if token.startswith(AI_AGENT_TOKEN_PREFIX):
             if self.ai_enabled is False:
                 self.last_ai_status = "disabled"
                 return ""
-            agent_name = "default" if token in AI_AGENT_TOKENS else token.removeprefix(AI_AGENT_TOKEN_PREFIX)
+            agent_name = token.removeprefix(AI_AGENT_TOKEN_PREFIX)
             act_obj = activity or {}
             ai_responses = act_obj.get("ai_responses")
             if isinstance(ai_responses, str):
@@ -686,12 +694,10 @@ class DescriptionContext:
                 except Exception:
                     ai_responses = {}
             if isinstance(ai_responses, dict):
-                cached_tokens = (token, *AI_AGENT_TOKENS) if agent_name == "default" else (token,)
-                for tok in cached_tokens:
-                    if tok in ai_responses and ai_responses[tok]:
-                        self.last_ai_status = "cached"
-                        self._rendered_ai_content = True
-                        return str(ai_responses.get(tok) or "")
+                if ai_responses.get(token):
+                    self.last_ai_status = "cached"
+                    self._rendered_ai_content = True
+                    return str(ai_responses.get(token) or "")
 
             if self.ai_handler:
                 try:

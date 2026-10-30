@@ -18,7 +18,12 @@ from kinetiqo.profile_sync import (
     sync_gps_simplification_from_env,
     sync_athlete_weight_from_env,
 )
-from kinetiqo.strava_description import DescriptionContext, any_update_strava_template_configured, get_template_for_activity
+from kinetiqo.strava_description import (
+    DescriptionContext,
+    any_update_strava_template_configured,
+    get_template_for_activity,
+    named_agent_tokens,
+)
 from kinetiqo.weather import (
     WEATHER_RATE_LIMIT_STATE,
     WeatherProviderError,
@@ -213,6 +218,51 @@ class SyncService:
             if "id" in activity
         }
 
+    def _retrigger_ai_agents(
+        self,
+        description_context: DescriptionContext,
+        activity: dict,
+        agent_names: set[str],
+    ) -> list[str]:
+        """Refresh named-agent cache entries referenced by an activity template.
+
+        A successful response replaces its cached value. If an agent fails,
+        its prior response is retained so an optional Strava write can safely
+        use the previous text alongside successful fresh responses.
+        """
+        template = get_template_for_activity(
+            self.config, activity.get("sport_type", "")
+        )
+        tokens = named_agent_tokens(template, agent_names)
+        if not tokens or description_context.ai_handler is None:
+            return []
+
+        cached_responses = activity.get("ai_responses")
+        if isinstance(cached_responses, str):
+            try:
+                cached_responses = json.loads(cached_responses)
+            except (TypeError, ValueError):
+                cached_responses = {}
+        previous_responses = cached_responses if isinstance(cached_responses, dict) else {}
+        refreshed_responses: dict[str, str] = {}
+        failed_agents: list[str] = []
+
+        for token in tokens:
+            agent_name = token.removeprefix("agent-ai-")
+            response_text, status = description_context.ai_handler(activity, agent_name)
+            if response_text:
+                refreshed_responses[token] = response_text
+            else:
+                if previous_responses.get(token):
+                    refreshed_responses[token] = str(previous_responses[token])
+                failed_agents.append(f"{agent_name} ({status})")
+
+        activity["ai_responses"] = refreshed_responses
+        activity_id = activity.get("id") or activity.get("activity_id")
+        if activity_id and hasattr(self.db, "update_activity_ai_responses"):
+            self.db.update_activity_ai_responses(activity_id, refreshed_responses)
+        return failed_agents
+
     def sync(
         self,
         full_sync: bool = True,
@@ -220,6 +270,7 @@ class SyncService:
         user: str = "-",
         limit_days: int = 0,
         update_strava: bool = True,
+        retrigger_ai_agents: bool = False,
         update_weather: bool | None = None,
         resync_weather: bool = False,
         cancel_requested=None,
@@ -374,7 +425,8 @@ class SyncService:
 
             description_context = None
             description_update_ids: set[str] = set()
-            if update_strava and any_update_strava_template_configured(self.config):
+            ai_agent_names: set[str] = set()
+            if (update_strava or retrigger_ai_agents) and any_update_strava_template_configured(self.config):
                 ai_handler = None
                 ai_enabled = False
                 try:
@@ -391,6 +443,7 @@ class SyncService:
                         for agent in agents_config.get("agents", [])
                         if isinstance(agent, dict) and agent.get("name")
                     } if ai_enabled else {}
+                    ai_agent_names = set(agents)
 
                     secret_key = getattr(self.config, "secret_key", "") or os.getenv("SECRET_KEY", "")
                     if not secret_key:
@@ -759,7 +812,19 @@ class SyncService:
 
                     desc_suffix = ""
                     ai_suffix = ""
-                    if act_id_str in description_update_ids:
+                    if retrigger_ai_agents and act_id_str in description_update_ids:
+                        failed_agents = self._retrigger_ai_agents(
+                            description_context, activity, ai_agent_names
+                        )
+                        if failed_agents:
+                            warning = (
+                                f"AI Agent regeneration failed for activity {activity_id} "
+                                f"('{name}'): {', '.join(failed_agents)}. "
+                                "Previous cached response(s) were retained."
+                            )
+                            sync_warnings.append(warning)
+                            ai_suffix = " [AI: regeneration warning]"
+                    if update_strava and act_id_str in description_update_ids:
                         if is_existing and "ai_responses" not in activity and hasattr(
                             self.db, "get_activity_ai_responses"
                         ):

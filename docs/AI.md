@@ -31,24 +31,31 @@ Athletes can ask nuanced training questions in plain language:
 
 ### 2.1 Direct Grounding via 32 Read-Only MCP Tools
 The assistant does not guess or hallucinate metrics. When asked a training question, it autonomously discovers and calls in-process read-only tools:
-- **Activity Discovery & Streams**: `kinetiqo_get_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`.
+- **Activity Discovery & Streams**: `kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`, and route/period comparison tools.
 - **Activity Weather**: `kinetiqo_get_activity_weather` returns saved hourly historical weather and provenance for an activity. It is read-only, bounded, never requests weather, and never returns GPS coordinates. Configure `VISUAL_CROSSING_API_KEY` and enable weather during sync to populate it; see [Weather enrichment](weather.md).
 - **Power & Performance**: `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`, `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`.
-- **Fitness & Freshness**: `kinetiqo_get_fitness_freshness` (computing daily CTL, ATL, and TSB form using athlete-specific exponential moving averages).
-- **Milestones & Trophies**: `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.
-- **Visual Artifacts**: `kinetiqo_generate_poster_preview`, `kinetiqo_export_infographic`.
+- **Fitness & Freshness**: `kinetiqo_get_fitness_and_freshness` (computing daily CTL, ATL, and TSB form using athlete-specific exponential moving averages).
+- **Milestones & Trophies**: `kinetiqo_get_verified_koms`, `kinetiqo_get_segment_trophies`, `kinetiqo_get_fondo_milestones`, and `kinetiqo_get_training_goals`.
+- **Visual Artifacts**: `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic`, and `kinetiqo_generate_map_artifact`.
 
 ### 2.2 Transparent Data Provenance ("Data used")
 Every assistant answer that queries athlete telemetry features a prominent, interactive **"Data used (X local queries)"** toggle in the message footer. Clicking it exposes the exact underlying analytical tools and execution latency (e.g., `get fitness freshness (18ms)`, `get personal records (24ms)`).
 
 ### 2.3 Pre-Built Athlete Coaching & Operations Workflows
-Integrated prompt workflows in `src/kinetiqo/mcp/prompts.py` equip the AI with structured evaluation frameworks:
+The 13 integrated prompt workflows in `src/kinetiqo/mcp/prompts.py` equip the AI with structured evaluation frameworks:
 1. **Post-Ride Debrief (`post_ride_debrief`)**: Analyzes sensor coverage, sustained power blocks, sprint surges, pacing splits, and offers commemorative poster generation or Strava description updates.
 2. **Sync & Strava Update Workflow (`sync_and_update_strava`)**: Initiates fast or full sync with customizable time limits (`limit_days`), validates imported telemetry, formulates custom workout summaries, and publishes updated descriptions to Strava.
-3. **Recovery & Freshness Audit (`endurance_recovery_advisor`)**: Evaluates TSB (Form) vs ATL (Fatigue) and CTL (Fitness) after major endurance milestones.
-4. **VO₂max & FTP Progression (`ftp_breakthrough_and_power_zones_audit`)**: Analyzes 5-min MAP power trend lines, 95% 20-min FTP steps, and Coggan power training zones.
-5. **Race Readiness Assessment (`race_readiness_assessment`)**: Evaluates athlete form, peak power skills, and acute:chronic training workload prior to target events.
-6. **Training Stress & Overreaching Check (`training_stress_and_overreaching_check`)**: Audits ACWR ratios, CTL ramp rates, and fatigue accumulation to prevent overtraining.
+3. **Race Readiness Assessment (`race_readiness_assessment`)**: Evaluates athlete form, peak power skills, and acute:chronic training workload prior to target events.
+4. **Poster Creative Director (`poster_creative_director`)**: Recommends a visual direction, typography, and map styling for an activity poster.
+5. **Weekly Training Review (`weekly_training_review`)**: Reviews volume, elevation, mechanical work, goals, and workload trends.
+6. **Recovery & Freshness Audit (`endurance_recovery_advisor`)**: Evaluates TSB (Form), ATL (Fatigue), and CTL (Fitness) after major endurance milestones.
+7. **Season Power Audit (`season_power_audit`)**: Audits season power, Mean Maximal Power, FTP history, and benchmark records.
+8. **Training Habit & Volume Profile (`training_habit_and_volume_profile`)**: Examines recurring weekly volume, elevation, ride frequency, and day-of-week habits.
+9. **Aerobic Decoupling & Efficiency (`aerobic_decoupling_and_efficiency`)**: Reviews aerobic efficiency and cardiac drift.
+10. **VO₂max & FTP Progression (`ftp_breakthrough_and_power_zones_audit`)**: Analyzes 5-minute MAP trends, 95% 20-minute FTP steps, and Coggan power zones.
+11. **Training Stress & Overreaching Check (`training_stress_and_overreaching_check`)**: Audits ACWR ratios, CTL ramp rates, and fatigue accumulation.
+12. **Cadence & Pedaling Efficiency (`cadence_and_pedaling_efficiency_analysis`)**: Analyzes cadence dynamics and pedaling efficiency.
+13. **Interval Session Quality (`interval_session_quality_audit`)**: Evaluates interval execution, recovery, consistency, and power fade.
 
 ---
 
@@ -69,9 +76,13 @@ Integrated prompt workflows in `src/kinetiqo/mcp/prompts.py` equip the AI with s
 
 ### 3.1 Named Strava Description Agents
 
-The **Settings → Strava description templates** panel supports multiple specialized Kinetiqo Agents. Use the orange **+ Add Agent** action in the top-right of the agent panel to add one. A new row initially displays `{{agent-ai-<new>}}`; as its name is typed, its placeholder updates to the normalized lowercase slug, such as `{{agent-ai-indoor-bike}}` or `{{agent-ai-hike}}`. The variable picker lists only configured, enabled named-agent placeholders, never obsolete generic aliases. Each agent response is cached independently per activity. Saving an agent prompt clears that agent's cached responses so the next eligible sync generates fresh text; an empty prompt intentionally skips the AI call and resolves its placeholder to empty text. Description output uses the **✨ Kinetiqo AI** prefix only when an AI placeholder produced content; otherwise it uses **✨ Kinetiqo**. Template mini-headers use the AI label when their text contains a named `{{agent-ai-...}}` placeholder.
+The **Settings → Strava description templates** panel supports multiple specialized Kinetiqo Agents. Use the orange **+ Add Agent** action in the top-right of the agent panel to append a draft row. Every row displays its variable below the Name input—initially `{{agent-ai-<new>}}`, then its normalized lowercase slug such as `{{agent-ai-indoor-bike}}`—and has a larger prompt editor. Rows are separated for readability. The variable picker lists only configured, enabled named-agent placeholders; legacy generic aliases are unsupported. Each agent response is cached independently per activity. Saving an agent prompt clears that agent's cached responses so the next eligible sync generates fresh text; an empty prompt intentionally skips the AI call and resolves its placeholder to empty text. Description output uses the **✨ Kinetiqo AI** prefix only when an AI placeholder produced content; otherwise it uses **✨ Kinetiqo**. Template mini-headers use the AI label when their text contains a named `{{agent-ai-...}}` placeholder.
 
-Removing an agent used by templates requires confirmation, then removes its placeholder from those templates and refreshes Settings.
+Use **Try this prompt with your activity** beside an agent prompt to open its larger preview dialog. There, start typing an activity name or full/partial Strava activity ID, select one result, then use the dialog's final **Try** action. **Try** requires enabled agents and an explicitly selected default AI model. The dialog uses the standard dark backdrop and animated loading asset while progressing through activity preparation, model generation, and response completion, then shows the response and any fallback-model status. Previews never save the prompt, cache a response, modify the activity, or call Strava.
+
+**Delete agent** opens a dark-overlay confirmation dialog for every row, including drafts. For a referenced saved agent, it lists the affected templates and explains that confirming removes the agent placeholder from each of them.
+
+On Fast or Full Sync, **Retrigger AI agents** is off by default. When enabled, it refreshes named-agent responses only for named placeholders referenced by each of the newest 30 eligible activities in the selected sync scope. Successful responses replace cached values; failed agents retain their prior cached value and are reported in the live log and final warning summary. This cache refresh does not write to Strava unless **Update Strava description** is also selected; when it is, the description can use fresh successful responses alongside retained failed-agent responses. The CLI equivalent is `--retrigger-ai-agents`.
 
 Kinetiqo separates the chat orchestration service from underlying AI providers, allowing athletes to choose the intelligence engine that best fits their budget, speed, and privacy preferences:
 

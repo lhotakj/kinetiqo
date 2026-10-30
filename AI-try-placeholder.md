@@ -1,4 +1,4 @@
-# AI Agent "Try This Prompt on Your Activity" Plan
+# AI Agent "Try This Prompt With Your Activity" Plan
 
 ## Goal
 
@@ -10,15 +10,17 @@ as the `{{agent-ai-<name>}}` placeholder during Strava-description rendering.
 
 ## Scope and user experience
 
-1. Add a per-agent **Try** control to the Strava AI Agent editor in
+1. Add a per-agent **Try this prompt with your activity** control to the Strava AI Agent editor in
    `src/kinetiqo/web/templates/settings.html`.
-   - It includes a text input whose placeholder is `Start typing name of the
-     activity or Strava ID`.
-   - The **Try** button is disabled by default and becomes enabled only when:
+   - Each row shows only its launcher button. Clicking it opens a modal that
+     contains the text input with placeholder `Start typing name of the
+     activity or Strava ID`, result list, and final **Try** action.
+   - The row launcher is disabled unless:
      - AI agents are enabled,
      - the current row's prompt textarea contains non-whitespace text,
-     - a valid activity has been selected, and
      - the athlete has an explicitly configured default AI model.
+   - The final modal action remains disabled until a valid activity has been
+     selected.
    - The control works for draft rows and uses the textarea's current,
      unsaved value. It never saves that value automatically.
    - While a test is running, the row's prompt textarea is read-only and has
@@ -42,10 +44,12 @@ as the `{{agent-ai-<name>}}` placeholder during Strava-description rendering.
      monotonic request sequence.
 
 3. Run and present the preview.
-   - Clicking **Try** opens a modal immediately. It shows the standard
-     `kinetiqo-loading-32x32.webp` loading image and progress text while the
-     request is pending. The close button remains disabled until completion;
-     closing never cancels a completed or in-flight generation.
+   - The row **Try this prompt with your activity** launcher opens a larger modal using the 65%-black
+     activities-page backdrop. Its final **Try** action shows the standard
+     `kinetiqo-loading-32x32.webp` loading image and staged chat-style
+     AI-processing messages while the request is pending. The close button
+     remains disabled until completion; closing never cancels a completed or
+     in-flight generation.
    - The action button is disabled and replaces its contents exclusively with
      the standard loading image while pending, then restores its original
      markup in `finally`.
@@ -53,7 +57,7 @@ as the `{{agent-ai-<name>}}` placeholder during Strava-description rendering.
      runner status (`generated` or the fallback-model status), then enables
      Close.
    - On failure, replace the modal progress view with the error and enable
-     Close. Also render the same error in red beside that row's **Try** button.
+     Close.
    - A trial must not write `activities.ai_responses`, mutate the selected
      activity, save the agent prompt, or make any Strava API request.
 

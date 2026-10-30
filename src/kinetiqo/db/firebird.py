@@ -835,8 +835,6 @@ class FirebirdRepository(DatabaseRepository):
     def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
         self._ensure_connected()
         tokens = {f"agent-ai-{agent_name}"}
-        if agent_name == "default":
-            tokens.update({"ai-agent", "agent-ai"})
         affected = 0
         with self.conn.cursor() as cur:
             cur.execute('SELECT "activity_id", "ai_responses" FROM "activities" WHERE "ai_responses" IS NOT NULL')
@@ -1307,18 +1305,13 @@ class FirebirdRepository(DatabaseRepository):
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token", '
-                '"gps_simplification", "agent_prompt", "strava_agents_config", "enable_weather_data" '
+                '"gps_simplification", "strava_agents_config", "enable_weather_data" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
             if not row:
                 return None
-            agent_prompt_raw = row[13] if len(row) > 13 else None
-            strava_agents_config_raw = row[14] if len(row) > 14 else None
-            if hasattr(agent_prompt_raw, 'read'):
-                agent_prompt_val = agent_prompt_raw.read()
-            else:
-                agent_prompt_val = agent_prompt_raw
+            strava_agents_config_raw = row[13] if len(row) > 13 else None
             strava_agents_config_val = (
                 strava_agents_config_raw.read()
                 if hasattr(strava_agents_config_raw, 'read')
@@ -1338,9 +1331,8 @@ class FirebirdRepository(DatabaseRepository):
                 'update_strava_swimming': row[10],
                 'refresh_token': row[11],
                 'gps_simplification': row[12],
-                'agent_prompt': agent_prompt_val or '',
                 'strava_agents_config': strava_agents_config_val or '',
-                'enable_weather_data': bool(row[15]) if len(row) > 15 else False,
+                'enable_weather_data': bool(row[14]) if len(row) > 14 else False,
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
@@ -1349,7 +1341,6 @@ class FirebirdRepository(DatabaseRepository):
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
-                       agent_prompt: Optional[str] = None,
                        strava_agents_config: Optional[str] = None,
                        enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
@@ -1363,7 +1354,6 @@ class FirebirdRepository(DatabaseRepository):
         effective_walking = update_strava_walking
         effective_swimming = update_strava_swimming
         effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
-        effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt', '') if existing else '')
         effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config', '') if existing else '')
         effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
         with self.conn.cursor() as cur:
@@ -1372,14 +1362,14 @@ class FirebirdRepository(DatabaseRepository):
                 '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "agent_prompt", "strava_agents_config", "enable_weather_data") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "strava_agents_config", "enable_weather_data") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight, effective_ftp,
                  effective_cycling_indoor, effective_cycling_outdoor,
                  effective_running_indoor, effective_running_outdoor,
                  effective_walking, effective_swimming, effective_refresh_token,
-                 effective_gps_simplification, effective_agent_prompt or '', effective_strava_agents_config or '',
+                 effective_gps_simplification, effective_strava_agents_config or '',
                  int(effective_enable_weather_data))
             )
         self.conn.commit()
@@ -1692,8 +1682,8 @@ class FirebirdRepository(DatabaseRepository):
 
         keyword = filters.get("keyword") or filters.get("query")
         if keyword:
-            where_clauses.append('LOWER("name") LIKE LOWER(?)')
-            params.append(f"%{keyword}%")
+            where_clauses.append('(LOWER("name") LIKE LOWER(?) OR CAST("activity_id" AS VARCHAR(20)) LIKE ?)')
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
 
         if cursor:
             decoded = decode_cursor(cursor)

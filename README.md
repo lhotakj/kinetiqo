@@ -92,7 +92,7 @@ Visualize your progress with the **built-in Web UI** or integrate with your pref
 - 🚀 **Response Compression**: All HTTP responses (HTML, JSON, static assets) are automatically compressed via `flask-compress` (gzip/brotli), reducing transfer sizes by 74–99%.
 - 🔒 **Security & Authentication**: OAuth 2.0 for Strava, `flask-login` session authentication, and `flask-wtf` CSRF protection on all mutating routes.
 - 🔔 **Version Check**: Asynchronous, cached check for new releases against GitHub.
-- 🤖 **Model Context Protocol (MCP) Server**: Built-in FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO or FastMCP SSE over HTTP. Offers 35 evidence-based tools across activity discovery, telemetry time-series, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact generation, with strictly gated mutation flags. See [Model Context Protocol (MCP) Server](#model-context-protocol-mcp-server).
+- 🤖 **Model Context Protocol (MCP) Server**: Built-in FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO, SSE, or streamable HTTP. It exposes 32 evidence-based read-only tools by default and up to 36 tools when explicit mutation gates are enabled, across activity discovery, telemetry time-series, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact generation. See [Model Context Protocol (MCP) Server](#model-context-protocol-mcp-server).
 
 ---
 
@@ -639,6 +639,7 @@ The CLI tool is located in the `src` directory.
     -   `--fast-sync` / `-q`: Executes an incremental synchronization.
     -   `--period` / `-p`: Restricts full synchronization to a specific timeframe (e.g., '7d', '2w', '1m', '1y').
     -   `--update-strava-description` / `--update-strava` / `-U`: Control Strava description auto-updates (`true`/`1`/`yes` or `false`/`0`/`no`, case-insensitive). Default: `true`.
+    -   `--retrigger-ai-agents`: Regenerate named AI-agent responses for eligible activities in the selected sync scope. The existing description-update cap still applies; this flag does not write to Strava unless description updates are enabled.
     -   `--enable-strava-cache`: Activates API response caching.
     -   `--cache-ttl`: Defines cache time-to-live in minutes (default: 60).
     -   `--clear-cache`: Purges the cache prior to synchronization.
@@ -698,7 +699,7 @@ python kinetiqo.py --database mysql web --port 8000
 
 ### Model Context Protocol (MCP) Server
 
-Kinetiqo includes a native [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server based on the official FastMCP Python SDK. It allows AI assistants—such as **Google Antigravity IDE**, **Claude Desktop**, **Cursor**, and **OpenClaw**—to connect directly to your local fitness data warehouse via STDIO, performing evidence-based workout analysis, telemetry stream inspection, power curve computation, and creative artifact generation.
+Kinetiqo includes a native [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server based on the official FastMCP Python SDK. It allows AI assistants—such as **Google Antigravity IDE**, **Claude Desktop**, **Cursor**, and **OpenClaw**—to connect directly to your local fitness data warehouse via STDIO, SSE, or streamable HTTP, performing evidence-based workout analysis, telemetry stream inspection, power curve computation, and creative artifact generation.
 
 📖 **Full Model Context Protocol (MCP) User Guide: [docs/MCP.md](docs/MCP.md)**
 
@@ -712,6 +713,9 @@ python kinetiqo.py mcp
 
 # Run MCP server over FastMCP SSE
 python kinetiqo.py mcp --transport sse --port 8000
+
+# Run MCP server over FastMCP streamable HTTP
+python kinetiqo.py mcp --transport streamable-http --port 8000
 
 # Run MCP server with a specific database backend
 python kinetiqo.py --database postgresql mcp
@@ -839,7 +843,7 @@ Kinetiqo builds two official container variants:
 
 #### MCP Toolset Reference
 
-Kinetiqo exposes 35 specialized tools across 6 functional groups:
+Kinetiqo exposes **32 specialized read-only tools** across 6 functional groups by default. Enabling all three explicit mutation gates adds four write tools, for a maximum of **36**:
 
 | Group | Tools Included | Description | Mutating? |
 |---|---|---|---|
@@ -867,6 +871,11 @@ Kinetiqo exposes 35 specialized tools across 6 functional groups:
   - `endurance_recovery_advisor`: Post-100km+ recovery analysis detailing turnaround rest days, days to hard workouts, and TSB rebound.
   - `season_power_audit`: Deep-dive audit of season power output, standout power week, MMP power curves, and benchmark PRs.
   - `training_habit_and_volume_profile`: Behavioral analysis of typical weekly kilometers, elevation gain, and day-of-week routines.
+  - `aerobic_decoupling_and_efficiency`: Aerobic efficiency, cardiac drift, and power-to-heart-rate review.
+  - `ftp_breakthrough_and_power_zones_audit`: FTP progression, power breakthroughs, and Coggan-zone review.
+  - `training_stress_and_overreaching_check`: CTL/ATL/TSB, ramp-rate, and acute-to-chronic workload assessment.
+  - `cadence_and_pedaling_efficiency_analysis`: Cadence dynamics and pedaling-efficiency analysis.
+  - `interval_session_quality_audit`: Interval execution, recovery, consistency, and power-fade scorecard.
 
 #### Gated Mutation Controls
 
@@ -1136,7 +1145,7 @@ Kinetiqo publishes two official multi-architecture (`linux/amd64`, `linux/arm64`
 | **Standalone** | `kinetiqo/web:latest`<br>`kinetiqo/web:x.y.z` | `4444` | • Flask / Gunicorn Web UI (`0.0.0.0:4444`)<br>• Background Cron Sync Daemon (`FAST_SYNC`, `FULL_SYNC`)<br>• MCP disabled by default (`ENABLE_MCP=0`) | Standard self-hosted Strava data warehouse and web dashboard. |
 | **Kinetiqo + Embedded MCP** | `kinetiqo/web-mcp:latest`<br>`kinetiqo/web-mcp:x.y.z` | `4444`<br>`8000` | • Flask / Gunicorn Web UI (`0.0.0.0:4444`)<br>• Background Cron Sync Daemon (`FAST_SYNC`, `FULL_SYNC`)<br>• **FastMCP SSE Server (`0.0.0.0:8000/sse`)** in parallel (`ENABLE_MCP=1`) | AI assistant connectivity (Claude Desktop, Cursor, Antigravity IDE) directly to your data warehouse over HTTP/SSE without local Python or extra containers. |
 
-*(Note: Both images are full-featured with system Chromium, Playwright, and Firebird client pre-installed, supporting all 35 analytical tools including Group E visual poster and infographic exports).*
+*(Note: Both images are full-featured with system Chromium, Playwright, and Firebird client pre-installed, supporting all 32 default read-only tools—including Group E visual poster and infographic exports—and up to 36 tools with mutation gates enabled).*
 
 ---
 
@@ -1547,7 +1556,7 @@ Because Kinetiqo exposes FastMCP natively over Server-Sent Events (SSE) on port 
 }
 ```
 
-Once connected, your AI assistant automatically discovers all 35 analytical tools, resources, and pre-packaged coaching prompts.
+Once connected, your AI assistant automatically discovers 32 read-only tools, 6 resources, and 13 pre-packaged coaching prompts. Enabling all three mutation gates exposes up to 36 tools.
 
 ---
 
@@ -1558,7 +1567,7 @@ Once connected, your AI assistant automatically discovers all 35 analytical tool
 | **MCP Server** | `ENABLE_MCP` | `0` (`web`), `1` (`web-mcp`) | Concurrently run FastMCP server in background (`1`/`0`, `true`/`false`). |
 | | `MCP_PORT` | `8000` | Port for the FastMCP SSE server (standard non-privileged port). |
 | | `MCP_HOST` | `0.0.0.0` | Host interface IP binding for the MCP server. |
-| | `MCP_TRANSPORT` | `sse` | Transport protocol: `sse` (HTTP Server-Sent Events) or `stdio`. |
+| | `MCP_TRANSPORT` | `sse` | Transport protocol: `stdio`, `sse` (HTTP Server-Sent Events), or `streamable-http`. |
 | | `KINETIQO_MCP_ALLOW_SYNC` | `0` | If `1`, registers `kinetiqo_trigger_sync` enabling AI to trigger background syncs. |
 | | `KINETIQO_MCP_ALLOW_PROFILE_WRITE` | `0` | If `1`, registers `kinetiqo_update_athlete_profile` & `kinetiqo_update_training_goals`. |
 | | `KINETIQO_MCP_ALLOW_STRAVA_WRITE` | `0` | If `1`, registers `kinetiqo_update_strava_description` enabling AI to publish descriptions. |

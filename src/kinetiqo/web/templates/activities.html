@@ -1046,14 +1046,14 @@ var table = null;
                         if (!data) return '-';
                         let text = '';
                         if (typeof data === 'object') {
-                            text = data['ai-agent'] || Object.values(data)[0] || '';
+                            text = Object.values(data)[0] || '';
                         } else if (typeof data === 'string') {
                             try {
                                 const parsed = JSON.parse(data);
                                 if (Array.isArray(parsed) && parsed.length > 0) {
-                                    text = parsed[0]['ai-agent'] || Object.values(parsed[0])[0] || '';
+                                    text = Object.values(parsed[0])[0] || '';
                                 } else if (typeof parsed === 'object') {
-                                    text = parsed['ai-agent'] || Object.values(parsed)[0] || '';
+                                    text = Object.values(parsed)[0] || '';
                                 }
                             } catch (e) {
                                 text = data;
@@ -1808,14 +1808,14 @@ var table = null;
                     24: row => {
                             if (!row.ai_responses) return '';
                             if (typeof row.ai_responses === 'object') {
-                                return row.ai_responses['ai-agent'] || Object.values(row.ai_responses)[0] || '';
+                                return Object.values(row.ai_responses)[0] || '';
                             }
                             try {
                                 const parsed = JSON.parse(row.ai_responses);
                                 if (Array.isArray(parsed) && parsed.length > 0) {
-                                    return parsed[0]['ai-agent'] || Object.values(parsed[0])[0] || '';
+                                    return Object.values(parsed[0])[0] || '';
                                 }
-                                return parsed['ai-agent'] || Object.values(parsed)[0] || '';
+                                return Object.values(parsed)[0] || '';
                             } catch (e) {
                                 return String(row.ai_responses);
                             }

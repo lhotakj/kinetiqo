@@ -3645,7 +3645,6 @@ def _save_strava_agents_config(repo, profile: dict, config_value: dict) -> None:
         refresh_token=str(profile.get('refresh_token') or ''),
         ftp=profile.get('ftp'),
         gps_simplification=profile.get('gps_simplification'),
-        agent_prompt=str(profile.get('agent_prompt') or ''),
         strava_agents_config=json_module.dumps(config_value),
         **{field: str(profile.get(field) or '') for field in UPDATE_STRAVA_FIELDS},
     )
@@ -3684,6 +3683,89 @@ def strava_agents_api():
     agents_config['agents'].append(agent)
     _save_strava_agents_config(repo, profile, agents_config)
     return jsonify({'agent': agent}), 201
+
+
+@app.route('/api/profile/strava-agents/activities', methods=['GET'])
+@login_required
+def strava_agent_activities_api():
+    """Return local activity-picker matches scoped to the signed-in athlete."""
+    query = str(request.args.get('query') or '').strip()
+    if len(query) < 2:
+        return jsonify({'error': 'Enter at least two characters to search activities.', 'field': 'query'}), 422
+
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+
+    activities, _, _ = repo.search_activities(
+        athlete_id=int(profile['athlete_id']),
+        filters={'keyword': query, 'sort_by': 'start_date', 'sort_order': 'desc'},
+        limit=10,
+    )
+    return jsonify({
+        'activities': [
+            {
+                'id': str(activity.get('activity_id') or activity.get('id') or ''),
+                'name': str(activity.get('name') or ''),
+                'sport': str(activity.get('sport') or activity.get('type') or ''),
+                'start_date': activity.get('start_date') or '',
+            }
+            for activity in activities
+        ],
+    })
+
+
+@app.route('/api/profile/strava-agents/try', methods=['POST'])
+@login_required
+def try_strava_agent_prompt_api():
+    """Generate an uncached named-agent preview for one local activity."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object.'}), 422
+    prompt = data.get('prompt')
+    activity_id = str(data.get('activity_id') or '').strip()
+    if not isinstance(prompt, str) or not prompt.strip():
+        return jsonify({'error': 'Agent prompt cannot be empty.', 'field': 'prompt'}), 422
+    if not activity_id.isdigit():
+        return jsonify({'error': 'Select a valid Strava activity.', 'field': 'activity_id'}), 422
+
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+    if not _strava_agents_config(profile)['enabled']:
+        return jsonify({'error': 'Enable AI Agent before trying a prompt.', 'field': 'enabled'}), 422
+
+    chat_service = _chat_service()
+    athlete_id = str(profile['athlete_id'])
+    default_model = _normalize_default_model(chat_service.repository.get_default_model(
+        chat_service.repository.resolve_athlete_id(athlete_id)
+    ))
+    if default_model is None:
+        return jsonify({'error': 'Configure a default AI model before trying a prompt.', 'field': 'default_model'}), 422
+
+    activities, _, _ = repo.search_activities(
+        athlete_id=int(profile['athlete_id']),
+        filters={'keyword': activity_id, 'sort_by': 'start_date', 'sort_order': 'desc'},
+        limit=10,
+    )
+    activity = next(
+        (
+            candidate for candidate in activities
+            if str(candidate.get('activity_id') or candidate.get('id') or '') == activity_id
+        ),
+        None,
+    )
+    if activity is None:
+        return jsonify({'error': 'Selected activity was not found for this athlete.', 'field': 'activity_id'}), 404
+
+    from kinetiqo.chat.agent_runner import run_agent_prompt
+
+    response_text, status = run_agent_prompt(chat_service, athlete_id, activity, prompt)
+    if not response_text or status == 'failed':
+        return jsonify({'error': 'AI could not generate a preview. Please try again.'}), 502
+    return jsonify({'response': response_text, 'status': status})
 
 
 @app.route('/api/profile/strava-agents/<string:name>', methods=['PUT', 'DELETE'])
@@ -3746,7 +3828,7 @@ def strava_agent_api(name: str):
         if f"{{{{agent-ai-{normalized_name}}}}}" in str(profile.get(field) or "")
     ]
     confirm = bool((request.get_json() or {}).get('confirm'))
-    if referenced_by and not confirm:
+    if not confirm:
         return jsonify({'requires_confirmation': True, 'referenced_by': referenced_by}), 409
 
     if referenced_by:
@@ -3901,18 +3983,10 @@ def update_profile_api():
                 template_updates[field] = val
                 setattr(config, field, val)
 
-        if 'agent_prompt' in data:
-            agent_prompt = str(data['agent_prompt'] or '')
-            config.agent_prompt = agent_prompt
-        else:
-            agent_prompt = existing.get('agent_prompt', '')
-            config.agent_prompt = agent_prompt
-
         repo.upsert_profile(existing['athlete_id'], first_name, last_name, weight,
                             refresh_token=existing.get('refresh_token', '') or '',
                             ftp=ftp,
                             gps_simplification=gps_simplification,
-                            agent_prompt=agent_prompt,
                             enable_weather_data=enable_weather_data,
                             **template_updates)
 
@@ -3923,7 +3997,6 @@ def update_profile_api():
             'weight': weight,
             'ftp': ftp,
             'gps_simplification': gps_simplification,
-            'agent_prompt': agent_prompt,
             'enable_weather_data': enable_weather_data,
         }
         response_payload.update(template_updates)
@@ -4322,6 +4395,7 @@ def start_sync_ui(type):
         return jsonify({'error': 'You already have an active sync job.'}), 409
 
     update_strava = request.form.get('update_strava') in ('on', 'true', '1')
+    retrigger_ai_agents = request.form.get('retrigger_ai_agents') in ('on', 'true', '1')
     update_weather = 'on' in request.form.getlist('weather_data')
     resync_weather = request.form.get('resync_weather') in ('on', 'true', '1')
     if resync_weather and not update_weather:
@@ -4330,6 +4404,7 @@ def start_sync_ui(type):
         'full_sync': type == 'full',
         'limit_days': limit_days,
         'update_strava': update_strava,
+        'retrigger_ai_agents': retrigger_ai_agents,
         'update_weather': update_weather,
         'resync_weather': resync_weather,
     }
@@ -4359,6 +4434,7 @@ def start_sync_ui(type):
                 user=user_id,
                 limit_days=limit_days,
                 update_strava=update_strava,
+                retrigger_ai_agents=retrigger_ai_agents,
                 update_weather=update_weather,
                 resync_weather=resync_weather,
                 cancel_requested=cancellation_requested,

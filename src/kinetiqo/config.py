@@ -126,9 +126,6 @@ class Config:
     update_strava_walking: str = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
     update_strava_swimming: str = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
 
-    # Kinetiqo Agent custom prompt instructions for {{ai-agent}} placeholder
-    agent_prompt: str = os.getenv("KINETIQO_AGENT_PROMPT", "") or ""
-
     # Where the rendered block goes: "begin" (start of the description) or
     # "end" (appended after any existing text). Invalid values fall back to
     # the default with a logged warning (see __post_init__).
@@ -216,8 +213,6 @@ class Config:
         self.update_strava_running_outdoor = os.getenv("UPDATE_STRAVA_RUNNING_OUTDOOR", "") or ""
         self.update_strava_walking = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
         self.update_strava_swimming = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
-        self.agent_prompt = os.getenv("KINETIQO_AGENT_PROMPT", "") or ""
-
         raw_placement = os.getenv("UPDATE_STRAVA_PLACEMENT", DEFAULT_UPDATE_STRAVA_PLACEMENT) or DEFAULT_UPDATE_STRAVA_PLACEMENT
         self.update_strava_placement = raw_placement.strip().lower()
         if self.update_strava_placement not in UPDATE_STRAVA_PLACEMENT:

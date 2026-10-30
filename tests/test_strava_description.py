@@ -245,24 +245,16 @@ class TestMergeDescription(unittest.TestCase):
         self.assertNotIn("Stats: 10.", result)
         self.assertIn(f"{UPDATE_STRAVA_PREFIX} Stats: 20.\n", result)
 
-    def test_ai_template_uses_ai_prefix_and_replaces_standard_prefix_in_place(self):
+    def test_named_ai_template_uses_ai_prefix_and_replaces_standard_prefix_in_place(self):
         from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
         old_desc = f"{UPDATE_STRAVA_PREFIX} Old stats.\nNice ride!"
-        template = "Workout: {{ai-agent}}"
+        template = "Workout: {{agent-ai-road}}"
         rendered = "Workout: Great effort on hills"
         result = merge_description(old_desc, template, rendered)
         self.assertTrue(result.startswith(f"{UPDATE_STRAVA_AI_PREFIX} {rendered}\n"))
         self.assertIn("Nice ride!", result)
         self.assertNotIn("Old stats.", result)
         self.assertNotIn(f"{UPDATE_STRAVA_PREFIX} Old stats.", result)
-
-    def test_agent_ai_alias_token_uses_ai_prefix(self):
-        from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
-        old_desc = "Nice ride!"
-        template = "Summary: {{agent-ai}}"
-        rendered = "Summary: Super pace"
-        result = merge_description(old_desc, template, rendered)
-        self.assertEqual(result, f"Nice ride!\n\n{UPDATE_STRAVA_AI_PREFIX} {rendered}\n")
 
     def test_replaces_ai_prefix_with_standard_when_template_changes_to_non_ai_in_place(self):
         from kinetiqo.config import UPDATE_STRAVA_AI_PREFIX
@@ -619,7 +611,7 @@ class TestValidateTemplate(unittest.TestCase):
             "Distance: {{cycling-distance-total-year}}",
             "Goal: {{cycling-distance-goal-outdoor-month}}",
             "Multiple: {{running-count-indoor-week}} and {{walking-distance-total-month}}",
-            "AI: {{ai-agent}} and alias {{agent-ai}}",
+            "AI: {{agent-ai-road}}",
         ]
         for t in valid_examples:
             with self.subTest(template=t):

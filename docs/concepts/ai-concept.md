@@ -72,7 +72,7 @@ A user can:
 - Brand color composer animation (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`) during live streaming.
 - Assistant message footer: 1px top divider (`#e5e7eb` / `#3f3f46`), unified right-aligned metadata row (`text-xs text-gray-500 dark:text-zinc-400 font-sans`), and transparent provenance list readable in both themes.
 - 32 read-only Kinetiqo telemetry tools through the in-process FastMCP layer, including the bounded, stored activity-weather tool, with strict mutating tool exclusion and `CYCLING_SPORT_TYPES` power filtering.
-- 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
+- 13 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
 - "Data used" provenance indicator per assistant turn.
 - Dynamic mid-conversation provider and model switching: Changing the active model dropdown mid-conversation updates session provider and model metadata, re-routing turns and tool declarations to the new provider adapter seamlessly.
 - Unit tests, route tests, security tests, documentation (`docs/AI.md`), and synchronization skill.
@@ -620,9 +620,13 @@ The Settings page provides a unified **AI & API Providers** panel:
 
 #### Named Strava Description Agents
 
-Strava description generation persists the feature's complete user-specific state in `profile.strava_agents_config`, a JSON column with an `enabled` flag and named-agent list. Names are normalized to unique lowercase slugs and produce `{{agent-ai-<name>}}` placeholders. The Settings editor creates a first grid row with the draft token `{{agent-ai-<new>}}`, updates that token live as the name is typed, and fixes the name column width so long tokens truncate without reflowing the prompt column. Its top-right orange **+ Add Agent** action creates the draft row.
+Strava description generation persists the feature's complete user-specific state in `profile.strava_agents_config`, a JSON column with an `enabled` flag and named-agent list. Names are normalized to unique lowercase slugs and produce `{{agent-ai-<name>}}` placeholders; only named agent placeholders are supported. The Settings editor appends a draft row with `{{agent-ai-<new>}}`, updates that token live as the name is typed, renders the variable and explanation directly beneath Name, uses a six-row `text-base` prompt editor, and separates entries with thin dividers. Each row provides **Try this prompt with your activity** and an Activities-style **Delete agent** button. Deletion always requires a 65%-black-overlay confirmation; referenced agents additionally list the template fields whose placeholders will be removed.
 
 Only enabled, configured named-agent tokens appear in the template-variable picker; obsolete generic aliases are excluded. Responses remain in each activity's `ai_responses` JSON object under the complete named token. Updating a prompt removes only that token's cached responses across activities, ensuring the next sync calls the configured provider with fresh instructions. An empty prompt is a deliberate no-op that resolves its placeholder to an empty string without an API call. The persisted description uses the AI prefix only when a resolved AI token supplied content; a skipped or failed request uses the standard Kinetiqo prefix. Deleting a referenced agent requires explicit confirmation, strips its placeholder from all affected `UPDATE_STRAVA_*` templates, purges its cached responses, and then deletes the agent record.
+
+Each agent row also exposes a non-persistent **Try this prompt with your activity** preview launcher. Its larger dialog uses the same 65%-black backdrop as the activities column selector and owns the activity picker and final **Try** action; the picker debounces name or partial/full Strava activity-ID queries for 250 ms, requires at least two characters, scopes results to the profile athlete, and returns at most ten newest summaries. While the final action runs, the dialog displays the standard animated loading asset and progresses through context preparation, model generation, and response completion while blocking dismissal. The preview endpoint requires enabled agents, a non-empty submitted prompt, an explicit default model, and a selected local activity owned by that athlete. It calls `run_agent_prompt()` directly to preserve the production telemetry/system-instruction/model-fallback contract, rather than `DescriptionContext`, because `DescriptionContext` persists `ai_responses`. Preview responses are never saved to `activities.ai_responses`, do not modify activity data, and do not call Strava.
+
+`SyncService.sync()` accepts `retrigger_ai_agents`, surfaced as the unchecked **Retrigger AI agents** checkbox in both sync pages and `kinetiqo.py sync --retrigger-ai-agents`. The same newest-30 eligible activity cap used for description work bounds regeneration. For each eligible activity, sync identifies configured named-agent tokens in the applicable template, calls only those agents, and writes the refreshed cache before any optional description update. A successful response replaces its cached token. On failure, sync retains that token's previous cached response, emits an activity-specific warning in the live log, and includes it in the final warning count. The retrigger flag alone never writes to Strava; `update_strava` must also be true. In that case the rendered description uses fresh successes together with any retained failure responses.
 
 1. **"+ Add AI Provider" Action**:
    - A dropdown or button bar allowing the athlete to add **Google Gemini** or **OpenRouter AI**.
@@ -803,11 +807,13 @@ Kinetiqo implements **in-process read-only tool calling** via `src/kinetiqo/chat
 
 Build the tool catalog dynamically from registered FastMCP tool definitions and explicitly exclude all mutating tools. In Kinetiqo v3.0, 32 read-only telemetry and analytics tools are exposed:
 
-- `kinetiqo_search_activities`, `kinetiqo_get_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`.
+- Activity discovery: `kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_totals`, `kinetiqo_compare_activities`, `kinetiqo_compare_periods`, `kinetiqo_find_similar_routes`, and `kinetiqo_compare_route_attempts`.
 - `kinetiqo_get_activity_weather` returns saved hourly historical observations and provenance for an activity. It makes no provider request, excludes GPS coordinates, and is bounded by the requested hourly sample limit. `VISUAL_CROSSING_API_KEY` is used only during enabled sync-time enrichment, never by chat.
-- `kinetiqo_get_fitness_and_freshness` (CTL/ATL/TSB models), `kinetiqo_calculate_power_curve` (MMP), `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`.
-- `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_weekly_training_profile`, `kinetiqo_analyze_recovery_turnaround`.
-- `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.
+- Telemetry and power: `kinetiqo_get_activity_streams`, `kinetiqo_get_data_coverage`, `kinetiqo_calculate_power_curve`, `kinetiqo_get_personal_records`, `kinetiqo_analyze_workout_structure`, `kinetiqo_analyze_pacing`, and `kinetiqo_get_route_highlights`.
+- Physiology: `kinetiqo_get_fitness_and_freshness` (CTL/ATL/TSB models), `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_power_skills`, `kinetiqo_get_training_load_trends`, `kinetiqo_get_weekly_training_profile`, and `kinetiqo_analyze_recovery_turnaround`.
+- Achievements and goals: `kinetiqo_get_verified_koms`, `kinetiqo_get_segment_trophies`, `kinetiqo_get_fondo_milestones`, and `kinetiqo_get_training_goals`.
+- Visual artifacts: `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic`, and `kinetiqo_generate_map_artifact`.
+- Operations: `kinetiqo_get_sync_job_status` and `kinetiqo_preview_strava_description`.
 - Activity filtering strictly enforces `CYCLING_SPORT_TYPES = ["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]` for cycling power analysis.
 
 Explicitly excluded from chat (never exposed to in-browser chat, regardless of `KINETIQO_MCP_ALLOW_*` flags):
@@ -821,7 +827,7 @@ MCP mutation flags are not a substitute for a chat-specific allowlist. The chat 
 
 ### 10.3 FastMCP External Server & Mutating Operations (`kinetiqo mcp`)
 
-For external AI assistants connecting via the FastMCP server (`kinetiqo mcp` via STDIO or FastMCP SSE), mutating operations are conditionally registered when explicit environment flags are set:
+For external AI assistants connecting via the FastMCP server (`kinetiqo mcp` via STDIO, FastMCP SSE, or streamable HTTP), mutating operations are conditionally registered when explicit environment flags are set:
 
 1. **`kinetiqo_trigger_sync`** (`KINETIQO_MCP_ALLOW_SYNC=1`):
    - Parameters: `sync_type: str = "fast"` ("fast" or "full"), `limit_days: int = 0` (lookback time limitation window in days, 0 for unbounded), `update_strava: bool = True`, `full_sync_ack: bool = False`.
@@ -833,6 +839,8 @@ For external AI assistants connecting via the FastMCP server (`kinetiqo mcp` via
    - Allows updating Strava activity descriptions using either a pre-rendered template preview (`preview_id`) or an evidence-based custom description text formulated directly as part of an AI prompt or debrief.
 3. **`kinetiqo_update_athlete_profile`** (`KINETIQO_MCP_ALLOW_PROFILE_WRITE=1`):
    - Parameters: `weight_kg: Optional[float] = None`, `ftp_watts: Optional[float] = None` (with strict physiological validation bounds).
+4. **`kinetiqo_update_training_goals`** (`KINETIQO_MCP_ALLOW_PROFILE_WRITE=1`):
+   - Updates a distance or elevation goal for a supported period and activity group.
 
 ### 10.4 Pre-Packaged MCP Coaching & Operations Prompts
 
@@ -1049,7 +1057,7 @@ Use `unittest.mock.patch` with class-level patches following `tests/test_sync_lo
 - [x] **Phase 2 — Gemini Provider**: Key validation, dynamic model discovery, SSE streaming, error taxonomy.
 - [x] **Phase 3 — Chat Service & Tools**: 32 read-only FastMCP tools bound in-process, Coggan/Banister system prompt, provenance persistence.
 - [x] **Phase 4 — Chat UI**: Sidebar sessions with hover delete (`×`), brand animated composer, assistant footer with 1px top divider, unified metadata row, transparent provenance.
-- [x] **Phase 5 — Coaching Workflows**: 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
+- [x] **Phase 5 — Coaching Workflows**: 13 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
 - [ ] **Phase 6 — OpenRouter Provider & Multi-Provider Settings**: See Section 19.
 
 ---

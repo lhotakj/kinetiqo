@@ -639,8 +639,6 @@ class MySQLRepository(DatabaseRepository):
     def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
         self._ensure_connected()
         tokens = {f"agent-ai-{agent_name}"}
-        if agent_name == "default":
-            tokens.update({"ai-agent", "agent-ai"})
         affected = 0
         with self.conn.cursor(dictionary=True) as cur:
             cur.execute("SELECT activity_id, ai_responses FROM activities WHERE ai_responses IS NOT NULL")
@@ -1079,7 +1077,7 @@ class MySQLRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification, agent_prompt, strava_agents_config, enable_weather_data "
+                "gps_simplification, strava_agents_config, enable_weather_data "
                 "FROM profile LIMIT 1"
             )
             return cur.fetchone()
@@ -1090,14 +1088,12 @@ class MySQLRepository(DatabaseRepository):
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
-                       agent_prompt: Optional[str] = None,
                        strava_agents_config: Optional[str] = None,
                        enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
-        effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt') if existing else "")
         effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config') if existing else "")
         effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
 
@@ -1107,8 +1103,8 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification, agent_prompt, strava_agents_config, enable_weather_data)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, strava_agents_config, enable_weather_data)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
@@ -1122,14 +1118,13 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_swimming         = VALUES(update_strava_swimming),
                     refresh_token                  = VALUES(refresh_token),
                     gps_simplification             = VALUES(gps_simplification),
-                    agent_prompt                   = VALUES(agent_prompt),
                     strava_agents_config           = VALUES(strava_agents_config),
                     enable_weather_data             = VALUES(enable_weather_data)
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification, effective_agent_prompt or "", effective_strava_agents_config or "",
+                  effective_gps_simplification, effective_strava_agents_config or "",
                   effective_enable_weather_data))
         self.conn.commit()
 
@@ -1443,8 +1438,8 @@ class MySQLRepository(DatabaseRepository):
 
         keyword = filters.get("keyword") or filters.get("query")
         if keyword:
-            where_clauses.append("name LIKE %s")
-            params.append(f"%{keyword}%")
+            where_clauses.append("(name LIKE %s OR CAST(activity_id AS CHAR) LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
 
         if cursor:
             decoded = decode_cursor(cursor)
