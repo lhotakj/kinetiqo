@@ -110,8 +110,11 @@ then stops and produces one warning; non-weather synchronization continues.
 For each hourly interval overlapping an activity:
 
 1. Use the midpoint of the clipped interval to interpolate a GPS position and
-   route bearing.
-2. Reject interpolation gaps greater than 15 minutes and do not extrapolate.
+   route bearing. A stationary bracket remains a valid position with no
+   bearing, and sparse routes use the nearest recorded point in the same
+   overlapping interval.
+2. Reject interpolation gaps greater than 15 minutes and do not extrapolate
+   outside the overlapping provider hour.
 3. Request one route location/hour from Visual Crossing and retain only the
    requested provider hour.
 4. Calculate headwind as

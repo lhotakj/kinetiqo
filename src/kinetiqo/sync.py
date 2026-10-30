@@ -755,6 +755,7 @@ class SyncService:
                         return
                     if weather_warning:
                         sync_warnings.append(weather_warning)
+                        yield yield_log(f"Warning: {weather_warning}")
 
                     desc_suffix = ""
                     ai_suffix = ""

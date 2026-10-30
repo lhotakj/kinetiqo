@@ -182,8 +182,8 @@ def _distance_metres(lat1: float, lon1: float, lat2: float, lon2: float) -> floa
 
 def interpolate_route_position(
     points: Sequence[Mapping[str, Any]], at: datetime,
-) -> dict[str, float] | None:
-    """Interpolate a GPS position and segment bearing without extrapolating."""
+) -> dict[str, float | None] | None:
+    """Interpolate a GPS position and optional segment bearing without extrapolating."""
     target = parse_utc(at)
     if target is None:
         return None
@@ -195,8 +195,6 @@ def interpolate_route_position(
             continue
         if left[0] <= target <= right[0]:
             bearing = _bearing_degrees(left[1], left[2], right[1], right[2])
-            if bearing is None:
-                return None
             fraction = (target - left[0]).total_seconds() / gap
             distance = (
                 left[3] + (right[3] - left[3]) * fraction
@@ -211,6 +209,43 @@ def interpolate_route_position(
                 "distance_m": distance,
             }
     return None
+
+
+def weather_sample_position(
+    points: Sequence[Mapping[str, Any]],
+    at: datetime,
+    interval_start: datetime,
+    interval_end: datetime,
+) -> dict[str, float | None] | None:
+    """Return a route position for an hourly weather sample without extrapolating.
+
+    A stationary GPS bracket has a valid location but no route bearing, so it
+    remains suitable for weather lookup even though headwind cannot be derived.
+    Sparse routes fall back to the recorded point nearest the requested sample
+    within the activity's overlapping provider hour.
+    """
+    position = interpolate_route_position(points, at)
+    if position is not None:
+        return position
+
+    valid = [item for point in points if (item := _gps_point(point)) is not None]
+    candidates = [
+        point for point in valid
+        if interval_start <= point[0] <= interval_end
+    ]
+    if not candidates:
+        return None
+    _, latitude, longitude, distance = min(
+        candidates,
+        key=lambda point: abs((point[0] - at).total_seconds()),
+    )
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
+        "bearing_deg": None,
+        "segment_speed_mps": None,
+        "distance_m": distance,
+    }
 
 
 def _weather_hour(response_data: Mapping[str, Any], requested_epoch: int) -> Mapping[str, Any] | None:
@@ -399,7 +434,12 @@ def build_activity_weather(
         interval_end = min(end, hour_start + timedelta(hours=1))
         interval_seconds = int((interval_end - interval_start).total_seconds())
         lookup_time = interval_start + timedelta(seconds=interval_seconds / 2)
-        position = interpolate_route_position(gps_points, lookup_time)
+        position = weather_sample_position(
+            gps_points,
+            lookup_time,
+            interval_start,
+            interval_end,
+        )
         if position is None:
             continue
         distance_start = interpolate_route_position(gps_points, interval_start)
@@ -417,7 +457,7 @@ def build_activity_weather(
         wind_direction = values.get("wind_direction_deg")
         bearing = position["bearing_deg"]
         headwind = None
-        if wind_speed is not None and wind_direction is not None:
+        if wind_speed is not None and wind_direction is not None and bearing is not None:
             headwind = wind_speed * math.cos(math.radians(wind_direction - bearing))
         samples.append({
             "time_utc": hour_start.isoformat(),

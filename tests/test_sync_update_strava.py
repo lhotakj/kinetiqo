@@ -456,6 +456,43 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         )
 
     @patch("kinetiqo.sync.build_activity_weather")
+    def test_weather_deferred_warning_is_emitted_to_sync_log(self, mock_build_weather):
+        service = self._make_service()
+        activity = {
+            "id": 20754535235,
+            "sport_type": "Hike",
+            "name": "Morning Hike",
+            "start_date": "2026-10-27T17:13:32Z",
+        }
+        service.db.get_profile.return_value = {"enable_weather_data": False}
+        service.db.get_activity_weather.return_value = None
+        service.strava.get_activities.return_value = iter([[activity]])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+        service.db.get_activity_stream_window.return_value = [
+            {
+                "ts": "2026-10-27T17:13:32Z",
+                "lat": 50.0,
+                "lng": 14.0,
+                "distance": 0.0,
+            },
+        ]
+        service.strava.get_athlete.return_value = None
+        mock_build_weather.return_value = {"status": "deferred_no_route_coverage"}
+
+        events = list(service.sync(
+            full_sync=False,
+            trigger="test",
+            user="tester",
+            limit_days=0,
+            update_weather=True,
+        ))
+
+        self.assertIn(
+            "Warning: Weather deferred for activity 20754535235: route GPS does not cover a sample.",
+            "".join(events),
+        )
+
+    @patch("kinetiqo.sync.build_activity_weather")
     def test_weather_placeholder_does_not_fetch_weather_when_weather_is_disabled(self, mock_build_weather):
         service = self._make_service()
         activity = {

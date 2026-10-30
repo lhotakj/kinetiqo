@@ -73,6 +73,52 @@ class WeatherCalculationTests(unittest.TestCase):
         self.assertEqual(payload["samples"][0]["route_distance_m"], 2000.0)
         self.assertEqual(fetch_hour.call_args.args, (50.0, 14.01, datetime(2026, 1, 1, 10, tzinfo=timezone.utc)))
 
+    def test_activity_weather_fetches_stationary_short_route_without_headwind(self):
+        start = datetime(2026, 10, 27, 17, 13, 32, tzinfo=timezone.utc)
+        points = [
+            {"ts": start, "lat": 50.038947, "lng": 14.327329, "distance": 0.0},
+            {
+                "ts": start + timedelta(seconds=27),
+                "lat": 50.038947,
+                "lng": 14.327329,
+                "distance": 0.0,
+            },
+        ]
+        fetch_hour = Mock(return_value={"wind_speed_ms": 4.0, "wind_direction_deg": 270.0})
+
+        payload = build_activity_weather(
+            {"start_date": start, "elapsed_time": 27, "sport_type": "Hike"},
+            points,
+            fetch_hour,
+        )
+
+        self.assertEqual(payload["status"], "complete")
+        self.assertIsNone(payload["samples"][0]["route_bearing_deg"])
+        self.assertIsNone(payload["samples"][0]["headwind_component_ms"])
+        self.assertEqual(
+            fetch_hour.call_args.args,
+            (50.038947, 14.327329, datetime(2026, 10, 27, 17, tzinfo=timezone.utc)),
+        )
+
+    def test_activity_weather_uses_nearest_in_hour_gps_point_for_sparse_route(self):
+        start = datetime(2026, 10, 27, 17, 13, 32, tzinfo=timezone.utc)
+        points = [
+            {"ts": start, "lat": 50.038947, "lng": 14.327329, "distance": 0.0},
+        ]
+        fetch_hour = Mock(return_value={"wind_speed_ms": 4.0, "wind_direction_deg": 270.0})
+
+        payload = build_activity_weather(
+            {"start_date": start, "elapsed_time": 27, "sport_type": "Hike"},
+            points,
+            fetch_hour,
+        )
+
+        self.assertEqual(payload["status"], "complete")
+        self.assertEqual(
+            fetch_hour.call_args.args,
+            (50.038947, 14.327329, datetime(2026, 10, 27, 17, tzinfo=timezone.utc)),
+        )
+
     def test_formatter_omits_absent_precipitation_and_formats_wind(self):
         payload = {
             "status": "complete",

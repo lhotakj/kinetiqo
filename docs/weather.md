@@ -31,7 +31,10 @@ deferred until a weather-enabled sync.
 ## What is stored
 
 For each eligible activity, Kinetiqo samples the GPS route at hourly intervals
-and requests the matching historical weather. Saved data can include:
+and requests the matching historical weather. Short or sparse routes use the
+nearest recorded GPS point in the overlapping provider hour when a midpoint
+cannot be interpolated. A stationary route still receives weather, although
+headwind is omitted when no travel bearing is available. Saved data can include:
 
 - temperature and apparent temperature;
 - provider condition text and source;
