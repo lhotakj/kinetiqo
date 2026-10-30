@@ -21,6 +21,13 @@ Full Sync does not fetch weather unless it is explicitly enabled. Weather is
 never fetched by the browser or when viewing an activity, chart, chat response,
 or MCP tool result.
 
+When weather is enabled, each activity is processed in a single ordered pass:
+Kinetiqo saves the activity and streams, fetches missing weather, then updates
+the Strava description. Weather placeholders therefore use the newly saved
+weather during that same sync. When weather is disabled, Kinetiqo makes no
+weather-provider request; a description requiring unavailable weather is
+deferred until a weather-enabled sync.
+
 ## What is stored
 
 For each eligible activity, Kinetiqo samples the GPS route at hourly intervals

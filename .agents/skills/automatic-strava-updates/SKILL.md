@@ -32,8 +32,28 @@ rendering, merge behavior, sync logging, or related documentation.
 Do not add product-specific migration heuristics for prior generated content.
 Never delete or rewrite non-prefixed lines.
 
+## Sync ordering with weather
+
+When weather enrichment is enabled, process every fetched activity in exactly
+this order before continuing to the next activity:
+
+1. Persist the activity and, for new activities, its streams.
+2. Read cached weather; when it is absent (or weather resync is requested),
+   fetch and persist historical weather.
+3. Render the template and update the Strava description, including any
+   deterministic weather placeholders or AI placeholders.
+4. Emit one final per-activity log line with the weather and description
+   outcomes.
+
+The weather flag is authoritative. A weather placeholder must use already
+stored weather when the flag is disabled; it must not trigger a hidden provider
+request. If complete weather is unavailable, defer the description write
+instead of writing an empty generated line.
+
 ## Required coverage
 
 Use mocked unit tests to cover standard and AI prefixes, equal-line skips,
 changed-line replacement, begin/end insertion, one-line normalization, and
-preservation of non-Kinetiqo description content.
+preservation of non-Kinetiqo description content. Cover the per-activity order
+of persistence, weather enrichment, and description update, plus weather
+placeholder deferral when weather is disabled.

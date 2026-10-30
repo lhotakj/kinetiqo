@@ -51,12 +51,6 @@ DESC_SKIPPED = "skipped"                # skipped because a prior 401 already di
 DESC_UPDATED = "updated"                # Strava description was successfully updated
 DESC_FAILED = "failed"                  # the update attempt raised an error (see the returned message)
 DESC_DEFERRED = "deferred"              # required weather data is unavailable for this activity
-WEATHER_PLACEHOLDER_TOKENS = (
-    "weather-basic",
-    "weather-start",
-    "weather-precipitation",
-    "weather-wind",
-)
 
 def _description_status_suffix(status: str) -> str:
     """Return a brief ``" | Kinetiqo description ..."`` suffix for a per-activity log line.
@@ -73,14 +67,6 @@ def _description_status_suffix(status: str) -> str:
     if status in (DESC_UNCHANGED, DESC_SKIPPED, DESC_FAILED):
         return " | Skipping Strava description update"
     return ""
-
-
-def _template_uses_weather_placeholder(config: Config, activity: dict) -> bool:
-    """Return whether the activity's configured description template needs stored weather."""
-    template = get_template_for_activity(config, activity.get("sport_type", ""))
-    return bool(template) and any(
-        f"{{{{{token}}}}}" in template for token in WEATHER_PLACEHOLDER_TOKENS
-    )
 
 
 class SyncService:
@@ -388,7 +374,6 @@ class SyncService:
 
             description_context = None
             description_update_ids: set[str] = set()
-            weather_template_ids: set[str] = set()
             if update_strava and any_update_strava_template_configured(self.config):
                 ai_handler = None
                 ai_enabled = False
@@ -451,7 +436,6 @@ class SyncService:
 
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
-            existing_ids = {str(activity_id) for activity_id in synced_ids}
             profile = self.db.get_profile() or {}
             weather_enabled = (
                 bool(update_weather)
@@ -556,13 +540,6 @@ class SyncService:
             yield yield_log(f"Identified {len(new_activities)} new and {len(existing_activities)} existing activities.")
             if description_context is not None:
                 description_update_ids = self._description_update_activity_ids(activities)
-                weather_template_ids = {
-                    str(activity["id"])
-                    for activity in activities
-                    if str(activity["id"]) in description_update_ids
-                    and _template_uses_weather_placeholder(self.config, activity)
-                }
-                weather_enabled = weather_enabled or bool(weather_template_ids)
                 total_eligible = sum(
                     1 for activity in activities
                     if get_template_for_activity(self.config, activity.get("sport_type", ""))
@@ -608,7 +585,114 @@ class SyncService:
             # --- Phase 1: Sync all activities (existing + new) in one pass ---
             total_activities = len(activities)
             trophies_cache = load_verified_trophies()
-            pending_description_logs: dict[str, tuple[int, float, str, str, str]] = {}
+            hourly_weather_cache: dict[tuple[str, str], dict[int, dict[str, Any]]] = {}
+            weather_enrichment_stopped = False
+
+            def enrich_activity_weather(activity: dict) -> tuple[str, str | None]:
+                """Persist missing weather for one activity before its description is rendered."""
+                nonlocal stopped, weather_enrichment_stopped
+
+                if not weather_enabled or weather_enrichment_stopped:
+                    return "", None
+
+                activity_id = activity["id"]
+                activity_name = str(activity.get("name") or f"Activity {activity_id}")
+                if not resync_weather and self.db.get_activity_weather(activity_id):
+                    return "", None
+
+                try:
+                    activity_type = str(
+                        activity.get("sport_type") or activity.get("type") or ""
+                    ).lower()
+                    if activity.get("trainer") or activity_type.startswith("virtual") or activity_type in {
+                        "indoorcycling", "treadmill", "weighttraining", "workout",
+                        "yoga", "elliptical", "stairstepper",
+                    }:
+                        self.db.upsert_activity_weather(
+                            activity_id,
+                            skipped_activity_weather(activity, "skipped_indoor"),
+                        )
+                        return " | Weather skipped: indoor activity", None
+
+                    points = self.db.get_activity_stream_window(
+                        activity_id,
+                        ["ts", "lat", "lng", "distance"],
+                        max_rows=100000,
+                    )
+                    points = [
+                        point for point in points
+                        if point.get("ts") is not None
+                        and point.get("lat") is not None
+                        and point.get("lng") is not None
+                    ]
+                    if not points:
+                        self.db.upsert_activity_weather(
+                            activity_id,
+                            skipped_activity_weather(activity, "skipped_no_gps"),
+                        )
+                        return " | Weather skipped: no GPS route", None
+
+                    def fetch_cached_weather_hour(
+                        latitude: float,
+                        longitude: float,
+                        hour_start: datetime,
+                    ) -> dict[str, Any]:
+                        return fetch_visual_crossing_hour(
+                            latitude,
+                            longitude,
+                            hour_start,
+                            hourly_cache=hourly_weather_cache,
+                            rate_limit_state=WEATHER_RATE_LIMIT_STATE,
+                        )
+
+                    def weather_should_stop() -> bool:
+                        nonlocal stopped
+                        stopped = should_stop()
+                        return stopped
+
+                    payload = build_activity_weather(
+                        activity,
+                        points,
+                        fetch_cached_weather_hour,
+                        should_stop=weather_should_stop,
+                        rate_limit_reached=WEATHER_RATE_LIMIT_STATE.is_exhausted,
+                    )
+                    if stopped:
+                        return "", "Weather sync stopped by user."
+                    if payload["status"] == "complete":
+                        self.db.upsert_activity_weather(activity_id, payload)
+                        return " | Weather updated", None
+                    if payload["status"] == "deferred_rate_limit":
+                        weather_enrichment_stopped = True
+                        return "", (
+                            "Weather enrichment stopped: Visual Crossing reported no remaining "
+                            "quota until the next UTC midnight."
+                        )
+                    return "", (
+                        f"Weather deferred for activity {activity_id}: "
+                        "route GPS does not cover a sample."
+                    )
+                except WeatherProviderError as error:
+                    if error.stop_run:
+                        weather_enrichment_stopped = True
+                    warning = (
+                        f"Weather enrichment stopped: {error}"
+                        if error.stop_run
+                        else f"Weather enrichment skipped for activity {activity_id}: {error}"
+                    )
+                    if error.retry_after:
+                        warning += f" Provider Retry-After: {error.retry_after}."
+                    return "", warning
+                except Exception as error:
+                    if lease_lost.is_set():
+                        raise
+                    logger.exception(
+                        "Weather enrichment failed for activity %s (%s).",
+                        activity_id,
+                        activity_name,
+                    )
+                    return "", f"Weather enrichment failed for activity {activity_id}: {error}"
+
             for i, activity in enumerate(activities, 1):
                 if should_stop():
                     stopped = True
@@ -623,8 +707,6 @@ class SyncService:
                 trophies_suffix = ""
                 detail = None
 
-                # Description updates run after the weather phase so weather placeholders
-                # can use the data persisted during this sync.
                 ach_count = int(activity.get("achievement_count") or 0)
                 cached_tr = trophies_cache.get(act_id_str, {})
                 already_scanned = bool(cached_tr.get("scanned")) or any(
@@ -667,19 +749,46 @@ class SyncService:
                             msg = f"Activity {activity_id} has no stream data."
                             logger.warning(msg)
                             sync_warnings.append(msg)
+                    weather_suffix, weather_warning = enrich_activity_weather(activity)
+                    if stopped:
+                        yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
+                        return
+                    if weather_warning:
+                        sync_warnings.append(weather_warning)
+
+                    desc_suffix = ""
+                    ai_suffix = ""
                     if act_id_str in description_update_ids:
-                        pending_description_logs[act_id_str] = (
-                            i,
-                            percent,
-                            name,
-                            sport,
-                            trophies_suffix,
+                        if is_existing and "ai_responses" not in activity and hasattr(
+                            self.db, "get_activity_ai_responses"
+                        ):
+                            try:
+                                cached_ai = self.db.get_activity_ai_responses(activity_id)
+                                if cached_ai:
+                                    activity["ai_responses"] = cached_ai
+                            except Exception as ai_fetch_err:
+                                logger.debug(
+                                    "Failed to fetch cached ai_responses: %s", ai_fetch_err
+                                )
+                        status, warning = self._update_strava_description(
+                            description_context,
+                            activity,
+                            detail=detail,
                         )
-                    else:
-                        yield yield_log(
-                            f"[{i}/{total_activities}] ({percent:.0f}%) "
-                            f"{name} ({sport}){trophies_suffix}"
-                        )
+                        if description_context.last_ai_status:
+                            ai_suffix = f" [AI: {description_context.last_ai_status}]"
+                            if description_context.last_ai_status == "failed":
+                                sync_warnings.append(
+                                    f"AI Agent generation failed for activity {activity_id} ('{name}')."
+                                )
+                        if warning:
+                            sync_warnings.append(warning)
+                        desc_suffix = _description_status_suffix(status)
+
+                    yield yield_log(
+                        f"[{i}/{total_activities}] ({percent:.0f}%) "
+                        f"{name} ({sport}){trophies_suffix}{weather_suffix}{ai_suffix}{desc_suffix}"
+                    )
                 except Exception as e:
                     msg = f"Error syncing activity {activity_id}: {e}"
                     sync_warnings.append(msg)
@@ -791,183 +900,6 @@ class SyncService:
                 logger.warning(f"Failed to sync athlete KOMs/trophies: {e}")
                 sync_warnings.append(f"Failed to sync athlete KOMs/trophies: {e}")
                 yield yield_log(f"Warning: Failed to sync athlete KOMs/trophies: {e}")
-
-            if weather_enabled:
-                try:
-                    candidates = []
-                    for candidate in activities:
-                        candidate_id = candidate.get("id")
-                        if candidate_id is None:
-                            continue
-                        is_new_to_db = str(candidate_id) not in existing_ids
-                        needs_template_weather = str(candidate_id) in weather_template_ids
-                        if not resync_weather and not full_sync and not is_new_to_db and not needs_template_weather:
-                            continue
-                        if not resync_weather and self.db.get_activity_weather(candidate_id):
-                            continue
-                        candidates.append(candidate)
-
-                    yield yield_log(
-                        f"Fetching hourly historical weather for {len(candidates)} eligible activities."
-                    )
-                    hourly_weather_cache: dict[tuple[str, str], dict[int, dict[str, Any]]] = {}
-
-                    def fetch_cached_weather_hour(
-                        latitude: float,
-                        longitude: float,
-                        hour_start: datetime,
-                    ) -> dict[str, Any]:
-                        return fetch_visual_crossing_hour(
-                            latitude,
-                            longitude,
-                            hour_start,
-                            hourly_cache=hourly_weather_cache,
-                            rate_limit_state=WEATHER_RATE_LIMIT_STATE,
-                        )
-
-                    def weather_should_stop() -> bool:
-                        nonlocal stopped
-                        stopped = should_stop()
-                        return stopped
-
-                    for index, candidate in enumerate(candidates, start=1):
-                        if should_stop():
-                            stopped = True
-                            yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
-                            return
-                        activity_id = candidate["id"]
-                        activity_name = str(candidate.get("name") or f"Activity {activity_id}")
-                        try:
-                            activity_type = str(
-                                candidate.get("sport_type") or candidate.get("type") or ""
-                            ).lower()
-                            if candidate.get("trainer") or activity_type.startswith("virtual") or activity_type in {
-                                "indoorcycling", "treadmill", "weighttraining", "workout",
-                                "yoga", "elliptical", "stairstepper",
-                            }:
-                                payload = skipped_activity_weather(candidate, "skipped_indoor")
-                                self.db.upsert_activity_weather(activity_id, payload)
-                                yield yield_log(
-                                    f"Weather [{index}/{len(candidates)}] {activity_name}: skipped indoor activity."
-                                )
-                                continue
-                            points = self.db.get_activity_stream_window(
-                                activity_id,
-                                ["ts", "lat", "lng", "distance"],
-                                max_rows=100000,
-                            )
-                            points = [
-                                point for point in points
-                                if point.get("ts") is not None
-                                and point.get("lat") is not None
-                                and point.get("lng") is not None
-                            ]
-                            if not points:
-                                payload = skipped_activity_weather(candidate, "skipped_no_gps")
-                                self.db.upsert_activity_weather(activity_id, payload)
-                                yield yield_log(
-                                    f"Weather [{index}/{len(candidates)}] {activity_name}: skipped, no GPS route."
-                                )
-                                continue
-                            payload = build_activity_weather(
-                                candidate,
-                                points,
-                                fetch_cached_weather_hour,
-                                should_stop=weather_should_stop,
-                                rate_limit_reached=WEATHER_RATE_LIMIT_STATE.is_exhausted,
-                            )
-                            if stopped:
-                                yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
-                                return
-                            if payload["status"] == "complete":
-                                self.db.upsert_activity_weather(activity_id, payload)
-                            elif payload["status"] == "deferred_rate_limit":
-                                warning = (
-                                    "Weather enrichment stopped: Visual Crossing reported no remaining "
-                                    "quota until the next UTC midnight."
-                                )
-                                sync_warnings.append(warning)
-                                yield yield_log(warning)
-                                break
-                            else:
-                                sync_warnings.append(
-                                    f"Weather deferred for activity {activity_id}: route GPS does not cover a sample."
-                                )
-                            yield yield_log(
-                                f"Weather [{index}/{len(candidates)}] {activity_name}: "
-                                f"{len(payload['samples'])} hourly samples ({payload['status']})."
-                            )
-                            if WEATHER_RATE_LIMIT_STATE.is_exhausted():
-                                warning = (
-                                    "Weather enrichment stopped: Visual Crossing reported no remaining "
-                                    "quota until the next UTC midnight."
-                                )
-                                sync_warnings.append(warning)
-                                yield yield_log(warning)
-                                break
-                        except WeatherProviderError as error:
-                            warning = (
-                                f"Weather enrichment stopped: {error}"
-                                if error.stop_run
-                                else f"Weather enrichment skipped for activity {activity_id}: {error}"
-                            )
-                            if error.retry_after:
-                                warning += f" Provider Retry-After: {error.retry_after}."
-                            sync_warnings.append(warning)
-                            yield yield_log(warning)
-                            if error.stop_run:
-                                break
-                        except Exception as error:
-                            if lease_lost.is_set():
-                                raise
-                            warning = f"Weather enrichment failed for activity {activity_id}: {error}"
-                            sync_warnings.append(warning)
-                            logger.exception(warning)
-                            yield yield_log(warning)
-                except Exception as error:
-                    if lease_lost.is_set():
-                        raise
-                    warning = f"Weather enrichment phase could not start: {error}"
-                    sync_warnings.append(warning)
-                    logger.exception(warning)
-                    yield yield_log(warning)
-
-            # --- Phase 5: Update descriptions after weather enrichment ---
-            if description_context is not None and pending_description_logs:
-                description_activities = [
-                    activity for activity in activities
-                    if str(activity.get("id")) in pending_description_logs
-                ]
-                for activity in description_activities:
-                    if should_stop():
-                        stopped = True
-                        yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
-                        return
-                    activity_id = activity["id"]
-                    activity_id_str = str(activity_id)
-                    name = activity.get("name", "Unknown Activity")
-                    sport = activity.get("sport_type", "")
-                    ai_suffix = ""
-                    if activity_id_str in synced_ids and "ai_responses" not in activity and hasattr(self.db, "get_activity_ai_responses"):
-                        try:
-                            cached_ai = self.db.get_activity_ai_responses(activity_id)
-                            if cached_ai:
-                                activity["ai_responses"] = cached_ai
-                        except Exception as ai_fetch_err:
-                            logger.debug(f"Failed to fetch cached ai_responses: {ai_fetch_err}")
-                    status, warning = self._update_strava_description(description_context, activity)
-                    if description_context.last_ai_status:
-                        ai_suffix = f" [AI: {description_context.last_ai_status}]"
-                        if description_context.last_ai_status == "failed":
-                            sync_warnings.append(f"AI Agent generation failed for activity {activity_id} ('{name}').")
-                    if warning:
-                        sync_warnings.append(warning)
-                    desc_suffix = _description_status_suffix(status)
-                    log_index, percent, _, _, trophies_suffix = pending_description_logs[activity_id_str]
-                    yield yield_log(
-                        f"[{log_index}/{total_activities}] ({percent:.0f}%) "
-                        f"{name} ({sport}){trophies_suffix}{ai_suffix}{desc_suffix}"
-                    )
 
             yield yield_log(
                 f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",

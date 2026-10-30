@@ -383,7 +383,7 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.strava.update_activity_description.assert_not_called()
 
     @patch("kinetiqo.sync.build_activity_weather")
-    def test_weather_placeholder_retries_existing_activity_and_updates_after_weather_is_persisted(self, mock_build_weather):
+    def test_weather_enabled_sync_persists_weather_before_updating_description(self, mock_build_weather):
         service = self._make_service()
         activity = {
             "id": 1,
@@ -441,11 +441,51 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.strava.update_activity_description.side_effect = update_description
 
         with patch("kinetiqo.sync.sync_update_strava_from_env"):
-            events = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0))
+            events = list(service.sync(
+                full_sync=False,
+                trigger="test",
+                user="tester",
+                limit_days=0,
+                update_weather=True,
+            ))
 
         self.assertEqual(operation_order, [("weather", 1), ("description", 1)])
         self.assertIn(
-            "[1/1] (100%) Morning Hike (Hike) | Strava description updated",
+            "[1/1] (100%) Morning Hike (Hike) | Weather updated | Strava description updated",
+            "".join(events),
+        )
+
+    @patch("kinetiqo.sync.build_activity_weather")
+    def test_weather_placeholder_does_not_fetch_weather_when_weather_is_disabled(self, mock_build_weather):
+        service = self._make_service()
+        activity = {
+            "id": 1,
+            "sport_type": "Hike",
+            "name": "Morning Hike",
+            "start_date": "2026-07-22T08:00:00Z",
+        }
+        service.config.update_strava_cycling_outdoor = ""
+        service.config.update_strava_walking = "{{weather-basic}}"
+        service.db.get_profile.return_value = {"enable_weather_data": False}
+        service.strava.get_activities.return_value = iter([[activity]])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+        service.strava.get_activity_detail.return_value = {"description": ""}
+        service.strava.get_athlete.return_value = None
+        service.db.get_activity_weather.return_value = None
+
+        with patch("kinetiqo.sync.sync_update_strava_from_env"):
+            events = list(service.sync(
+                full_sync=False,
+                trigger="test",
+                user="tester",
+                limit_days=0,
+                update_weather=False,
+            ))
+
+        mock_build_weather.assert_not_called()
+        service.strava.update_activity_description.assert_not_called()
+        self.assertIn(
+            "[1/1] (100%) Morning Hike (Hike) | Strava description deferred: weather unavailable",
             "".join(events),
         )
 

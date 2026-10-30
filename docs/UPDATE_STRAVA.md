@@ -149,17 +149,17 @@ string** and logs a `WARNING` explaining why — it never breaks the render.
 for the activity. They never call Visual Crossing or an AI/MCP tool while
 updating a Strava description.
 
-To populate them, configure `VISUAL_CROSSING_API_KEY` on the server. A newly
-downloaded activity whose selected description template uses a weather
-placeholder automatically receives weather enrichment during that sync, even
-when **Fetch weather data** is not selected. The control still enables weather
-enrichment for other eligible activities. Weather is hourly historical data
-along eligible outdoor GPS routes; the placeholders are empty when weather is
-unavailable, skipped, or incomplete. When a selected template needs a weather
-placeholder but complete weather is unavailable, Kinetiqo defers the Strava
-description write instead of replacing its content with an empty value. A later
-fast sync retries weather enrichment and the description update. See
-[Weather enrichment](weather.md) for provider-limit, privacy, and retry
+To populate them, configure `VISUAL_CROSSING_API_KEY` on the server and enable
+**Fetch weather data** for that sync (or the saved Weather data preference for
+Fast Sync). For every synced activity, Kinetiqo persists its activity data,
+downloads missing weather when weather is enabled, and then renders and updates
+the Strava description in that same activity pass. Weather is hourly historical
+data along eligible outdoor GPS routes; the placeholders are empty when weather
+is unavailable, skipped, or incomplete. When a selected template needs a
+weather placeholder but complete weather is unavailable, Kinetiqo defers the
+Strava description write instead of replacing its content with an empty value.
+Enable weather on a later sync to retry enrichment and the description update.
+See [Weather enrichment](weather.md) for provider-limit, privacy, and retry
 behavior.
 
 ### Peak highlights in `{{workout-summary}}`
