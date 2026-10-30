@@ -394,6 +394,8 @@ SCHEMA_DEFINITION = {
              "type_firebird": "BLOB SUB_TYPE TEXT"},
             {"name": "strava_agents_config", "type_mysql": "TEXT", "type_pg": "TEXT",
              "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "enable_weather_data", "type_mysql": "BOOLEAN NOT NULL DEFAULT FALSE",
+             "type_pg": "BOOLEAN NOT NULL DEFAULT FALSE", "type_firebird": "SMALLINT DEFAULT 0 NOT NULL"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
@@ -441,6 +443,12 @@ SCHEMA_DEFINITION = {
             {"name": "total_activities", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0", "type_firebird": "INTEGER DEFAULT 0"},
             {"name": "synced_activities", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0", "type_firebird": "INTEGER DEFAULT 0"},
             {"name": "error_message", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "VARCHAR(1000)"},
+            {"name": "owner_id", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
+            {"name": "options_json", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "cancel_requested", "type_mysql": "BOOLEAN NOT NULL DEFAULT FALSE",
+             "type_pg": "BOOLEAN NOT NULL DEFAULT FALSE", "type_firebird": "SMALLINT DEFAULT 0 NOT NULL"},
+            {"name": "last_event_sequence", "type_mysql": "BIGINT NOT NULL DEFAULT 0",
+             "type_pg": "BIGINT NOT NULL DEFAULT 0", "type_firebird": "BIGINT DEFAULT 0 NOT NULL"},
         ],
         "indexes": [
             {
@@ -455,6 +463,104 @@ SCHEMA_DEFINITION = {
                 "def_pg": "CREATE INDEX idx_sync_jobs_status ON sync_jobs (status)",
                 "def_firebird": 'CREATE INDEX idx_sync_jobs_status ON "sync_jobs" ("status")',
             },
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "weather": {
+        "columns": [
+            {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY",
+             "type_firebird": "BIGINT PRIMARY KEY"},
+            {"name": "weather_json", "type_mysql": "LONGTEXT NOT NULL", "type_pg": "TEXT NOT NULL",
+             "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
+            {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL",
+             "type_firebird": "TIMESTAMP NOT NULL"},
+        ],
+        "constraints": [
+            {
+                "name": "fk_weather_activity",
+                "def_mysql": "CONSTRAINT fk_weather_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
+                "def_pg": "CONSTRAINT fk_weather_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
+                "def_firebird": 'CONSTRAINT fk_weather_activity FOREIGN KEY("activity_id") REFERENCES "activities"("activity_id") ON DELETE CASCADE',
+            }
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "weather_api_usage": {
+        "columns": [
+            {"name": "attempt_id", "type_mysql": "VARCHAR(64) PRIMARY KEY",
+             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "attempted_at", "type_mysql": "TIMESTAMP NOT NULL",
+             "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+            {"name": "quota_units", "type_mysql": "INTEGER NOT NULL",
+             "type_pg": "INTEGER NOT NULL", "type_firebird": "INTEGER NOT NULL"},
+        ],
+        "indexes": [
+            {
+                "name": "idx_weather_api_usage_attempted_at",
+                "def_mysql": "CREATE INDEX idx_weather_api_usage_attempted_at ON weather_api_usage (attempted_at)",
+                "def_pg": "CREATE INDEX idx_weather_api_usage_attempted_at ON weather_api_usage (attempted_at)",
+                "def_firebird": 'CREATE INDEX idx_weather_api_usage_attempted_at ON "weather_api_usage" ("attempted_at")',
+            }
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "weather_api_quota_lock": {
+        "columns": [
+            {"name": "quota_key", "type_mysql": "VARCHAR(64) PRIMARY KEY",
+             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "lock_version", "type_mysql": "BIGINT NOT NULL DEFAULT 0",
+             "type_pg": "BIGINT NOT NULL DEFAULT 0", "type_firebird": "BIGINT DEFAULT 0 NOT NULL"},
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "sync_execution_lock": {
+        "columns": [
+            {"name": "lock_key", "type_mysql": "VARCHAR(64) PRIMARY KEY",
+             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "owner_token", "type_mysql": "VARCHAR(64)", "type_pg": "VARCHAR(64)",
+             "type_firebird": "VARCHAR(64)"},
+            {"name": "job_id", "type_mysql": "VARCHAR(64)", "type_pg": "VARCHAR(64)",
+             "type_firebird": "VARCHAR(64)"},
+            {"name": "lease_expires_at", "type_mysql": "TIMESTAMP NULL",
+             "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "sync_job_events": {
+        "columns": [
+            {"name": "job_id", "type_mysql": "VARCHAR(64) NOT NULL",
+             "type_pg": "VARCHAR(64) NOT NULL", "type_firebird": "VARCHAR(64) NOT NULL"},
+            {"name": "event_sequence", "type_mysql": "BIGINT NOT NULL",
+             "type_pg": "BIGINT NOT NULL", "type_firebird": "BIGINT NOT NULL"},
+            {"name": "event_payload", "type_mysql": "LONGTEXT NOT NULL",
+             "type_pg": "TEXT NOT NULL", "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL",
+             "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+        ],
+        "constraints": [
+            {
+                "name": "pk_sync_job_events",
+                "def_mysql": "CONSTRAINT pk_sync_job_events PRIMARY KEY (job_id, event_sequence)",
+                "def_pg": "CONSTRAINT pk_sync_job_events PRIMARY KEY (job_id, event_sequence)",
+                "def_firebird": 'CONSTRAINT pk_sync_job_events PRIMARY KEY ("job_id", "event_sequence")',
+            },
+            {
+                "name": "fk_sync_job_events_job",
+                "def_mysql": "CONSTRAINT fk_sync_job_events_job FOREIGN KEY(job_id) REFERENCES sync_jobs(job_id) ON DELETE CASCADE",
+                "def_pg": "CONSTRAINT fk_sync_job_events_job FOREIGN KEY(job_id) REFERENCES sync_jobs(job_id) ON DELETE CASCADE",
+                "def_firebird": 'CONSTRAINT fk_sync_job_events_job FOREIGN KEY("job_id") REFERENCES "sync_jobs"("job_id") ON DELETE CASCADE',
+            },
+        ],
+        "indexes": [
+            {
+                "name": "idx_sync_job_events_created_at",
+                "def_mysql": "CREATE INDEX idx_sync_job_events_created_at ON sync_job_events (created_at)",
+                "def_pg": "CREATE INDEX idx_sync_job_events_created_at ON sync_job_events (created_at)",
+                "def_firebird": 'CREATE INDEX idx_sync_job_events_created_at ON "sync_job_events" ("created_at")',
+            }
         ],
         "engine_mysql": "ENGINE=InnoDB",
     },
@@ -619,6 +725,8 @@ class SchemaManager:
                 total_created += created
                 total_failed += failed
 
+        self._seed_weather_control_rows()
+
         if total_failed:
             logger.warning(
                 f"{self.db_type.upper()}: Schema check complete — "
@@ -629,6 +737,51 @@ class SchemaManager:
                 f"{self.db_type.upper()}: Schema check complete — "
                 f"indexes: {total_checked} checked, {total_created} created."
             )
+
+    def _seed_weather_control_rows(self) -> None:
+        """Create stable rows used to serialize quota reservations and sync leases."""
+        seeds = (
+            ("weather_api_quota_lock", "quota_key", "visual-crossing", "lock_version", 0),
+            ("sync_execution_lock", "lock_key", "global", None, None),
+        )
+        cur = self.conn.cursor()
+        try:
+            for table, key_column, key, value_column, value in seeds:
+                quoted_table = self._quote_identifier(table)
+                quoted_key = self._quote_identifier(key_column)
+                if self.db_type == "firebird":
+                    if value_column:
+                        quoted_value = self._quote_identifier(value_column)
+                        cur.execute(
+                            f'UPDATE OR INSERT INTO {quoted_table} ({quoted_key}, {quoted_value}) '
+                            f'VALUES (?, ?) MATCHING ({quoted_key})',
+                            (key, value),
+                        )
+                    else:
+                        cur.execute(
+                            f'UPDATE OR INSERT INTO {quoted_table} ({quoted_key}) VALUES (?) '
+                            f'MATCHING ({quoted_key})',
+                            (key,),
+                        )
+                    continue
+                quoted_value = self._quote_identifier(value_column) if value_column else None
+                columns = f"{quoted_key}, {quoted_value}" if quoted_value else quoted_key
+                placeholders = "%s, %s" if quoted_value else "%s"
+                if self.db_type == "mysql":
+                    conflict = f" ON DUPLICATE KEY UPDATE {quoted_key}={quoted_key}"
+                else:
+                    conflict = f" ON CONFLICT ({quoted_key}) DO NOTHING"
+                cur.execute(
+                    f"INSERT INTO {quoted_table} ({columns}) VALUES ({placeholders}){conflict}",
+                    (key, value) if quoted_value else (key,),
+                )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            logger.exception("%s: Failed to initialize weather/sync control rows.", self.db_type.upper())
+            raise
+        finally:
+            cur.close()
 
     def _get_existing_index_names(self, table_name: str) -> set:
         """Return a set of index names that currently exist on *table_name*.

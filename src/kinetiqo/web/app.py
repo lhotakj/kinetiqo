@@ -189,6 +189,7 @@ mimetypes.add_type('font/ttf', '.ttf')
 
 # --- Startup Profile Synchronization (Runs EXACTLY ONCE on App Boot) ---
 _startup_sync_done = False
+_startup_sync_jobs_cleared = False
 _startup_sync_lock = threading.Lock()
 
 from kinetiqo.web.poster_filters import DEFAULT_PHOTO_FILTERS
@@ -242,27 +243,39 @@ def merge_poster_settings(raw: dict) -> dict:
 
 
 def ensure_startup_profile_sync() -> None:
-    """Run environment-to-DB profile synchronization once per process on startup.
+    """Clear prior sync state and synchronize profile settings once per process.
 
-    Thread-safe and process-safe: executes sync logic (env vars -> DB)
-    exactly once when the web application starts up or handles its first request.
-    Subsequent API requests read directly from the database without re-evaluating
-    environment variables every time.
+    Runs when the web application handles its first request. Prior sync jobs are
+    interrupted and the global lease is cleared so a stopped app cannot leave
+    the next instance blocked by persisted in-progress state.
     """
-    global _startup_sync_done
-    if _startup_sync_done:
+    global _startup_sync_done, _startup_sync_jobs_cleared
+    if _startup_sync_done and _startup_sync_jobs_cleared:
         return
 
     if app.config.get("TESTING", False):
         _startup_sync_done = True
+        _startup_sync_jobs_cleared = True
         return
 
     with _startup_sync_lock:
-        if _startup_sync_done:
+        if _startup_sync_done and _startup_sync_jobs_cleared:
             return
         repo = None
-        try:
+        if not _startup_sync_jobs_cleared:
             repo = get_db()
+            try:
+                repo.interrupt_active_sync_jobs()
+                _startup_sync_jobs_cleared = True
+                logger.info("Cleared persisted active sync jobs and lease during application startup.")
+            except Exception:
+                logger.exception("Could not clear persisted sync state during application startup.")
+                raise
+        if _startup_sync_done:
+            return
+        try:
+            if repo is None:
+                repo = get_db()
             sync_all_profile_env_vars(config, repo)
             _startup_sync_done = True
             logger.info("Startup profile synchronization from environment completed successfully.")
@@ -272,8 +285,9 @@ def ensure_startup_profile_sync() -> None:
 
 def mark_startup_sync_done() -> None:
     """Mark startup environment profile synchronization as completed."""
-    global _startup_sync_done
+    global _startup_sync_done, _startup_sync_jobs_cleared
     _startup_sync_done = True
+    _startup_sync_jobs_cleared = True
 
 
 @app.before_request
@@ -3573,7 +3587,11 @@ def get_profile_api():
         repo = get_db()
         profile = repo.get_profile()
         if not profile:
-            default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0, 'gps_simplification': getattr(config, 'gps_simplification', 0)}
+            default_profile = {
+                'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0,
+                'gps_simplification': getattr(config, 'gps_simplification', 0),
+                'enable_weather_data': False,
+            }
             default_profile.update(dict.fromkeys(UPDATE_STRAVA_FIELDS, ''))
             return jsonify(default_profile)
         # Never expose the Strava refresh token to the client — it is stored
@@ -3855,6 +3873,13 @@ def update_profile_api():
                 gps_simplification = int(gps_simplification)
                 config.gps_simplification = gps_simplification
 
+        if 'enable_weather_data' in data:
+            if not isinstance(data['enable_weather_data'], bool):
+                return jsonify({'error': 'Weather preference must be true or false.', 'field': 'enable_weather_data'}), 422
+            enable_weather_data = data['enable_weather_data']
+        else:
+            enable_weather_data = bool(existing.get('enable_weather_data', False))
+
         # UPDATE_STRAVA_* templates can be updated via GUI / API payload
         template_updates = {}
         for field in UPDATE_STRAVA_FIELDS:
@@ -3883,6 +3908,7 @@ def update_profile_api():
                             ftp=ftp,
                             gps_simplification=gps_simplification,
                             agent_prompt=agent_prompt,
+                            enable_weather_data=enable_weather_data,
                             **template_updates)
 
         response_payload = {
@@ -3893,6 +3919,7 @@ def update_profile_api():
             'ftp': ftp,
             'gps_simplification': gps_simplification,
             'agent_prompt': agent_prompt,
+            'enable_weather_data': enable_weather_data,
         }
         response_payload.update(template_updates)
         return jsonify(response_payload)
@@ -4246,7 +4273,7 @@ def fullsync():
         Response: The rendered sync UI page configured for a full sync.
     """
     return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days(),
-                           has_strava_templates=_has_strava_description_templates())
+                           has_strava_templates=_has_strava_description_templates(), weather_enabled=False)
 
 
 @app.route('/fastsync', methods=['GET'])
@@ -4257,26 +4284,125 @@ def fastsync():
     Returns:
         Response: The rendered sync UI page configured for a fast/incremental sync.
     """
+    try:
+        profile = get_db().get_profile() or {}
+        weather_enabled = bool(profile.get('enable_weather_data', False))
+    except Exception:
+        logger.exception("Could not load weather preference for fast sync page.")
+        weather_enabled = False
     return render_template('sync.html', title="Fast Sync", sync_type="fast",
-                           has_strava_templates=_has_strava_description_templates())
+                           has_strava_templates=_has_strava_description_templates(),
+                           weather_enabled=weather_enabled)
 
 
 # --- HTMX / Reactive API Endpoints ---
 
-@app.route('/sync/start/<type>', methods=['GET'])
+@app.route('/sync/start/<type>', methods=['POST'])
 @login_required
 def start_sync_ui(type):
-    """Return an HTML snippet that connects the client to the SSE sync stream.
+    """Create a durable sync job and return an HTML fragment attaching to its read-only stream."""
+    if type not in ('full', 'fast'):
+        return jsonify({'error': 'Sync type must be full or fast.'}), 400
+    try:
+        limit_days = int(request.form.get('limit_days', '0')) if type == 'full' else 0
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid sync period.'}), 422
+    if limit_days < 0:
+        return jsonify({'error': 'Sync period must be zero or a positive number of days.'}), 422
 
-    Args:
-        type (str): Sync type string (e.g. 'full' or 'fast').
+    user_id = str(getattr(current_user, 'id', 'admin'))
+    repo = get_db()
+    repo.recover_expired_sync_jobs()
+    if repo.has_active_sync_job(user_id):
+        return jsonify({'error': 'You already have an active sync job.'}), 409
 
-    Returns:
-        str: HTML fragment used by the HTMX UI to initialise the SSE connection.
-    """
-    limit_days = request.args.get('limit_days', '0')
-    update_strava = request.args.get('update_strava', 'off')
-    sse_url = f"/api/sync/stream/{type}?limit_days={limit_days}&update_strava={update_strava}"
+    update_strava = request.form.get('update_strava') in ('on', 'true', '1')
+    update_weather = 'on' in request.form.getlist('weather_data')
+    resync_weather = request.form.get('resync_weather') in ('on', 'true', '1')
+    if resync_weather and not update_weather:
+        return jsonify({'error': 'Weather data must be enabled to resync existing weather.'}), 422
+    options = {
+        'full_sync': type == 'full',
+        'limit_days': limit_days,
+        'update_strava': update_strava,
+        'update_weather': update_weather,
+        'resync_weather': resync_weather,
+    }
+    job_id = secrets.token_urlsafe(24)
+    repo.create_sync_job(job_id, type, user_id, options)
+
+    def run_job() -> None:
+        job_repo = None
+        sync_service = None
+        try:
+            job_repo = create_repository(config)
+            sync_service = SyncService(config)
+            job_repo.update_sync_job(
+                job_id,
+                status='running',
+                started_at=datetime.now(timezone.utc),
+            )
+            job_repo.append_sync_job_event(job_id, {'html': '<p class="block truncate">Sync worker started.</p>'})
+
+            def cancellation_requested() -> bool:
+                job = job_repo.get_sync_job(job_id)
+                return bool(job and job.get('cancel_requested'))
+
+            for progress in sync_service.sync(
+                full_sync=options['full_sync'],
+                trigger='web',
+                user=user_id,
+                limit_days=limit_days,
+                update_strava=update_strava,
+                update_weather=update_weather,
+                resync_weather=resync_weather,
+                cancel_requested=cancellation_requested,
+                job_id=job_id,
+            ):
+                event_data = progress.partition('\n\n')[0]
+                if event_data.startswith('data:'):
+                    event_data = event_data[5:].lstrip()
+                job_repo.append_sync_job_event(job_id, {'html': event_data})
+
+            final_job = job_repo.get_sync_job(job_id) or {}
+            terminal_status = 'cancelled' if final_job.get('cancel_requested') else 'completed'
+            job_repo.update_sync_job(
+                job_id,
+                status=terminal_status,
+                completed_at=datetime.now(timezone.utc),
+            )
+        except Exception as error:
+            logger.exception("Web sync job %s failed.", job_id)
+            if job_repo is not None:
+                job_repo.update_sync_job(
+                    job_id,
+                    status='failed',
+                    completed_at=datetime.now(timezone.utc),
+                    error_message=str(error)[:1000],
+                )
+                job_repo.append_sync_job_event(job_id, {
+                    'html': f'<p class="block truncate text-red-600">Sync failed: {html.escape(str(error))}</p>'
+                })
+        finally:
+            if sync_service is not None:
+                sync_service.close()
+            if job_repo is not None:
+                job_repo.close()
+            _power_cache.invalidate()
+
+    try:
+        worker = threading.Thread(target=run_job, name=f'kinetiqo-sync-{job_id}', daemon=True)
+        worker.start()
+    except Exception as error:
+        logger.exception("Could not schedule web sync job %s.", job_id)
+        repo.update_sync_job(
+            job_id,
+            status='failed',
+            completed_at=datetime.now(timezone.utc),
+            error_message=str(error)[:1000],
+        )
+        return jsonify({'error': 'Could not schedule the sync worker.'}), 500
+    sse_url = f"/api/sync/stream/{job_id}"
 
     return f'''
     <div id="sync-log-area">
@@ -4287,6 +4413,7 @@ def start_sync_ui(type):
                         <p class="block truncate">Initializing sync...</p>
                     </div>
                 </div>
+                <script>window.kinetiqoCurrentSyncJobId = {json_module.dumps(job_id)};</script>
                 <div class="text-center pt-4 border-t border-gray-200">
                     <p class="text-sm font-medium mb-3 inline-flex items-center justify-center gap-2 sync-progress-text">
                         <img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16">
@@ -4304,56 +4431,55 @@ def start_sync_ui(type):
     '''
 
 
-@app.route('/api/sync/stream/<type>', methods=['GET'])
+@app.route('/api/sync/stream/<job_id>', methods=['GET'])
 @login_required
-def sync_stream(type):
-    """Stream synchronization progress via Server-Sent Events (SSE).
-
-    Args:
-        type (str): 'full' or 'fast' indicating the sync mode.
-
-    Returns:
-        Response: A text/event-stream response streaming progress events.
-    """
-    is_full_sync = (type == 'full')
-    user_id = getattr(current_user, 'id', 'admin')
-    limit_days = request.args.get('limit_days', default=0, type=int)
-    update_strava_param = request.args.get('update_strava', default='off')
-    update_strava = update_strava_param in ('on', 'true', '1')
-
-    logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}, update_strava={update_strava}")
-
-    def error_event(message: str) -> str:
-        error_html = f"""<div class="mb-4">
-            <div class="font-mono text-xs text-gray-600 overflow-y-auto space-y-1" style="height: 500px;">
-                <p class="block truncate">{html.escape(message)}</p>
-            </div>
-        </div>
-        <div class="text-center pt-4 border-t border-gray-200">
-            <p class="text-sm text-red-600 font-medium mb-3">Sync failed.</p>
-            <div class="mt-3 text-left bg-red-50 border border-red-200 rounded-lg p-3">
-                <p class="text-xs font-semibold text-red-800 mb-1">Error during sync:</p>
-                <p class="text-xs text-red-700">{html.escape(message)}</p>
-            </div>
-        </div>"""
-        return f"data: {error_html.replace(chr(10), '')}\n\n"
+def sync_stream(job_id):
+    """Replay persisted progress events for a job owned by the authenticated user."""
+    user_id = str(getattr(current_user, 'id', 'admin'))
+    repository = get_db()
+    job = repository.get_sync_job(job_id)
+    if not job:
+        return jsonify({'error': 'Sync job not found.'}), 404
+    if str(job.get('owner_id')) != user_id:
+        return jsonify({'error': 'You do not own this sync job.'}), 403
+    try:
+        after_sequence = max(0, int(request.headers.get('Last-Event-ID', '0')))
+    except ValueError:
+        return jsonify({'error': 'Invalid event sequence.'}), 400
 
     def generate():
-        sync_service = SyncService(config)
+        event_repo = create_repository(config)
         try:
-            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id,
-                                              limit_days=limit_days, update_strava=update_strava):
-                yield progress
-        except Exception as e:
-            logger.exception(f"Sync failed: {e}")
-            yield error_event(str(e))
+            sequence = after_sequence
+            while True:
+                events = event_repo.get_sync_job_events(job_id, after_sequence=sequence)
+                for event in events:
+                    sequence = int(event['event_sequence'])
+                    payload = event.get('payload') or {}
+                    event_data = str(payload.get('html') or '')
+                    yield f"id: {sequence}\nevent: message\ndata: {event_data}\n\n"
+                current_job = event_repo.get_sync_job(job_id)
+                if not current_job or current_job.get('status') in ('completed', 'failed', 'cancelled', 'interrupted'):
+                    if not events:
+                        break
+                if not events:
+                    yield ': keep-alive\n\n'
+                    _time.sleep(0.5)
         finally:
-            sync_service.close()
-            # Invalidate the power cache so that FTP / VO₂max pages
-            # reflect any newly synced activities immediately.
-            _power_cache.invalidate()
+            event_repo.close()
 
     return Response(generate(), mimetype='text/event-stream')
+
+
+@app.route('/api/sync/stop/<job_id>', methods=['POST'])
+@login_required
+def stop_sync_job(job_id):
+    """Request cancellation of a sync job owned by the authenticated user."""
+    user_id = str(getattr(current_user, 'id', 'admin'))
+    changed = get_db().request_sync_job_cancel(job_id, user_id)
+    if not changed:
+        return jsonify({'error': 'Active sync job not found or not owned by this user.'}), 404
+    return '', 204
 
 
 @app.route('/api/sync/stop', methods=['POST'])

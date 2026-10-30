@@ -82,7 +82,8 @@ class TestMCPServer(unittest.TestCase):
 
         # Test tools discovery
         tools = asyncio.run(server.list_tools())
-        self.assertEqual(len(tools), 31)
+        self.assertEqual(len(tools), 32)
+        self.assertIn("kinetiqo_get_activity_weather", {tool.name for tool in tools})
         for tool in tools:
             self.assertTrue(tool.name.startswith("kinetiqo_"))
             self.assertTrue(len(tool.description) > 0)
@@ -134,7 +135,7 @@ class TestMCPServer(unittest.TestCase):
         with patch.dict(os.environ, env_patch, clear=False):
             server = create_mcp_server(self.mock_config, repo_factory=lambda: self.mock_repo)
             tools = asyncio.run(server.list_tools())
-            self.assertEqual(len(tools), 35)
+            self.assertEqual(len(tools), 36)
             tool_names = {t.name for t in tools}
             self.assertIn("kinetiqo_trigger_sync", tool_names)
             self.assertIn("kinetiqo_update_strava_description", tool_names)

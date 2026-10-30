@@ -22,6 +22,7 @@ class TestChatTools(unittest.TestCase):
         self.assertNotIn("kinetiqo_update_athlete_profile", CHAT_TOOL_ALLOWLIST)
         self.assertIn("kinetiqo_get_activity_totals", CHAT_TOOL_ALLOWLIST)
         self.assertIn("kinetiqo_get_fitness_and_freshness", CHAT_TOOL_ALLOWLIST)
+        self.assertIn("kinetiqo_get_activity_weather", CHAT_TOOL_ALLOWLIST)
 
     @patch("kinetiqo.chat.tools.physiology.kinetiqo_get_fitness_and_freshness")
     @patch("kinetiqo.chat.tools.activities.kinetiqo_get_activity_totals")
@@ -63,6 +64,7 @@ class TestChatTools(unittest.TestCase):
         self.assertIn("kinetiqo_search_activities", tool_names)
         self.assertIn("kinetiqo_get_activity_totals", tool_names)
         self.assertIn("kinetiqo_get_fitness_and_freshness", tool_names)
+        self.assertIn("kinetiqo_get_activity_weather", tool_names)
         self.assertIn("kinetiqo_get_power_skills", tool_names)
         for mutating in MUTATING_TOOL_NAMES:
             self.assertNotIn(mutating, tool_names)
@@ -201,5 +203,4 @@ class TestChatTools(unittest.TestCase):
         self.assertEqual(payload.get("data_status"), "complete")
         self.assertEqual(payload.get("data", {}).get("activity_id"), "20749829518")
         self.assertGreaterEqual(elapsed, 0)
-
 

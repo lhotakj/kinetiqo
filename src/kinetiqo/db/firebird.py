@@ -30,6 +30,8 @@ class FirebirdRepository(DatabaseRepository):
     access methods optimized for the Firebird engine.
     """
 
+    db_type = "firebird"
+
     # Minimum seconds between active connection probes.  Within this window
     # only a cheap ``is_closed()`` check is performed.  The web layer creates
     # a fresh connection per request (lifetime < 1 s), so the probe is
@@ -1318,7 +1320,7 @@ class FirebirdRepository(DatabaseRepository):
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token", '
-                '"gps_simplification", "agent_prompt", "strava_agents_config" '
+                '"gps_simplification", "agent_prompt", "strava_agents_config", "enable_weather_data" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
@@ -1351,6 +1353,7 @@ class FirebirdRepository(DatabaseRepository):
                 'gps_simplification': row[12],
                 'agent_prompt': agent_prompt_val or '',
                 'strava_agents_config': strava_agents_config_val or '',
+                'enable_weather_data': bool(row[15]) if len(row) > 15 else False,
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
@@ -1360,7 +1363,8 @@ class FirebirdRepository(DatabaseRepository):
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
                        agent_prompt: Optional[str] = None,
-                       strava_agents_config: Optional[str] = None):
+                       strava_agents_config: Optional[str] = None,
+                       enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
@@ -1374,20 +1378,22 @@ class FirebirdRepository(DatabaseRepository):
         effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
         effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt', '') if existing else '')
         effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config', '') if existing else '')
+        effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
                 '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "agent_prompt", "strava_agents_config") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "agent_prompt", "strava_agents_config", "enable_weather_data") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight, effective_ftp,
                  effective_cycling_indoor, effective_cycling_outdoor,
                  effective_running_indoor, effective_running_outdoor,
                  effective_walking, effective_swimming, effective_refresh_token,
-                 effective_gps_simplification, effective_agent_prompt or '', effective_strava_agents_config or '')
+                 effective_gps_simplification, effective_agent_prompt or '', effective_strava_agents_config or '',
+                 int(effective_enable_weather_data))
             )
         self.conn.commit()
 

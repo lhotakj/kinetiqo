@@ -71,7 +71,7 @@ A user can:
 - `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
 - Brand color composer animation (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`) during live streaming.
 - Assistant message footer: 1px top divider (`#e5e7eb` / `#3f3f46`), unified right-aligned metadata row (`text-xs text-gray-500 dark:text-zinc-400 font-sans`), and transparent provenance list readable in both themes.
-- 31 read-only Kinetiqo telemetry tools through the in-process FastMCP layer, with strict mutating tool exclusion and `CYCLING_SPORT_TYPES` power filtering.
+- 32 read-only Kinetiqo telemetry tools through the in-process FastMCP layer, including the bounded, stored activity-weather tool, with strict mutating tool exclusion and `CYCLING_SPORT_TYPES` power filtering.
 - 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
 - "Data used" provenance indicator per assistant turn.
 - Dynamic mid-conversation provider and model switching: Changing the active model dropdown mid-conversation updates session provider and model metadata, re-routing turns and tool declarations to the new provider adapter seamlessly.
@@ -799,11 +799,12 @@ The chat must reuse the existing Kinetiqo data/tool layer (`src/kinetiqo/mcp/`).
 
 Kinetiqo implements **in-process read-only tool calling** via `src/kinetiqo/chat/tools.py`. The FastMCP server instance is constructed and invoked in-process, executing direct database queries via the repository layer without external sub-processes or socket listeners.
 
-### 10.2 Tool allowlist (31 read-only tools)
+### 10.2 Tool allowlist (32 read-only tools)
 
-Build the tool catalog dynamically from registered FastMCP tool definitions and explicitly exclude all mutating tools. In Kinetiqo v3.0, 31 read-only telemetry and analytics tools are exposed:
+Build the tool catalog dynamically from registered FastMCP tool definitions and explicitly exclude all mutating tools. In Kinetiqo v3.0, 32 read-only telemetry and analytics tools are exposed:
 
 - `kinetiqo_search_activities`, `kinetiqo_get_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`.
+- `kinetiqo_get_activity_weather` returns saved hourly historical observations and provenance for an activity. It makes no provider request, excludes GPS coordinates, and is bounded by the requested hourly sample limit.
 - `kinetiqo_get_fitness_and_freshness` (CTL/ATL/TSB models), `kinetiqo_calculate_power_curve` (MMP), `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`.
 - `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_weekly_training_profile`, `kinetiqo_analyze_recovery_turnaround`.
 - `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.
@@ -1046,7 +1047,7 @@ Use `unittest.mock.patch` with class-level patches following `tests/test_sync_lo
 
 - [x] **Phase 1 — Foundation**: Chat database schemas (`chat_sessions`, `chat_messages`, `chat_attachments`, `chat_provider_keys`), AES-256-GCM encryption, domain models.
 - [x] **Phase 2 — Gemini Provider**: Key validation, dynamic model discovery, SSE streaming, error taxonomy.
-- [x] **Phase 3 — Chat Service & Tools**: 31 read-only FastMCP tools bound in-process, Coggan/Banister system prompt, provenance persistence.
+- [x] **Phase 3 — Chat Service & Tools**: 32 read-only FastMCP tools bound in-process, Coggan/Banister system prompt, provenance persistence.
 - [x] **Phase 4 — Chat UI**: Sidebar sessions with hover delete (`×`), brand animated composer, assistant footer with 1px top divider, unified metadata row, transparent provenance.
 - [x] **Phase 5 — Coaching Workflows**: 12 pre-built athlete coaching workflows in `src/kinetiqo/mcp/prompts.py`.
 - [ ] **Phase 6 — OpenRouter Provider & Multi-Provider Settings**: See Section 19.

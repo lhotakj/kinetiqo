@@ -29,9 +29,10 @@ Athletes can ask nuanced training questions in plain language:
 
 ## 2. Core Capabilities
 
-### 2.1 Direct Grounding via 31 Read-Only MCP Tools
+### 2.1 Direct Grounding via 32 Read-Only MCP Tools
 The assistant does not guess or hallucinate metrics. When asked a training question, it autonomously discovers and calls in-process read-only tools:
 - **Activity Discovery & Streams**: `kinetiqo_get_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`.
+- **Activity Weather**: `kinetiqo_get_activity_weather` returns saved hourly historical weather and provenance for an activity. It is read-only, bounded, and never requests weather or returns GPS coordinates.
 - **Power & Performance**: `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`, `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`.
 - **Fitness & Freshness**: `kinetiqo_get_fitness_freshness` (computing daily CTL, ATL, and TSB form using athlete-specific exponential moving averages).
 - **Milestones & Trophies**: `kinetiqo_get_trophy_stats`, `kinetiqo_get_milestones`, `kinetiqo_get_training_goals`.

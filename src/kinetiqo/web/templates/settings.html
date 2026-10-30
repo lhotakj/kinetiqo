@@ -355,6 +355,27 @@
     </div>
 
     <!-- Map GPS Track Simplification -->
+    <div id="weather-info"
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Weather info</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Enrich eligible synced activities with hourly historical weather along the GPS route.</p>
+        </div>
+        <div class="p-6 space-y-3">
+            <label for="enable-weather-data" class="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <input id="enable-weather-data" type="checkbox" class="rounded border-gray-300 dark:border-zinc-600 text-orange-600 focus:ring-orange-500">
+                Enable Weather data
+            </label>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                Weather is fetched only during sync, stored per activity, and never requested on demand by AI. Configure <code>VISUAL_CROSSING_API_KEY</code> on the server to use
+                <a href="https://www.visualcrossing.com/" target="_blank" rel="noopener noreferrer" class="underline">Weather data by Visual Crossing</a>.
+                Kinetiqo applies a conservative local guard of 900 records per rolling 24 hours and warns at 800. The provider's free allowance is currently 1,000 records in any 24-hour period; other clients using the same key can also consume that allowance. Fast sync uses this preference for newly added activities; full sync remains off unless explicitly enabled. Historical route sampling is hourly, not 15-minute.
+            </p>
+            <p id="status-weather-data" class="text-xs text-gray-400 dark:text-gray-500 h-4"></p>
+        </div>
+    </div>
+
+    <!-- Map GPS Track Simplification -->
     <div id="gps"
         class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
         <div
@@ -1340,6 +1361,22 @@
     {
         "token": "{{workout-summary}}",
         "desc": "RestOrTrain-style workout summary (e.g. Endurance | 120min @ 191W or HR fallback)"
+    },
+    {
+        "token": "{{weather-basic}}",
+        "desc": "One-sentence activity weather summary with only relevant precipitation, temperature, wind, gust, and headwind details"
+    },
+    {
+        "token": "{{weather-start}}",
+        "desc": "Weather conditions and temperature at the start of the activity"
+    },
+    {
+        "token": "{{weather-precipitation}}",
+        "desc": "Rain and/or snowfall recorded during the activity; empty when none was reported"
+    },
+    {
+        "token": "{{weather-wind}}",
+        "desc": "Relevant wind, gust, and cycling headwind summary"
     },
     {
         "token": "{{cycling-activities-indoor-month}}",
@@ -3029,6 +3066,8 @@
 
         const gpsSelect = document.getElementById('gps-simplification-select');
         const statusGpsSimp = document.getElementById('status-gps-simplification');
+        const weatherEnabled = document.getElementById('enable-weather-data');
+        const statusWeather = document.getElementById('status-weather-data');
 
         function updateAthleteSummary(data) {
             const nameEl = document.getElementById('athlete-summary-name');
@@ -3115,8 +3154,35 @@
                 if (gpsSelect && data.gps_simplification !== undefined && data.gps_simplification !== null) {
                     gpsSelect.value = String(data.gps_simplification);
                 }
+                if (weatherEnabled) {
+                    weatherEnabled.checked = Boolean(data.enable_weather_data);
+                }
             })
             .catch(() => showStatus('Failed to load settings.', true));
+
+        if (weatherEnabled) {
+            weatherEnabled.addEventListener('change', function () {
+                fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable_weather_data: weatherEnabled.checked })
+                })
+                    .then(response => {
+                        if (!response.ok) throw new Error('Failed to update weather preference');
+                        return response.json();
+                    })
+                    .then(() => {
+                        statusWeather.textContent = 'Saved ✓';
+                        statusWeather.className = 'text-xs text-green-600 dark:text-green-400 h-4';
+                        setTimeout(() => { statusWeather.textContent = ''; }, 3000);
+                    })
+                    .catch(error => {
+                        console.error(error);
+                        statusWeather.textContent = 'Failed to save';
+                        statusWeather.className = 'text-xs text-red-500 h-4';
+                    });
+            });
+        }
 
         if (gpsSelect) {
             gpsSelect.addEventListener('change', function () {

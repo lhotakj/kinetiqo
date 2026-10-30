@@ -350,9 +350,11 @@ def _parse_bool_option(value) -> bool:
 @click.option('--cache-ttl', type=int, default=60, help='Cache TTL in minutes.')
 @click.option('--clear-cache', is_flag=True, help='Clear the cache before syncing.')
 @click.option('--update-strava-description', '--update-strava', '-U', 'update_strava_description', default='true', help='Update Strava activity descriptions (true/false, 1/0, yes/no). Default: true.')
+@click.option('--weather-data/--no-weather-data', default=None, help='Fetch missing historical weather data (default: enabled for fast sync only when the profile preference is enabled).')
+@click.option('--resync-weather', is_flag=True, help='Replace stored weather data in this sync scope; uses the same rolling quota guard.')
 @database_option
 @click.pass_context
-def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache, update_strava_description, database):
+def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clear_cache, update_strava_description, weather_data, resync_weather, database):
     """Synchronize activities with database."""
     _prepare_db(ctx.obj.config, database)
 
@@ -375,6 +377,8 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
         CacheManager(config).clear()
 
     update_strava_flag = _parse_bool_option(update_strava_description)
+    if resync_weather and weather_data is False:
+        raise click.UsageError("--resync-weather cannot be combined with --no-weather-data.")
 
     sync_service = SyncService(config)
     try:
@@ -382,7 +386,18 @@ def sync(ctx, full_sync, fast_sync, period, enable_strava_cache, cache_ttl, clea
         # Using deque(..., maxlen=0) efficiently consumes the iterator without
         # storing items in memory. This keeps behavior identical to the
         # previous empty for-loop but avoids Sonar S108 (empty loop bodies).
-        deque(sync_service.sync(full_sync=is_full_sync, trigger="cli", user="-", limit_days=limit_days, update_strava=update_strava_flag), maxlen=0)
+        deque(
+            sync_service.sync(
+                full_sync=is_full_sync,
+                trigger="cli",
+                user="-",
+                limit_days=limit_days,
+                update_strava=update_strava_flag,
+                update_weather=weather_data,
+                resync_weather=resync_weather,
+            ),
+            maxlen=0,
+        )
     finally:
         sync_service.close()
 

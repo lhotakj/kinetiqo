@@ -3,6 +3,8 @@ import json
 import logging
 import time
 import os
+import secrets
+import threading
 from datetime import datetime, timezone, timedelta
 
 import requests
@@ -16,6 +18,15 @@ from kinetiqo.profile_sync import (
     sync_athlete_weight_from_env,
 )
 from kinetiqo.strava_description import DescriptionContext, any_update_strava_template_configured, get_template_for_activity
+from kinetiqo.weather import (
+    QUOTA_HARD_CAP,
+    QUOTA_WARNING_UNITS,
+    WeatherProviderError,
+    WeatherQuotaExceeded,
+    build_activity_weather,
+    fetch_visual_crossing_hour,
+    skipped_activity_weather,
+)
 from kinetiqo.koms import (
     load_verified_koms,
     save_verified_koms,
@@ -197,14 +208,31 @@ class SyncService:
             if "id" in activity
         }
 
-    def sync(self, full_sync: bool = True, trigger: str = "unknown", user: str = "-", limit_days: int = 0, update_strava: bool = True):
+    def sync(
+        self,
+        full_sync: bool = True,
+        trigger: str = "unknown",
+        user: str = "-",
+        limit_days: int = 0,
+        update_strava: bool = True,
+        update_weather: bool | None = None,
+        resync_weather: bool = False,
+        cancel_requested=None,
+        job_id: str | None = None,
+    ):
         """
         Perform sync of Strava activities, yielding progress updates.
 
         Full sync:  fetches activities within the given limit_days window (or all time if 0).
         Fast sync:  fetches activities after the latest activity already in the database.
         """
-        self._check_stop_signal()  # clear any leftover stop signal before starting
+        if cancel_requested is None:
+            self._check_stop_signal()  # clear any leftover process-level stop signal before starting
+
+        def should_stop() -> bool:
+            if lease_lost.is_set():
+                raise RuntimeError("Sync execution lease was lost; stopping this sync.")
+            return bool(cancel_requested and cancel_requested()) or self._check_stop_signal()
 
         log_buffer = []
         sync_warnings = []
@@ -215,6 +243,11 @@ class SyncService:
         removed_count = 0
         success = True
         stopped = False
+        lease_token = secrets.token_urlsafe(32)
+        lease_stop = threading.Event()
+        lease_lost = threading.Event()
+        lease_thread = None
+        lease_acquired = False
 
         def yield_log(msg, final=False, is_stopped=False):
             msg = str(msg).replace('\n', ' ').replace('\r', '')
@@ -262,10 +295,14 @@ class SyncService:
                         </div>
                     </div>
                 </div>"""
-                hx_include = 'hx-include="#updateStravaDesc, #syncLimit"' if full_sync else 'hx-include="#updateStravaDesc"'
-                button_html = f"""<button id="start-sync-btn" 
-                        hx-get="/sync/start/{sync_type_str}" 
-                        hx-target="#sync-log-area" 
+                hx_include = (
+                    'hx-include="#updateStravaDesc, [name=\'weather_data\'], #resyncWeather, #syncLimit"'
+                    if full_sync
+                    else 'hx-include="#updateStravaDesc, [name=\'weather_data\'], #resyncWeather"'
+                )
+                button_html = f"""<button id="start-sync-btn"
+                        hx-post="/sync/start/{sync_type_str}"
+                        hx-target="#sync-log-area"
                         hx-swap="outerHTML"
                         hx-swap-oob="true"
                         {hx_include}
@@ -279,6 +316,37 @@ class SyncService:
                 return f"data: {live_html.replace(chr(10), '')}\n\n"
 
         try:
+            self.db.initialize_schema()
+            self.db.prune_weather_history()
+            lease_now = datetime.now(timezone.utc)
+            lease_expires = lease_now + timedelta(minutes=5)
+            if not self.db.acquire_sync_lease(lease_token, job_id, lease_now, lease_expires):
+                raise RuntimeError("Another sync is already running for this database.")
+            lease_acquired = True
+
+            def renew_lease() -> None:
+                while not lease_stop.wait(30):
+                    heartbeat_repo = None
+                    try:
+                        heartbeat_repo = create_repository(self.config)
+                        renewed = heartbeat_repo.renew_sync_lease(
+                            lease_token,
+                            datetime.now(timezone.utc) + timedelta(minutes=5),
+                        )
+                        if not renewed:
+                            lease_lost.set()
+                            logger.error("Sync lease renewal failed; stopping before the next sync operation.")
+                            return
+                    except Exception:
+                        lease_lost.set()
+                        logger.exception("Sync lease heartbeat failed; stopping before the next sync operation.")
+                        return
+                    finally:
+                        if heartbeat_repo is not None:
+                            heartbeat_repo.close()
+
+            lease_thread = threading.Thread(target=renew_lease, name=f"kinetiqo-sync-lease-{lease_token[:8]}", daemon=True)
+            lease_thread.start()
             stop_button_html = """<button id="start-sync-btn" type="button"
                     data-sync-stop-button="true"
                     onclick="window.kinetiqoRequestSyncStop && window.kinetiqoRequestSyncStop(this); return false;"
@@ -292,7 +360,6 @@ class SyncService:
             yield f"data: {stop_button_html}\n\n"
             yield yield_log(f"Starting {sync_type_str} sync (limit: {limit_days} days)...")
 
-            self.db.initialize_schema()
             try:
                 sync_update_strava_from_env(self.config, self.db)
                 sync_gps_simplification_from_env(self.config, self.db)
@@ -364,8 +431,16 @@ class SyncService:
 
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
+            existing_ids = {str(activity_id) for activity_id in synced_ids}
+            profile = self.db.get_profile() or {}
+            weather_enabled = (
+                bool(update_weather)
+                if update_weather is not None
+                else (bool(profile.get("enable_weather_data", False)) and not full_sync)
+            )
+            weather_enabled = weather_enabled or resync_weather
 
-            if self._check_stop_signal():
+            if should_stop():
                 stopped = True
                 yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                 return
@@ -416,7 +491,7 @@ class SyncService:
                 for item in self.strava.get_activities(activities, after=after):
                     if isinstance(item, str):
                         yield yield_log(item)
-                        if self._check_stop_signal():
+                        if should_stop():
                             stopped = True
                             yield yield_log("Stop signal received during fetch. Aborting...", final=True,
                                              is_stopped=True)
@@ -432,7 +507,7 @@ class SyncService:
                             # Fall back to ignoring the item if it's not iterable
                             pass
 
-                        if self._check_stop_signal():
+                        if should_stop():
                             stopped = True
                             yield yield_log("Stop signal received during fetch. Aborting...", final=True,
                                              is_stopped=True)
@@ -498,7 +573,7 @@ class SyncService:
                 else:
                     yield yield_log("No stale activities to delete.")
 
-            if self._check_stop_signal():
+            if should_stop():
                 stopped = True
                 yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                 return
@@ -507,7 +582,7 @@ class SyncService:
             total_activities = len(activities)
             trophies_cache = load_verified_trophies()
             for i, activity in enumerate(activities, 1):
-                if self._check_stop_signal():
+                if should_stop():
                     stopped = True
                     yield yield_log(STOP_SIGNAL_ABORT_MSG, final=True, is_stopped=True)
                     return
@@ -647,7 +722,7 @@ class SyncService:
                     if unscanned_db:
                         yield yield_log(f"Backfilling segment trophies for {len(unscanned_db)} historical activities...")
                         for idx, act in enumerate(unscanned_db, start=1):
-                            if self._check_stop_signal():
+                            if should_stop():
                                 stopped = True
                                 yield yield_log("Stop signal received during trophy scan. Aborting...", final=True, is_stopped=True)
                                 return
@@ -701,7 +776,155 @@ class SyncService:
                 sync_warnings.append(f"Failed to sync athlete KOMs/trophies: {e}")
                 yield yield_log(f"Warning: Failed to sync athlete KOMs/trophies: {e}")
 
+            if weather_enabled:
+                try:
+                    usage = self.db.get_weather_quota_usage()
+                    quota_warned = usage >= QUOTA_WARNING_UNITS
+                    if quota_warned:
+                        warning = (
+                            f"Visual Crossing weather quota warning: {usage}/{QUOTA_HARD_CAP} "
+                            "local records reserved in the rolling 24-hour window."
+                        )
+                        sync_warnings.append(warning)
+                        yield yield_log(warning)
 
+                    candidates = []
+                    for candidate in activities:
+                        candidate_id = candidate.get("id")
+                        if candidate_id is None:
+                            continue
+                        is_new_to_db = str(candidate_id) not in existing_ids
+                        if not resync_weather and not full_sync and not is_new_to_db:
+                            continue
+                        if not resync_weather and self.db.get_activity_weather(candidate_id):
+                            continue
+                        candidates.append(candidate)
+
+                    yield yield_log(
+                        f"Fetching historical weather for {len(candidates)} eligible activities "
+                        f"(hourly; Visual Crossing free-tier guard: {QUOTA_HARD_CAP} records/rolling 24h)."
+                    )
+                    quota_exhausted = False
+
+                    def reserve_weather_quota(units: int) -> int | None:
+                        nonlocal quota_warned
+                        reserved = self.db.reserve_weather_api_request(
+                            quota_units=units,
+                            hard_cap=QUOTA_HARD_CAP,
+                        )
+                        if reserved is None:
+                            raise WeatherQuotaExceeded(
+                                f"Local Visual Crossing quota guard reached {QUOTA_HARD_CAP} "
+                                "records in the rolling 24-hour window."
+                            )
+                        if reserved >= QUOTA_WARNING_UNITS and not quota_warned:
+                            quota_warned = True
+                            sync_warnings.append(
+                                f"Visual Crossing weather quota warning: {reserved}/{QUOTA_HARD_CAP} "
+                                "local records reserved in the rolling 24-hour window."
+                            )
+                        return reserved
+
+                    def weather_should_stop() -> bool:
+                        nonlocal stopped
+                        stopped = should_stop()
+                        return stopped
+
+                    for index, candidate in enumerate(candidates, start=1):
+                        if should_stop():
+                            stopped = True
+                            yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
+                            return
+                        if quota_exhausted:
+                            skipped_count = len(candidates) - index + 1
+                            warning = (
+                                f"Weather phase stopped; {skipped_count} additional eligible "
+                                "activity(ies) were not processed."
+                            )
+                            sync_warnings.append(warning)
+                            yield yield_log(warning)
+                            break
+                        activity_id = candidate["id"]
+                        activity_name = str(candidate.get("name") or f"Activity {activity_id}")
+                        try:
+                            activity_type = str(
+                                candidate.get("sport_type") or candidate.get("type") or ""
+                            ).lower()
+                            if candidate.get("trainer") or activity_type.startswith("virtual") or activity_type in {
+                                "indoorcycling", "treadmill", "weighttraining", "workout",
+                                "yoga", "elliptical", "stairstepper",
+                            }:
+                                payload = skipped_activity_weather(candidate, "skipped_indoor")
+                                self.db.upsert_activity_weather(activity_id, payload)
+                                yield yield_log(
+                                    f"Weather [{index}/{len(candidates)}] {activity_name}: skipped indoor activity."
+                                )
+                                continue
+                            points = self.db.get_activity_stream_window(
+                                activity_id,
+                                ["ts", "lat", "lng", "distance"],
+                                max_rows=100000,
+                            )
+                            points = [
+                                point for point in points
+                                if point.get("ts") is not None
+                                and point.get("lat") is not None
+                                and point.get("lng") is not None
+                            ]
+                            if not points:
+                                payload = skipped_activity_weather(candidate, "skipped_no_gps")
+                                self.db.upsert_activity_weather(activity_id, payload)
+                                yield yield_log(
+                                    f"Weather [{index}/{len(candidates)}] {activity_name}: skipped, no GPS route."
+                                )
+                                continue
+                            payload = build_activity_weather(
+                                candidate,
+                                points,
+                                fetch_visual_crossing_hour,
+                                reserve_weather_quota,
+                                should_stop=weather_should_stop,
+                            )
+                            if stopped:
+                                yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
+                                return
+                            if payload["status"] == "complete":
+                                self.db.upsert_activity_weather(activity_id, payload)
+                            else:
+                                sync_warnings.append(
+                                    f"Weather deferred for activity {activity_id}: route GPS does not cover a sample."
+                                )
+                            yield yield_log(
+                                f"Weather [{index}/{len(candidates)}] {activity_name}: "
+                                f"{len(payload['samples'])} hourly samples ({payload['status']})."
+                            )
+                        except WeatherQuotaExceeded as error:
+                            quota_exhausted = True
+                            warning = f"Weather enrichment stopped: {error}"
+                            sync_warnings.append(warning)
+                            yield yield_log(warning)
+                        except WeatherProviderError as error:
+                            warning = f"Weather enrichment skipped for activity {activity_id}: {error}"
+                            if error.retry_after:
+                                warning += f" Provider Retry-After: {error.retry_after}."
+                            sync_warnings.append(warning)
+                            yield yield_log(warning)
+                            if error.stop_run:
+                                quota_exhausted = True
+                        except Exception as error:
+                            if lease_lost.is_set():
+                                raise
+                            warning = f"Weather enrichment failed for activity {activity_id}: {error}"
+                            sync_warnings.append(warning)
+                            logger.exception(warning)
+                            yield yield_log(warning)
+                except Exception as error:
+                    if lease_lost.is_set():
+                        raise
+                    warning = f"Weather enrichment phase could not start: {error}"
+                    sync_warnings.append(warning)
+                    logger.exception(warning)
+                    yield yield_log(warning)
 
             yield yield_log(
                 f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",
@@ -714,6 +937,14 @@ class SyncService:
             yield yield_log(f"Sync failed: {e}", final=True)
             raise
         finally:
+            lease_stop.set()
+            if lease_thread is not None and lease_thread is not threading.current_thread():
+                lease_thread.join(timeout=5)
+            if lease_acquired:
+                try:
+                    self.db.release_sync_lease(lease_token)
+                except Exception:
+                    logger.exception("Failed to release the sync execution lease.")
             try:
                 self.db.log_sync(
                     added_count, removed_count, trigger,

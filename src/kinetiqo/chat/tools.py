@@ -29,6 +29,7 @@ CHAT_TOOL_ALLOWLIST = frozenset({
     "kinetiqo_get_activity_totals",
     "kinetiqo_search_activities",
     "kinetiqo_get_fitness_and_freshness",
+    "kinetiqo_get_activity_weather",
 })
 
 
@@ -292,4 +293,3 @@ def build_training_context(repo: Any, prompt: str) -> str:
     compact = [{"tool": name, "result": payload.get("data", {})} for name, payload in results]
     serialized = json.dumps(compact, default=str, separators=(",", ":"))[:16_000]
     return "\n\nLOCAL KINETIQO DATA (retrieved read-only for this request; use only these facts):\n" + serialized
-

@@ -39,6 +39,8 @@ def _get_pg_pool(config: Config):
 
 
 class PostgresqlRepository(DatabaseRepository):
+    db_type = "postgresql"
+
     def __init__(self, config: Config):
         """Initialize PostgreSQL repository and establish a DB connection.
 
@@ -1091,7 +1093,7 @@ class PostgresqlRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification, agent_prompt, strava_agents_config "
+                "gps_simplification, agent_prompt, strava_agents_config, enable_weather_data "
                 "FROM profile LIMIT 1"
             )
             row = cur.fetchone()
@@ -1104,13 +1106,15 @@ class PostgresqlRepository(DatabaseRepository):
                        refresh_token: str = "", ftp: Optional[float] = None,
                        gps_simplification: Optional[int] = None,
                        agent_prompt: Optional[str] = None,
-                       strava_agents_config: Optional[str] = None):
+                       strava_agents_config: Optional[str] = None,
+                       enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
         effective_agent_prompt = agent_prompt if agent_prompt is not None else (existing.get('agent_prompt') if existing else "")
         effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config') if existing else "")
+        effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
 
         with self.conn.cursor() as cur:
             cur.execute("""
@@ -1118,8 +1122,8 @@ class PostgresqlRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification, agent_prompt, strava_agents_config)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, agent_prompt, strava_agents_config, enable_weather_data)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
@@ -1134,12 +1138,14 @@ class PostgresqlRepository(DatabaseRepository):
                         refresh_token                  = EXCLUDED.refresh_token,
                         gps_simplification             = EXCLUDED.gps_simplification,
                         agent_prompt                   = EXCLUDED.agent_prompt,
-                        strava_agents_config           = EXCLUDED.strava_agents_config
+                        strava_agents_config           = EXCLUDED.strava_agents_config,
+                        enable_weather_data             = EXCLUDED.enable_weather_data
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification, effective_agent_prompt or "", effective_strava_agents_config or ""))
+                  effective_gps_simplification, effective_agent_prompt or "", effective_strava_agents_config or "",
+                  effective_enable_weather_data))
 
     # ------------------------------------------------------------------
     # Activity goals

@@ -87,25 +87,122 @@ def test_poster_page_controls(monkeypatch):
 
 def test_sync_start_loading_indicator(monkeypatch):
     app.config['LOGIN_DISABLED'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
     client = app.test_client()
-    dummy_repo = DummyRepo()
+
+    class SyncJobRepo(DummyRepo):
+        def recover_expired_sync_jobs(self):
+            return 0
+
+        def has_active_sync_job(self, owner_id):
+            return False
+
+        def create_sync_job(self, job_id, sync_type, owner_id, options):
+            self.job_id = job_id
+            self.options = options
+
+        def close(self):
+            pass
+
+    class UnstartedThread:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    dummy_repo = SyncJobRepo()
     monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: dummy_repo)
     monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
+    monkeypatch.setattr('kinetiqo.web.app.threading.Thread', UnstartedThread)
 
     for sync_type in ['fast', 'full']:
-        resp = client.get(f'/sync/start/{sync_type}')
+        resp = client.post(f'/sync/start/{sync_type}')
         assert resp.status_code == 200
         html_text = resp.get_data(as_text=True)
+        assert f'/api/sync/stream/{dummy_repo.job_id}' in html_text
+        assert 'sse-connect=' in html_text
         assert 'Sync in progress...' in html_text
-        assert '/static/img/kinetiqo-loading-32x32.webp' in html_text
-        assert 'sync-progress-text' in html_text
-        assert html_text.index('/static/img/kinetiqo-loading-32x32.webp') < html_text.index('Sync in progress...')
+        assert dummy_repo.options['full_sync'] is (sync_type == 'full')
+
+def test_web_startup_interrupts_persisted_sync_jobs_once(monkeypatch):
+    import importlib
+
+    web_module = importlib.import_module('kinetiqo.web.app')
+    monkeypatch.setattr(web_module, '_startup_sync_done', False)
+    monkeypatch.setattr(web_module, '_startup_sync_jobs_cleared', False)
+    monkeypatch.setitem(app.config, 'TESTING', False)
+
+    class StartupRepo:
+        def __init__(self):
+            self.interruptions = 0
+
+        def interrupt_active_sync_jobs(self):
+            self.interruptions += 1
+
+    repo = StartupRepo()
+    monkeypatch.setattr(web_module, 'get_db', lambda: repo)
+    monkeypatch.setattr(web_module, 'sync_all_profile_env_vars', lambda config, repository: None)
+
+    web_module.ensure_startup_profile_sync()
+    web_module.ensure_startup_profile_sync()
+
+    assert repo.interruptions == 1
+
+
+def test_fastsync_post_accepts_rendered_form_csrf_token(monkeypatch):
+    import re
+
+    monkeypatch.setitem(app.config, 'LOGIN_DISABLED', True)
+    monkeypatch.setitem(app.config, 'WTF_CSRF_ENABLED', True)
+    client = app.test_client()
+
+    class SyncJobRepo(DummyRepo):
+        def get_profile(self):
+            return {'enable_weather_data': False}
+
+        def recover_expired_sync_jobs(self):
+            return 0
+
+        def has_active_sync_job(self, owner_id):
+            return False
+
+        def create_sync_job(self, job_id, sync_type, owner_id, options):
+            self.job_id = job_id
+
+        def close(self):
+            pass
+
+    class UnstartedThread:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    dummy_repo = SyncJobRepo()
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: dummy_repo)
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
+    monkeypatch.setattr('kinetiqo.web.app.threading.Thread', UnstartedThread)
+
+    page = client.get('/fastsync')
+    assert page.status_code == 200
+    page_html = page.get_data(as_text=True)
+    assert '#syncCsrfToken' in page_html
+    assert 'window.confirm' not in page_html
+    match = re.search(r'id="syncCsrfToken" type="hidden" name="csrf_token" value="([^"]+)"',
+                      page_html)
+    assert match
+
+    response = client.post('/sync/start/fast', data={'csrf_token': match.group(1)})
+    assert response.status_code == 200
 
 
 def test_base_template_authenticated_vs_anonymous_user(monkeypatch):
     """Base template renders user initial when authenticated, and fallback 'U' when anonymous."""
     app.config['LOGIN_DISABLED'] = True
     client = app.test_client()
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
 
     class DummyUser:
         is_authenticated = True
@@ -137,43 +234,25 @@ def test_base_template_authenticated_vs_anonymous_user(monkeypatch):
     assert 'U' in html_anon
 
 
-def test_sync_stream_passes_user_id(monkeypatch):
-    """sync_stream passes user ID or fallback 'admin' to SyncService."""
+def test_sync_stream_replays_owned_job_events(monkeypatch):
+    """The read-only stream replays events for the owning user."""
     app.config['LOGIN_DISABLED'] = True
     client = app.test_client()
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
 
-    captured_users = []
+    class SyncJobRepo(DummyRepo):
+        def get_sync_job(self, job_id):
+            return {'job_id': job_id, 'owner_id': 'admin', 'status': 'completed'}
 
-    class MockSyncService:
-        def __init__(self, cfg):
-            pass
-
-        def sync(self, **kwargs):
-            captured_users.append(kwargs.get('user'))
-            yield "data: progress\n\n"
+        def get_sync_job_events(self, job_id, after_sequence):
+            if after_sequence == 0:
+                return [{'event_sequence': 1, 'payload': {'html': '<p>progress</p>'}}]
+            return []
 
         def close(self):
             pass
 
-    monkeypatch.setattr('kinetiqo.web.app.SyncService', MockSyncService)
-
-    # Test with anonymous user
-    class AnonymousUser:
-        is_authenticated = False
-
-    monkeypatch.setattr('kinetiqo.web.app.current_user', AnonymousUser())
-    resp1 = client.get('/api/sync/stream/fast')
-    assert resp1.status_code == 200
-    list(resp1.response)  # exhaust generator
-    assert captured_users[-1] == 'admin'
-
-    # Test with authenticated user
-    class AuthenticatedUser:
-        is_authenticated = True
-        id = 'athlete_42'
-
-    monkeypatch.setattr('kinetiqo.web.app.current_user', AuthenticatedUser())
-    resp2 = client.get('/api/sync/stream/fast')
-    assert resp2.status_code == 200
-    list(resp2.response)  # exhaust generator
-    assert captured_users[-1] == 'athlete_42'
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: SyncJobRepo())
+    response = client.get('/api/sync/stream/job-1')
+    assert response.status_code == 200
+    assert b'id: 1\nevent: message\ndata: <p>progress</p>' in b''.join(response.response)

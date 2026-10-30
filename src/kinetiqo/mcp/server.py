@@ -11,7 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from kinetiqo.db.factory import create_repository
 from kinetiqo.mcp.resources import register_mcp_resources
 from kinetiqo.mcp.prompts import register_mcp_prompts
-from kinetiqo.mcp.tools import activities, telemetry, physiology, achievements, generator, operations
+from kinetiqo.mcp.tools import activities, telemetry, physiology, achievements, generator, operations, weather
 
 logger = logging.getLogger("kinetiqo.mcp")
 
@@ -180,6 +180,25 @@ def create_mcp_server(
     def get_activity_details(activity_id: Union[str, int]) -> Dict[str, Any]:
         with get_repo() as r:
             return activities.kinetiqo_get_activity_details(repo=r, activity_id=str(activity_id))
+
+    @server.tool(
+        name="kinetiqo_get_activity_weather",
+        description=(
+            "Read stored hourly historical weather for an activity, including conditions, temperature, "
+            "apparent temperature, precipitation, snow, wind, gusts, and calculated headwind. "
+            "This is read-only and never makes provider requests. GPS coordinates are not returned."
+        ),
+    )
+    def get_activity_weather(
+        activity_id: Union[str, int],
+        max_samples: int = 48,
+    ) -> Dict[str, Any]:
+        with get_repo() as r:
+            return weather.kinetiqo_get_activity_weather(
+                repo=r,
+                activity_id=str(activity_id),
+                max_samples=max_samples,
+            )
 
     @server.tool(
         name="kinetiqo_get_activity_totals",

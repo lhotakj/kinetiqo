@@ -215,7 +215,12 @@ _PERIOD_GOAL_PREFIX = {"year": "yearly", "month": "monthly", "week": "weekly"}
 
 _CELEBRATION_SUFFIX = " 🎉"
 
-SPECIAL_TOKENS = {"new-line", "current-year", "current-month", "workout-summary", "ai-agent", "agent-ai"}
+SPECIAL_TOKENS = {
+    "new-line", "current-year", "current-month", "workout-summary",
+    "ai-agent", "agent-ai",
+    "weather-basic", "weather-start",
+    "weather-precipitation", "weather-wind",
+}
 AI_AGENT_TOKENS = frozenset({"ai-agent", "agent-ai"})
 AI_AGENT_TOKEN_PREFIX = "agent-ai-"
 
@@ -629,6 +634,25 @@ class DescriptionContext:
             peak_threshold_w = getattr(self.config, "workout_summary_peak_threshold_w", None)
             return generate_workout_summary(act_obj, watts_stream=watts_stream, ftp=athlete_ftp,
                                             peak_threshold_w=peak_threshold_w)
+
+        if token in {"weather-basic", "weather-start", "weather-precipitation", "weather-wind"}:
+            activity_id = (activity or {}).get("id") or (activity or {}).get("activity_id")
+            if not activity_id:
+                return ""
+            weather_cache = cache.setdefault("activity_weather_placeholders", {})
+            cache_key = str(activity_id)
+            if cache_key not in weather_cache:
+                try:
+                    from kinetiqo.weather import format_weather_placeholders
+
+                    stored = self.repo.get_activity_weather(activity_id)
+                    weather_cache[cache_key] = format_weather_placeholders(
+                        stored.get("weather_json") if stored else None
+                    )
+                except Exception as error:
+                    logger.warning("UPDATE_STRAVA: failed to load activity weather for %s: %s", activity_id, error)
+                    weather_cache[cache_key] = {}
+            return str(weather_cache[cache_key].get(token, ""))
 
         if token in AI_AGENT_TOKENS or token.startswith(AI_AGENT_TOKEN_PREFIX):
             if self.ai_enabled is False:
