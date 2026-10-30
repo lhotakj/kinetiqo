@@ -328,6 +328,22 @@ Register a read-only tool such as `kinetiqo_get_activity_weather(activity_id, in
 - **Third-party terms:** Free endpoint use is non-commercial. Require attribution and verify current limits/licence before release; a commercial deployment needs a properly licensed plan.
 - **Portability:** JSON text, a shared schema definition, parameterized SQL, transaction-safe usage counting, and backend-specific tests are required across all database backends.
 
+## API rate limits of Visual crossing
+The Visual Crossing API daily limit resets at 00:00 (Midnight) UTC each day.
+
+### Key Timing Details
+
+• The Reset Mechanism: Your daily pool of 1,000 records zeroes out exactly at midnight Universal Coordinated Time (UTC).
+• Local Time Impact: Depending on your location, this means the limit resets at a different time on your local clock. For example, midnight UTC corresponds to:
+	• 7:00 PM EST / 4:00 PM PST (North America)
+	• 1:00 AM CET (Central Europe)
+
+### How to Track Your Usage
+
+Visual Crossing tracks your exact remaining quota dynamically. You can inspect how close you are to the reset by looking at the HTTP Response Headers of your API calls:
+• Look for the X-RateLimit-Remaining header to see how many records you have left before the next midnight UTC reset.
+• If you exceed your limit before midnight UTC, the API will return an HTTP 429 Too Many Requests error until the clock strikes 00:00 UTC.
+
 ## Delivery phases
 
 1. **Verify provider contract and data model:** confirm current free-tier allowance, attribution wording, per-record quota accounting, hourly variable units, historical availability, and exact endpoint behavior before release. Visual Crossing condition text is provider-authored; named hazard labels must not be promised unless actually returned.
