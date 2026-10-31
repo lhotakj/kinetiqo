@@ -8,8 +8,8 @@ name: Build Firebird Python Base Image
 # build remains fast.
 #
 # Trigger:   Manual only (workflow_dispatch)
-# Publishes: lhotakj/firebird-python:<python_version>
-#            lhotakj/firebird-python:<python_version>-firebird<firebird_version>
+# Publishes: kinetiqo/firebird-python:<python_version>
+#            kinetiqo/firebird-python:<python_version>-firebird<firebird_version>
 # ---------------------------------------------------------------------------
 
 on:
@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   build-base-image:
-    name: Build & Push lhotakj/firebird-python
+    name: Build & Push kinetiqo/firebird-python
     runs-on: ubuntu-latest
 
     steps:
@@ -53,20 +53,12 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push base image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: build/Dockerfile.firebird-base
-          platforms: ${{ inputs.platforms }}
-          push: true
-          # no-cache ensures we always get the freshest Firebird source
-          no-cache: true
-          tags: |
-            lhotakj/firebird-python:${{ inputs.python_version }}
-            lhotakj/firebird-python:${{ inputs.python_version }}-firebird${{ inputs.firebird_version }}
-          build-args: |
-            PYTHON_VERSION=${{ inputs.python_version }}
-            FIREBIRD_VERSION=${{ inputs.firebird_version }}
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          chmod +x build/build.sh
+          ./build/build.sh base --push --python "${{ inputs.python_version }}" --firebird "${{ inputs.firebird_version }}"
 
       - name: Add build summary
         run: |
@@ -74,10 +66,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | \`lhotakj/firebird-python\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`kinetiqo/firebird-python\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Python | \`${{ inputs.python_version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Firebird | \`${{ inputs.firebird_version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Platforms | \`${{ inputs.platforms }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "[View on DockerHub](https://hub.docker.com/r/lhotakj/firebird-python/tags)" >> $GITHUB_STEP_SUMMARY
+          echo "[View on DockerHub](https://hub.docker.com/r/kinetiqo/firebird-python/tags)" >> $GITHUB_STEP_SUMMARY
 

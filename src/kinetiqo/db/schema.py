@@ -65,6 +65,8 @@ SCHEMA_DEFINITION = {
              "type_firebird": "INTEGER"},
             {"name": "trophies", "type_mysql": "TEXT", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(255)"},
+            {"name": "ai_responses", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
         ],
         "indexes": [
             {
@@ -200,6 +202,12 @@ SCHEMA_DEFINITION = {
                 "def_mysql": "CREATE INDEX idx_activities_gear ON activities (gear_id)",
                 "def_pg": "CREATE INDEX idx_activities_gear ON activities (gear_id) WHERE gear_id IS NOT NULL",
                 "def_firebird": 'CREATE INDEX idx_activities_gear ON "activities" ("gear_id")'
+            },
+            {
+                "name": "idx_activities_gear_start",
+                "def_mysql": "CREATE INDEX idx_activities_gear_start ON activities (gear_id, start_date DESC)",
+                "def_pg": "CREATE INDEX idx_activities_gear_start ON activities (gear_id, start_date DESC) WHERE gear_id IS NOT NULL",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_gear_start ON "activities" ("gear_id", "start_date")'
             },
             {
                 "name": "idx_activities_fitness_trends",
@@ -381,6 +389,10 @@ SCHEMA_DEFINITION = {
             # Map GPS track decimation level (scale 0-10, 0=disabled, 1-10=3m-100m thresholds).
             {"name": "gps_simplification", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0",
              "type_firebird": "INTEGER DEFAULT 0"},
+            {"name": "strava_agents_config", "type_mysql": "TEXT", "type_pg": "TEXT",
+             "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "enable_weather_data", "type_mysql": "BOOLEAN NOT NULL DEFAULT FALSE",
+             "type_pg": "BOOLEAN NOT NULL DEFAULT FALSE", "type_firebird": "SMALLINT DEFAULT 0 NOT NULL"},
         ],
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
@@ -410,12 +422,210 @@ SCHEMA_DEFINITION = {
         "indexes": [],
         "engine_mysql": "ENGINE=InnoDB"
     },
-    "gtt_activity_ids": {
+    "sync_jobs": {
         "columns": [
-            {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"}
+            {"name": "job_id", "type_mysql": "VARCHAR(64) PRIMARY KEY", "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "sync_type", "type_mysql": "VARCHAR(32)", "type_pg": "TEXT", "type_firebird": "VARCHAR(32)"},
+            {"name": "status", "type_mysql": "VARCHAR(32)", "type_pg": "TEXT", "type_firebird": "VARCHAR(32)"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP", "type_firebird": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"},
+            {"name": "started_at", "type_mysql": "TIMESTAMP NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+            {"name": "completed_at", "type_mysql": "TIMESTAMP NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+            {"name": "total_activities", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0", "type_firebird": "INTEGER DEFAULT 0"},
+            {"name": "synced_activities", "type_mysql": "INTEGER DEFAULT 0", "type_pg": "INTEGER DEFAULT 0", "type_firebird": "INTEGER DEFAULT 0"},
+            {"name": "error_message", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "VARCHAR(1000)"},
+            {"name": "owner_id", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
+            {"name": "options_json", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "cancel_requested", "type_mysql": "BOOLEAN NOT NULL DEFAULT FALSE",
+             "type_pg": "BOOLEAN NOT NULL DEFAULT FALSE", "type_firebird": "SMALLINT DEFAULT 0 NOT NULL"},
+            {"name": "last_event_sequence", "type_mysql": "BIGINT NOT NULL DEFAULT 0",
+             "type_pg": "BIGINT NOT NULL DEFAULT 0", "type_firebird": "BIGINT DEFAULT 0 NOT NULL"},
+        ],
+        "indexes": [
+            {
+                "name": "idx_sync_jobs_created_at",
+                "def_mysql": "CREATE INDEX idx_sync_jobs_created_at ON sync_jobs (created_at DESC)",
+                "def_pg": "CREATE INDEX idx_sync_jobs_created_at ON sync_jobs (created_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_sync_jobs_created_at ON "sync_jobs" ("created_at")',
+            },
+            {
+                "name": "idx_sync_jobs_status",
+                "def_mysql": "CREATE INDEX idx_sync_jobs_status ON sync_jobs (status)",
+                "def_pg": "CREATE INDEX idx_sync_jobs_status ON sync_jobs (status)",
+                "def_firebird": 'CREATE INDEX idx_sync_jobs_status ON "sync_jobs" ("status")',
+            },
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "weather": {
+        "columns": [
+            {"name": "activity_id", "type_mysql": "BIGINT PRIMARY KEY", "type_pg": "BIGINT PRIMARY KEY",
+             "type_firebird": "BIGINT PRIMARY KEY"},
+            {"name": "weather_json", "type_mysql": "LONGTEXT NOT NULL", "type_pg": "TEXT NOT NULL",
+             "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
+            {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL",
+             "type_firebird": "TIMESTAMP NOT NULL"},
         ],
         "indexes": [],
-        "engine_mysql": "ENGINE=InnoDB"
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "sync_execution_lock": {
+        "columns": [
+            {"name": "lock_key", "type_mysql": "VARCHAR(64) PRIMARY KEY",
+             "type_pg": "VARCHAR(64) PRIMARY KEY", "type_firebird": "VARCHAR(64) PRIMARY KEY"},
+            {"name": "owner_token", "type_mysql": "VARCHAR(64)", "type_pg": "VARCHAR(64)",
+             "type_firebird": "VARCHAR(64)"},
+            {"name": "job_id", "type_mysql": "VARCHAR(64)", "type_pg": "VARCHAR(64)",
+             "type_firebird": "VARCHAR(64)"},
+            {"name": "lease_expires_at", "type_mysql": "TIMESTAMP NULL",
+             "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+        ],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "sync_job_events": {
+        "columns": [
+            {"name": "job_id", "type_mysql": "VARCHAR(64) NOT NULL",
+             "type_pg": "VARCHAR(64) NOT NULL", "type_firebird": "VARCHAR(64) NOT NULL"},
+            {"name": "event_sequence", "type_mysql": "BIGINT NOT NULL",
+             "type_pg": "BIGINT NOT NULL", "type_firebird": "BIGINT NOT NULL"},
+            {"name": "event_payload", "type_mysql": "LONGTEXT NOT NULL",
+             "type_pg": "TEXT NOT NULL", "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL",
+             "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+        ],
+        "constraints": [
+            {
+                "name": "pk_sync_job_events",
+                "def_mysql": "CONSTRAINT pk_sync_job_events PRIMARY KEY (job_id, event_sequence)",
+                "def_pg": "CONSTRAINT pk_sync_job_events PRIMARY KEY (job_id, event_sequence)",
+                "def_firebird": 'CONSTRAINT pk_sync_job_events PRIMARY KEY ("job_id", "event_sequence")',
+            },
+            {
+                "name": "fk_sync_job_events_job",
+                "def_mysql": "CONSTRAINT fk_sync_job_events_job FOREIGN KEY(job_id) REFERENCES sync_jobs(job_id) ON DELETE CASCADE",
+                "def_pg": "CONSTRAINT fk_sync_job_events_job FOREIGN KEY(job_id) REFERENCES sync_jobs(job_id) ON DELETE CASCADE",
+                "def_firebird": 'CONSTRAINT fk_sync_job_events_job FOREIGN KEY("job_id") REFERENCES "sync_jobs"("job_id") ON DELETE CASCADE',
+            },
+        ],
+        "indexes": [
+            {
+                "name": "idx_sync_job_events_created_at",
+                "def_mysql": "CREATE INDEX idx_sync_job_events_created_at ON sync_job_events (created_at)",
+                "def_pg": "CREATE INDEX idx_sync_job_events_created_at ON sync_job_events (created_at)",
+                "def_firebird": 'CREATE INDEX idx_sync_job_events_created_at ON "sync_job_events" ("created_at")',
+            }
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "verified_segment_efforts": {
+        "columns": [
+            {"name": "id", "type_mysql": "BIGINT AUTO_INCREMENT PRIMARY KEY", "type_pg": "SERIAL PRIMARY KEY", "type_firebird": "BIGINT PRIMARY KEY"},
+            {"name": "athlete_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
+            {"name": "activity_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
+            {"name": "segment_id", "type_mysql": "BIGINT", "type_pg": "BIGINT", "type_firebird": "BIGINT"},
+            {"name": "name", "type_mysql": "VARCHAR(255)", "type_pg": "TEXT", "type_firebird": "VARCHAR(255)"},
+            {"name": "rank", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "elapsed_time", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "moving_time", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "start_date", "type_mysql": "TIMESTAMP", "type_pg": "TIMESTAMP WITH TIME ZONE", "type_firebird": "TIMESTAMP"},
+            {"name": "pr_rank", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+        ],
+        "constraints": [
+            {
+                "name": "fk_vse_activity",
+                "def_mysql": "CONSTRAINT fk_vse_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
+                "def_pg": "CONSTRAINT fk_vse_activity FOREIGN KEY(activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE",
+                "def_firebird": 'CONSTRAINT fk_vse_activity FOREIGN KEY("activity_id") REFERENCES "activities"("activity_id") ON DELETE CASCADE',
+            }
+        ],
+        "indexes": [
+            {
+                "name": "idx_vse_activity_id",
+                "def_mysql": "CREATE INDEX idx_vse_activity_id ON verified_segment_efforts (activity_id)",
+                "def_pg": "CREATE INDEX idx_vse_activity_id ON verified_segment_efforts (activity_id)",
+                "def_firebird": 'CREATE INDEX idx_vse_activity_id ON "verified_segment_efforts" ("activity_id")',
+            },
+            {
+                "name": "idx_vse_rank",
+                "def_mysql": "CREATE INDEX idx_vse_rank ON verified_segment_efforts (rank)",
+                "def_pg": "CREATE INDEX idx_vse_rank ON verified_segment_efforts (rank)",
+                "def_firebird": 'CREATE INDEX idx_vse_rank ON "verified_segment_efforts" ("rank")',
+            },
+            {
+                "name": "idx_vse_segment_id",
+                "def_mysql": "CREATE INDEX idx_vse_segment_id ON verified_segment_efforts (segment_id)",
+                "def_pg": "CREATE INDEX idx_vse_segment_id ON verified_segment_efforts (segment_id)",
+                "def_firebird": 'CREATE INDEX idx_vse_segment_id ON "verified_segment_efforts" ("segment_id")',
+            },
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "chat_sessions": {
+        "columns": [
+            {"name": "session_id", "type_mysql": "VARCHAR(36) PRIMARY KEY", "type_pg": "VARCHAR(36) PRIMARY KEY", "type_firebird": "VARCHAR(36) PRIMARY KEY"},
+            {"name": "athlete_id", "type_mysql": "VARCHAR(255) NOT NULL", "type_pg": "TEXT NOT NULL", "type_firebird": "VARCHAR(255) NOT NULL"},
+            {"name": "title", "type_mysql": "VARCHAR(120) NOT NULL", "type_pg": "VARCHAR(120) NOT NULL", "type_firebird": "VARCHAR(120) NOT NULL"},
+            {"name": "provider", "type_mysql": "VARCHAR(32) NOT NULL", "type_pg": "VARCHAR(32) NOT NULL", "type_firebird": "VARCHAR(32) NOT NULL"},
+            {"name": "model_id", "type_mysql": "VARCHAR(128) NOT NULL", "type_pg": "VARCHAR(128) NOT NULL", "type_firebird": "VARCHAR(128) NOT NULL"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+            {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+            {"name": "last_message_at", "type_mysql": "TIMESTAMP NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NULL", "type_firebird": "TIMESTAMP"},
+        ],
+        "indexes": [
+            {
+                "name": "idx_chat_sessions_owner",
+                "def_mysql": "CREATE INDEX idx_chat_sessions_owner ON chat_sessions (athlete_id, last_message_at)",
+                "def_pg": "CREATE INDEX idx_chat_sessions_owner ON chat_sessions (athlete_id, last_message_at DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_chat_sessions_owner ON "chat_sessions" ("athlete_id", "last_message_at")'
+            },
+            {
+                "name": "idx_chat_sessions_owner_sid",
+                "def_mysql": "CREATE INDEX idx_chat_sessions_owner_sid ON chat_sessions (athlete_id, last_message_at, session_id)",
+                "def_pg": "CREATE INDEX idx_chat_sessions_owner_sid ON chat_sessions (athlete_id, last_message_at DESC, session_id DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_chat_sessions_owner_sid ON "chat_sessions" ("athlete_id", "last_message_at", "session_id")'
+            }
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "chat_messages": {
+        "columns": [
+            {"name": "message_id", "type_mysql": "VARCHAR(36) PRIMARY KEY", "type_pg": "VARCHAR(36) PRIMARY KEY", "type_firebird": "VARCHAR(36) PRIMARY KEY"},
+            {"name": "session_id", "type_mysql": "VARCHAR(36) NOT NULL", "type_pg": "VARCHAR(36) NOT NULL", "type_firebird": "VARCHAR(36) NOT NULL"},
+            {"name": "athlete_id", "type_mysql": "VARCHAR(255) NOT NULL", "type_pg": "TEXT NOT NULL", "type_firebird": "VARCHAR(255) NOT NULL"},
+            {"name": "seq", "type_mysql": "BIGINT NOT NULL", "type_pg": "BIGINT NOT NULL", "type_firebird": "BIGINT NOT NULL"},
+            {"name": "role", "type_mysql": "VARCHAR(16) NOT NULL", "type_pg": "VARCHAR(16) NOT NULL", "type_firebird": "VARCHAR(16) NOT NULL"},
+            {"name": "content", "type_mysql": "LONGTEXT NOT NULL", "type_pg": "TEXT NOT NULL", "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
+            {"name": "status", "type_mysql": "VARCHAR(16) NOT NULL", "type_pg": "VARCHAR(16) NOT NULL", "type_firebird": "VARCHAR(16) NOT NULL"},
+            {"name": "provider", "type_mysql": "VARCHAR(32)", "type_pg": "VARCHAR(32)", "type_firebird": "VARCHAR(32)"},
+            {"name": "model_id", "type_mysql": "VARCHAR(128)", "type_pg": "VARCHAR(128)", "type_firebird": "VARCHAR(128)"},
+            {"name": "error_code", "type_mysql": "VARCHAR(64)", "type_pg": "VARCHAR(64)", "type_firebird": "VARCHAR(64)"},
+            {"name": "input_tokens", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "output_tokens", "type_mysql": "INTEGER", "type_pg": "INTEGER", "type_firebird": "INTEGER"},
+            {"name": "tool_provenance", "type_mysql": "LONGTEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+        ],
+        "constraints": [{"name": "uq_chat_message_seq", "def_mysql": "CONSTRAINT uq_chat_message_seq UNIQUE (session_id, seq)", "def_pg": "CONSTRAINT uq_chat_message_seq UNIQUE (session_id, seq)", "def_firebird": 'CONSTRAINT uq_chat_message_seq UNIQUE ("session_id", "seq")'}],
+        "indexes": [
+            {"name": "idx_chat_messages_session", "def_mysql": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_pg": "CREATE INDEX idx_chat_messages_session ON chat_messages (session_id, seq)", "def_firebird": 'CREATE INDEX idx_chat_messages_session ON "chat_messages" ("session_id", "seq")'},
+            {"name": "idx_chat_msg_sess_owner_seq", "def_mysql": "CREATE INDEX idx_chat_msg_sess_owner_seq ON chat_messages (session_id, athlete_id, seq)", "def_pg": "CREATE INDEX idx_chat_msg_sess_owner_seq ON chat_messages (session_id, athlete_id, seq)", "def_firebird": 'CREATE INDEX idx_chat_msg_sess_owner_seq ON "chat_messages" ("session_id", "athlete_id", "seq")'},
+            {"name": "idx_chat_messages_hist", "def_mysql": "CREATE INDEX idx_chat_messages_hist ON chat_messages (athlete_id, role, created_at)", "def_pg": "CREATE INDEX idx_chat_messages_hist ON chat_messages (athlete_id, role, created_at DESC)", "def_firebird": 'CREATE DESCENDING INDEX idx_chat_messages_hist ON "chat_messages" ("athlete_id", "role", "created_at")'}
+        ],
+        "engine_mysql": "ENGINE=InnoDB",
+    },
+    "chat_provider_keys": {
+        "columns": [
+            {"name": "key_id", "type_mysql": "VARCHAR(36) PRIMARY KEY", "type_pg": "VARCHAR(36) PRIMARY KEY", "type_firebird": "VARCHAR(36) PRIMARY KEY"},
+            {"name": "athlete_id", "type_mysql": "VARCHAR(255) NOT NULL", "type_pg": "TEXT NOT NULL", "type_firebird": "VARCHAR(255) NOT NULL"},
+            {"name": "provider", "type_mysql": "VARCHAR(32) NOT NULL", "type_pg": "VARCHAR(32) NOT NULL", "type_firebird": "VARCHAR(32) NOT NULL"},
+            {"name": "api_key_enc", "type_mysql": "TEXT NOT NULL", "type_pg": "TEXT NOT NULL", "type_firebird": "BLOB SUB_TYPE TEXT NOT NULL"},
+            {"name": "enabled", "type_mysql": "BOOLEAN NOT NULL", "type_pg": "BOOLEAN NOT NULL", "type_firebird": "SMALLINT NOT NULL"},
+            {"name": "config_json", "type_mysql": "TEXT", "type_pg": "TEXT", "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "created_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+            {"name": "updated_at", "type_mysql": "TIMESTAMP NOT NULL", "type_pg": "TIMESTAMP WITH TIME ZONE NOT NULL", "type_firebird": "TIMESTAMP NOT NULL"},
+        ],
+        "constraints": [{"name": "uq_chat_provider_key", "def_mysql": "CONSTRAINT uq_chat_provider_key UNIQUE (athlete_id, provider)", "def_pg": "CONSTRAINT uq_chat_provider_key UNIQUE (athlete_id, provider)", "def_firebird": 'CONSTRAINT uq_chat_provider_key UNIQUE ("athlete_id", "provider")'}],
+        "indexes": [],
+        "engine_mysql": "ENGINE=InnoDB",
     }
 }
 
@@ -447,15 +657,20 @@ class SchemaManager:
     def ensure_schema(self):
         """Ensures the database schema matches the definition.
 
-        Safe to call on every startup — existing objects are left
-        untouched.  Tables are created/updated first, then all indexes
-        are verified (and created when missing).  A summary line is
-        logged so operators can tell at a glance what happened.
+        Safe to call on every startup — tables that are not in
+        ``SCHEMA_DEFINITION`` are removed, then defined tables are
+        created or updated.  Finally, all indexes are verified (and
+        created when missing).  A summary line is logged so operators
+        can tell at a glance what happened.
         """
         logger.info(f"{self.db_type.upper()}: Checking schema consistency...")
 
+        self._drop_undefined_tables()
+
         for table_name, definition in SCHEMA_DEFINITION.items():
             self._ensure_table(table_name, definition)
+
+        self._remove_legacy_weather_activity_constraint()
 
         total_checked = 0
         total_created = 0
@@ -468,6 +683,8 @@ class SchemaManager:
                 total_created += created
                 total_failed += failed
 
+        self._seed_sync_control_rows()
+
         if total_failed:
             logger.warning(
                 f"{self.db_type.upper()}: Schema check complete — "
@@ -478,6 +695,142 @@ class SchemaManager:
                 f"{self.db_type.upper()}: Schema check complete — "
                 f"indexes: {total_checked} checked, {total_created} created."
             )
+
+    def _remove_legacy_weather_activity_constraint(self) -> None:
+        """Remove the legacy weather cascade so restored activities reuse cached weather."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == "postgresql":
+                cur.execute(
+                    'ALTER TABLE "weather" DROP CONSTRAINT IF EXISTS "fk_weather_activity"'
+                )
+            elif self.db_type == "mysql":
+                cur.execute(
+                    "SELECT COUNT(*) FROM information_schema.table_constraints "
+                    "WHERE table_schema = DATABASE() AND table_name = %s "
+                    "AND constraint_name = %s AND constraint_type = 'FOREIGN KEY'",
+                    ("weather", "fk_weather_activity"),
+                )
+                result = cur.fetchone()
+                if result and result[0]:
+                    cur.execute(
+                        "ALTER TABLE `weather` DROP FOREIGN KEY `fk_weather_activity`"
+                    )
+            else:
+                cur.execute(
+                    "SELECT COUNT(*) FROM RDB$RELATION_CONSTRAINTS "
+                    "WHERE TRIM(RDB$RELATION_NAME) = ? "
+                    "AND TRIM(RDB$CONSTRAINT_NAME) = ? "
+                    "AND RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'",
+                    ("WEATHER", "FK_WEATHER_ACTIVITY"),
+                )
+                result = cur.fetchone()
+                if result and result[0]:
+                    cur.execute(
+                        'ALTER TABLE "weather" DROP CONSTRAINT "fk_weather_activity"'
+                    )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            logger.exception(
+                "%s: Failed to remove the legacy weather activity constraint.",
+                self.db_type.upper(),
+            )
+            raise
+        finally:
+            cur.close()
+
+    def _drop_undefined_tables(self) -> None:
+        """Drop application tables that are no longer part of the schema."""
+        defined_tables = {table_name.lower() for table_name in SCHEMA_DEFINITION}
+        existing_tables = self._get_existing_table_names()
+
+        for table_name in sorted(
+            table_name for table_name in existing_tables if table_name.lower() not in defined_tables
+        ):
+            logger.info(f"{self.db_type.upper()}: Dropping obsolete table '{table_name}'...")
+            cur = self.conn.cursor()
+            try:
+                cur.execute(f"DROP TABLE {self._quote_identifier(table_name)}")
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                logger.exception(
+                    "%s: Failed to drop obsolete table '%s'.",
+                    self.db_type.upper(),
+                    table_name,
+                )
+                raise
+            finally:
+                cur.close()
+
+    def _get_existing_table_names(self) -> set[str]:
+        """Return names of user-created base tables in the active schema."""
+        cur = self.conn.cursor()
+        try:
+            if self.db_type == "mysql":
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+                )
+            elif self.db_type == "postgresql":
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
+                )
+            elif self.db_type == "firebird":
+                cur.execute(
+                    "SELECT TRIM(RDB$RELATION_NAME) FROM RDB$RELATIONS "
+                    "WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND RDB$VIEW_BLR IS NULL"
+                )
+            else:
+                raise ValueError(f"Unsupported database type: {self.db_type}")
+
+            return {row[0] for row in cur.fetchall()}
+        finally:
+            cur.close()
+
+    def _seed_sync_control_rows(self) -> None:
+        """Create the stable row used to serialize sync execution."""
+        seeds = (("sync_execution_lock", "lock_key", "global", None, None),)
+        cur = self.conn.cursor()
+        try:
+            for table, key_column, key, value_column, value in seeds:
+                quoted_table = self._quote_identifier(table)
+                quoted_key = self._quote_identifier(key_column)
+                if self.db_type == "firebird":
+                    if value_column:
+                        quoted_value = self._quote_identifier(value_column)
+                        cur.execute(
+                            f'UPDATE OR INSERT INTO {quoted_table} ({quoted_key}, {quoted_value}) '
+                            f'VALUES (?, ?) MATCHING ({quoted_key})',
+                            (key, value),
+                        )
+                    else:
+                        cur.execute(
+                            f'UPDATE OR INSERT INTO {quoted_table} ({quoted_key}) VALUES (?) '
+                            f'MATCHING ({quoted_key})',
+                            (key,),
+                        )
+                    continue
+                quoted_value = self._quote_identifier(value_column) if value_column else None
+                columns = f"{quoted_key}, {quoted_value}" if quoted_value else quoted_key
+                placeholders = "%s, %s" if quoted_value else "%s"
+                if self.db_type == "mysql":
+                    conflict = f" ON DUPLICATE KEY UPDATE {quoted_key}={quoted_key}"
+                else:
+                    conflict = f" ON CONFLICT ({quoted_key}) DO NOTHING"
+                cur.execute(
+                    f"INSERT INTO {quoted_table} ({columns}) VALUES ({placeholders}){conflict}",
+                    (key, value) if quoted_value else (key,),
+                )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            logger.exception("%s: Failed to initialize sync control rows.", self.db_type.upper())
+            raise
+        finally:
+            cur.close()
 
     def _get_existing_index_names(self, table_name: str) -> set:
         """Return a set of index names that currently exist on *table_name*.
@@ -645,9 +998,8 @@ class SchemaManager:
     def _quote_identifier(self, identifier):
         """Quotes an identifier based on the database dialect."""
         if self.db_type == 'mysql':
-            return f"`{identifier}`"
-        else:
-            return f'"{identifier}"'
+            return f"`{identifier.replace('`', '``')}`"
+        return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
 
     def _ensure_table(self, table_name, definition):
         if not self._table_exists(table_name):
@@ -661,7 +1013,8 @@ class SchemaManager:
             if self.db_type == 'mysql':
                 cur.execute(
                     "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
-                    (table_name,))
+                    (table_name,)
+                )
             elif self.db_type == 'firebird':
                 cur.execute("SELECT RDB$RELATION_NAME FROM RDB$RELATIONS WHERE TRIM(RDB$RELATION_NAME) = ?",
                             (table_name,))
@@ -671,7 +1024,8 @@ class SchemaManager:
                 cur.execute(
                     "SELECT table_name FROM information_schema.tables "
                     "WHERE table_schema = 'public' AND table_name = %s",
-                    (table_name,))
+                    (table_name,)
+                )
             return cur.fetchone() is not None
         finally:
             cur.close()
@@ -813,7 +1167,8 @@ class SchemaManager:
                 cur.execute(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_schema = 'public' AND table_name = %s",
-                    (table_name,))
+                    (table_name,)
+                )
                 return {row[0] for row in cur.fetchall()}
         finally:
             cur.close()

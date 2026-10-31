@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Set, List, Dict, Any, Tuple
+import json
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Activity-type constants used for the activity_goals table.
@@ -175,6 +177,26 @@ class DatabaseRepository(ABC):
     @abstractmethod
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
         """Update placement achievements (trophies ranks 1-10) for an activity."""
+        pass
+
+    @abstractmethod
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        pass
+
+    @abstractmethod
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI generated variable responses for an activity."""
+        pass
+
+    @abstractmethod
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        pass
+
+    @abstractmethod
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        """Remove cached responses for one named agent and return affected activities."""
         pass
 
     @abstractmethod
@@ -385,7 +407,8 @@ class DatabaseRepository(ABC):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None) -> None:
+                       gps_simplification: Optional[int] = None,
+                       strava_agents_config: Optional[str] = None) -> None:
         """Insert or update the athlete profile row.
 
         :param athlete_id: Strava athlete ID (primary key).
@@ -463,4 +486,467 @@ class DatabaseRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination.
 
+        Returns:
+            (activities, next_cursor, has_more)
+        """
+        pass
+
+    @abstractmethod
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        pass
+
+    @abstractmethod
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        pass
+
+    def _weather_row_dict(self, cursor: Any, row: Any) -> Dict[str, Any]:
+        if row is None:
+            return {}
+        if isinstance(row, dict):
+            return {str(key).lower(): value for key, value in row.items()}
+        return {str(column[0]).lower(): value for column, value in zip(cursor.description, row)}
+
+    def _weather_ident(self, name: str) -> str:
+        return f'"{name}"' if self.db_type == "firebird" else name
+
+    def get_activity_weather(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Return the persisted JSON weather row for an activity."""
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("weather")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {self._weather_ident('activity_id')}, {self._weather_ident('weather_json')}, "
+                f"{self._weather_ident('updated_at')} FROM {table} "
+                f"WHERE {self._weather_ident('activity_id')} = {placeholder}",
+                (activity_id,),
+            )
+            row = self._weather_row_dict(cur, cur.fetchone())
+        if not row:
+            return None
+        value = row.get("weather_json")
+        if hasattr(value, "read"):
+            value = value.read()
+        row["weather_json"] = value
+        return row
+
+    def upsert_activity_weather(
+        self,
+        activity_id: Any,
+        weather_payload: Dict[str, Any],
+        updated_at: datetime | None = None,
+    ) -> None:
+        """Atomically store one activity's validated weather JSON."""
+        self._ensure_connected()
+        payload_text = json.dumps(weather_payload, separators=(",", ":"), ensure_ascii=False)
+        timestamp = updated_at or datetime.now(timezone.utc)
+        if self.db_type == "firebird":
+            sql = (
+                'UPDATE OR INSERT INTO "weather" ("activity_id", "weather_json", "updated_at") '
+                'VALUES (?, ?, ?) MATCHING ("activity_id")'
+            )
+            params = (activity_id, payload_text, timestamp.replace(tzinfo=None))
+        elif self.db_type == "mysql":
+            sql = (
+                "INSERT INTO weather (activity_id, weather_json, updated_at) VALUES (%s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE weather_json=VALUES(weather_json), updated_at=VALUES(updated_at)"
+            )
+            params = (activity_id, payload_text, timestamp)
+        else:
+            sql = (
+                "INSERT INTO weather (activity_id, weather_json, updated_at) VALUES (%s, %s, %s) "
+                "ON CONFLICT (activity_id) DO UPDATE SET weather_json=EXCLUDED.weather_json, "
+                "updated_at=EXCLUDED.updated_at"
+            )
+            params = (activity_id, payload_text, timestamp)
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+        self.conn.commit()
+
+    def prune_sync_history(self, now_utc: datetime | None = None) -> None:
+        """Bound completed sync-job history while preserving the active replay window."""
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        now = now_utc or datetime.now(timezone.utc)
+        event_cutoff = now - timedelta(hours=24)
+        job_cutoff = now - timedelta(days=30)
+        if self.db_type in ("firebird", "mysql"):
+            event_cutoff = event_cutoff.replace(tzinfo=None)
+            job_cutoff = job_cutoff.replace(tzinfo=None)
+        jobs = self._weather_ident("sync_jobs")
+        events = self._weather_ident("sync_job_events")
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    f"DELETE FROM {events} WHERE {self._weather_ident('created_at')} < {placeholder} "
+                    f"AND EXISTS (SELECT 1 FROM {jobs} j WHERE "
+                    f"j.{self._weather_ident('job_id')} = {events}.{self._weather_ident('job_id')} "
+                    f"AND j.{self._weather_ident('status')} NOT IN ('queued', 'running') "
+                    f"AND j.{self._weather_ident('completed_at')} < {placeholder})",
+                    (event_cutoff, event_cutoff),
+                )
+                cur.execute(
+                    f"DELETE FROM {jobs} WHERE {self._weather_ident('status')} "
+                    f"NOT IN ('queued', 'running') AND {self._weather_ident('completed_at')} < {placeholder}",
+                    (job_cutoff,),
+                )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def create_sync_job(
+        self, job_id: str, sync_type: str, owner_id: str, options: Dict[str, Any],
+        created_at: datetime | None = None,
+    ) -> None:
+        """Create a durable web sync job."""
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_jobs")
+        timestamp = created_at or datetime.now(timezone.utc)
+        if self.db_type == "firebird":
+            timestamp = timestamp.replace(tzinfo=None)
+        cancel_requested = 0 if self.db_type == "firebird" else False
+        sql = (
+            f"INSERT INTO {table} ({', '.join(self._weather_ident(name) for name in ('job_id', 'sync_type', 'status', 'created_at', 'owner_id', 'options_json', 'cancel_requested', 'last_event_sequence'))}) "
+            f"VALUES ({', '.join([placeholder] * 8)})"
+        )
+        with self.conn.cursor() as cur:
+            cur.execute(sql, (job_id, sync_type, "queued", timestamp, owner_id,
+                              json.dumps(options, separators=(",", ":")), cancel_requested, 0))
+        self.conn.commit()
+
+    def get_sync_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_jobs")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(self._weather_ident(name) for name in ('job_id', 'sync_type', 'status', 'created_at', 'started_at', 'completed_at', 'total_activities', 'synced_activities', 'error_message', 'owner_id', 'options_json', 'cancel_requested', 'last_event_sequence'))} "
+                f"FROM {table} WHERE {self._weather_ident('job_id')} = {placeholder}",
+                (job_id,),
+            )
+            row = self._weather_row_dict(cur, cur.fetchone())
+        if not row:
+            return None
+        options = row.get("options_json")
+        if hasattr(options, "read"):
+            options = options.read()
+        try:
+            row["options"] = json.loads(options or "{}")
+        except (TypeError, ValueError):
+            row["options"] = {}
+        row.pop("options_json", None)
+        return row
+
+    def update_sync_job(self, job_id: str, **fields: Any) -> None:
+        """Update a constrained set of durable sync job fields."""
+        allowed = {
+            "status", "started_at", "completed_at", "total_activities",
+            "synced_activities", "error_message", "cancel_requested",
+        }
+        updates = {key: value for key, value in fields.items() if key in allowed}
+        if not updates:
+            return
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_jobs")
+        assignments = ", ".join(f"{self._weather_ident(key)} = {placeholder}" for key in updates)
+        values = list(updates.values())
+        if self.db_type == "firebird":
+            values = [value.replace(tzinfo=None) if isinstance(value, datetime) and value.tzinfo else value
+                      for value in values]
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE {table} SET {assignments} WHERE {self._weather_ident('job_id')} = {placeholder}",
+                (*values, job_id),
+            )
+        self.conn.commit()
+
+    def has_active_sync_job(self, owner_id: str) -> bool:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_jobs")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE {self._weather_ident('owner_id')} = {placeholder} "
+                f"AND {self._weather_ident('status')} IN ('queued', 'running')",
+                (owner_id,),
+            )
+            row = cur.fetchone()
+        return bool(row and int(row[0] or 0))
+
+    def interrupt_active_sync_jobs(self, now_utc: datetime | None = None) -> int:
+        """Cancel persisted sync jobs and clear the global lease on app startup."""
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        now = now_utc or datetime.now(timezone.utc)
+        if self.db_type in ("firebird", "mysql"):
+            now = now.replace(tzinfo=None)
+        cancel_requested = 1 if self.db_type == "firebird" else True
+        jobs = self._weather_ident("sync_jobs")
+        lock = self._weather_ident("sync_execution_lock")
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {lock} SET {self._weather_ident('owner_token')} = NULL, "
+                    f"{self._weather_ident('job_id')} = NULL, "
+                    f"{self._weather_ident('lease_expires_at')} = NULL "
+                    f"WHERE {self._weather_ident('lock_key')} = {placeholder}",
+                    ("global",),
+                )
+                cur.execute(
+                    f"UPDATE {jobs} SET {self._weather_ident('status')} = {placeholder}, "
+                    f"{self._weather_ident('completed_at')} = {placeholder}, "
+                    f"{self._weather_ident('cancel_requested')} = {placeholder} "
+                    f"WHERE {self._weather_ident('status')} IN ('queued', 'running')",
+                    ("interrupted", now, cancel_requested),
+                )
+                interrupted = max(0, cur.rowcount)
+            self.conn.commit()
+            return interrupted
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def recover_expired_sync_jobs(self, now_utc: datetime | None = None) -> int:
+        """Mark abandoned jobs interrupted so they cannot block future web syncs."""
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        now = now_utc or datetime.now(timezone.utc)
+        stale_queue_cutoff = now - timedelta(minutes=5)
+        db_now = now.replace(tzinfo=None) if self.db_type in ("firebird", "mysql") else now
+        db_cutoff = (
+            stale_queue_cutoff.replace(tzinfo=None)
+            if self.db_type in ("firebird", "mysql")
+            else stale_queue_cutoff
+        )
+        lock = self._weather_ident("sync_execution_lock")
+        jobs = self._weather_ident("sync_jobs")
+        changed = 0
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT {self._weather_ident('job_id')}, {self._weather_ident('lease_expires_at')} "
+                    f"FROM {lock} WHERE {self._weather_ident('lock_key')} = {placeholder}",
+                    ("global",),
+                )
+                lease = cur.fetchone()
+                active_job_id, expires_at = lease if lease else (None, None)
+                if isinstance(expires_at, datetime) and expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                compare_now = now.replace(tzinfo=timezone.utc) if now.tzinfo is None else now
+                if active_job_id and (expires_at is None or expires_at < compare_now):
+                    cur.execute(
+                        f"UPDATE {jobs} SET {self._weather_ident('status')} = {placeholder}, "
+                        f"{self._weather_ident('completed_at')} = {placeholder} "
+                        f"WHERE {self._weather_ident('job_id')} = {placeholder} "
+                        f"AND {self._weather_ident('status')} IN ('queued', 'running')",
+                        ("interrupted", db_now, active_job_id),
+                    )
+                    changed += max(0, cur.rowcount)
+                cur.execute(
+                    f"UPDATE {jobs} SET {self._weather_ident('status')} = {placeholder}, "
+                    f"{self._weather_ident('completed_at')} = {placeholder} "
+                    f"WHERE {self._weather_ident('status')} = 'queued' "
+                    f"AND {self._weather_ident('created_at')} < {placeholder}",
+                    ("interrupted", db_now, db_cutoff),
+                )
+                changed += max(0, cur.rowcount)
+            self.conn.commit()
+            return changed
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def append_sync_job_event(
+        self, job_id: str, payload: Dict[str, Any], created_at: datetime | None = None,
+    ) -> int:
+        """Append a monotonically ordered event in the same transaction as its sequence."""
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        jobs = self._weather_ident("sync_jobs")
+        events = self._weather_ident("sync_job_events")
+        timestamp = created_at or datetime.now(timezone.utc)
+        if self.db_type == "firebird":
+            timestamp = timestamp.replace(tzinfo=None)
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {jobs} SET {self._weather_ident('last_event_sequence')} = "
+                    f"{self._weather_ident('last_event_sequence')} + 1 "
+                    f"WHERE {self._weather_ident('job_id')} = {placeholder}",
+                    (job_id,),
+                )
+                if cur.rowcount != 1:
+                    raise LookupError(f"Sync job {job_id!r} does not exist.")
+                cur.execute(
+                    f"SELECT {self._weather_ident('last_event_sequence')} FROM {jobs} "
+                    f"WHERE {self._weather_ident('job_id')} = {placeholder}",
+                    (job_id,),
+                )
+                row = cur.fetchone()
+                sequence = int(row[0])
+                cur.execute(
+                    f"INSERT INTO {events} ({', '.join(self._weather_ident(name) for name in ('job_id', 'event_sequence', 'event_payload', 'created_at'))}) "
+                    f"VALUES ({', '.join([placeholder] * 4)})",
+                    (job_id, sequence, json.dumps(payload, separators=(",", ":"), ensure_ascii=False), timestamp),
+                )
+            self.conn.commit()
+            return sequence
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def get_sync_job_events(
+        self, job_id: str, after_sequence: int = 0, limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        events = self._weather_ident("sync_job_events")
+        limit = max(1, min(int(limit), 500))
+        limit_clause = f"ROWS {limit}" if self.db_type == "firebird" else f"LIMIT {limit}"
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(self._weather_ident(name) for name in ('job_id', 'event_sequence', 'event_payload', 'created_at'))} "
+                f"FROM {events} WHERE {self._weather_ident('job_id')} = {placeholder} "
+                f"AND {self._weather_ident('event_sequence')} > {placeholder} "
+                f"ORDER BY {self._weather_ident('event_sequence')} ASC {limit_clause}",
+                (job_id, after_sequence),
+            )
+            rows = cur.fetchall()
+            values = [self._weather_row_dict(cur, row) for row in rows]
+        for event in values:
+            raw = event.get("event_payload")
+            if hasattr(raw, "read"):
+                raw = raw.read()
+            try:
+                event["payload"] = json.loads(raw or "{}")
+            except (TypeError, ValueError):
+                event["payload"] = {"type": "error", "message": "Invalid persisted event payload."}
+            event.pop("event_payload", None)
+        return values
+
+    def request_sync_job_cancel(self, job_id: str, owner_id: str) -> bool:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_jobs")
+        cancel_requested = 1 if self.db_type == "firebird" else True
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE {table} SET {self._weather_ident('cancel_requested')} = {placeholder} "
+                f"WHERE {self._weather_ident('job_id')} = {placeholder} "
+                f"AND {self._weather_ident('owner_id')} = {placeholder} "
+                f"AND {self._weather_ident('status')} IN ('queued', 'running')",
+                (cancel_requested, job_id, owner_id),
+            )
+            changed = cur.rowcount == 1
+        self.conn.commit()
+        return changed
+
+    def acquire_sync_lease(
+        self, owner_token: str, job_id: str | None, now_utc: datetime, expires_at: datetime,
+    ) -> bool:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_execution_lock")
+        now = now_utc.replace(tzinfo=None) if self.db_type == "firebird" else now_utc
+        expiry = expires_at.replace(tzinfo=None) if self.db_type == "firebird" else expires_at
+        jobs = self._weather_ident("sync_jobs")
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {table} SET {self._weather_ident('lease_expires_at')} = "
+                    f"{self._weather_ident('lease_expires_at')} "
+                    f"WHERE {self._weather_ident('lock_key')} = {placeholder}",
+                    ("global",),
+                )
+                cur.execute(
+                    f"SELECT {self._weather_ident('job_id')}, {self._weather_ident('lease_expires_at')} "
+                    f"FROM {table} WHERE {self._weather_ident('lock_key')} = {placeholder}",
+                    ("global",),
+                )
+                previous = cur.fetchone()
+                previous_job_id, previous_expiry = previous if previous else (None, None)
+                previous_expiry = (
+                    previous_expiry.replace(tzinfo=timezone.utc)
+                    if isinstance(previous_expiry, datetime) and previous_expiry.tzinfo is None
+                    else previous_expiry
+                )
+                current_time = now.replace(tzinfo=timezone.utc) if now.tzinfo is None else now
+                expired = previous_expiry is not None and previous_expiry < current_time
+                if expired and previous_job_id:
+                    cur.execute(
+                        f"UPDATE {jobs} SET {self._weather_ident('status')} = {placeholder}, "
+                        f"{self._weather_ident('completed_at')} = {placeholder} "
+                        f"WHERE {self._weather_ident('job_id')} = {placeholder} "
+                        f"AND {self._weather_ident('status')} IN ('queued', 'running')",
+                        ("interrupted", now.replace(tzinfo=None) if self.db_type == "firebird" else now,
+                         previous_job_id),
+                    )
+                cur.execute(
+                    f"UPDATE {table} SET {self._weather_ident('owner_token')} = {placeholder}, "
+                    f"{self._weather_ident('job_id')} = {placeholder}, "
+                    f"{self._weather_ident('lease_expires_at')} = {placeholder} "
+                    f"WHERE {self._weather_ident('lock_key')} = {placeholder} "
+                    f"AND ({self._weather_ident('lease_expires_at')} IS NULL OR "
+                    f"{self._weather_ident('lease_expires_at')} < {placeholder})",
+                    (owner_token, job_id, expiry, "global", now),
+                )
+                acquired = cur.rowcount == 1
+            self.conn.commit()
+            return acquired
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def renew_sync_lease(self, owner_token: str, expires_at: datetime) -> bool:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_execution_lock")
+        expiry = expires_at.replace(tzinfo=None) if self.db_type == "firebird" else expires_at
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE {table} SET {self._weather_ident('lease_expires_at')} = {placeholder} "
+                f"WHERE {self._weather_ident('lock_key')} = {placeholder} "
+                f"AND {self._weather_ident('owner_token')} = {placeholder}",
+                (expiry, "global", owner_token),
+            )
+            renewed = cur.rowcount == 1
+        self.conn.commit()
+        return renewed
+
+    def release_sync_lease(self, owner_token: str) -> bool:
+        self._ensure_connected()
+        placeholder = "?" if self.db_type == "firebird" else "%s"
+        table = self._weather_ident("sync_execution_lock")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE {table} SET {self._weather_ident('owner_token')} = NULL, "
+                f"{self._weather_ident('job_id')} = NULL, {self._weather_ident('lease_expires_at')} = NULL "
+                f"WHERE {self._weather_ident('lock_key')} = {placeholder} "
+                f"AND {self._weather_ident('owner_token')} = {placeholder}",
+                ("global", owner_token),
+            )
+            released = cur.rowcount == 1
+        self.conn.commit()
+        return released

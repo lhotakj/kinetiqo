@@ -19,7 +19,9 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Fondo-o-meter Infographic**: Dynamic endurance showcase infographic displaying up to 8 harmonic concentric rings with smart distance binning, sport thresholds (100km cycling, 42.2km marathon running/walking, 50km skiing, 10km swimming), KOMs, PRs, custom background photo upload with tint/opacity controls, arc color and arch width customization, and vector PDF / PNG export via Playwright.
 - **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, background photo mode (with clear image option) or interactive Leaflet map mode (tile provider selection, map opacity control, route line color/opacity/weight), collapsible control boxes with element checkboxes, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), configurable placement (`begin`/`end`), workout summary with power zones / NP (% FTP), sustained blocks, and high-power sprint peak surge detection (`≥ 1000W` adjectives).
+- **Historical Activity Weather**: Optional `VISUAL_CROSSING_API_KEY` enriches eligible outdoor GPS activities during enabled syncs with stored hourly weather and calculated headwind. Never expose route coordinates or fetch weather on demand; a valid `X-RateLimit-Remaining: 0` or HTTP 429 stops only this process's weather requests until UTC midnight, without a database quota counter.
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
+- **Model Context Protocol (MCP) Server**: FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO or FastMCP SSE over HTTP (`0.0.0.0:8000/sse`). Exposes 35 evidence-based tools across activity discovery, telemetry streams, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact exports, with strictly gated mutation flags (`KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`).
 - **Security & Performance**: Session auth (`flask-login`), CSRF validation (`flask-wtf`), response compression (`flask-compress`), self-hosted base fonts, and compiled Tailwind CSS.
 
 ---
@@ -56,7 +58,8 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
-| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
+| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`, `mcp`, `scan-trophies`, `version`) |
+| AI & MCP Protocol | **FastMCP** (`mcp[cli]`) | ≥1.2.0 | FastMCP server for AI agent integration (STDIO & SSE) |
 | Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 26.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
 | Data Processing | **pandas** | 3.0.6 | CTL/ATL/TSB calculation |
@@ -308,12 +311,43 @@ When adding a new Google Font to the offline font library, execute every step be
 
 ---
 
-## 7. Development Environment Notes
+## 7. Available AI Skills (Use by Default)
+
+All AI agents should leverage these specialized domain skills to enhance code quality, consistency, and validation:
+
+### 7.1 Core Kinetiqo Skills
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| **python-standards** | Enforce SonarQube rules and modern Python standards: cryptographic randomness with `secrets` (python:S2245), timezone-aware UTC datetimes, path traversal validation (pythonsecurity:S8707), and anonymous user safety. | `.agents/skills/python-standards/SKILL.md` |
+| **python-type-safety** | Python type safety with type hints, generics, protocols, and strict type checking. Use when adding type annotations, implementing generic classes, defining structural interfaces, or configuring mypy/pyright. | `.agents/skills/python-type-safety/SKILL.md` |
+| **javascript-standards** | Enforce SonarQube rules and modern ECMAScript standards for JavaScript code: avoid legacy global number methods (javascript:S7773), object property uniqueness (javascript:S1534), and modern ES2015+ patterns. | `.agents/skills/javascript-standards/SKILL.md` |
+| **ui-loading-standards** | Enforce uniform UI loading and waiting indicators across Kinetiqo using `kinetiqo-loading-32x32.webp` without accompanying text in action buttons. Covers DataTables, sync progress, chart overlays, and file uploads. | `.agents/skills/ui-loading-standards/SKILL.md` |
+| **ai-implementation** | Follow AI provider contracts, metadata normalization, unified Settings tables, and the mocked-test checklist when adding or modifying AI providers. | `.agents/skills/ai-implementation/SKILL.md` |
+| **sync-ai-documentation** | Keep AI provider specifications and user documentation synchronized across `docs/concepts/ai-concept.md` and `docs/AI.md`. | `.agents/skills/sync-ai-documentation/SKILL.md` |
+| **grill-me** | Interview the user relentlessly about a plan, spec, or ticket until every branch of the decision tree is resolved. Produces a per-dimension ambiguity report (Goals / Acceptance / Boundaries / Alternatives / Assumptions) and an aggregate gate. Use whenever drafting specs, proposing designs, debating approaches, or finalizing work. | `.agents/skills/grill-me/SKILL.md` |
+
+### 7.2 Marketing Site Skill (kinetiqo-web)
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| **sync-marketing-features** | Instructions and standards to keep the 8 core fitness telemetry features, 16 basemaps, 4x2 grid layout, top navigation dropdown, environment variables, and CLI reference synchronized across the Kinetiqo marketing site (`src/` and `site/`). | `.agents/skills/sync-marketing-features/SKILL.md` |
+
+### 7.3 How to Use Skills
+
+1. **Automatic Discovery**: All skills are automatically discovered by AI agents from the `.agents/skills/` directory in this repository.
+2. **Default Behavior**: Skills are applied by default — you do not need to explicitly request them. When a task touches code that falls within a skill's domain, the agent will automatically apply the skill's guidelines.
+3. **Explicit Invocation**: You can explicitly request a skill by name (e.g., "grill me on this proposal" or "check this against python-standards").
+4. **Subroutine Mode**: Some skills (like `grill-me`) can be invoked as subroutines by other skills to enhance their output.
+5. **Central & Repo Copies**: The central `.agents/skills/` library at the workspace root is the source of truth. Each repository maintains exact independent copies for full self-containment.
+
+---
+
+## 8. Development Environment Notes
 
 When running commands in developer environments (e.g., PyCharm SSH terminal vs. local Windows shell):
 - Windows path: `H:\WORKING\kinetiqo`
 - SSH / POSIX path: `~/WORKING/kinetiqo`
 
 Commands run inside an SSH session must use POSIX paths (`cd ~/WORKING/kinetiqo && python -m pytest -o pythonpath=src`).
-
 

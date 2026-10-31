@@ -50,6 +50,7 @@ class TestDownloadVendorLibraries(unittest.TestCase):
             "moment",
             "jszip",
             "sortable",
+            "marked",
         }
         self.assertTrue(expected_ids.issubset(lib_ids))
 
@@ -105,6 +106,16 @@ class TestDownloadVendorLibraries(unittest.TestCase):
         downloaded, status = dvl.download_file("https://example.com/test.js", dest_path, force=False)
         self.assertFalse(downloaded)
 
+    def test_chat_html_includes_chartjs_and_marked(self):
+        """Verify chat.html loads Chart.js and marked before chat.js and does not include mermaid."""
+        chat_html_path = _REPO_ROOT / "src" / "kinetiqo" / "web" / "templates" / "chat.html"
+        content = chat_html_path.read_text(encoding="utf-8")
+        self.assertIn("vendor/chartjs/chart-4.5.1.umd.min.js", content)
+        self.assertIn("vendor/marked/marked.min.js", content)
+        self.assertNotIn("vendor/mermaid/mermaid.min.js", content)
+        self.assertNotIn("chat-mermaid-container", content)
+
 
 if __name__ == "__main__":
     unittest.main()
+

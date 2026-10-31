@@ -8,6 +8,7 @@ import threading
 import mysql.connector
 import mysql.connector.pooling
 from kinetiqo.config import Config
+from kinetiqo.db.pagination import encode_cursor, decode_cursor
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 from mysql.connector import errorcode
@@ -44,6 +45,8 @@ class MySQLRepository(DatabaseRepository):
 
     Implements DatabaseRepository using mysql-connector-python and raw SQL.
     """
+
+    db_type = "mysql"
 
     def __init__(self, config: Config):
         """Initialize MySQL repository and ensure the target database exists.
@@ -329,7 +332,8 @@ class MySQLRepository(DatabaseRepository):
                 has_heartrate,
                 workout_type,
                 max_speed,
-                trophies
+                trophies,
+                ai_responses
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -349,6 +353,12 @@ class MySQLRepository(DatabaseRepository):
                 if trophies and isinstance(trophies, str):
                     try:
                         activity['trophies'] = json.loads(trophies)
+                    except Exception:
+                        pass
+                ai_responses = activity.get('ai_responses')
+                if ai_responses and isinstance(ai_responses, str):
+                    try:
+                        activity['ai_responses'] = json.loads(ai_responses)
                     except Exception:
                         pass
                 activities.append(activity)
@@ -493,6 +503,12 @@ class MySQLRepository(DatabaseRepository):
         elif not isinstance(trophies_val, str):
             trophies_val = None
 
+        ai_responses_val = activity.get("ai_responses")
+        if isinstance(ai_responses_val, dict):
+            ai_responses_val = json.dumps(ai_responses_val)
+        elif not isinstance(ai_responses_val, str):
+            ai_responses_val = None
+
         row = (
             start_date,
             activity_id,
@@ -523,7 +539,8 @@ class MySQLRepository(DatabaseRepository):
             activity.get("suffer_score"),
             activity.get("weighted_average_watts"),
             activity.get("workout_type"),
-            trophies_val
+            trophies_val,
+            ai_responses_val
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to MySQL...")
@@ -536,9 +553,9 @@ class MySQLRepository(DatabaseRepository):
                                                 average_watts, max_watts, achievement_count, average_temp,
                                                 calories, device_watts, elev_high, elev_low, gear_id,
                                                 has_heartrate, kilojoules, pr_count, suffer_score,
-                                                weighted_average_watts, workout_type, trophies)
+                                                weighted_average_watts, workout_type, trophies, ai_responses)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY
                         UPDATE
                             start_date = VALUES (start_date),
                             name = VALUES (name),
@@ -568,7 +585,8 @@ class MySQLRepository(DatabaseRepository):
                             suffer_score = VALUES (suffer_score),
                             weighted_average_watts = VALUES (weighted_average_watts),
                             workout_type = VALUES (workout_type),
-                            trophies = COALESCE(VALUES (trophies), trophies)
+                            trophies = COALESCE(VALUES (trophies), trophies),
+                            ai_responses = COALESCE(VALUES (ai_responses), ai_responses)
                         """, row)
         self.conn.commit()
 
@@ -579,6 +597,66 @@ class MySQLRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
         self.conn.commit()
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET ai_responses = %s WHERE activity_id = %s", (val, int(activity_id)))
+        self.conn.commit()
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT ai_responses FROM activities WHERE activity_id = %s", (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                val = row[0]
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        placeholders = ', '.join(['%s'] * len(activity_ids))
+        with self.conn.cursor() as cur:
+            cur.execute(f"UPDATE activities SET ai_responses = NULL WHERE activity_id IN ({placeholders})", [int(aid) for aid in activity_ids])
+        self.conn.commit()
+        val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
+        self.conn.commit()
+
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        self._ensure_connected()
+        tokens = {f"agent-ai-{agent_name}"}
+        affected = 0
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("SELECT activity_id, ai_responses FROM activities WHERE ai_responses IS NOT NULL")
+            for row in cur.fetchall():
+                try:
+                    responses = row["ai_responses"] if isinstance(row["ai_responses"], dict) else json.loads(row["ai_responses"])
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(responses, dict) and tokens.intersection(responses):
+                    for token in tokens:
+                        responses.pop(token, None)
+                    cur.execute(
+                        "UPDATE activities SET ai_responses = %s WHERE activity_id = %s",
+                        (json.dumps(responses) if responses else None, row["activity_id"]),
+                    )
+                    affected += 1
+        self.conn.commit()
+        return affected
 
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
@@ -999,7 +1077,7 @@ class MySQLRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification "
+                "gps_simplification, strava_agents_config, enable_weather_data "
                 "FROM profile LIMIT 1"
             )
             return cur.fetchone()
@@ -1009,11 +1087,15 @@ class MySQLRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       strava_agents_config: Optional[str] = None,
+                       enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+        effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config') if existing else "")
+        effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
 
         with self.conn.cursor() as cur:
             cur.execute("""
@@ -1021,8 +1103,8 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, strava_agents_config, enable_weather_data)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     first_name = VALUES(first_name),
                     last_name  = VALUES(last_name),
@@ -1035,12 +1117,15 @@ class MySQLRepository(DatabaseRepository):
                     update_strava_walking          = VALUES(update_strava_walking),
                     update_strava_swimming         = VALUES(update_strava_swimming),
                     refresh_token                  = VALUES(refresh_token),
-                    gps_simplification             = VALUES(gps_simplification)
+                    gps_simplification             = VALUES(gps_simplification),
+                    strava_agents_config           = VALUES(strava_agents_config),
+                    enable_weather_data             = VALUES(enable_weather_data)
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification))
+                  effective_gps_simplification, effective_strava_agents_config or "",
+                  effective_enable_weather_data))
         self.conn.commit()
 
     # ------------------------------------------------------------------
@@ -1180,3 +1265,325 @@ class MySQLRepository(DatabaseRepository):
             'count_ms': count_ms,
             'activity_count': activity_count,
         }
+
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination."""
+        self._ensure_connected()
+        filters = filters or {}
+        limit = max(1, min(int(limit), 200))
+
+        sort_field_map = {
+            "date": "start_date",
+            "start_date": "start_date",
+            "distance": "distance",
+            "elevation": "total_elevation_gain",
+            "total_elevation_gain": "total_elevation_gain",
+            "moving_time": "moving_time",
+            "average_watts": "average_watts",
+            "watts": "average_watts",
+            "max_watts": "max_watts",
+            "speed": "average_speed",
+            "average_speed": "average_speed",
+            "max_speed": "max_speed",
+            "heartrate": "average_heartrate",
+            "average_heartrate": "average_heartrate",
+            "max_heartrate": "max_heartrate",
+            "suffer_score": "suffer_score",
+            "calories": "calories",
+        }
+        sort_by = filters.get("sort_by", "date")
+        sort_col = sort_field_map.get(sort_by, "start_date")
+        sort_order = "ASC" if str(filters.get("sort_order", "desc")).lower() == "asc" else "DESC"
+        op = ">" if sort_order == "ASC" else "<"
+
+        where_clauses = []
+        params: List[Any] = []
+
+        if athlete_id:
+            where_clauses.append("athlete_id = %s")
+            params.append(athlete_id)
+
+        sport_types = filters.get("sport_types")
+        if sport_types:
+            placeholders = ", ".join(["%s"] * len(sport_types))
+            where_clauses.append(f"sport IN ({placeholders})")
+            params.extend(sport_types)
+
+        if filters.get("start_date"):
+            where_clauses.append("start_date >= %s")
+            params.append(filters["start_date"])
+
+        if filters.get("end_date"):
+            where_clauses.append("start_date <= %s")
+            params.append(filters["end_date"])
+
+        min_dist_km = filters.get("min_distance_km")
+        if min_dist_km is None and filters.get("min_distance") is not None:
+            min_dist_km = float(filters["min_distance"]) / 1000.0
+        if min_dist_km is not None:
+            where_clauses.append("distance >= %s")
+            params.append(float(min_dist_km) * 1000.0)
+
+        max_dist_km = filters.get("max_distance_km")
+        if max_dist_km is None and filters.get("max_distance") is not None:
+            max_dist_km = float(filters["max_distance"]) / 1000.0
+        if max_dist_km is not None:
+            where_clauses.append("distance <= %s")
+            params.append(float(max_dist_km) * 1000.0)
+
+        min_elev = filters.get("min_elevation_m") if filters.get("min_elevation_m") is not None else filters.get("min_elevation")
+        if min_elev is not None:
+            where_clauses.append("total_elevation_gain >= %s")
+            params.append(float(min_elev))
+
+        max_elev = filters.get("max_elevation_m") if filters.get("max_elevation_m") is not None else filters.get("max_elevation")
+        if max_elev is not None:
+            where_clauses.append("total_elevation_gain <= %s")
+            params.append(float(max_elev))
+
+        min_mov_s = filters.get("min_moving_time_s")
+        if min_mov_s is None and filters.get("min_moving_time") is not None:
+            min_mov_s = int(filters["min_moving_time"])
+        if min_mov_s is None and filters.get("min_moving_time_min") is not None:
+            min_mov_s = int(float(filters["min_moving_time_min"]) * 60)
+        if min_mov_s is not None:
+            where_clauses.append("moving_time >= %s")
+            params.append(int(min_mov_s))
+
+        max_mov_s = filters.get("max_moving_time_s")
+        if max_mov_s is None and filters.get("max_moving_time") is not None:
+            max_mov_s = int(filters["max_moving_time"])
+        if max_mov_s is None and filters.get("max_moving_time_min") is not None:
+            max_mov_s = int(float(filters["max_moving_time_min"]) * 60)
+        if max_mov_s is not None:
+            where_clauses.append("moving_time <= %s")
+            params.append(int(max_mov_s))
+
+        if filters.get("min_watts") is not None:
+            where_clauses.append("average_watts >= %s")
+            params.append(float(filters["min_watts"]))
+
+        if filters.get("max_watts") is not None:
+            where_clauses.append("average_watts <= %s")
+            params.append(float(filters["max_watts"]))
+
+        if filters.get("min_max_watts") is not None:
+            where_clauses.append("max_watts >= %s")
+            params.append(float(filters["min_max_watts"]))
+
+        if filters.get("max_max_watts") is not None:
+            where_clauses.append("max_watts <= %s")
+            params.append(float(filters["max_max_watts"]))
+
+        if filters.get("has_power") is not None:
+            if bool(filters["has_power"]):
+                where_clauses.append("(device_watts = TRUE OR average_watts > 0)")
+            else:
+                where_clauses.append("(device_watts = FALSE OR device_watts IS NULL)")
+
+        if filters.get("min_heartrate") is not None:
+            where_clauses.append("average_heartrate >= %s")
+            params.append(float(filters["min_heartrate"]))
+
+        if filters.get("max_heartrate") is not None:
+            where_clauses.append("average_heartrate <= %s")
+            params.append(float(filters["max_heartrate"]))
+
+        if filters.get("has_heartrate") is not None:
+            if bool(filters["has_heartrate"]):
+                where_clauses.append("(has_heartrate = TRUE OR average_heartrate > 0)")
+            else:
+                where_clauses.append("(has_heartrate = FALSE OR has_heartrate IS NULL)")
+
+        if filters.get("min_speed_kmh") is not None:
+            where_clauses.append("average_speed >= %s")
+            params.append(float(filters["min_speed_kmh"]) / 3.6)
+
+        if filters.get("max_speed_kmh") is not None:
+            where_clauses.append("average_speed <= %s")
+            params.append(float(filters["max_speed_kmh"]) / 3.6)
+
+        if filters.get("min_suffer_score") is not None:
+            where_clauses.append("suffer_score >= %s")
+            params.append(int(float(filters["min_suffer_score"])))
+
+        if filters.get("max_suffer_score") is not None:
+            where_clauses.append("suffer_score <= %s")
+            params.append(int(float(filters["max_suffer_score"])))
+
+        if filters.get("min_pr_count") is not None:
+            where_clauses.append("pr_count >= %s")
+            params.append(int(filters["min_pr_count"]))
+
+        if filters.get("gear_id"):
+            where_clauses.append("gear_id = %s")
+            params.append(str(filters["gear_id"]).strip())
+
+        if filters.get("workout_type") is not None:
+            where_clauses.append("workout_type = %s")
+            params.append(int(filters["workout_type"]))
+
+        if filters.get("has_trophies"):
+            where_clauses.append("(trophies IS NOT NULL AND trophies != '' AND trophies != '{}')")
+
+        if filters.get("koms_only"):
+            where_clauses.append("trophies LIKE %s")
+            params.append('%"1":%')
+
+        keyword = filters.get("keyword") or filters.get("query")
+        if keyword:
+            where_clauses.append("(name LIKE %s OR CAST(activity_id AS CHAR) LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+
+        if cursor:
+            decoded = decode_cursor(cursor)
+            if decoded:
+                c_val, c_date, c_id = decoded
+                if sort_col == "start_date":
+                    where_clauses.append(f"(start_date {op} %s OR (start_date = %s AND activity_id {op} %s))")
+                    params.extend([c_date, c_date, c_id])
+                else:
+                    where_clauses.append(f"({sort_col} {op} %s OR ({sort_col} = %s AND (start_date {op} %s OR (start_date = %s AND activity_id {op} %s))))")
+                    params.extend([c_val, c_val, c_date, c_date, c_id])
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        if sort_col == "start_date":
+            order_sql = f"ORDER BY start_date {sort_order}, activity_id {sort_order}"
+        else:
+            order_sql = f"ORDER BY {sort_col} {sort_order}, start_date {sort_order}, activity_id {sort_order}"
+
+        fetch_limit = limit + 1
+        query = f"""
+            SELECT activity_id, name, sport, athlete_id, distance, moving_time, elapsed_time,
+                   total_elevation_gain, start_date, average_speed, max_speed,
+                   average_heartrate, max_heartrate, average_cadence, average_watts,
+                   max_watts, weighted_average_watts, device_watts, calories,
+                   kilojoules, achievement_count, pr_count, suffer_score, average_temp,
+                   gear_id, has_heartrate, workout_type, trophies
+            FROM activities
+            {where_sql}
+            {order_sql}
+            LIMIT %s
+        """
+        params.append(fetch_limit)
+
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute(query, tuple(params))
+            raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            act = dict(r)
+            if isinstance(act.get("start_date"), datetime):
+                act["start_date"] = act["start_date"].isoformat()
+            if act.get("trophies") and isinstance(act["trophies"], str):
+                try:
+                    act["trophies"] = json.loads(act["trophies"])
+                except Exception:
+                    pass
+            rows.append(act)
+
+        has_more = len(rows) > limit
+        if has_more:
+            activities = rows[:limit]
+            last = activities[-1]
+            next_cursor = encode_cursor(last.get(sort_col), last["start_date"], last["activity_id"])
+        else:
+            activities = rows
+            next_cursor = None
+
+        return activities, next_cursor, has_more
+
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*) AS total_points,
+                    MIN(ts) AS first_ts,
+                    MAX(ts) AS last_ts,
+                    COUNT(watts) AS watts_count,
+                    COUNT(heartrate) AS heartrate_count,
+                    COUNT(cadence) AS cadence_count,
+                    COUNT(altitude) AS altitude_count,
+                    COUNT(lat) AS latlng_count,
+                    COUNT(speed) AS speed_count,
+                    COUNT(temp) AS temp_count
+                FROM streams
+                WHERE activity_id = %s
+            """, (activity_id,))
+            row = cur.fetchone() or {}
+
+        first_ts = row.get("first_ts")
+        last_ts = row.get("last_ts")
+        first_iso = first_ts.isoformat() if isinstance(first_ts, datetime) else str(first_ts) if first_ts else None
+        last_iso = last_ts.isoformat() if isinstance(last_ts, datetime) else str(last_ts) if last_ts else None
+
+        channels = {}
+        for ch in ("watts", "heartrate", "cadence", "altitude", "latlng", "speed", "temp"):
+            cnt = int(row.get(f"{ch}_count") or 0)
+            channels[ch] = {
+                "present": cnt > 0,
+                "count": cnt,
+            }
+
+        return {
+            "activity_id": activity_id,
+            "total_points": int(row.get("total_points") or 0),
+            "first_ts": first_iso,
+            "last_ts": last_iso,
+            "channels": channels,
+        }
+
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        self._ensure_connected()
+        allowed = {"ts", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance", "watts", "temp", "grade_smooth", "moving"}
+        cols = [c for c in columns if c in allowed]
+        if "ts" not in cols:
+            cols.insert(0, "ts")
+        if len(cols) == 1 and cols[0] == "ts":
+            cols.extend(["watts", "heartrate", "cadence", "altitude"])
+
+        col_str = ", ".join(cols)
+        where_clauses = ["activity_id = %s"]
+        params: List[Any] = [activity_id]
+
+        if start_ts is not None:
+            where_clauses.append("ts >= %s")
+            params.append(datetime.fromtimestamp(start_ts, tz=timezone.utc))
+
+        if end_ts is not None:
+            where_clauses.append("ts <= %s")
+            params.append(datetime.fromtimestamp(end_ts, tz=timezone.utc))
+
+        where_sql = " AND ".join(where_clauses)
+        limit = max(1, min(int(max_rows), 20000))
+        params.append(limit)
+
+        query = f"SELECT {col_str} FROM streams WHERE {where_sql} ORDER BY ts ASC LIMIT %s"
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute(query, tuple(params))
+            raw_rows = cur.fetchall()
+
+        result = []
+        for r in raw_rows:
+            d = dict(r)
+            if isinstance(d.get("ts"), datetime):
+                d["ts"] = d["ts"].isoformat()
+            result.append(d)
+        return result

@@ -1,5 +1,6 @@
 import requests
 import types
+from unittest.mock import MagicMock
 
 from kinetiqo.sync import SyncService, DESC_NOT_CONFIGURED, DESC_SKIPPED, DESC_UNCHANGED, DESC_UPDATED, DESC_FAILED
 
@@ -115,3 +116,35 @@ def test_description_update_activity_ids_ordering(monkeypatch):
     ]
     ids = svc._description_update_activity_ids(activities)
     assert ids == {'20', '10'}
+
+
+def test_retrigger_ai_agents_replaces_successes_and_retains_failed_cache(monkeypatch):
+    svc = make_service()
+    svc.db = MagicMock()
+    monkeypatch.setattr(
+        'kinetiqo.sync.get_template_for_activity',
+        lambda cfg, sport: '{{agent-ai-road}} {{agent-ai-climb}}',
+    )
+    handler = MagicMock(side_effect=[
+        ('Fresh road response', 'generated'),
+        ('', 'failed'),
+    ])
+    context = types.SimpleNamespace(ai_handler=handler)
+    activity = {
+        'id': 42,
+        'sport_type': 'Ride',
+        'ai_responses': {
+            'agent-ai-road': 'Old road response',
+            'agent-ai-climb': 'Old climb response',
+            'agent-ai-unused': 'Unused response',
+        },
+    }
+
+    failed_agents = svc._retrigger_ai_agents(context, activity, {'road', 'climb'})
+
+    assert failed_agents == ['climb (failed)']
+    assert activity['ai_responses'] == {
+        'agent-ai-road': 'Fresh road response',
+        'agent-ai-climb': 'Old climb response',
+    }
+    svc.db.update_activity_ai_responses.assert_called_once_with(42, activity['ai_responses'])

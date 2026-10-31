@@ -159,3 +159,12 @@ libraries:
     files:
       - filename: "xlsx.full.min.js"
         url: "https://cdn.sheetjs.com/xlsx-{version}/package/dist/xlsx.full.min.js"
+
+  - id: "marked"
+    name: "Marked"
+    target_dir: "marked"
+    version: "15.0.7"
+    files:
+      - filename: "marked.min.js"
+        url: "https://cdn.jsdelivr.net/npm/marked@{version}/marked.min.js"
+

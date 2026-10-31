@@ -106,6 +106,20 @@ if [[ $CRON_ADDED -eq 1 ]]; then
   info "Cron daemon started (PID $!)"
 fi
 
+# ---------------------------------------------------------------------------
+# Background Model Context Protocol (MCP) server
+# ---------------------------------------------------------------------------
+if [[ "${ENABLE_MCP:-0}" =~ ^(1|true|yes)$ ]]; then
+  MCP_PORT="${MCP_PORT:-8000}"
+  MCP_HOST="${MCP_HOST:-0.0.0.0}"
+  MCP_TRANSPORT="${MCP_TRANSPORT:-sse}"
+  info "Starting Kinetiqo MCP server in background (${MCP_TRANSPORT} on http://${MCP_HOST}:${MCP_PORT}/sse)..."
+  $PYTHON_PATH /app/kinetiqo.py mcp --transport "${MCP_TRANSPORT}" --host "${MCP_HOST}" --port "${MCP_PORT}" &
+  info "Kinetiqo MCP server started (PID $!)"
+else
+  debug "MCP server disabled (ENABLE_MCP is 0 or unset)"
+fi
+
 if [[ "${1:-}" == "gunicorn" ]]; then
     export GUNICORN_CMD_ARGS="${GUNICORN_CMD_ARGS:+$GUNICORN_CMD_ARGS }--log-level ${GUNICORN_LOG_LEVEL}"
 fi

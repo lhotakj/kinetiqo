@@ -7,6 +7,7 @@ import logging
 import mimetypes
 import os
 import pathlib
+import re
 import secrets
 import shutil
 import threading
@@ -19,7 +20,7 @@ from PIL import Image
 
 import httpx
 import requests
-from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session
+from flask import Flask, g, render_template, request, redirect, url_for, flash, jsonify, Response, session, stream_with_context
 from flask_compress import Compress
 
 # CSRF helper. Production must not run with CSRF silently disabled.
@@ -45,7 +46,11 @@ if hasattr(flask_login.login_manager, 'datetime'):
     flask_login.login_manager.datetime = _FlaskLoginDateTime
 from kinetiqo.config import Config
 from kinetiqo.gps_simplify import simplify_track, GPS_SIMPLIFICATION_THRESHOLDS
-from kinetiqo.strava_description import any_update_strava_template_configured, validate_template
+from kinetiqo.strava_description import (
+    any_update_strava_template_configured,
+    normalize_template,
+    validate_template,
+)
 from kinetiqo.db.factory import create_repository
 from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 from kinetiqo.logging_utils import configure_logging
@@ -73,6 +78,16 @@ from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
 from kinetiqo.web.fondo_o_meter import compute_fondo_o_meter, compute_achievements
+from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncryptionError
+from kinetiqo.chat.errors import ChatError, ChatConfigurationError
+from kinetiqo.chat.repository import ChatRepository
+from kinetiqo.chat.service import ChatService
+from kinetiqo.chat.providers.gemini import GeminiChatProvider
+from kinetiqo.chat.providers.kilo import KiloChatProvider
+from kinetiqo.chat.providers.ollama import OllamaChatProvider
+from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
+from kinetiqo.chat.providers.poe import PoeChatProvider
+from kinetiqo.chat.providers.vercel import VercelChatProvider
 
 
 
@@ -108,15 +123,35 @@ STRAVA_RECONNECT_TITLE = "Reconnect with Strava"
 STRAVA_RECONNECT_TEMPLATE = "strava_reconnect.html"
 PNG_MIMETYPE = "image/png"
 UTC_OFFSET_SUFFIX = "+00:00"
+AI_PROVIDER_META = {
+    "gemini": "Google Gemini",
+    "openrouter": "OpenRouter AI",
+    "vercel": "Vercel AI Gateway",
+    "kilo": "Kilo AI Gateway",
+    "poe": "Poe",
+    "ollama": "Ollama (Local AI)",
+}
 
 # CSRF protection: enabled when Flask-WTF is available. In development, a generated secret is acceptable.
 app = Flask(__name__, template_folder='./templates', static_folder='./static', static_url_path='/static')
-# Secret key from environment in production; generate a dev key otherwise.
+# Secret key from environment in production; persist/reuse dev key otherwise.
 secret = os.environ.get('SECRET_KEY')
 if not secret:
     if os.environ.get('KINETIQO_PRODUCTION') == '1':
         raise RuntimeError('SECRET_KEY must be set in production!')
-    secret = secrets.token_hex(32)
+    dev_secret_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.cache', '.dev_secret_key'))
+    try:
+        if os.path.exists(dev_secret_file):
+            with open(dev_secret_file, 'r', encoding='utf-8') as f:
+                secret = f.read().strip()
+        if not secret:
+            secret = secrets.token_hex(32)
+            os.makedirs(os.path.dirname(dev_secret_file), exist_ok=True)
+            with open(dev_secret_file, 'w', encoding='utf-8') as f:
+                f.write(secret)
+    except Exception:
+        secret = secrets.token_hex(32)
+    os.environ['SECRET_KEY'] = secret
 app.secret_key = secret
 
 # Session & Remember Cookie Security
@@ -158,6 +193,7 @@ mimetypes.add_type('font/ttf', '.ttf')
 
 # --- Startup Profile Synchronization (Runs EXACTLY ONCE on App Boot) ---
 _startup_sync_done = False
+_startup_sync_jobs_cleared = False
 _startup_sync_lock = threading.Lock()
 
 from kinetiqo.web.poster_filters import DEFAULT_PHOTO_FILTERS
@@ -211,23 +247,39 @@ def merge_poster_settings(raw: dict) -> dict:
 
 
 def ensure_startup_profile_sync() -> None:
-    """Run environment-to-DB profile synchronization once per process on startup.
+    """Clear prior sync state and synchronize profile settings once per process.
 
-    Thread-safe and process-safe: executes sync logic (env vars -> DB)
-    exactly once when the web application starts up or handles its first request.
-    Subsequent API requests read directly from the database without re-evaluating
-    environment variables every time.
+    Runs when the web application handles its first request. Prior sync jobs are
+    interrupted and the global lease is cleared so a stopped app cannot leave
+    the next instance blocked by persisted in-progress state.
     """
-    global _startup_sync_done
-    if _startup_sync_done:
+    global _startup_sync_done, _startup_sync_jobs_cleared
+    if _startup_sync_done and _startup_sync_jobs_cleared:
+        return
+
+    if app.config.get("TESTING", False):
+        _startup_sync_done = True
+        _startup_sync_jobs_cleared = True
         return
 
     with _startup_sync_lock:
-        if _startup_sync_done:
+        if _startup_sync_done and _startup_sync_jobs_cleared:
             return
         repo = None
-        try:
+        if not _startup_sync_jobs_cleared:
             repo = get_db()
+            try:
+                repo.interrupt_active_sync_jobs()
+                _startup_sync_jobs_cleared = True
+                logger.info("Cleared persisted active sync jobs and lease during application startup.")
+            except Exception:
+                logger.exception("Could not clear persisted sync state during application startup.")
+                raise
+        if _startup_sync_done:
+            return
+        try:
+            if repo is None:
+                repo = get_db()
             sync_all_profile_env_vars(config, repo)
             _startup_sync_done = True
             logger.info("Startup profile synchronization from environment completed successfully.")
@@ -237,8 +289,9 @@ def ensure_startup_profile_sync() -> None:
 
 def mark_startup_sync_done() -> None:
     """Mark startup environment profile synchronization as completed."""
-    global _startup_sync_done
+    global _startup_sync_done, _startup_sync_jobs_cleared
     _startup_sync_done = True
+    _startup_sync_jobs_cleared = True
 
 
 @app.before_request
@@ -679,7 +732,18 @@ def activities():
         flash(f"Error fetching activities: {e}")
         data = []
 
-    return render_template('activities.html', title="Activities", activities=data)
+    ai_configured = False
+    try:
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        raw_default = service.repository.get_default_model(athlete_id) if hasattr(service.repository, 'get_default_model') else None
+        configured = service.configured_providers(athlete_id) if hasattr(service, 'configured_providers') else []
+        if configured and raw_default and raw_default.get('provider') and raw_default.get('model_id'):
+            ai_configured = True
+    except Exception:
+        ai_configured = False
+
+    return render_template('activities.html', title="Activities", activities=data, ai_configured=ai_configured)
 
 
 # Available base map tile providers with Leaflet-compatible URL templates.
@@ -2369,6 +2433,988 @@ def settings():
     return render_template('settings.html', title="Settings")
 
 
+def _chat_service() -> ChatService:
+    """Return the request-scoped service without exposing keys to web clients."""
+    return ChatService(ChatRepository(get_db(), config.database_type), app.secret_key, config=config)
+
+
+def _chat_user_id() -> str:
+    """Get the authenticated chat owner identifier safely."""
+    if not current_user.is_authenticated:
+        raise PermissionError("Authentication is required.")
+    return str(getattr(current_user, 'id', ''))
+
+
+def _chat_error(error: Exception, status: int = 400):
+    code = getattr(error, 'error_code', 'invalid_request')
+    message = getattr(error, 'user_message', str(error))
+    payload = {'code': code, 'message': message}
+    suggestion = getattr(error, 'suggestion', None)
+    if suggestion:
+        payload['suggestion'] = suggestion
+    return jsonify({'error': payload}), status
+
+
+def _is_supported_ai_provider(provider: str) -> bool:
+    return provider in AI_PROVIDER_META
+
+
+def _normalize_default_model(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    provider = str(value.get('provider') or '').strip().lower()
+    model_id = str(value.get('model_id') or '').strip()
+    if not provider or not model_id:
+        return None
+    return {'provider': provider, 'model_id': model_id}
+
+
+def _decorate_models_with_default(repository: ChatRepository, athlete_id: str, provider: str, models: list[dict]) -> tuple[list[dict], dict | None]:
+    default_model = _normalize_default_model(repository.get_default_model(athlete_id))
+    default_provider = str((default_model or {}).get('provider') or '').strip().lower()
+    default_model_id = str((default_model or {}).get('model_id') or '').strip()
+    decorated: list[dict] = []
+    for item in models:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get('id') or '').strip()
+        if not model_id:
+            continue
+        model_copy = dict(item)
+        model_copy['is_default'] = bool(default_provider == provider and default_model_id.lower() == model_id.lower())
+        decorated.append(model_copy)
+    return decorated, default_model
+
+
+def _get_ai_disclaimer_md() -> str:
+    """Read docs/AI-disclaimer.md from the repository or deployment root."""
+    candidates = [
+        pathlib.Path(__file__).resolve().parents[3] / "docs" / "AI-disclaimer.md",
+        pathlib.Path(__file__).resolve().parents[2] / "docs" / "AI-disclaimer.md",
+        pathlib.Path(os.getcwd()) / "docs" / "AI-disclaimer.md",
+    ]
+    for p in candidates:
+        if p.exists() and p.is_file():
+            try:
+                return p.read_text(encoding="utf-8")
+            except Exception:
+                pass
+    return ""
+
+
+@app.route('/chat', methods=['GET'])
+@app.route('/chat/<session_id>', methods=['GET'])
+@login_required
+def chat_page(session_id: str | None = None):
+    """Render the persistent Kinetiqo AI Chat shell."""
+    athlete_id = _chat_user_id()
+    if session_id and not _chat_service().repository.get_session(athlete_id, session_id):
+        return Response(status=404)
+    user_name = ''
+    try:
+        profile = get_db().get_profile()
+        if profile:
+            first_name = (profile.get('first_name') or '').strip()
+            last_name = (profile.get('last_name') or '').strip()
+            full_name = f"{first_name} {last_name}".strip()
+            if full_name:
+                user_name = full_name
+            elif profile.get('name'):
+                user_name = str(profile['name']).strip()
+    except Exception:
+        pass
+    if not user_name:
+        user_name = getattr(current_user, 'name', None) or getattr(current_user, 'username', None) or getattr(current_user, 'id', '') or 'You'
+    initial_prompts = []
+    try:
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        initial_prompts = service.repository.list_recent_prompts(athlete_id)
+    except Exception:
+        pass
+    return render_template(
+        'chat.html',
+        title='AI Chat',
+        initial_session_id=session_id,
+        user_name=user_name,
+        initial_prompts=initial_prompts,
+        disclaimer_markdown=_get_ai_disclaimer_md(),
+    )
+
+
+@app.route('/api/chat/disclaimer', methods=['GET'])
+@login_required
+def chat_disclaimer_api():
+    """Return the raw markdown content of docs/AI-disclaimer.md."""
+    content = _get_ai_disclaimer_md()
+    return jsonify({'disclaimer': content})
+
+
+@app.route('/api/chat/prompts', methods=['GET'])
+@login_required
+def chat_prompts_api():
+    try:
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        prompts = service.repository.list_recent_prompts(athlete_id)
+        return jsonify({'prompts': prompts})
+    except Exception as exc:
+        return jsonify({'prompts': [], 'error': str(exc)}), 500
+
+
+@app.route('/api/chat/sessions', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_sessions_api():
+    athlete_id = _chat_user_id()
+    service = _chat_service()
+    if request.method == 'GET':
+        return jsonify({'sessions': [item.__dict__ for item in service.repository.list_sessions(athlete_id)]})
+    if request.method == 'DELETE':
+        service.repository.clear_history(athlete_id)
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    try:
+        item = service.create_session(athlete_id, data.get('provider', 'gemini'), data.get('model_id'))
+        return jsonify({'session': item.__dict__}), 201
+    except ChatError as exc:
+        return _chat_error(exc, 422)
+
+
+@app.route('/api/chat/sessions/<session_id>', methods=['PATCH', 'DELETE'])
+@login_required
+def chat_session_api(session_id: str):
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'DELETE':
+        repository.delete_session(athlete_id, session_id)
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    title = data.get('title')
+    if title is not None and (not isinstance(title, str) or not title.strip() or len(title.strip()) > 120):
+        return _chat_error(ValueError('Conversation titles must be 1 to 120 characters.'), 422)
+    try:
+        repository.update_session(athlete_id, session_id, title=title.strip() if title else None, provider=data.get('provider'), model_id=data.get('model_id'))
+        item = repository.get_session(athlete_id, session_id)
+        return jsonify({'session': item.__dict__})
+    except LookupError:
+        return Response(status=404)
+
+
+@app.route('/api/chat/sessions/<session_id>/messages', methods=['GET', 'POST'])
+@login_required
+def chat_messages_api(session_id: str):
+    athlete_id = _chat_user_id()
+    service = _chat_service()
+    if request.method == 'GET':
+        if not service.repository.get_session(athlete_id, session_id):
+            return Response(status=404)
+        return jsonify({'messages': [item.__dict__ for item in service.repository.list_messages(athlete_id, session_id)]})
+    data = request.get_json(silent=True) or {}
+    try:
+        user_message, events = service.stream_turn(
+            athlete_id,
+            session_id,
+            data.get('content', ''),
+            data.get('model_id'),
+            data.get('provider'),
+        )
+    except LookupError:
+        return Response(status=404)
+    except (ValueError, ChatError, ChatEncryptionError) as exc:
+        return _chat_error(exc, 422)
+
+    def encode(name: str, payload: dict) -> str:
+        return f'event: {name}\ndata: {json_module.dumps(payload, separators=(",", ":"), default=str)}\n\n'
+
+    def generate():
+        yield encode('session', {'session_id': session_id})
+        yield encode('user_message', {'message_id': user_message.message_id, 'seq': user_message.seq, 'created_at': user_message.created_at})
+        try:
+            for event in events:
+                if event.type == 'text_delta':
+                    yield encode('text_delta', {'text': event.text})
+                elif event.type == 'tool_call':
+                    yield encode('tool_call', {'tool': event.tool, 'arguments': event.arguments})
+                elif event.type == 'tool_result':
+                    yield encode('tool_result', {'tool': event.tool})
+                elif event.type == 'usage':
+                    yield encode('usage', {'input_tokens': event.input_tokens, 'output_tokens': event.output_tokens})
+            chat_sess = service.repository.get_session(athlete_id, session_id)
+            final_model = (chat_sess.model_id if chat_sess else None) or data.get('model_id')
+            final_provider = (chat_sess.provider if chat_sess else None) or data.get('provider') or 'gemini'
+            yield encode('completed', {'model_id': final_model, 'provider': final_provider})
+        except ChatError as exc:
+            yield encode('error', {'code': exc.error_code, 'message': exc.user_message})
+        except Exception:
+            logger.exception('Chat generation failed without logging prompt content.')
+            yield encode('error', {'code': 'chat_error', 'message': 'Chat could not complete. Please try again.'})
+
+    response = Response(stream_with_context(generate()), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
+
+
+@app.route('/api/chat/models', methods=['GET'])
+@login_required
+def chat_models_api():
+    try:
+        provider = request.args.get('provider', 'all')
+        service = _chat_service()
+        athlete_id = _chat_user_id()
+        models_data = service.models(athlete_id, provider)
+        raw_default = service.repository.get_default_model(athlete_id) if hasattr(service.repository, 'get_default_model') else None
+        default_model = raw_default if isinstance(raw_default, dict) else None
+        raw_fallbacks = service.repository.get_fallback_models(athlete_id) if hasattr(service.repository, 'get_fallback_models') else []
+        fallback_models = raw_fallbacks if isinstance(raw_fallbacks, list) else []
+        if provider == 'all':
+            return jsonify({'providers': models_data, 'default_model': default_model, 'fallback_models': fallback_models})
+        return jsonify({'models': models_data, 'default_model': default_model, 'fallback_models': fallback_models})
+    except (ChatError, ChatEncryptionError) as exc:
+        return _chat_error(exc, 422)
+
+
+@app.route('/api/settings/ai/providers', methods=['GET', 'POST'])
+@login_required
+def chat_providers_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        provider = str(data.get('provider') or '').strip().lower()
+        if not _is_supported_ai_provider(provider):
+            return _chat_error(ValueError('Unsupported AI provider.'), 422)
+        existing_cfg = repository.get_provider_config(athlete_id, provider)
+        if provider == 'ollama' and not existing_cfg.get('base_url'):
+            existing_cfg['base_url'] = 'http://localhost:11434'
+        repository.save_provider_config(athlete_id, provider, existing_cfg)
+    configured = repository.list_configured_providers(athlete_id)
+    enabled = repository.list_enabled_providers(athlete_id)
+    all_providers = [{'provider': key, 'name': AI_PROVIDER_META[key]} for key in AI_PROVIDER_META]
+    return jsonify({
+        'configured_providers': configured,
+        'enabled_providers': enabled,
+        'all_providers': all_providers,
+    })
+
+
+@app.route('/api/settings/ai/default-model', methods=['GET', 'POST'])
+@login_required
+def chat_default_model_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    raw_fallbacks = repository.get_fallback_models(athlete_id) if hasattr(repository, 'get_fallback_models') else []
+    fallback_models = raw_fallbacks if isinstance(raw_fallbacks, list) else []
+    if request.method == 'GET':
+        return jsonify({
+            'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
+            'fallback_models': fallback_models,
+        })
+
+    data = request.get_json(silent=True) or {}
+    provider = str(data.get('provider') or '').strip().lower()
+    model_id = str(data.get('model_id') or '').strip()
+    if not _is_supported_ai_provider(provider):
+        return _chat_error(ValueError('Unsupported AI provider.'), 422)
+    if not model_id:
+        return _chat_error(ValueError('Model ID is required.'), 422)
+    repository.set_default_model(athlete_id, provider, model_id)
+    if hasattr(repository, 'clear_fallback_model'):
+        repository.clear_fallback_model(athlete_id, provider=provider, model_id=model_id)
+    updated_fallbacks = repository.get_fallback_models(athlete_id) if hasattr(repository, 'get_fallback_models') else []
+    return jsonify({
+        'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
+        'fallback_models': updated_fallbacks if isinstance(updated_fallbacks, list) else [],
+    })
+
+
+@app.route('/api/settings/ai/fallback-models', methods=['GET', 'POST'])
+@login_required
+def chat_fallback_models_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        return jsonify({'fallback_models': repository.get_fallback_models(athlete_id)})
+
+    data = request.get_json(silent=True) or {}
+    models_input = data.get('fallback_models')
+    if not isinstance(models_input, list):
+        return _chat_error(ValueError('fallback_models must be a list.'), 422)
+    if len(models_input) > 3:
+        return _chat_error(ValueError('Maximum 3 fallback models allowed.'), 422)
+
+    cleaned: list[dict[str, str]] = []
+    default_m = repository.get_default_model(athlete_id)
+    for item in models_input:
+        if not isinstance(item, dict):
+            return _chat_error(ValueError('Each fallback model item must be an object.'), 422)
+        provider = str(item.get('provider') or '').strip().lower()
+        model_id = str(item.get('model_id') or '').strip()
+        if not _is_supported_ai_provider(provider):
+            return _chat_error(ValueError(f"Unsupported AI provider '{provider}'."), 422)
+        if not model_id:
+            return _chat_error(ValueError('Model ID is required for each fallback model.'), 422)
+        if default_m and default_m.get('provider') == provider and default_m.get('model_id') == model_id:
+            return _chat_error(ValueError(f"Model '{model_id}' is currently the default model and cannot be a fallback."), 422)
+        if not any(x['provider'] == provider and x['model_id'] == model_id for x in cleaned):
+            cleaned.append({'provider': provider, 'model_id': model_id})
+
+    if len(cleaned) > 3:
+        return _chat_error(ValueError('Maximum 3 fallback models allowed.'), 422)
+
+    saved = repository.set_fallback_models(athlete_id, cleaned)
+    return jsonify({'fallback_models': saved})
+
+
+@app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_gemini_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        encrypted_key = repository.get_provider_key(athlete_id, 'gemini')
+        has_key = encrypted_key is not None
+        models: list[dict] = []
+        if has_key:
+            try:
+                api_key = decrypt_api_key(encrypted_key, app.secret_key)
+                provider = GeminiChatProvider(api_key)
+                models = [
+                    {
+                        'id': model.id,
+                        'name': model.display_name,
+                        'display_name': model.display_name,
+                        'supports_tools': model.supports_tools,
+                        'supports_vision': model.supports_vision,
+                        'context_length': model.context_length,
+                        'max_output_tokens': model.max_output_tokens,
+                        'pricing': model.pricing,
+                        'rate_limits': model.rate_limits,
+                        'request_limits': model.request_limits,
+                        'description': model.description,
+                    }
+                    for model in provider.list_models()
+                ]
+                cfg = repository.get_provider_config(athlete_id, 'gemini')
+                cfg['models'] = models
+                repository.save_provider_config(athlete_id, 'gemini', cfg)
+            except Exception as exc:
+                logger.warning('Gemini model refresh failed for athlete=%s: %s', athlete_id, exc)
+                models = repository.get_provider_config(athlete_id, 'gemini').get('models', [])
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'gemini', models)
+        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'gemini')
+        repository.clear_default_model(athlete_id, provider='gemini')
+        repository.clear_fallback_model(athlete_id, provider='gemini')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'gemini')
+        repository.save_provider_key(athlete_id, 'gemini', encrypt_api_key(api_key.strip(), app.secret_key))
+        repository.save_provider_config(athlete_id, 'gemini', existing_config)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'gemini', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/openrouter', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_openrouter_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'openrouter') is not None
+        config_data = repository.get_provider_config(athlete_id, 'openrouter')
+        current_models = list(config_data.get('models', []))
+        if has_key and current_models:
+            try:
+                encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
+                provider = OpenRouterChatProvider(api_key, configured_models=current_models)
+                refreshed_models = []
+                for model_item in current_models:
+                    model_id = str((model_item or {}).get('id') or '').strip()
+                    if not model_id:
+                        continue
+                    try:
+                        refreshed = provider.validate_model(model_id)
+                        refreshed_models.append(refreshed)
+                    except Exception:
+                        # Hide unavailable/deprecated models from settings and chat dropdowns.
+                        continue
+                if refreshed_models != current_models:
+                    config_data['models'] = refreshed_models
+                    repository.save_provider_config(athlete_id, 'openrouter', config_data)
+            except Exception as exc:
+                logger.warning('OpenRouter model refresh failed for athlete=%s: %s', athlete_id, exc)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', config_data.get('models', []))
+        return jsonify({
+            'configured': has_key,
+            'models': models,
+            'default_model': default_model,
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'openrouter')
+        repository.clear_default_model(athlete_id, provider='openrouter')
+        repository.clear_fallback_model(athlete_id, provider='openrouter')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'openrouter')
+        repository.save_provider_key(
+            athlete_id,
+            'openrouter',
+            encrypt_api_key(api_key.strip(), app.secret_key),
+            config=existing_config
+        )
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/openrouter/models/validate', methods=['POST'])
+@login_required
+def chat_openrouter_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure OpenRouter API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = OpenRouterChatProvider(api_key)
+        model_info = provider.validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("OpenRouter model validation failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/openrouter/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_openrouter_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure OpenRouter API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
+
+    cfg = repository.get_provider_config(athlete_id, 'openrouter')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = new_models
+        repository.save_provider_config(athlete_id, 'openrouter', cfg)
+        repository.clear_default_model(athlete_id, provider='openrouter', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='openrouter', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', new_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    # POST - add model
+    # If model is already present, return current list
+    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
+        return jsonify({'models': current_models})
+
+    # Validate against OpenRouter to get accurate metadata
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = OpenRouterChatProvider(api_key)
+        model_info = provider.validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'openrouter', cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
+
+
+@app.route('/api/settings/ai/vercel', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_vercel_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'vercel') is not None
+        config_data = repository.get_provider_config(athlete_id, 'vercel')
+        current_models = list(config_data.get('models', []))
+        if has_key and current_models:
+            try:
+                encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
+                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
+                provider = VercelChatProvider(api_key, configured_models=current_models)
+                refreshed_models = []
+                for model_item in current_models:
+                    model_id = str((model_item or {}).get('id') or '').strip()
+                    if not model_id:
+                        continue
+                    try:
+                        refreshed = provider.validate_model(model_id)
+                        refreshed_models.append(refreshed)
+                    except Exception:
+                        # Hide unavailable/deprecated models from settings and chat dropdowns.
+                        continue
+                if refreshed_models != current_models:
+                    config_data['models'] = refreshed_models
+                    repository.save_provider_config(athlete_id, 'vercel', config_data)
+            except Exception as exc:
+                logger.warning('Vercel model refresh failed for athlete=%s: %s', athlete_id, exc)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', config_data.get('models', []))
+        return jsonify({
+            'configured': has_key,
+            'models': models,
+            'default_model': default_model,
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'vercel')
+        repository.clear_default_model(athlete_id, provider='vercel')
+        repository.clear_fallback_model(athlete_id, provider='vercel')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'vercel')
+        repository.save_provider_key(
+            athlete_id,
+            'vercel',
+            encrypt_api_key(api_key.strip(), app.secret_key),
+            config=existing_config
+        )
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/vercel/models/validate', methods=['POST'])
+@login_required
+def chat_vercel_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Vercel AI Gateway API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = VercelChatProvider(api_key)
+        model_info = provider.validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("Vercel AI Gateway model validation failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/vercel/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_vercel_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Vercel AI Gateway API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
+
+    cfg = repository.get_provider_config(athlete_id, 'vercel')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = new_models
+        repository.save_provider_config(athlete_id, 'vercel', cfg)
+        repository.clear_default_model(athlete_id, provider='vercel', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='vercel', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', new_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    # POST - add model
+    # If model is already present, return current list
+    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
+        return jsonify({'models': current_models})
+
+    # Validate against Vercel to get accurate metadata
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = VercelChatProvider(api_key)
+        model_info = provider.validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'vercel', cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
+
+
+@app.route('/api/settings/ai/kilo', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_kilo_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'kilo') is not None
+        config_data = repository.get_provider_config(athlete_id, 'kilo')
+        current_models = list(config_data.get('models', []))
+        if has_key and current_models:
+            try:
+                encrypted_key = repository.get_provider_key(athlete_id, 'kilo')
+                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
+                provider = KiloChatProvider(api_key, configured_models=current_models)
+                refreshed_models = []
+                for model_item in current_models:
+                    model_id = str((model_item or {}).get('id') or '').strip()
+                    if not model_id:
+                        continue
+                    try:
+                        refreshed = provider.validate_model(model_id)
+                        refreshed_models.append(refreshed)
+                    except Exception:
+                        # Hide unavailable/deprecated models from settings and chat dropdowns.
+                        continue
+                if refreshed_models != current_models:
+                    config_data['models'] = refreshed_models
+                    repository.save_provider_config(athlete_id, 'kilo', config_data)
+            except Exception as exc:
+                logger.warning('Kilo model refresh failed for athlete=%s: %s', athlete_id, exc)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', config_data.get('models', []))
+        return jsonify({
+            'configured': has_key,
+            'models': models,
+            'default_model': default_model,
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'kilo')
+        repository.clear_default_model(athlete_id, provider='kilo')
+        repository.clear_fallback_model(athlete_id, provider='kilo')
+        return Response(status=204)
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'kilo')
+        repository.save_provider_key(
+            athlete_id,
+            'kilo',
+            encrypt_api_key(api_key.strip(), app.secret_key),
+            config=existing_config
+        )
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', existing_config.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/kilo/models/validate', methods=['POST'])
+@login_required
+def chat_kilo_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'kilo')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Kilo AI Gateway API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = KiloChatProvider(api_key)
+        model_info = provider.validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("Kilo AI Gateway model validation failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/kilo/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_kilo_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'kilo')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Kilo AI Gateway API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
+
+    cfg = repository.get_provider_config(athlete_id, 'kilo')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = new_models
+        repository.save_provider_config(athlete_id, 'kilo', cfg)
+        repository.clear_default_model(athlete_id, provider='kilo', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='kilo', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', new_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    # POST - add model
+    # If model is already present, return current list
+    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
+        return jsonify({'models': current_models})
+
+    # Validate against Kilo Gateway to get accurate metadata
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = KiloChatProvider(api_key)
+        model_info = provider.validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'kilo', cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
+
+
+@app.route('/api/settings/ai/poe', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_poe_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        has_key = repository.get_provider_key(athlete_id, 'poe') is not None
+        cfg = repository.get_provider_config(athlete_id, 'poe')
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', cfg.get('models', []))
+        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'poe')
+        repository.clear_default_model(athlete_id, provider='poe')
+        repository.clear_fallback_model(athlete_id, provider='poe')
+        return Response(status=204)
+
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid Poe API key.'), 422)
+    try:
+        cfg = repository.get_provider_config(athlete_id, 'poe')
+        repository.save_provider_key(athlete_id, 'poe', encrypt_api_key(api_key.strip(), app.secret_key), config=cfg)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', cfg.get('models', []))
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/poe/models/validate', methods=['POST'])
+@login_required
+def chat_poe_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'poe')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError('Configure Poe API key first.'), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError('Poe bot handle is required.'), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        model_info = PoeChatProvider(api_key).validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception('Poe bot validation failed: %s', exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/poe/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_poe_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'poe')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError('Configure Poe API key first.'), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError('Poe bot handle is required.'), 422)
+    clean_id = model_id.strip()
+    cfg = repository.get_provider_config(athlete_id, 'poe')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        updated_models = [item for item in current_models if item.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = updated_models
+        repository.save_provider_config(athlete_id, 'poe', cfg)
+        repository.clear_default_model(athlete_id, provider='poe', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='poe', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', updated_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    if any(item.get('id', '').lower() == clean_id.lower() for item in current_models):
+        return jsonify({'models': current_models})
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        model_info = PoeChatProvider(api_key).validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'poe', cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
+
+
+@app.route('/api/settings/ai/ollama', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_ollama_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        is_configured = repository.has_provider(athlete_id, 'ollama')
+        config_data = repository.get_provider_config(athlete_id, 'ollama')
+        has_key = repository.get_provider_key(athlete_id, 'ollama') is not None
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'ollama', config_data.get('models', []))
+        return jsonify({
+            'configured': is_configured,
+            'base_url': config_data.get('base_url', 'http://localhost:11434'),
+            'has_api_key': has_key,
+            'models': models,
+            'default_model': default_model,
+        })
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'ollama')
+        repository.clear_default_model(athlete_id, provider='ollama')
+        repository.clear_fallback_model(athlete_id, provider='ollama')
+        return Response(status=204)
+
+    data = request.get_json(silent=True) or {}
+    raw_url = str(data.get('base_url') or '').strip() or 'http://localhost:11434'
+    if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+        return _chat_error(ValueError('Base URL must begin with http:// or https://'), 422)
+    base_url = raw_url.rstrip('/')
+
+    api_key = data.get('api_key')
+    enc_key = ""
+    if isinstance(api_key, str) and api_key.strip():
+        if len(api_key.strip()) > 1024:
+            return _chat_error(ValueError('API key is too long.'), 422)
+        try:
+            enc_key = encrypt_api_key(api_key.strip(), app.secret_key)
+        except ChatEncryptionError as exc:
+            return _chat_error(exc, 500)
+    else:
+        existing_key = repository.get_provider_key(athlete_id, 'ollama')
+        if data.get('keep_key') and existing_key:
+            enc_key = existing_key
+
+    # Auto-discover models from Ollama instance if reachable
+    discovered_models = []
+    plain_key = api_key.strip() if (isinstance(api_key, str) and api_key.strip()) else (decrypt_api_key(enc_key, app.secret_key) if enc_key else "")
+    try:
+        connection_result = OllamaChatProvider.test_connection(base_url, plain_key)
+        discovered_models = connection_result.get('models', [])
+    except Exception as exc:
+        logger.info("Ollama discovery on save skipped: %s", exc)
+
+    cfg = {'base_url': base_url}
+    if discovered_models:
+        cfg['models'] = discovered_models
+    else:
+        existing_cfg = repository.get_provider_config(athlete_id, 'ollama')
+        if existing_cfg.get('models'):
+            cfg['models'] = existing_cfg['models']
+
+    repository.save_provider_key(
+        athlete_id,
+        'ollama',
+        enc_key,
+        enabled=True,
+        config=cfg,
+    )
+    return jsonify({
+        'configured': True,
+        'base_url': base_url,
+        'has_api_key': bool(enc_key),
+        'models': _decorate_models_with_default(repository, athlete_id, 'ollama', cfg.get('models', []))[0],
+        'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
+    })
+
+
+@app.route('/api/settings/ai/ollama/test', methods=['POST'])
+@login_required
+def chat_ollama_test_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    data = request.get_json(silent=True) or {}
+    raw_url = str(data.get('base_url') or '').strip() or 'http://localhost:11434'
+    if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+        return _chat_error(ValueError('Base URL must begin with http:// or https://'), 422)
+    base_url = raw_url.rstrip('/')
+
+    api_key = data.get('api_key')
+    if not api_key:
+        encrypted_key = repository.get_provider_key(athlete_id, 'ollama')
+        if encrypted_key:
+            try:
+                api_key = decrypt_api_key(encrypted_key, app.secret_key)
+            except Exception:
+                api_key = ""
+        else:
+            api_key = ""
+
+    try:
+        result = OllamaChatProvider.test_connection(base_url, api_key.strip() if isinstance(api_key, str) else "")
+        cfg = repository.get_provider_config(athlete_id, 'ollama')
+        if result.get('models'):
+            cfg['base_url'] = base_url
+            cfg['models'] = result['models']
+            repository.save_provider_config(athlete_id, 'ollama', cfg)
+        result['models'] = _decorate_models_with_default(repository, athlete_id, 'ollama', result.get('models', []))[0]
+        result['default_model'] = _normalize_default_model(repository.get_default_model(athlete_id))
+        return jsonify(result)
+    except (ConnectionError, TimeoutError, ValueError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("Ollama test connection failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
 @app.route('/strava/reconnect', methods=['GET'])
 @login_required
 def strava_reconnect():
@@ -2545,13 +3591,11 @@ def get_profile_api():
         repo = get_db()
         profile = repo.get_profile()
         if not profile:
-            try:
-                profile = seed_profile_from_strava(config, repo) or repo.get_profile()
-            except Exception as e:
-                logger.warning(f"Could not seed athlete profile from Strava: {e}")
-                profile = None
-        if not profile:
-            default_profile = {'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0, 'gps_simplification': getattr(config, 'gps_simplification', 0)}
+            default_profile = {
+                'athlete_id': 0, 'first_name': '', 'last_name': '', 'weight': 0,
+                'gps_simplification': getattr(config, 'gps_simplification', 0),
+                'enable_weather_data': False,
+            }
             default_profile.update(dict.fromkeys(UPDATE_STRAVA_FIELDS, ''))
             return jsonify(default_profile)
         # Never expose the Strava refresh token to the client — it is stored
@@ -2567,6 +3611,284 @@ def get_profile_api():
     except Exception as e:
         logger.exception(f"Error fetching profile: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+def _normalize_strava_agent_name(value: object) -> str:
+    """Return the canonical slug used in ``{{agent-ai-<name>}}`` placeholders."""
+    normalized = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
+    return normalized[:64]
+
+
+def _strava_agents_config(profile: dict) -> dict:
+    """Read the profile-owned JSON configuration for Strava AI agents."""
+    raw = profile.get('strava_agents_config') or ''
+    try:
+        config_value = raw if isinstance(raw, dict) else json_module.loads(raw)
+    except (TypeError, ValueError):
+        config_value = {}
+    agents = (config_value.get('agents') or []) if isinstance(config_value, dict) else []
+    return {
+        'enabled': bool(config_value.get('enabled', True)) if isinstance(config_value, dict) else True,
+        'agents': [
+            {'name': str(agent.get('name') or ''), 'prompt': str(agent.get('prompt') or '')}
+            for agent in agents if isinstance(agent, dict) and agent.get('name')
+        ],
+    }
+
+
+def _save_strava_agents_config(repo, profile: dict, config_value: dict) -> None:
+    repo.upsert_profile(
+        int(profile['athlete_id']),
+        str(profile.get('first_name') or ''),
+        str(profile.get('last_name') or ''),
+        float(profile.get('weight') or 0),
+        refresh_token=str(profile.get('refresh_token') or ''),
+        ftp=profile.get('ftp'),
+        gps_simplification=profile.get('gps_simplification'),
+        strava_agents_config=json_module.dumps(config_value),
+        **{field: str(profile.get(field) or '') for field in UPDATE_STRAVA_FIELDS},
+    )
+
+
+@app.route('/api/profile/strava-agents', methods=['GET', 'POST', 'PUT'])
+@login_required
+def strava_agents_api():
+    """List or create named AI agents used by Strava description templates."""
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+    athlete_id = int(profile["athlete_id"])
+    agents_config = _strava_agents_config(profile)
+    agents = agents_config['agents']
+
+    if request.method == 'GET':
+        return jsonify({'agents': agents, 'enabled': agents_config['enabled']})
+
+    if request.method == 'PUT':
+        enabled = (request.get_json() or {}).get('enabled')
+        if not isinstance(enabled, bool):
+            return jsonify({'error': 'Enabled must be a boolean.', 'field': 'enabled'}), 422
+        agents_config['enabled'] = enabled
+        _save_strava_agents_config(repo, profile, agents_config)
+        return jsonify({'enabled': enabled})
+
+    data = request.get_json() or {}
+    name = _normalize_strava_agent_name(data.get('name'))
+    if not name:
+        return jsonify({'error': 'Agent name must contain letters or numbers.', 'field': 'name'}), 422
+    if any(agent['name'].lower() == name for agent in agents):
+        return jsonify({'error': f'An agent named "{name}" already exists.', 'field': 'name'}), 422
+    agent = {'name': name, 'prompt': str(data.get('prompt') or '').strip()}
+    agents_config['agents'].append(agent)
+    _save_strava_agents_config(repo, profile, agents_config)
+    return jsonify({'agent': agent}), 201
+
+
+@app.route('/api/profile/strava-agents/activities', methods=['GET'])
+@login_required
+def strava_agent_activities_api():
+    """Return local activity-picker matches scoped to the signed-in athlete."""
+    query = str(request.args.get('query') or '').strip()
+    if len(query) < 2:
+        return jsonify({'error': 'Enter at least two characters to search activities.', 'field': 'query'}), 422
+
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+
+    activities, _, _ = repo.search_activities(
+        athlete_id=int(profile['athlete_id']),
+        filters={'keyword': query, 'sort_by': 'start_date', 'sort_order': 'desc'},
+        limit=10,
+    )
+    return jsonify({
+        'activities': [
+            {
+                'id': str(activity.get('activity_id') or activity.get('id') or ''),
+                'name': str(activity.get('name') or ''),
+                'sport': str(activity.get('sport') or activity.get('type') or ''),
+                'start_date': activity.get('start_date') or '',
+            }
+            for activity in activities
+        ],
+    })
+
+
+@app.route('/api/profile/strava-agents/try', methods=['POST'])
+@login_required
+def try_strava_agent_prompt_api():
+    """Generate an uncached named-agent preview for one local activity."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object.'}), 422
+    prompt = data.get('prompt')
+    activity_id = str(data.get('activity_id') or '').strip()
+    if not isinstance(prompt, str) or not prompt.strip():
+        return jsonify({'error': 'Agent prompt cannot be empty.', 'field': 'prompt'}), 422
+    if not activity_id.isdigit():
+        return jsonify({'error': 'Select a valid Strava activity.', 'field': 'activity_id'}), 422
+
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+    if not _strava_agents_config(profile)['enabled']:
+        return jsonify({'error': 'Enable AI Agent before trying a prompt.', 'field': 'enabled'}), 422
+
+    chat_service = _chat_service()
+    athlete_id = str(profile['athlete_id'])
+    default_model = _normalize_default_model(chat_service.repository.get_default_model(
+        chat_service.repository.resolve_athlete_id(athlete_id)
+    ))
+    if default_model is None:
+        return jsonify({'error': 'Configure a default AI model before trying a prompt.', 'field': 'default_model'}), 422
+
+    activities, _, _ = repo.search_activities(
+        athlete_id=int(profile['athlete_id']),
+        filters={'keyword': activity_id, 'sort_by': 'start_date', 'sort_order': 'desc'},
+        limit=10,
+    )
+    activity = next(
+        (
+            candidate for candidate in activities
+            if str(candidate.get('activity_id') or candidate.get('id') or '') == activity_id
+        ),
+        None,
+    )
+    if activity is None:
+        return jsonify({'error': 'Selected activity was not found for this athlete.', 'field': 'activity_id'}), 404
+
+    from kinetiqo.chat.agent_runner import run_agent_prompt
+
+    response_text, status = run_agent_prompt(chat_service, athlete_id, activity, prompt)
+    if not response_text or status == 'failed':
+        return jsonify({'error': 'AI could not generate a preview. Please try again.'}), 502
+    return jsonify({'response': response_text, 'status': status})
+
+
+@app.route('/api/profile/strava-agents/<string:name>', methods=['PUT', 'DELETE'])
+@login_required
+def strava_agent_api(name: str):
+    """Update an agent prompt or remove an agent and its template placeholders."""
+    normalized_name = _normalize_strava_agent_name(name)
+    if not normalized_name or normalized_name != name:
+        return jsonify({'error': 'Invalid agent name.', 'field': 'name'}), 422
+
+    repo = get_db()
+    profile = repo.get_profile()
+    if not profile:
+        return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+    athlete_id = int(profile["athlete_id"])
+    agents_config = _strava_agents_config(profile)
+    agents = agents_config['agents']
+    if normalized_name not in {agent['name'] for agent in agents}:
+        return jsonify({'error': 'Agent not found.'}), 404
+
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        updated_name = _normalize_strava_agent_name(data.get('name', normalized_name))
+        if not updated_name:
+            return jsonify({'error': 'Agent name must contain letters or numbers.', 'field': 'name'}), 422
+        if updated_name != normalized_name and updated_name in {agent['name'] for agent in agents}:
+            return jsonify({'error': f'An agent named "{updated_name}" already exists.', 'field': 'name'}), 422
+
+        prompt = str(data.get('prompt') or '').strip()
+        if updated_name != normalized_name:
+            template_updates = {
+                field: str(profile.get(field) or "").replace(
+                    f"{{{{agent-ai-{normalized_name}}}}}",
+                    f"{{{{agent-ai-{updated_name}}}}}",
+                )
+                for field in UPDATE_STRAVA_FIELDS
+            }
+            for field, value in template_updates.items():
+                profile[field] = value
+                setattr(config, field, value)
+            agents_config['agents'] = [
+                {'name': updated_name, 'prompt': prompt} if agent['name'] == normalized_name else agent
+                for agent in agents
+            ]
+            _save_strava_agents_config(repo, profile, agents_config)
+        else:
+            agents_config['agents'] = [
+                {'name': agent['name'], 'prompt': prompt} if agent['name'] == normalized_name else agent
+                for agent in agents
+            ]
+            _save_strava_agents_config(repo, profile, agents_config)
+        invalidated = repo.purge_strava_agent_ai_responses(normalized_name)
+        return jsonify({
+            'agent': {'name': updated_name, 'prompt': prompt},
+            'invalidated_cache_entries': invalidated,
+        })
+
+    referenced_by = [
+        field for field in UPDATE_STRAVA_FIELDS
+        if f"{{{{agent-ai-{normalized_name}}}}}" in str(profile.get(field) or "")
+    ]
+    confirm = bool((request.get_json() or {}).get('confirm'))
+    if not confirm:
+        return jsonify({'requires_confirmation': True, 'referenced_by': referenced_by}), 409
+
+    if referenced_by:
+        template_updates = {
+            field: str(profile.get(field) or "").replace(f"{{{{agent-ai-{normalized_name}}}}}", "")
+            for field in UPDATE_STRAVA_FIELDS
+        }
+        for field, value in template_updates.items():
+            profile[field] = value
+            setattr(config, field, value)
+    agents_config['agents'] = [agent for agent in agents if agent['name'] != normalized_name]
+    _save_strava_agents_config(repo, profile, agents_config)
+    invalidated = repo.purge_strava_agent_ai_responses(normalized_name)
+    return jsonify({'deleted': normalized_name, 'referenced_by': referenced_by, 'invalidated_cache_entries': invalidated})
+
+
+@app.route('/api/profile/sync', methods=['POST'])
+@login_required
+def api_sync_profile_from_strava():
+    """Manually fetch and sync athlete profile data (name, weight) from Strava.
+
+    Returns:
+        flask.Response: JSON payload with success status and the updated profile,
+        or an error message with appropriate HTTP status code (e.g. 429 on rate limit).
+    """
+    try:
+        repo = get_db()
+        seeded = seed_profile_from_strava(config, repo, force=True)
+        profile = repo.get_profile() or seeded or {}
+        if not profile and not seeded:
+            return jsonify({'error': 'Strava returned an empty or invalid athlete profile.'}), 400
+
+        safe_profile = {k: v for k, v in profile.items() if k != 'refresh_token'}
+        if safe_profile.get('gps_simplification') is None:
+            safe_profile['gps_simplification'] = getattr(config, 'gps_simplification', 0)
+        else:
+            safe_profile['gps_simplification'] = int(safe_profile['gps_simplification'])
+
+        first_name = safe_profile.get('first_name', '')
+        last_name = safe_profile.get('last_name', '')
+        weight = safe_profile.get('weight', 0)
+        logger.info(f"Manual profile sync from Strava succeeded: {first_name} {last_name}, {weight} kg")
+        return jsonify({
+            'success': True,
+            'message': 'Profile synchronized from Strava successfully.',
+            'profile': safe_profile,
+        })
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else 500
+        if status_code == 429:
+            err_msg = "Strava rate limit exceeded (429 Too Many Requests). Please wait a few minutes before trying again."
+        elif status_code == 401:
+            err_msg = "Strava authorization failed (401 Unauthorized). Please reconnect your Strava account."
+        else:
+            err_msg = f"Strava API error ({status_code}): {e}"
+        logger.warning(f"Manual profile sync failed: {err_msg}")
+        return jsonify({'error': err_msg}), status_code
+    except Exception as e:
+        logger.warning(f"Manual profile sync failed: {e}")
+        return jsonify({'error': f"Failed to sync profile from Strava: {e}"}), 500
 
 
 @app.route('/api/profile', methods=['PUT', 'POST'])
@@ -2590,6 +3912,7 @@ def update_profile_api():
         existing = repo.get_profile()
         if not existing:
             return jsonify({'error': 'No profile exists yet — sync from Strava first.'}), 404
+        agent_names = {agent['name'] for agent in _strava_agents_config(existing)['agents']}
 
         first_name = data.get('first_name', existing['first_name'])
         last_name = data.get('last_name', existing['last_name'])
@@ -2636,14 +3959,21 @@ def update_profile_api():
                 gps_simplification = int(gps_simplification)
                 config.gps_simplification = gps_simplification
 
+        if 'enable_weather_data' in data:
+            if not isinstance(data['enable_weather_data'], bool):
+                return jsonify({'error': 'Weather preference must be true or false.', 'field': 'enable_weather_data'}), 422
+            enable_weather_data = data['enable_weather_data']
+        else:
+            enable_weather_data = bool(existing.get('enable_weather_data', False))
+
         # UPDATE_STRAVA_* templates can be updated via GUI / API payload
         template_updates = {}
         for field in UPDATE_STRAVA_FIELDS:
             if field in data:
                 val = str(data[field] or '')
-                if val.startswith("✨ Kinetiqo:"):
-                    val = val[11:].strip()
-                is_valid, err_msg = validate_template(val)
+                val = re.sub(r"^(?:✨\s*Kinetiqo(?:\s+AI)?|Kinetiqo(?:\s+AI)?\s*✨)[:\s]\s*", "", val).strip()
+                val = normalize_template(val)
+                is_valid, err_msg = validate_template(val, agent_names)
                 if not is_valid:
                     return jsonify({'error': err_msg, 'field': field}), 422
                 template_updates[field] = val
@@ -2657,6 +3987,7 @@ def update_profile_api():
                             refresh_token=existing.get('refresh_token', '') or '',
                             ftp=ftp,
                             gps_simplification=gps_simplification,
+                            enable_weather_data=enable_weather_data,
                             **template_updates)
 
         response_payload = {
@@ -2666,6 +3997,7 @@ def update_profile_api():
             'weight': weight,
             'ftp': ftp,
             'gps_simplification': gps_simplification,
+            'enable_weather_data': enable_weather_data,
         }
         response_payload.update(template_updates)
         return jsonify(response_payload)
@@ -2890,7 +4222,8 @@ def get_activities_api():
                 'elev_low': float(a.get('elev_low')) if a.get('elev_low') is not None else None,
                 'gear_id': a.get('gear_id') or None,
                 'has_heartrate': bool(a.get('has_heartrate')) if a.get('has_heartrate') is not None else False,
-                'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None
+                'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None,
+                'ai_responses': a.get('ai_responses') or None
             })
 
         return jsonify({
@@ -2968,6 +4301,34 @@ def delete_activities_api():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/activities/purge-ai', methods=['POST'])
+@login_required
+def purge_ai_analysis_api():
+    """Purge cached AI responses for specified activity IDs.
+
+    Expects a JSON body: {"activity_ids": ["123", "456", ...]}.
+
+    Returns:
+        flask.Response: JSON success or error payload.
+    """
+    data = request.get_json(silent=True) or {}
+    activity_ids = data.get('activity_ids', [])
+    if not activity_ids:
+        return jsonify({'success': False, 'error': 'No activity IDs provided'}), 400
+
+    try:
+        repo = get_db()
+        repo.purge_activities_ai_responses(activity_ids)
+        return jsonify({
+            'success': True,
+            'message': f'AI analysis purged for {len(activity_ids)} activities.',
+            'purged_count': len(activity_ids),
+        })
+    except Exception as e:
+        logger.exception(f"Error purging AI analysis: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def _has_strava_description_templates() -> bool:
     """Return True if at least one UPDATE_STRAVA_* field in DB profile (or config fallback) is non-empty."""
     try:
@@ -2990,7 +4351,7 @@ def fullsync():
         Response: The rendered sync UI page configured for a full sync.
     """
     return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days(),
-                           has_strava_templates=_has_strava_description_templates())
+                           has_strava_templates=_has_strava_description_templates(), weather_enabled=False)
 
 
 @app.route('/fastsync', methods=['GET'])
@@ -3001,26 +4362,128 @@ def fastsync():
     Returns:
         Response: The rendered sync UI page configured for a fast/incremental sync.
     """
+    try:
+        profile = get_db().get_profile() or {}
+        weather_enabled = bool(profile.get('enable_weather_data', False))
+    except Exception:
+        logger.exception("Could not load weather preference for fast sync page.")
+        weather_enabled = False
     return render_template('sync.html', title="Fast Sync", sync_type="fast",
-                           has_strava_templates=_has_strava_description_templates())
+                           has_strava_templates=_has_strava_description_templates(),
+                           weather_enabled=weather_enabled)
 
 
 # --- HTMX / Reactive API Endpoints ---
 
-@app.route('/sync/start/<type>', methods=['GET'])
+@app.route('/sync/start/<type>', methods=['POST'])
 @login_required
 def start_sync_ui(type):
-    """Return an HTML snippet that connects the client to the SSE sync stream.
+    """Create a durable sync job and return an HTML fragment attaching to its read-only stream."""
+    if type not in ('full', 'fast'):
+        return jsonify({'error': 'Sync type must be full or fast.'}), 400
+    try:
+        limit_days = int(request.form.get('limit_days', '0')) if type == 'full' else 0
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid sync period.'}), 422
+    if limit_days < 0:
+        return jsonify({'error': 'Sync period must be zero or a positive number of days.'}), 422
 
-    Args:
-        type (str): Sync type string (e.g. 'full' or 'fast').
+    user_id = str(getattr(current_user, 'id', 'admin'))
+    repo = get_db()
+    repo.recover_expired_sync_jobs()
+    if repo.has_active_sync_job(user_id):
+        return jsonify({'error': 'You already have an active sync job.'}), 409
 
-    Returns:
-        str: HTML fragment used by the HTMX UI to initialise the SSE connection.
-    """
-    limit_days = request.args.get('limit_days', '0')
-    update_strava = request.args.get('update_strava', 'off')
-    sse_url = f"/api/sync/stream/{type}?limit_days={limit_days}&update_strava={update_strava}"
+    update_strava = request.form.get('update_strava') in ('on', 'true', '1')
+    retrigger_ai_agents = request.form.get('retrigger_ai_agents') in ('on', 'true', '1')
+    update_weather = 'on' in request.form.getlist('weather_data')
+    resync_weather = request.form.get('resync_weather') in ('on', 'true', '1')
+    if resync_weather and not update_weather:
+        return jsonify({'error': 'Weather data must be enabled to resync existing weather.'}), 422
+    options = {
+        'full_sync': type == 'full',
+        'limit_days': limit_days,
+        'update_strava': update_strava,
+        'retrigger_ai_agents': retrigger_ai_agents,
+        'update_weather': update_weather,
+        'resync_weather': resync_weather,
+    }
+    job_id = secrets.token_urlsafe(24)
+    repo.create_sync_job(job_id, type, user_id, options)
+
+    def run_job() -> None:
+        job_repo = None
+        sync_service = None
+        try:
+            job_repo = create_repository(config)
+            sync_service = SyncService(config)
+            job_repo.update_sync_job(
+                job_id,
+                status='running',
+                started_at=datetime.now(timezone.utc),
+            )
+            job_repo.append_sync_job_event(job_id, {'html': '<p class="block truncate">Sync worker started.</p>'})
+
+            def cancellation_requested() -> bool:
+                job = job_repo.get_sync_job(job_id)
+                return bool(job and job.get('cancel_requested'))
+
+            for progress in sync_service.sync(
+                full_sync=options['full_sync'],
+                trigger='web',
+                user=user_id,
+                limit_days=limit_days,
+                update_strava=update_strava,
+                retrigger_ai_agents=retrigger_ai_agents,
+                update_weather=update_weather,
+                resync_weather=resync_weather,
+                cancel_requested=cancellation_requested,
+                job_id=job_id,
+            ):
+                event_data = progress.partition('\n\n')[0]
+                if event_data.startswith('data:'):
+                    event_data = event_data[5:].lstrip()
+                job_repo.append_sync_job_event(job_id, {'html': event_data})
+
+            final_job = job_repo.get_sync_job(job_id) or {}
+            terminal_status = 'cancelled' if final_job.get('cancel_requested') else 'completed'
+            job_repo.update_sync_job(
+                job_id,
+                status=terminal_status,
+                completed_at=datetime.now(timezone.utc),
+            )
+        except Exception as error:
+            logger.exception("Web sync job %s failed.", job_id)
+            if job_repo is not None:
+                job_repo.update_sync_job(
+                    job_id,
+                    status='failed',
+                    completed_at=datetime.now(timezone.utc),
+                    error_message=str(error)[:1000],
+                )
+                job_repo.append_sync_job_event(job_id, {
+                    'html': f'<p class="block truncate text-red-600">Sync failed: {html.escape(str(error))}</p>'
+                })
+        finally:
+            if sync_service is not None:
+                sync_service.close()
+            if job_repo is not None:
+                job_repo.close()
+            _power_cache.invalidate()
+
+    try:
+        worker = threading.Thread(target=run_job, name=f'kinetiqo-sync-{job_id}', daemon=True)
+        worker.start()
+    except Exception as error:
+        logger.exception("Could not schedule web sync job %s.", job_id)
+        repo.update_sync_job(
+            job_id,
+            status='failed',
+            completed_at=datetime.now(timezone.utc),
+            error_message=str(error)[:1000],
+        )
+        return jsonify({'error': 'Could not schedule the sync worker.'}), 500
+    sse_url = f"/api/sync/stream/{job_id}"
 
     return f'''
     <div id="sync-log-area">
@@ -3031,6 +4494,7 @@ def start_sync_ui(type):
                         <p class="block truncate">Initializing sync...</p>
                     </div>
                 </div>
+                <script>window.kinetiqoCurrentSyncJobId = {json_module.dumps(job_id)};</script>
                 <div class="text-center pt-4 border-t border-gray-200">
                     <p class="text-sm font-medium mb-3 inline-flex items-center justify-center gap-2 sync-progress-text">
                         <img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16">
@@ -3048,56 +4512,55 @@ def start_sync_ui(type):
     '''
 
 
-@app.route('/api/sync/stream/<type>', methods=['GET'])
+@app.route('/api/sync/stream/<job_id>', methods=['GET'])
 @login_required
-def sync_stream(type):
-    """Stream synchronization progress via Server-Sent Events (SSE).
-
-    Args:
-        type (str): 'full' or 'fast' indicating the sync mode.
-
-    Returns:
-        Response: A text/event-stream response streaming progress events.
-    """
-    is_full_sync = (type == 'full')
-    user_id = getattr(current_user, 'id', 'admin')
-    limit_days = request.args.get('limit_days', default=0, type=int)
-    update_strava_param = request.args.get('update_strava', default='off')
-    update_strava = update_strava_param in ('on', 'true', '1')
-
-    logger.info(f"Starting sync stream: type={type}, limit_days={limit_days}, update_strava={update_strava}")
-
-    def error_event(message: str) -> str:
-        error_html = f"""<div class="mb-4">
-            <div class="font-mono text-xs text-gray-600 overflow-y-auto space-y-1" style="height: 500px;">
-                <p class="block truncate">{html.escape(message)}</p>
-            </div>
-        </div>
-        <div class="text-center pt-4 border-t border-gray-200">
-            <p class="text-sm text-red-600 font-medium mb-3">Sync failed.</p>
-            <div class="mt-3 text-left bg-red-50 border border-red-200 rounded-lg p-3">
-                <p class="text-xs font-semibold text-red-800 mb-1">Error during sync:</p>
-                <p class="text-xs text-red-700">{html.escape(message)}</p>
-            </div>
-        </div>"""
-        return f"data: {error_html.replace(chr(10), '')}\n\n"
+def sync_stream(job_id):
+    """Replay persisted progress events for a job owned by the authenticated user."""
+    user_id = str(getattr(current_user, 'id', 'admin'))
+    repository = get_db()
+    job = repository.get_sync_job(job_id)
+    if not job:
+        return jsonify({'error': 'Sync job not found.'}), 404
+    if str(job.get('owner_id')) != user_id:
+        return jsonify({'error': 'You do not own this sync job.'}), 403
+    try:
+        after_sequence = max(0, int(request.headers.get('Last-Event-ID', '0')))
+    except ValueError:
+        return jsonify({'error': 'Invalid event sequence.'}), 400
 
     def generate():
-        sync_service = SyncService(config)
+        event_repo = create_repository(config)
         try:
-            for progress in sync_service.sync(full_sync=is_full_sync, trigger="web", user=user_id,
-                                              limit_days=limit_days, update_strava=update_strava):
-                yield progress
-        except Exception as e:
-            logger.exception(f"Sync failed: {e}")
-            yield error_event(str(e))
+            sequence = after_sequence
+            while True:
+                events = event_repo.get_sync_job_events(job_id, after_sequence=sequence)
+                for event in events:
+                    sequence = int(event['event_sequence'])
+                    payload = event.get('payload') or {}
+                    event_data = str(payload.get('html') or '')
+                    yield f"id: {sequence}\nevent: message\ndata: {event_data}\n\n"
+                current_job = event_repo.get_sync_job(job_id)
+                if not current_job or current_job.get('status') in ('completed', 'failed', 'cancelled', 'interrupted'):
+                    if not events:
+                        break
+                if not events:
+                    yield ': keep-alive\n\n'
+                    _time.sleep(0.5)
         finally:
-            sync_service.close()
-            # Invalidate the power cache so that FTP / VO₂max pages
-            # reflect any newly synced activities immediately.
-            _power_cache.invalidate()
+            event_repo.close()
 
     return Response(generate(), mimetype='text/event-stream')
+
+
+@app.route('/api/sync/stop/<job_id>', methods=['POST'])
+@login_required
+def stop_sync_job(job_id):
+    """Request cancellation of a sync job owned by the authenticated user."""
+    user_id = str(getattr(current_user, 'id', 'admin'))
+    changed = get_db().request_sync_job_cancel(job_id, user_id)
+    if not changed:
+        return jsonify({'error': 'Active sync job not found or not owned by this user.'}), 404
+    return '', 204
 
 
 @app.route('/api/sync/stop', methods=['POST'])
