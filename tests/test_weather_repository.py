@@ -110,6 +110,97 @@ class WeatherRepositoryTests(unittest.TestCase):
                 self.assertEqual("?" in statements[-1], database_type == "firebird")
                 repository.conn.commit.assert_called_once()
 
+    def test_update_activity_weather_summary_across_dialects(self):
+        summary = {
+            "weather_temp_min": 12.0,
+            "weather_temp_max": 18.0,
+            "weather_temp_avg": 15.0,
+            "weather_condition": "Partially cloudy",
+            "weather_condition_icon": "partly-cloudy-day",
+            "weather_wind_deg": 270,
+            "weather_wind_speed": 3.4,
+            "weather_precipitation": "Rain (1.2mm)",
+        }
+        from kinetiqo.db.mysql import MySQLRepository
+        from kinetiqo.db.firebird import FirebirdRepository
+
+        repo_classes = {
+            "postgresql": PostgresqlRepository,
+            "mysql": MySQLRepository,
+            "firebird": FirebirdRepository,
+        }
+        for database_type, repo_class in repo_classes.items():
+            with self.subTest(database_type=database_type):
+                repository, cursor = self._repository(repo_class, database_type)
+                repository.update_activity_weather_summary("12345", summary)
+                cursor.execute.assert_called_once()
+                sql, params = cursor.execute.call_args.args
+                self.assertIn("weather_temp_min", sql)
+                self.assertIn("weather_precipitation", sql)
+                self.assertEqual(params[-1], 12345)
+                if database_type == "firebird":
+                    self.assertIn("?", sql)
+                else:
+                    self.assertIn("%s", sql)
+                repository.conn.commit.assert_called_once()
+
+    def test_backfill_weather_summary_processes_completed_rows(self):
+        import json
+        repository, cursor = self._repository(PostgresqlRepository, "postgresql")
+        cursor.fetchall.return_value = [
+            (
+                1001,
+                json.dumps({
+                    "status": "complete",
+                    "samples": [
+                        {
+                            "temperature_c": 17.0,
+                            "conditions": "Clear",
+                            "wind_direction_deg": 180,
+                            "wind_speed_ms": 2.5,
+                            "interval_seconds": 3600,
+                            "precipitation_mm": 0,
+                        }
+                    ],
+                }),
+            )
+        ]
+        repository.update_activity_weather_summary = MagicMock()
+        count = repository.backfill_weather_summary(batch_size=10)
+        self.assertEqual(count, 1)
+        repository.update_activity_weather_summary.assert_called_once()
+        args = repository.update_activity_weather_summary.call_args.args
+        self.assertEqual(args[0], 1001)
+        self.assertEqual(args[1]["weather_condition"], "Clear")
+        self.assertEqual(args[1]["weather_temp_avg"], 17.0)
+
+    def test_load_weather_cache_populates_spatial_dictionary(self):
+        import json
+        repository, cursor = self._repository(PostgresqlRepository, "postgresql")
+        cursor.fetchall.side_effect = [
+            [
+                (
+                    2001,
+                    json.dumps({
+                        "status": "complete",
+                        "samples": [
+                            {
+                                "time_utc": "2026-10-15T16:00:00+00:00",
+                                "latitude": 50.045,
+                                "longitude": 14.322,
+                                "temperature_c": 12.9,
+                            }
+                        ],
+                    }),
+                )
+            ]
+        ]
+        cache = repository.load_weather_cache(limit=50)
+        self.assertIn(("50.04500,14.32200", "2026-10-15"), cache)
+        epoch = int(datetime(2026, 10, 15, 16, 0, tzinfo=timezone.utc).timestamp())
+        self.assertIn(epoch, cache[("50.04500,14.32200", "2026-10-15")])
+        self.assertEqual(cache[("50.04500,14.32200", "2026-10-15")][epoch]["temperature_c"], 12.9)
+
 
 if __name__ == "__main__":
     unittest.main()

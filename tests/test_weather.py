@@ -8,10 +8,14 @@ from kinetiqo.weather import (
     WeatherProviderError,
     WeatherRateLimitState,
     build_activity_weather,
+    extract_weather_summary,
     fetch_visual_crossing_hour,
     format_weather_placeholders,
     hourly_intervals,
     interpolate_route_position,
+    weather_sample_position,
+    _find_cached_hour,
+    _weather_hour,
 )
 
 
@@ -403,6 +407,178 @@ class VisualCrossingClientTests(unittest.TestCase):
             "days": [{"hours": [{"datetimeEpoch": int(hour.timestamp()), "temp": 12}]}],
         }
         return response
+
+
+class WeatherSummaryTests(unittest.TestCase):
+    def test_extract_weather_summary_for_dry_activity_with_steady_temp(self):
+        payload = {
+            "status": "complete",
+            "samples": [
+                {
+                    "temperature_c": 18.0,
+                    "conditions": "Clear",
+                    "wind_direction_deg": 270.0,
+                    "wind_speed_ms": 3.4,
+                    "interval_seconds": 3600,
+                    "precipitation_mm": 0.0,
+                    "snowfall_cm": 0.0,
+                    "precipitation_types": [],
+                }
+            ],
+        }
+        summary = extract_weather_summary(payload)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["weather_temp_min"], 18.0)
+        self.assertEqual(summary["weather_temp_max"], 18.0)
+        self.assertEqual(summary["weather_temp_avg"], 18.0)
+        self.assertEqual(summary["weather_condition"], "Clear")
+        self.assertEqual(summary["weather_condition_icon"], "clear-day")
+        self.assertEqual(summary["weather_wind_deg"], 270)
+        self.assertEqual(summary["weather_wind_speed"], 3.4)
+        self.assertIsNone(summary["weather_precipitation"])
+
+    def test_extract_weather_summary_multi_hour_cloud_averaging_and_rain(self):
+        payload = {
+            "status": "complete",
+            "samples": [
+                {
+                    "temperature_c": 14.0,
+                    "conditions": "Clear",
+                    "wind_direction_deg": 270.0,
+                    "wind_speed_ms": 3.0,
+                    "interval_seconds": 3600,
+                    "precipitation_mm": 0.0,
+                },
+                {
+                    "temperature_c": 16.0,
+                    "conditions": "Clear",
+                    "wind_direction_deg": 260.0,
+                    "wind_speed_ms": 4.0,
+                    "interval_seconds": 3600,
+                    "precipitation_mm": 0.0,
+                },
+                {
+                    "temperature_c": 19.0,
+                    "conditions": "Overcast",
+                    "wind_direction_deg": 280.0,
+                    "wind_speed_ms": 4.0,
+                    "interval_seconds": 3600,
+                    "precipitation_mm": 1.4,
+                    "precipitation_types": ["rain"],
+                },
+            ],
+        }
+        summary = extract_weather_summary(payload)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["weather_temp_min"], 14.0)
+        self.assertEqual(summary["weather_temp_max"], 19.0)
+        self.assertEqual(summary["weather_temp_avg"], 16.3)
+        self.assertEqual(summary["weather_condition"], "Rain")
+        self.assertEqual(summary["weather_condition_icon"], "rain")
+        self.assertEqual(summary["weather_wind_deg"], 270)
+        self.assertEqual(summary["weather_precipitation"], "Rain (1.4mm)")
+
+    def test_extract_weather_summary_snow_override(self):
+        payload = {
+            "status": "complete",
+            "samples": [
+                {
+                    "temperature_c": -1.5,
+                    "conditions": "Snow, Overcast",
+                    "wind_direction_deg": 45.0,
+                    "wind_speed_ms": 2.5,
+                    "interval_seconds": 1800,
+                    "snowfall_cm": 2.0,
+                    "precipitation_types": ["snow"],
+                }
+            ],
+        }
+        summary = extract_weather_summary(payload)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["weather_condition"], "Snow")
+        self.assertEqual(summary["weather_condition_icon"], "snow")
+        self.assertEqual(summary["weather_precipitation"], "Snow (1.0cm)")
+
+    def test_extract_weather_summary_returns_none_for_skipped_or_invalid(self):
+        self.assertIsNone(extract_weather_summary(None))
+        self.assertIsNone(extract_weather_summary({"status": "skipped_indoor", "samples": []}))
+        self.assertIsNone(extract_weather_summary({"status": "deferred_rate_limit", "samples": []}))
+        self.assertIsNone(extract_weather_summary("invalid-json"))
+
+    def test_weather_sample_position_nearest_point_fallback(self):
+        """When no points fall strictly inside [interval_start, interval_end], pick the nearest point on the route."""
+        interval_start = datetime(2026, 10, 11, 16, 0, tzinfo=timezone.utc)
+        interval_end = datetime(2026, 10, 11, 17, 0, tzinfo=timezone.utc)
+        lookup_time = datetime(2026, 10, 11, 16, 30, tzinfo=timezone.utc)
+
+        # Activity GPS points recorded slightly later, e.g. at 17:01 and 17:02
+        pts = [
+            {"ts": datetime(2026, 10, 11, 17, 1, tzinfo=timezone.utc), "lat": 50.045, "lng": 14.322},
+            {"ts": datetime(2026, 10, 11, 17, 2, tzinfo=timezone.utc), "lat": 50.046, "lng": 14.323},
+        ]
+        pos = weather_sample_position(pts, lookup_time, interval_start, interval_end)
+        self.assertIsNotNone(pos)
+        assert pos is not None
+        self.assertEqual(pos["latitude"], 50.045)
+        self.assertEqual(pos["longitude"], 14.322)
+
+    def test_weather_hour_nearest_fallback(self):
+        """_weather_hour falls back to the nearest hour within 3600 seconds when exact epoch differs slightly."""
+        requested_epoch = 1760000000
+        # Provider returns hour 1800s later (e.g. half-hour reporting)
+        response_data = {
+            "days": [
+                {
+                    "hours": [
+                        {"datetimeEpoch": requested_epoch + 1800, "temp": 18.5, "conditions": "Clear"}
+                    ]
+                }
+            ]
+        }
+        hour = _weather_hour(response_data, requested_epoch)
+        self.assertIsNotNone(hour)
+        assert hour is not None
+        self.assertEqual(hour["temp"], 18.5)
+
+    def test_find_cached_hour_spatial_proximity(self):
+        """_find_cached_hour matches an entry within 15 km on the same date and hour."""
+        cache = {
+            ("50.04000,14.32000", "2026-10-15"): {
+                1760544000: {"temperature_c": 12.9, "conditions": "Partially cloudy"}
+            }
+        }
+        # Point 5km away
+        found = _find_cached_hour(cache, 50.07500, 14.32000, "2026-10-15", 1760544000)
+        self.assertIsNotNone(found)
+        assert found is not None
+        self.assertEqual(found["temperature_c"], 12.9)
+
+        # Point 30km away should not match
+        far = _find_cached_hour(cache, 50.35000, 14.32000, "2026-10-15", 1760544000)
+        self.assertIsNone(far)
+
+    def test_fetch_visual_crossing_hour_reuses_nearby_cache_when_exhausted(self):
+        """fetch_visual_crossing_hour returns nearby cached data without network call even if rate limit is exhausted."""
+        rate_limit = WeatherRateLimitState()
+        rate_limit.mark_exhausted()
+
+        hour_start = datetime(2026, 10, 15, 16, 0, tzinfo=timezone.utc)
+        epoch = int(hour_start.timestamp())
+        hourly_cache = {
+            ("50.03857,14.32754", "2026-10-15"): {
+                epoch: {"temperature_c": 12.9, "conditions": "Partially cloudy"}
+            }
+        }
+
+        # Query 1 km away
+        result = fetch_visual_crossing_hour(
+            50.04504, 14.32277, hour_start,
+            api_key="dummy_key",
+            hourly_cache=hourly_cache,
+            rate_limit_state=rate_limit,
+            get=Mock(side_effect=AssertionError("Should not call get() on cache hit")),
+        )
+        self.assertEqual(result["temperature_c"], 12.9)
 
 
 if __name__ == "__main__":

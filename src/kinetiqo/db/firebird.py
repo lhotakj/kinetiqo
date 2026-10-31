@@ -452,7 +452,8 @@ class FirebirdRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from Firebird"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts',
+                           'weather_temp_avg', 'weather_wind_speed']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -516,7 +517,15 @@ class FirebirdRepository(DatabaseRepository):
                 "workout_type",
                 "max_speed",
                 "trophies",
-                "ai_responses"
+                "ai_responses",
+                "weather_temp_min",
+                "weather_temp_max",
+                "weather_temp_avg",
+                "weather_condition",
+                "weather_condition_icon",
+                "weather_wind_deg",
+                "weather_wind_speed",
+                "weather_precipitation"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -568,7 +577,15 @@ class FirebirdRepository(DatabaseRepository):
                     'workout_type': row[24],
                     'max_speed': row[25],
                     'trophies': trophies_parsed,
-                    'ai_responses': ai_parsed
+                    'ai_responses': ai_parsed,
+                    'weather_temp_min': row[28] if len(row) > 28 else None,
+                    'weather_temp_max': row[29] if len(row) > 29 else None,
+                    'weather_temp_avg': row[30] if len(row) > 30 else None,
+                    'weather_condition': row[31] if len(row) > 31 else None,
+                    'weather_condition_icon': row[32] if len(row) > 32 else None,
+                    'weather_wind_deg': row[33] if len(row) > 33 else None,
+                    'weather_wind_speed': row[34] if len(row) > 34 else None,
+                    'weather_precipitation': row[35] if len(row) > 35 else None
                 }
                 activities.append(activity)
             return activities
@@ -795,6 +812,39 @@ class FirebirdRepository(DatabaseRepository):
         val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
         with self.conn.cursor() as cur:
             cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
+        self.conn.commit()
+
+    def update_activity_weather_summary(self, activity_id: Any, summary: Dict[str, Any]):
+        """Update precomputed weather summary columns for an activity."""
+        self._ensure_connected()
+        if not summary:
+            return
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "activities" SET
+                    "weather_temp_min" = ?,
+                    "weather_temp_max" = ?,
+                    "weather_temp_avg" = ?,
+                    "weather_condition" = ?,
+                    "weather_condition_icon" = ?,
+                    "weather_wind_deg" = ?,
+                    "weather_wind_speed" = ?,
+                    "weather_precipitation" = ?
+                WHERE "activity_id" = ?
+                """,
+                (
+                    summary.get("weather_temp_min"),
+                    summary.get("weather_temp_max"),
+                    summary.get("weather_temp_avg"),
+                    summary.get("weather_condition"),
+                    summary.get("weather_condition_icon"),
+                    summary.get("weather_wind_deg"),
+                    summary.get("weather_wind_speed"),
+                    summary.get("weather_precipitation"),
+                    int(activity_id),
+                ),
+            )
         self.conn.commit()
 
     def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):

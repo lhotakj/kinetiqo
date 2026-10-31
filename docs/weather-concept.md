@@ -1,4 +1,4 @@
-# Activity Weather Enrichment - Implementation Plan
+# Activity Weather Enrichment - Implementation Plan & Concept
 
 ## Status and decisions
 
@@ -12,6 +12,8 @@ the Visual Crossing Timeline Weather API. The provider key is supplied through
 - Store only provider-returned weather values, condition text, source, and
   calculated route-relative data. Missing values remain missing.
 - Save one versioned JSON weather document per activity in the `weather` table.
+- Maintain precomputed summary scalar columns on the `activities` table for $O(1)$
+  fast client-side grid display and sorting in `/activities`.
 - The profile's `enable_weather_data` preference controls the Fast Sync default.
   Full Sync remains opt-in; explicit resync replaces weather in the selected
   scope.
@@ -44,119 +46,19 @@ Kinetiqo deliberately does **not** calculate or store its own quota total:
    reports one clear warning. No counter, warning threshold, manual reset, or
    quota bypass is exposed.
 
-## Goals
+## Weather Column in Activities Grid
 
-1. Enrich eligible GPS-tracked outdoor activities with hourly historical
-   temperature, apparent temperature, conditions, precipitation, snowfall,
-   wind, gusts, and calculated headwind.
-2. Fetch weather only during explicit sync work, never from browser code or on
-   demand by AI.
-3. Avoid duplicate requests for activities with complete weather while allowing
-   scoped, explicit resync.
-4. Provide deterministic Strava weather placeholders and a bounded read-only
-   MCP weather tool without exposing coordinates.
-5. Stop weather requests promptly when Visual Crossing reports quota exhaustion,
-   without database quota accounting.
+The activities grid features a dedicated, toggleable **Weather** column:
+```text
+<temperature-icon> <min - max>°C <weather-condition-icon> <wind-direction-arrow> <wind-speed>m/s <precipitation-word-with-amount>
+```
 
-## Non-goals
+- **Temperature**: Thermometer SVG with temperature range (e.g. `14 - 18°C` or `18°C` if constant). Sorts by average temperature (`weather_temp_avg`).
+- **Weather Condition Icon**: Cloudiness duration-weighted average (Clear, Partially cloudy, Overcast) with severe condition promotion (Thunderstorm, Rain, Snow).
+- **Wind Direction Vector**: Arrow rotated to wind travel direction with cardinal tooltip (e.g. `West wind (270°) · 3.4 m/s`).
+- **Precipitation**: Omitted when dry; displayed as `Rain (1.8mm)` or `Snow (0.5cm)` when wet.
+- **Indoor / Missing**: Muted dash `-`, sorts nulls-last.
+- **Default Visibility**: Hidden by default, toggleable via Column Visibility picker.
+- **Auto-Backfill**: Runs on startup to populate activities from existing cached `weather_json` in the database, with a CLI command `kinetiqo backfill-weather`.
 
-- Do not fetch current or forecast weather.
-- Do not infer named hazards from numeric conditions.
-- Do not make weather failures fail the Strava activity sync.
-- Do not create a shared quota store, database ledger, cross-worker lock, or
-  manual counter reset.
-- Do not persist partial weather after quota exhaustion. The activity remains
-  eligible for a later retry after reset.
-
-## Architecture
-
-### Data and repository
-
-The portable `weather` table stores one JSON payload and timestamp per activity.
-The existing profile preference, sync job persistence, and global sync lease
-remain unchanged. Remove the quota-ledger schema entries, repository methods,
-retention cleanup, and tests; do not drop pre-existing tables automatically.
-
-The weather JSON documents:
-
-- provider: `visual-crossing`;
-- hourly resolution, fetch time, activity start/end, sport type, and units;
-- each returned hourly weather record with provider condition/source fields;
-- derived route bearing, route distance, and signed headwind component.
-
-Terminal ineligible results such as `skipped_indoor` or `skipped_no_gps` have
-empty samples. Transient network, malformed-response, or provider-limit
-failures do not replace successful data and remain retryable.
-
-### Provider client and quota state
-
-The weather client uses bounded timeouts and retries transient network and HTTP
-5xx failures once after one second. It parses `X-RateLimit-Remaining` as a
-non-negative integer, ignoring missing, negative, or malformed values.
-
-An in-memory rate-limit state records the next UTC midnight when a valid zero
-header or HTTP 429 is observed. It is checked before each outbound request.
-The state expires lazily at the next UTC midnight. It is intentionally
-best-effort and process-local rather than durable or shared across Gunicorn
-workers.
-
-If exhaustion is reported after the final sample of an activity, persist that
-complete activity. If it occurs before all samples are available, discard the
-partial payload and let a later sync retry the activity. The sync weather phase
-then stops and produces one warning; non-weather synchronization continues.
-
-### Route processing
-
-For each hourly interval overlapping an activity:
-
-1. Use the midpoint of the clipped interval to interpolate a GPS position and
-   route bearing. A stationary bracket remains a valid position with no
-   bearing, and sparse routes use the nearest recorded point in the same
-   overlapping interval.
-2. Reject interpolation gaps greater than 15 minutes and do not extrapolate
-   outside the overlapping provider hour.
-3. Request one route location/hour from Visual Crossing and retain only the
-   requested provider hour.
-4. Calculate headwind as
-   `wind_speed_ms * cos(radians(wind_from_deg - route_bearing_deg))`; positive
-   values oppose travel.
-5. Store clipped interval duration for activity-level weighting. Do not imply
-   precision finer than one hour.
-
-Indoor activities and routes without usable GPS are skipped without a provider
-request. Provider data not yet available is deferred and retryable.
-
-### User interfaces
-
-Keep the **Fetch weather data** and **Resync weather** controls in the web sync
-page and their CLI equivalents. Remove all local quota/counter text from sync
-and Settings pages. When exhaustion occurs, show one warning that Visual
-Crossing stopped weather enrichment; the rest of the sync completes normally.
-
-## Acceptance criteria
-
-1. Fresh schemas create `weather` but not `weather_api_usage` or
-   `weather_api_quota_lock`; existing obsolete tables are never dropped.
-2. No weather request reads or writes a local quota ledger, lock, counter, or
-   `queryCost`-derived usage.
-3. A valid zero remaining header stops subsequent weather requests in the same
-   process until UTC midnight, while retaining a completed final activity.
-4. A 429 stops weather work and emits one warning while the overall sync
-   completes. Missing or invalid headers do not stop successful requests.
-5. Quota exhaustion during an activity does not persist partial weather; a
-   later sync can retry that activity.
-6. Fast/Full defaults, explicit resync, GPS privacy, hourly route sampling,
-   placeholder formatting, and read-only MCP behavior remain unchanged.
-7. Mocked tests cover zero-header handling, HTTP 429, malformed/missing
-   headers, UTC reset, partial activity retryability, completed activity
-   persistence, and the absence of quota database operations.
-
-## Delivery phases
-
-1. Remove local quota-ledger schema/repository/runtime code and obsolete tests.
-2. Add process-local provider-limit state and response-header parsing to the
-   weather client.
-3. Update sync behavior for completed versus partial activities and one warning
-   per weather phase.
-4. Remove quota text from Settings and sync UI.
-5. Add focused mocked tests and update this concept and the user guide.
+Detailed specification and formulas: [docs/concepts/weather-concept.md](docs/concepts/weather-concept.md).

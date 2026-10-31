@@ -340,6 +340,7 @@
             <th class="py-3 px-4 w-24 text-right">PR Count</th>
             <th class="py-3 px-4 w-24 text-right">Suffer Score</th>
             <th class="py-3 px-4 w-24 text-right">Avg Temp (°C)</th>
+            <th class="py-3 px-4 min-w-[200px]">Weather</th>
             <th class="py-3 px-4 w-24 text-right">Elev High (m)</th>
             <th class="py-3 px-4 w-24 text-right">Elev Low (m)</th>
             <th class="py-3 px-4 w-28">Gear ID</th>
@@ -464,15 +465,16 @@ var columnDefs = [
     {label: 'PR Count',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 16, defaultSort: null  }, // 16
     {label: 'Suffer Score',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 17, defaultSort: null  }, // 17
     {label: 'Avg Temp',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 18, defaultSort: null  }, // 18
-    {label: 'Elev High',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 19, defaultSort: null  }, // 19
-    {label: 'Elev Low',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 20, defaultSort: null  }, // 20
-    {label: 'Gear ID',           mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 21, defaultSort: null  }, // 21
-    {label: 'Has HR',            mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 22, defaultSort: null  }, // 22
-    {label: 'Workout Type',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 23, defaultSort: null  }, // 23
-    {label: 'AI Analysis',        mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 24, defaultSort: null  }, // 24
-    {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 25, defaultSort: null  }, // 25
-    {label: 'Poster',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 26, defaultSort: null  }, // 26
-    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 27, defaultSort: null  }  // 27
+    {label: 'Weather',           mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 19, defaultSort: null  }, // 19
+    {label: 'Elev High',         mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 20, defaultSort: null  }, // 20
+    {label: 'Elev Low',          mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 21, defaultSort: null  }, // 21
+    {label: 'Gear ID',           mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 22, defaultSort: null  }, // 22
+    {label: 'Has HR',            mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 23, defaultSort: null  }, // 23
+    {label: 'Workout Type',      mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 24, defaultSort: null  }, // 24
+    {label: 'AI Analysis',        mandatory: false, selectable: true,  visible: true, default: false, defaultOrder: 25, defaultSort: null  }, // 25
+    {label: 'View on Strava',    mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 26, defaultSort: null  }, // 26
+    {label: 'Poster',            mandatory: false, selectable: true,  visible: true, default: true,  defaultOrder: 27, defaultSort: null  }, // 27
+    {label: 'Actions',           mandatory: true,  selectable: false, visible: true, default: true,  defaultOrder: 28, defaultSort: null  }  // 28
 ];
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -1017,6 +1019,22 @@ var table = null;
                     "data": "average_temp",
                     "className": "text-right",
                     "render": function (data, type) { return (type === 'display') ? (data !== null && data !== undefined ? Number(data).toFixed(1) : '-') : data; }
+                },
+                {
+                    "data": "weather",
+                    "visible": false,
+                    "render": function (data, type, row) {
+                        if (!data || data.temp_avg === null || data.temp_avg === undefined) {
+                            return (type === 'sort') ? -9999 : '<span class="text-gray-400 dark:text-zinc-500">-</span>';
+                        }
+                        if (type === 'sort') {
+                            return data.temp_avg;
+                        }
+                        if (type === 'filter') {
+                            return `${data.temp_display} ${data.condition || ''} ${data.wind_cardinal || ''} ${data.precipitation || ''}`;
+                        }
+                        return renderWeatherBadge(data);
+                    }
                 },
                 {
                     "data": "elev_high",
@@ -1910,6 +1928,63 @@ var table = null;
                 return "0.00";
             }
             return m.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        // Helper to render Weather column badge
+        function renderWeatherBadge(data) {
+            if (!data || data.temp_avg === null || data.temp_avg === undefined) {
+                return '<span class="text-gray-400 dark:text-zinc-500">-</span>';
+            }
+
+            // 1. Thermometer + Temp range
+            const thermSvg = '<svg class="w-4 h-4 inline-block text-rose-500 flex-shrink-0 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0a3 3 0 100 6 3 3 0 000-6zm0-7a2 2 0 00-2 2v7.172a5 5 0 104 0V4a2 2 0 00-2-2z"/></svg>';
+            const tempHtml = '<span class="font-medium whitespace-nowrap">' + $('<div>').text(data.temp_display || '').html() + '</span>';
+
+            // 2. Weather condition icon
+            const iconKey = (data.condition_icon || '').toLowerCase();
+            const condTitle = $('<div>').text(data.condition || 'Weather').html();
+            let condSvg = '';
+            if (iconKey.includes('thunder')) {
+                condSvg = '<svg class="w-4 h-4 inline-block text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" title="' + condTitle + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>';
+            } else if (iconKey.includes('snow')) {
+                condSvg = '<svg class="w-4 h-4 inline-block text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" title="' + condTitle + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20m10-10H2m17.07 7.07L4.93 4.93m14.14 0L4.93 19.07"/></svg>';
+            } else if (iconKey.includes('rain')) {
+                condSvg = '<svg class="w-4 h-4 inline-block text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" title="' + condTitle + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 14a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 14zm5 5v2m4-2v2m4-2v2"/></svg>';
+            } else if (iconKey.includes('cloudy') && !iconKey.includes('partly')) {
+                condSvg = '<svg class="w-4 h-4 inline-block text-gray-500 dark:text-zinc-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" title="' + condTitle + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"/></svg>';
+            } else if (iconKey.includes('partly') || iconKey.includes('part')) {
+                condSvg = '<svg class="w-4 h-4 inline-block text-amber-400 dark:text-amber-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" title="' + condTitle + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M12 7a5 5 0 014.9 4H17a4 4 0 010 8H7a5 5 0 01-.8-9.94A5 5 0 0112 7z"/></svg>';
+            } else {
+                condSvg = '<svg class="w-4 h-4 inline-block text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" title="' + condTitle + '"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>';
+            }
+
+            // 3. Wind direction navigation arrow + speed
+            let windHtml = '';
+            if (data.wind_speed !== null && data.wind_speed !== undefined) {
+                const spd = Number(data.wind_speed);
+                const speedText = (Number.isNaN(spd) ? '0.0' : spd.toFixed(1)) + ' m/s';
+                if (data.wind_deg !== null && data.wind_deg !== undefined) {
+                    const deg = Number(data.wind_deg);
+                    const rot = (deg + 180) % 360;
+                    const card = data.wind_cardinal || 'Wind';
+                    const windTitle = $('<div>').text(`${card} wind (${deg}°) · ${speedText}`).html();
+                    windHtml = '<span class="inline-flex items-center gap-1" title="' + windTitle + '">' +
+                        '<svg class="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(' + rot + 'deg);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19V5m0 0l-5 5m5-5l5 5"/></svg>' +
+                        '<span class="text-xs text-gray-700 dark:text-gray-300">' + speedText + '</span></span>';
+                } else {
+                    windHtml = '<span class="text-xs text-gray-700 dark:text-gray-300">' + speedText + '</span>';
+                }
+            }
+
+            // 4. Precipitation badge
+            let precipHtml = '';
+            if (data.precipitation) {
+                const escPrecip = $('<div>').text(data.precipitation).html();
+                precipHtml = '<span class="px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 whitespace-nowrap">' + escPrecip + '</span>';
+            }
+
+            return '<div class="flex items-center gap-2 text-xs text-gray-800 dark:text-gray-200">' + thermSvg + tempHtml + condSvg + windHtml + precipHtml + '</div>';
         }
 
         // Global delete function

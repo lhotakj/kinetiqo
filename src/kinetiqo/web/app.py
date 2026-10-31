@@ -4223,7 +4223,28 @@ def get_activities_api():
                 'gear_id': a.get('gear_id') or None,
                 'has_heartrate': bool(a.get('has_heartrate')) if a.get('has_heartrate') is not None else False,
                 'workout_type': int(a.get('workout_type')) if a.get('workout_type') is not None else None,
-                'ai_responses': a.get('ai_responses') or None
+                'ai_responses': a.get('ai_responses') or None,
+                'weather': {
+                    'temp_min': float(a['weather_temp_min']) if a.get('weather_temp_min') is not None else None,
+                    'temp_max': float(a['weather_temp_max']) if a.get('weather_temp_max') is not None else None,
+                    'temp_avg': float(a['weather_temp_avg']) if a.get('weather_temp_avg') is not None else None,
+                    'temp_display': (
+                        f"{round(float(a['weather_temp_avg']))}°C"
+                        if a.get('weather_temp_min') is not None and a.get('weather_temp_max') is not None and round(float(a['weather_temp_min'])) == round(float(a['weather_temp_max']))
+                        else f"{round(float(a['weather_temp_min']))} - {round(float(a['weather_temp_max']))}°C"
+                        if a.get('weather_temp_min') is not None and a.get('weather_temp_max') is not None
+                        else f"{round(float(a['weather_temp_avg']))}°C" if a.get('weather_temp_avg') is not None else ""
+                    ),
+                    'condition': a.get('weather_condition') or 'Unknown',
+                    'condition_icon': a.get('weather_condition_icon') or 'clear-day',
+                    'wind_deg': int(a['weather_wind_deg']) if a.get('weather_wind_deg') is not None else None,
+                    'wind_cardinal': (
+                        ("N", "NE", "E", "SE", "S", "SW", "W", "NW")[round(int(a['weather_wind_deg']) / 45.0) % 8]
+                        if a.get('weather_wind_deg') is not None else None
+                    ),
+                    'wind_speed': float(a['weather_wind_speed']) if a.get('weather_wind_speed') is not None else None,
+                    'precipitation': a.get('weather_precipitation') or None
+                } if a.get('weather_temp_avg') is not None else None
             })
 
         return jsonify({

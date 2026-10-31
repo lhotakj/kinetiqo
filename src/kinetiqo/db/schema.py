@@ -67,6 +67,22 @@ SCHEMA_DEFINITION = {
              "type_firebird": "VARCHAR(255)"},
             {"name": "ai_responses", "type_mysql": "TEXT", "type_pg": "TEXT",
              "type_firebird": "BLOB SUB_TYPE TEXT"},
+            {"name": "weather_temp_min", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weather_temp_max", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weather_temp_avg", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weather_condition", "type_mysql": "VARCHAR(64)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(64)"},
+            {"name": "weather_condition_icon", "type_mysql": "VARCHAR(32)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(32)"},
+            {"name": "weather_wind_deg", "type_mysql": "INTEGER", "type_pg": "INTEGER",
+             "type_firebird": "INTEGER"},
+            {"name": "weather_wind_speed", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weather_precipitation", "type_mysql": "VARCHAR(64)", "type_pg": "TEXT",
+             "type_firebird": "VARCHAR(64)"},
         ],
         "indexes": [
             {
@@ -684,6 +700,7 @@ class SchemaManager:
                 total_failed += failed
 
         self._seed_sync_control_rows()
+        self._backfill_weather_summary()
 
         if total_failed:
             logger.warning(
@@ -737,6 +754,96 @@ class SchemaManager:
                 self.db_type.upper(),
             )
             raise
+        finally:
+            cur.close()
+
+    def _backfill_weather_summary(self) -> None:
+        """Populate new weather summary columns from existing cached weather_json."""
+        cur = self.conn.cursor()
+        try:
+            from kinetiqo.weather import extract_weather_summary
+            quoted_act = self._quote_identifier("activities")
+            quoted_w = self._quote_identifier("weather")
+            col_aid = self._quote_identifier("activity_id")
+            col_wjson = self._quote_identifier("weather_json")
+            col_tavg = self._quote_identifier("weather_temp_avg")
+
+            if self.db_type == "firebird":
+                query = (
+                    f'SELECT FIRST 200 w.{col_aid}, w.{col_wjson} '
+                    f'FROM {quoted_w} w '
+                    f'JOIN {quoted_act} a ON w.{col_aid} = a.{col_aid} '
+                    f'WHERE a.{col_tavg} IS NULL AND w.{col_wjson} LIKE \'%complete%\''
+                )
+            else:
+                query = (
+                    f"SELECT w.{col_aid}, w.{col_wjson} "
+                    f"FROM {quoted_w} w "
+                    f"JOIN {quoted_act} a ON w.{col_aid} = a.{col_aid} "
+                    f"WHERE a.{col_tavg} IS NULL AND w.{col_wjson} LIKE '%complete%' "
+                    f"LIMIT 200"
+                )
+            cur.execute(query)
+            rows = cur.fetchall()
+
+            if not rows:
+                return
+
+            update_sql = (
+                f'UPDATE {quoted_act} SET '
+                f'{self._quote_identifier("weather_temp_min")} = ?, '
+                f'{self._quote_identifier("weather_temp_max")} = ?, '
+                f'{self._quote_identifier("weather_temp_avg")} = ?, '
+                f'{self._quote_identifier("weather_condition")} = ?, '
+                f'{self._quote_identifier("weather_condition_icon")} = ?, '
+                f'{self._quote_identifier("weather_wind_deg")} = ?, '
+                f'{self._quote_identifier("weather_wind_speed")} = ?, '
+                f'{self._quote_identifier("weather_precipitation")} = ? '
+                f'WHERE {col_aid} = ?'
+            ) if self.db_type == "firebird" else (
+                f"UPDATE {quoted_act} SET "
+                f"weather_temp_min = %s, "
+                f"weather_temp_max = %s, "
+                f"weather_temp_avg = %s, "
+                f"weather_condition = %s, "
+                f"weather_condition_icon = %s, "
+                f"weather_wind_deg = %s, "
+                f"weather_wind_speed = %s, "
+                f"weather_precipitation = %s "
+                f"WHERE {col_aid} = %s"
+            )
+            count = 0
+            for row in rows:
+                aid = row[0]
+                val = row[1]
+                if hasattr(val, "read"):
+                    val = val.read()
+                summary = extract_weather_summary(val)
+                if summary:
+                    cur.execute(
+                        update_sql,
+                        (
+                            summary.get("weather_temp_min"),
+                            summary.get("weather_temp_max"),
+                            summary.get("weather_temp_avg"),
+                            summary.get("weather_condition"),
+                            summary.get("weather_condition_icon"),
+                            summary.get("weather_wind_deg"),
+                            summary.get("weather_wind_speed"),
+                            summary.get("weather_precipitation"),
+                            int(aid),
+                        ),
+                    )
+                    count += 1
+            self.conn.commit()
+            if count > 0:
+                logger.info(f"{self.db_type.upper()}: Backfilled weather summary for {count} activities.")
+        except Exception as e:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+            logger.debug(f"{self.db_type.upper()}: Weather summary backfill skipped: {e}")
         finally:
             cur.close()
 

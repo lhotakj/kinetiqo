@@ -58,6 +58,14 @@ class TestActivitiesAPI(unittest.TestCase):
                 'gear_id': 'g123',
                 'has_heartrate': 1,
                 'workout_type': 10,
+                'weather_temp_min': 14.0,
+                'weather_temp_max': 20.0,
+                'weather_temp_avg': 17.0,
+                'weather_condition': 'Partially cloudy',
+                'weather_condition_icon': 'partly-cloudy-day',
+                'weather_wind_deg': 270,
+                'weather_wind_speed': 3.5,
+                'weather_precipitation': 'Rain (1.2mm)',
             }
         ]
         mock_repo.get_activities_totals.return_value = {
@@ -81,6 +89,12 @@ class TestActivitiesAPI(unittest.TestCase):
         self.assertEqual(row['distance'], 35400.0)
         self.assertIn('display', row['date'])
         self.assertIn('timestamp', row['date'])
+        self.assertIn('weather', row)
+        self.assertEqual(row['weather']['temp_display'], '14 - 20°C')
+        self.assertEqual(row['weather']['temp_avg'], 17.0)
+        self.assertEqual(row['weather']['condition'], 'Partially cloudy')
+        self.assertEqual(row['weather']['wind_cardinal'], 'W')
+        self.assertEqual(row['weather']['precipitation'], 'Rain (1.2mm)')
 
     @patch('kinetiqo.web.app.get_db')
     def test_get_activities_api_server_side_pagination(self, mock_get_db):

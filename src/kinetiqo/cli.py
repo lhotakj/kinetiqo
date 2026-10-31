@@ -455,6 +455,40 @@ def scan_trophies(ctx, limit, database):
         repo.close()
 
 
+@cli.command(name="backfill-weather", help="Backfill weather summary columns from existing cached weather records")
+@click.option('--batch-size', '-b', type=int, default=500, show_default=True, help='Batch size for updates.')
+@database_option
+@click.pass_context
+def backfill_weather(ctx, batch_size, database):
+    """Backfill weather summary columns on activities table from local cached weather_json."""
+    _prepare_db(ctx.obj.config, database)
+    config = ctx.obj.config
+    repo = create_repository(config)
+    try:
+        logger.info(f"Checking for activities that can be enriched from local weather cache...")
+        newly_enriched = 0
+        while True:
+            batch_enriched = repo.enrich_missing_weather_from_cache(batch_size=batch_size)
+            newly_enriched += batch_enriched
+            if batch_enriched == 0:
+                break
+            logger.info(f"Enriched {newly_enriched} activities from local weather cache...")
+        if newly_enriched:
+            logger.info(f"Successfully created weather records for {newly_enriched} activities from local cache.")
+
+        logger.info(f"Backfilling weather summary columns (batch size: {batch_size})...")
+        total = 0
+        while True:
+            updated = repo.backfill_weather_summary(batch_size=batch_size)
+            total += updated
+            if updated == 0:
+                break
+            logger.info(f"Updated {total} activities so far...")
+        logger.info(f"Weather backfill complete. Total activities updated: {total}")
+    finally:
+        repo.close()
+
+
 @cli.command(name="mcp", help="Run the Kinetiqo Model Context Protocol (MCP) server")
 @click.option("--transport", "-t", type=click.Choice(["stdio", "sse", "streamable-http"]), default=lambda: os.environ.get("MCP_TRANSPORT", "stdio"), help="Transport protocol (stdio or sse). Default: stdio")
 @click.option("--host", "-h", default=lambda: os.environ.get("MCP_HOST", "0.0.0.0"), help="Host to bind for SSE transport. Default: 0.0.0.0")

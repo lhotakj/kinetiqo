@@ -28,6 +28,7 @@ from kinetiqo.weather import (
     WEATHER_RATE_LIMIT_STATE,
     WeatherProviderError,
     build_activity_weather,
+    extract_weather_summary,
     fetch_visual_crossing_hour,
     skipped_activity_weather,
 )
@@ -178,7 +179,7 @@ class SyncService:
                 existing_description,
                 activity=activity,
             )
-            if description_context.last_weather_placeholder_missing:
+            if getattr(description_context, "last_weather_placeholder_missing", False):
                 return DESC_DEFERRED, None
             if new_description is None or new_description == existing_description:
                 return DESC_UNCHANGED, None
@@ -639,19 +640,30 @@ class SyncService:
             total_activities = len(activities)
             trophies_cache = load_verified_trophies()
             hourly_weather_cache: dict[tuple[str, str], dict[int, dict[str, Any]]] = {}
+            if weather_enabled:
+                try:
+                    if hasattr(self.db, "load_weather_cache"):
+                        hourly_weather_cache = self.db.load_weather_cache()
+                except Exception as cache_err:
+                    logger.debug(f"Could not preload weather cache: {cache_err}")
             weather_enrichment_stopped = False
 
             def enrich_activity_weather(activity: dict) -> tuple[str, str | None]:
                 """Persist missing weather for one activity before its description is rendered."""
                 nonlocal stopped, weather_enrichment_stopped
 
-                if not weather_enabled or weather_enrichment_stopped:
+                if not weather_enabled:
                     return "", None
 
                 activity_id = activity["id"]
                 activity_name = str(activity.get("name") or f"Activity {activity_id}")
-                if not resync_weather and self.db.get_activity_weather(activity_id):
-                    return "", None
+                if not resync_weather:
+                    existing_weather = self.db.get_activity_weather(activity_id)
+                    if existing_weather:
+                        summary = extract_weather_summary(existing_weather.get("weather_json"))
+                        if summary:
+                            self.db.update_activity_weather_summary(activity_id, summary)
+                        return "", None
 
                 try:
                     activity_type = str(
@@ -678,6 +690,21 @@ class SyncService:
                         and point.get("lat") is not None
                         and point.get("lng") is not None
                     ]
+                    if not points:
+                        start_latlng = activity.get("start_latlng")
+                        if isinstance(start_latlng, (list, tuple)) and len(start_latlng) == 2:
+                            try:
+                                slat = float(start_latlng[0])
+                                slng = float(start_latlng[1])
+                                if -90 <= slat <= 90 and -180 <= slng <= 180:
+                                    points = [{
+                                        "ts": activity.get("start_date") or activity.get("start_date_local"),
+                                        "lat": slat,
+                                        "lng": slng,
+                                        "distance": 0.0,
+                                    }]
+                            except (TypeError, ValueError):
+                                pass
                     if not points:
                         self.db.upsert_activity_weather(
                             activity_id,
@@ -714,6 +741,9 @@ class SyncService:
                         return "", "Weather sync stopped by user."
                     if payload["status"] == "complete":
                         self.db.upsert_activity_weather(activity_id, payload)
+                        summary = extract_weather_summary(payload)
+                        if summary:
+                            self.db.update_activity_weather_summary(activity_id, summary)
                         return " | Weather updated", None
                     if payload["status"] == "deferred_rate_limit":
                         weather_enrichment_stopped = True

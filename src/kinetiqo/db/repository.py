@@ -180,6 +180,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def update_activity_weather_summary(self, activity_id: Any, summary: Dict[str, Any]):
+        """Update precomputed weather summary columns for an activity."""
+        pass
+
+    @abstractmethod
     def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
         """Update cached AI generated variable responses for an activity."""
         pass
@@ -581,6 +586,231 @@ class DatabaseRepository(ABC):
         with self.conn.cursor() as cur:
             cur.execute(sql, params)
         self.conn.commit()
+
+    def backfill_weather_summary(self, batch_size: int = 500) -> int:
+        """Populate weather summary columns from existing cached weather_json.
+
+        Zero external API requests are performed.
+        """
+        self._ensure_connected()
+        from kinetiqo.weather import extract_weather_summary
+
+        table_act = self._weather_ident("activities")
+        table_w = self._weather_ident("weather")
+        col_aid = self._weather_ident("activity_id")
+        col_wjson = self._weather_ident("weather_json")
+        col_tavg = self._weather_ident("weather_temp_avg")
+
+        first_clause = f"FIRST {int(batch_size)} " if self.db_type == "firebird" else ""
+        limit_clause = f" LIMIT {int(batch_size)}" if self.db_type != "firebird" else ""
+
+        query = (
+            f"SELECT {first_clause}w.{col_aid}, w.{col_wjson} "
+            f"FROM {table_w} w "
+            f"JOIN {table_act} a ON w.{col_aid} = a.{col_aid} "
+            f"WHERE a.{col_tavg} IS NULL AND w.{col_wjson} LIKE '%complete%'"
+            f"{limit_clause}"
+        )
+
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+
+        updated = 0
+        for row in rows:
+            aid = row[0]
+            val = row[1]
+            if hasattr(val, "read"):
+                val = val.read()
+            summary = extract_weather_summary(val)
+            if summary:
+                self.update_activity_weather_summary(aid, summary)
+                updated += 1
+        return updated
+
+    def load_weather_cache(
+        self,
+        limit: int = 1000,
+    ) -> Dict[Tuple[str, str], Dict[int, Dict[str, Any]]]:
+        """Pre-populate an in-memory spatial hourly weather cache from the database.
+
+        Loads recent complete records from the weather table and keys them by
+        (location_str, date_str) for reuse across activities.
+        """
+        self._ensure_connected()
+        cache: Dict[Tuple[str, str], Dict[int, Dict[str, Any]]] = {}
+        placeholder_table = self._weather_ident("weather")
+        col_aid = self._weather_ident("activity_id")
+        col_wj = self._weather_ident("weather_json")
+        col_upd = self._weather_ident("updated_at")
+
+        first_clause = f"FIRST {int(limit)} " if self.db_type == "firebird" else ""
+        limit_clause = f" LIMIT {int(limit)}" if self.db_type != "firebird" else ""
+
+        query = (
+            f"SELECT {first_clause}{col_aid}, {col_wj} "
+            f"FROM {placeholder_table} "
+            f"WHERE {col_wj} LIKE '%complete%' "
+            f"ORDER BY {col_upd} DESC{limit_clause}"
+        )
+
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+
+        if not rows:
+            return cache
+
+        parsed_entries = []
+        needs_coords = []
+        for row in rows:
+            aid = row[0]
+            val = row[1]
+            if hasattr(val, "read"):
+                val = val.read()
+            try:
+                payload = json.loads(val) if isinstance(val, str) else val
+                if isinstance(payload, dict) and payload.get("status") == "complete":
+                    samples = payload.get("samples", [])
+                    has_sample_coords = any(
+                        isinstance(s, dict) and s.get("latitude") is not None and s.get("longitude") is not None
+                        for s in samples
+                    )
+                    parsed_entries.append((aid, samples))
+                    if not has_sample_coords and samples:
+                        needs_coords.append(aid)
+            except Exception:
+                continue
+
+        coords_by_act: Dict[Any, Tuple[float, float]] = {}
+        if needs_coords:
+            table_streams = self._weather_ident("streams")
+            col_s_act = self._weather_ident("activity_id")
+            col_lat = self._weather_ident("lat")
+            col_lng = self._weather_ident("lng")
+            placeholder = "?" if self.db_type == "firebird" else "%s"
+            for i in range(0, len(needs_coords), 100):
+                chunk = needs_coords[i:i + 100]
+                placeholders = ", ".join([placeholder] * len(chunk))
+                with self.conn.cursor() as cur:
+                    cur.execute(
+                        f"SELECT {col_s_act}, AVG({col_lat}), AVG({col_lng}) FROM {table_streams} "
+                        f"WHERE {col_s_act} IN ({placeholders}) AND {col_lat} IS NOT NULL "
+                        f"GROUP BY {col_s_act}",
+                        tuple(chunk),
+                    )
+                    for r in cur.fetchall():
+                        if r[1] is not None and r[2] is not None:
+                            coords_by_act[r[0]] = (float(r[1]), float(r[2]))
+
+        for act_id, samples in parsed_entries:
+            act_coord = coords_by_act.get(act_id)
+            for s in samples:
+                if not isinstance(s, dict):
+                    continue
+                lat = s.get("latitude") if s.get("latitude") is not None else (act_coord[0] if act_coord else None)
+                lng = s.get("longitude") if s.get("longitude") is not None else (act_coord[1] if act_coord else None)
+                t_str = s.get("time_utc")
+                if lat is None or lng is None or not t_str:
+                    continue
+                try:
+                    t_utc = datetime.fromisoformat(str(t_str).replace("Z", "+00:00"))
+                    loc_key = f"{lat:.5f},{lng:.5f}"
+                    date_key = t_utc.date().isoformat()
+                    epoch = int(t_utc.timestamp())
+                    day_dict = cache.setdefault((loc_key, date_key), {})
+                    day_dict[epoch] = s
+                except Exception:
+                    continue
+
+        return cache
+
+    def enrich_missing_weather_from_cache(
+        self,
+        batch_size: int = 500,
+    ) -> int:
+        """Enrich activities missing weather rows if matching hourly weather is cached locally."""
+        self._ensure_connected()
+        cache = self.load_weather_cache()
+        if not cache:
+            return 0
+
+        table_act = self._weather_ident("activities")
+        table_w = self._weather_ident("weather")
+        col_aid = self._weather_ident("activity_id")
+        col_sdate = self._weather_ident("start_date")
+        col_sport = self._weather_ident("sport")
+        col_etime = self._weather_ident("elapsed_time")
+        col_mtime = self._weather_ident("moving_time")
+
+        first_clause = f"FIRST {int(batch_size)} " if self.db_type == "firebird" else ""
+        limit_clause = f" LIMIT {int(batch_size)}" if self.db_type != "firebird" else ""
+
+        query = (
+            f"SELECT {first_clause}a.{col_aid}, a.{col_sdate}, a.{col_mtime}, a.{col_etime}, a.{col_sport} "
+            f"FROM {table_act} a "
+            f"LEFT JOIN {table_w} w ON a.{col_aid} = w.{col_aid} "
+            f"WHERE w.{col_aid} IS NULL "
+            f"AND a.{col_sport} NOT IN ('VirtualRide', 'VirtualRun') "
+            f"ORDER BY a.{col_sdate} DESC{limit_clause}"
+        )
+
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            candidates = cur.fetchall()
+
+        if not candidates:
+            return 0
+
+        from kinetiqo.weather import (
+            build_activity_weather,
+            extract_weather_summary,
+            parse_utc,
+            _find_cached_hour,
+        )
+
+        def fetch_cached_only(latitude: float, longitude: float, hour_start: datetime) -> dict[str, Any]:
+            start = parse_utc(hour_start)
+            if start is None:
+                raise RuntimeError("Invalid hour")
+            epoch = int(start.timestamp())
+            cached = _find_cached_hour(cache, latitude, longitude, start.date().isoformat(), epoch)
+            if cached is not None:
+                return cached
+            raise RuntimeError("Hour not in local cache")
+
+        enriched = 0
+        for row in candidates:
+            aid = row[0]
+            sdate = row[1]
+            mtime = row[2] or 0
+            etime = row[3] or 0
+            sport = row[4] or ""
+
+            points = self.get_activity_stream_window(aid, ["ts", "lat", "lng", "distance"], max_rows=1000)
+            if not points:
+                continue
+
+            act_dict = {
+                "id": aid,
+                "start_date": sdate.isoformat() if hasattr(sdate, "isoformat") else str(sdate),
+                "moving_time": mtime,
+                "elapsed_time": etime,
+                "sport_type": sport,
+            }
+
+            try:
+                payload = build_activity_weather(act_dict, points, fetch_cached_only)
+                if payload.get("status") == "complete":
+                    self.upsert_activity_weather(aid, payload)
+                    summary = extract_weather_summary(payload)
+                    if summary:
+                        self.update_activity_weather_summary(aid, summary)
+                    enriched += 1
+            except Exception:
+                continue
+
+        return enriched
 
     def prune_sync_history(self, now_utc: datetime | None = None) -> None:
         """Bound completed sync-job history while preserving the active replay window."""

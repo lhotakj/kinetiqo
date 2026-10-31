@@ -14,12 +14,13 @@ import requests
 
 LOGGER_FIELDS = (
     "datetimeEpoch", "temp", "feelslike", "precip", "snow", "preciptype",
-    "conditions", "winddir", "windspeed", "windgust", "source",
+    "conditions", "icon", "winddir", "windspeed", "windgust", "source",
 )
 TIMELINE_URL = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline"
 REQUEST_TIMEOUT_SECONDS = 20
 MAX_GPS_BRACKET_SECONDS = 15 * 60
 WEATHER_INTERVAL_SECONDS = 60 * 60
+MAX_WEATHER_CACHE_DISTANCE_METRES = 15_000.0
 
 HEADWIND_BANDS = (
     (2.7, "Light breeze"),
@@ -229,14 +230,16 @@ def weather_sample_position(
         return position
 
     valid = [item for point in points if (item := _gps_point(point)) is not None]
+    if not valid:
+        return None
     candidates = [
         point for point in valid
         if interval_start <= point[0] <= interval_end
     ]
-    if not candidates:
-        return None
+    # Prefer candidate points within the interval; fall back to the nearest recorded point on the route
+    chosen_pool = candidates if candidates else valid
     _, latitude, longitude, distance = min(
-        candidates,
+        chosen_pool,
         key=lambda point: abs((point[0] - at).total_seconds()),
     )
     return {
@@ -249,16 +252,61 @@ def weather_sample_position(
 
 
 def _weather_hour(response_data: Mapping[str, Any], requested_epoch: int) -> Mapping[str, Any] | None:
+    all_hours: list[tuple[int, Mapping[str, Any]]] = []
     for day in response_data.get("days", []):
         if not isinstance(day, Mapping):
             continue
         for hour in day.get("hours", []):
             if isinstance(hour, Mapping):
                 try:
-                    if int(hour.get("datetimeEpoch", -1)) == requested_epoch:
+                    epoch = int(hour.get("datetimeEpoch", -1))
+                    if epoch == requested_epoch:
                         return hour
+                    if epoch > 0:
+                        all_hours.append((epoch, hour))
                 except (TypeError, ValueError):
                     continue
+    if all_hours:
+        nearest_epoch, nearest_hour = min(
+            all_hours,
+            key=lambda item: abs(item[0] - requested_epoch),
+        )
+        if abs(nearest_epoch - requested_epoch) <= 3600:
+            return nearest_hour
+    return None
+
+
+def _find_cached_hour(
+    hourly_cache: MutableMapping[tuple[str, str], dict[int, dict[str, Any]]] | None,
+    latitude: float,
+    longitude: float,
+    date_str: str,
+    requested_epoch: int,
+    max_dist_m: float = MAX_WEATHER_CACHE_DISTANCE_METRES,
+) -> dict[str, Any] | None:
+    """Find a cached hour matching the timestamp either exactly or within max_dist_m."""
+    if not hourly_cache:
+        return None
+    # 1. Exact match lookup
+    location = f"{latitude:.5f},{longitude:.5f}"
+    cached = hourly_cache.get((location, date_str), {}).get(requested_epoch)
+    if cached is not None:
+        return dict(cached)
+    # 2. Nearby spatial proximity lookup
+    candidates: list[tuple[float, dict[str, Any]]] = []
+    for (loc_key, d_key), hours in hourly_cache.items():
+        if d_key == date_str and requested_epoch in hours:
+            try:
+                clat_str, clng_str = loc_key.split(",")
+                clat, clng = float(clat_str), float(clng_str)
+                dist = _distance_metres(latitude, longitude, clat, clng)
+                if dist <= max_dist_m:
+                    candidates.append((dist, hours[requested_epoch]))
+            except (ValueError, TypeError):
+                continue
+    if candidates:
+        candidates.sort(key=lambda item: item[0])
+        return dict(candidates[0][1])
     return None
 
 
@@ -282,19 +330,20 @@ def fetch_visual_crossing_hour(
     start = parse_utc(hour_start)
     if start is None or start.minute or start.second or start.microsecond:
         raise ValueError("Weather request time must be an exact UTC hour.")
+    end = start + timedelta(hours=1)
+    location = f"{latitude:.5f},{longitude:.5f}"
+    requested_epoch = int(start.timestamp())
+    cache_key = (location, start.date().isoformat())
+    cached_hour = _find_cached_hour(
+        hourly_cache, latitude, longitude, start.date().isoformat(), requested_epoch
+    )
+    if cached_hour is not None:
+        return cached_hour
     if rate_limit_state.is_exhausted():
         raise WeatherProviderError(
             "Visual Crossing rate limit is exhausted until the next UTC midnight.",
             stop_run=True,
         )
-    end = start + timedelta(hours=1)
-    location = f"{latitude:.5f},{longitude:.5f}"
-    requested_epoch = int(start.timestamp())
-    cache_key = (location, start.date().isoformat())
-    if hourly_cache is not None:
-        cached_hour = hourly_cache.get(cache_key, {}).get(requested_epoch)
-        if cached_hour is not None:
-            return dict(cached_hour)
     url = f"{TIMELINE_URL}/{location}/{start.strftime('%Y-%m-%dT%H:%M:%S')}/{end.strftime('%Y-%m-%dT%H:%M:%S')}"
     params = {
         "key": credential,
@@ -403,6 +452,7 @@ def normalize_visual_crossing_hour(hour: Mapping[str, Any]) -> dict[str, Any]:
         "snowfall_cm": _number_or_none(hour.get("snow")),
         "precipitation_types": precip_type,
         "conditions": str(hour.get("conditions")).strip() if hour.get("conditions") else None,
+        "icon": str(hour.get("icon")).strip() if hour.get("icon") else None,
         "provider_events": provider_events,
         "wind_direction_deg": _number_or_none(hour.get("winddir")),
         "wind_speed_ms": wind_kmh / 3.6 if wind_kmh is not None else None,
@@ -462,6 +512,8 @@ def build_activity_weather(
         samples.append({
             "time_utc": hour_start.isoformat(),
             "interval_seconds": interval_seconds,
+            "latitude": position["latitude"],
+            "longitude": position["longitude"],
             **values,
             "route_bearing_deg": bearing,
             "headwind_component_ms": headwind,
@@ -798,3 +850,137 @@ def format_weather_placeholders(payload: Any) -> dict[str, str]:
         "weather-precipitation": weather_precipitation,
         "weather-wind": ", ".join(wind_parts),
     }
+
+
+def extract_weather_summary(payload: Any) -> dict[str, Any] | None:
+    """Extract a concise scalar summary suitable for activities table columns."""
+    if isinstance(payload, str):
+        try:
+            import json
+            payload = json.loads(payload)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(payload, Mapping) or payload.get("status") != "complete":
+        return None
+    raw_samples = payload.get("samples", [])
+    if not isinstance(raw_samples, list):
+        return None
+    samples = [s for s in raw_samples if isinstance(s, Mapping)]
+    if not samples:
+        return None
+
+    # 1. Temperature: min, max, duration-weighted average
+    temps = [_number_or_none(s.get("temperature_c")) for s in samples]
+    valid_temps = [t for t in temps if t is not None]
+    if not valid_temps:
+        return None
+    temp_min = round(min(valid_temps), 1)
+    temp_max = round(max(valid_temps), 1)
+    temp_avg_val = _weighted_mean(samples, "temperature_c")
+    temp_avg = round(temp_avg_val if temp_avg_val is not None else sum(valid_temps) / len(valid_temps), 1)
+
+    # 2. Wind: circular vector mean direction and weighted speed
+    sine_sum = 0.0
+    cosine_sum = 0.0
+    total_wind_weight = 0.0
+    for s in samples:
+        deg = _number_or_none(s.get("wind_direction_deg"))
+        spd = _number_or_none(s.get("wind_speed_ms")) or 0.0
+        dur = _number_or_none(s.get("interval_seconds")) or 3600.0
+        if deg is not None and dur > 0:
+            weight = max(1.0, spd) * dur
+            rad = math.radians(deg)
+            sine_sum += math.sin(rad) * weight
+            cosine_sum += math.cos(rad) * weight
+            total_wind_weight += weight
+
+    wind_deg = None
+    if total_wind_weight > 0 and not (math.isclose(sine_sum, 0.0, abs_tol=1e-12) and math.isclose(cosine_sum, 0.0, abs_tol=1e-12)):
+        wind_deg = int(round(math.degrees(math.atan2(sine_sum, cosine_sum)) % 360.0))
+
+    mean_wind = _weighted_mean(samples, "wind_speed_ms")
+    wind_speed = round(mean_wind, 1) if mean_wind is not None else None
+
+    # 3. Precipitation: rain vs snow vs dry
+    precip_total = sum(
+        (_number_or_none(s.get("precipitation_mm")) or 0.0)
+        * min(1.0, int(s.get("interval_seconds") or 0) / WEATHER_INTERVAL_SECONDS)
+        for s in samples
+    )
+    snow_total = sum(
+        (_number_or_none(s.get("snowfall_cm")) or 0.0)
+        * min(1.0, int(s.get("interval_seconds") or 0) / WEATHER_INTERVAL_SECONDS)
+        for s in samples
+    )
+    precip_types = {
+        str(kind).lower()
+        for s in samples
+        for kind in (s.get("precipitation_types") or [])
+    }
+    has_rain = "rain" in precip_types or precip_total > 0
+    has_snow = "snow" in precip_types or snow_total > 0
+
+    precipitation_text = None
+    if has_snow:
+        snow_amt = f"{snow_total:.1f}cm" if round(snow_total, 1) > 0 else "trace"
+        precipitation_text = f"Snow ({snow_amt})"
+    elif has_rain:
+        rain_amt = f"{precip_total:.1f}mm" if round(precip_total, 1) > 0 else "trace"
+        precipitation_text = f"Rain ({rain_amt})"
+
+    # 4. Sky condition & icon
+    all_cond_str = " ".join(str(s.get("conditions") or "") for s in samples).lower()
+
+    if "thunder" in all_cond_str:
+        condition = "Thunderstorm"
+        condition_icon = "thunder-rain"
+    elif has_snow or "snow" in all_cond_str:
+        condition = "Snow"
+        condition_icon = "snow"
+    elif has_rain or "rain" in all_cond_str:
+        condition = "Rain"
+        condition_icon = "rain"
+    elif "fog" in all_cond_str:
+        condition = "Fog"
+        condition_icon = "fog"
+    elif "wind" in all_cond_str:
+        condition = "Windy"
+        condition_icon = "wind"
+    else:
+        cloud_sum = 0.0
+        cloud_weights = 0.0
+        for s in samples:
+            c_text = str(s.get("conditions") or "").lower()
+            dur = _number_or_none(s.get("interval_seconds")) or 3600.0
+            if "clear" in c_text or "sunny" in c_text:
+                score = 0.0
+            elif "part" in c_text:
+                score = 1.0
+            elif "overcast" in c_text or "cloud" in c_text:
+                score = 2.0
+            else:
+                score = 1.0
+            cloud_sum += score * dur
+            cloud_weights += dur
+        avg_cloud = cloud_sum / cloud_weights if cloud_weights > 0 else 1.0
+        if avg_cloud < 0.4:
+            condition = "Clear"
+            condition_icon = "clear-day"
+        elif avg_cloud <= 1.5:
+            condition = "Partially cloudy"
+            condition_icon = "partly-cloudy-day"
+        else:
+            condition = "Overcast"
+            condition_icon = "cloudy"
+
+    return {
+        "weather_temp_min": temp_min,
+        "weather_temp_max": temp_max,
+        "weather_temp_avg": temp_avg,
+        "weather_condition": condition,
+        "weather_condition_icon": condition_icon,
+        "weather_wind_deg": wind_deg,
+        "weather_wind_speed": wind_speed,
+        "weather_precipitation": precipitation_text,
+    }
+

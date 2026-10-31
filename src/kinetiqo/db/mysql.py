@@ -276,7 +276,8 @@ class MySQLRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from MySQL"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts',
+                           'weather_temp_avg', 'weather_wind_speed']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -333,7 +334,15 @@ class MySQLRepository(DatabaseRepository):
                 workout_type,
                 max_speed,
                 trophies,
-                ai_responses
+                ai_responses,
+                weather_temp_min,
+                weather_temp_max,
+                weather_temp_avg,
+                weather_condition,
+                weather_condition_icon,
+                weather_wind_deg,
+                weather_wind_speed,
+                weather_precipitation
             FROM activities
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -596,6 +605,39 @@ class MySQLRepository(DatabaseRepository):
         val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
         with self.conn.cursor() as cur:
             cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
+        self.conn.commit()
+
+    def update_activity_weather_summary(self, activity_id: Any, summary: Dict[str, Any]):
+        """Update precomputed weather summary columns for an activity."""
+        self._ensure_connected()
+        if not summary:
+            return
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE activities SET
+                    weather_temp_min = %s,
+                    weather_temp_max = %s,
+                    weather_temp_avg = %s,
+                    weather_condition = %s,
+                    weather_condition_icon = %s,
+                    weather_wind_deg = %s,
+                    weather_wind_speed = %s,
+                    weather_precipitation = %s
+                WHERE activity_id = %s
+                """,
+                (
+                    summary.get("weather_temp_min"),
+                    summary.get("weather_temp_max"),
+                    summary.get("weather_temp_avg"),
+                    summary.get("weather_condition"),
+                    summary.get("weather_condition_icon"),
+                    summary.get("weather_wind_deg"),
+                    summary.get("weather_wind_speed"),
+                    summary.get("weather_precipitation"),
+                    int(activity_id),
+                ),
+            )
         self.conn.commit()
 
     def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
