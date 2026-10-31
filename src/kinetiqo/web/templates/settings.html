@@ -10,14 +10,12 @@
 
     <!-- Strava Description Templates -->
     <div id="templates"
-        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
-                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M8 4h8l4 4v12H4V4h4Z" /><path d="M16 4v5h4M8 13h8M8 17h6" />
-                    </svg>
-                </span>
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 relative mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 rounded-t-xl">
+            <h2 class="flex items-center gap-2.5 text-lg font-medium text-warm-900 dark:text-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 4h8l4 4v12H4V4h4Z" /><path d="M16 4v5h4M8 13h8M8 17h6" />
+                </svg>
                 <span>Strava Description Templates</span>
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure auto-update templates per activity type.
@@ -281,28 +279,65 @@
                 class="mt-4 p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 shadow-sm space-y-3">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
-                        <span class="text-base">✨</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>
+                        </svg>
                         <label for="strava-var-search"
-                            class="text-sm font-semibold text-gray-800 dark:text-gray-200">Supported Template
-                            Variables</label>
-                        <span
-                            class="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Sorted
-                            A–Z</span>
+                            class="text-sm font-semibold text-gray-800 dark:text-gray-200">Supported Template Variables</label>
+                        <span id="strava-var-count-badge"
+                            class="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium">Sorted A–Z</span>
                     </div>
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <input type="text" id="strava-var-search"
-                            placeholder="Search variables (e.g. distance, year)..."
-                            class="w-full sm:w-64 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        Type to filter or pick from the dropdown
                     </div>
                 </div>
 
+                <!-- Custom Searchable Dropdown (Web-Elements Standard) + Copy Action -->
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <label for="strava-var-dropdown" class="sr-only">Select a template variable</label>
-                    <select id="strava-var-dropdown"
-                        class="flex-1 px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-gray-800 dark:text-gray-200 font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                    </select>
+                    <div class="relative flex-1 z-30" id="strava-var-dropdown-container">
+                        <div class="relative w-full">
+                            <input type="text"
+                                   id="strava-var-search"
+                                   autocomplete="off"
+                                   placeholder="Search or select variable (e.g. distance, power, weather)..."
+                                   class="w-full h-[42px] pl-9 pr-9 text-sm font-sans rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition cursor-text"
+                                   role="combobox"
+                                   aria-expanded="false"
+                                   aria-controls="strava-var-menu"
+                                   aria-label="Search template variables">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-zinc-500">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <button type="button"
+                                    id="strava-var-chevron-btn"
+                                    class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 focus:outline-none cursor-pointer"
+                                    aria-label="Toggle template variables dropdown">
+                                <svg class="w-3.5 h-3.5 transition-transform duration-150" id="strava-var-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Retained hidden native select for complete compatibility -->
+                        <label for="strava-var-dropdown" class="sr-only">Select a template variable</label>
+                        <select id="strava-var-dropdown" class="sr-only" tabindex="-1"></select>
+
+                        <!-- Floating Options Menu -->
+                        <div id="strava-var-menu"
+                             class="custom-dropdown-menu hidden absolute left-0 top-full mt-1 w-full max-h-72 overflow-y-auto bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-2xl p-1.5 z-[100]"
+                             role="listbox"
+                             aria-label="Template variables list">
+                        </div>
+                    </div>
+
                     <button id="strava-var-copy-btn" type="button"
-                        class="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap">
+                        class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition h-[42px] whitespace-nowrap cursor-pointer shadow-xs"
+                        title="Copy selected variable placeholder">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
                         <span>Copy Variable</span>
                     </button>
                 </div>
@@ -346,19 +381,14 @@
 
     <!-- Authorization & Athlete Profile -->
     <div id="profile"
-        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 relative mb-6">
         <div
-            class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-2">
+            class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 rounded-t-xl flex flex-wrap items-center justify-between gap-2">
             <div>
-                <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
-                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 32 32" fill="currentColor">
-                            <path d="M15 20H9a3 3 0 0 0-3 3v2h2v-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2h2v-2a3 3 0 0 0-3-3Z" />
-                            <path d="M12 19a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0-6a2 2 0 1 1-2 2 2 2 0 0 1 2-2Z" />
-                            <path d="M28 19v9H4V8h12V6H4a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h24a2 2 0 0 0 2-2V19Z" />
-                            <path d="M20 19h6v2h-6zm2 4h4v2h-4zM32 10V8h-2.1a5 5 0 0 0-.7-1.75l1.46-1.5-1.42-1.41-1.49 1.49A5 5 0 0 0 26 4.1V2h-2v2.1a5 5 0 0 0-1.75.73l-1.49-1.49-1.42 1.41 1.49 1.5A5 5 0 0 0 20.1 8H18v2h2.1a5 5 0 0 0 .73 1.75l-1.49 1.49 1.42 1.42 1.49-1.49A5 5 0 0 0 24 13.9V16h2v-2.1a5 5 0 0 0 1.75-.73l1.49 1.49 1.42-1.42-1.49-1.49A5 5 0 0 0 30 10Zm-7 2a3 3 0 1 1 3-3 3 3 0 0 1-3 3Z" />
-                        </svg>
-                    </span>
+                <h2 class="flex items-center gap-2.5 text-lg font-medium text-warm-900 dark:text-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                    </svg>
                     <span>Authorization &amp; Athlete Profile</span>
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage Strava API OAuth connection and manual
@@ -424,16 +454,14 @@
         </div>
     </div>
 
-    <!-- Map GPS Track Simplification -->
+    <!-- Weather Info -->
     <div id="weather-info"
-        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
-                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 16.2A4.5 4.5 0 0 0 18 7.5a6 6 0 0 0-11.6 1.8A4 4 0 0 0 7 17h11a4 4 0 0 0 2-0.8Z" /><path d="m8 20 1-2m4 2 1-2m4 2 1-2" />
-                    </svg>
-                </span>
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 relative mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 rounded-t-xl">
+            <h2 class="flex items-center gap-2.5 text-lg font-medium text-warm-900 dark:text-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 16.2A4.5 4.5 0 0 0 18 7.5a6 6 0 0 0-11.6 1.8A4 4 0 0 0 7 17h11a4 4 0 0 0 2-0.8Z" /><path d="m8 20 1-2m4 2 1-2m4 2 1-2" />
+                </svg>
                 <span>Weather info</span>
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Enrich eligible synced activities with hourly historical weather along the GPS route.</p>
@@ -454,20 +482,18 @@
 
     <!-- Map GPS Track Simplification -->
     <div id="gps"
-        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 relative mb-6">
         <div
-            class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex items-center justify-between">
+            class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 rounded-t-xl flex items-center justify-between">
             <div>
-                <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
-                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="m13.5 6.5-3.148-3.148a1.205 1.205 0 0 0-1.704 0L6.352 5.648a1.205 1.205 0 0 0 0 1.704L9.5 10.5" />
-                            <path d="M16.5 7.5 19 5" />
-                            <path d="m17.5 10.5 3.148 3.148a1.205 1.205 0 0 1 0 1.704l-2.296 2.296a1.205 1.205 0 0 1-1.704 0L13.5 14.5" />
-                            <path d="M9 21a6 6 0 0 0-6-6" />
-                            <path d="M9.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l4.296-4.296a1.205 1.205 0 0 0 0-1.704l-2.296-2.296a1.205 1.205 0 0 0-1.704 0z" />
-                        </svg>
-                    </span>
+                <h2 class="flex items-center gap-2.5 text-lg font-medium text-warm-900 dark:text-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m13.5 6.5-3.148-3.148a1.205 1.205 0 0 0-1.704 0L6.352 5.648a1.205 1.205 0 0 0 0 1.704L9.5 10.5" />
+                        <path d="M16.5 7.5 19 5" />
+                        <path d="m17.5 10.5 3.148 3.148a1.205 1.205 0 0 1 0 1.704l-2.296 2.296a1.205 1.205 0 0 1-1.704 0L13.5 14.5" />
+                        <path d="M9 21a6 6 0 0 0-6-6" />
+                        <path d="M9.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l4.296-4.296a1.205 1.205 0 0 0 0-1.704l-2.296-2.296a1.205 1.205 0 0 0-1.704 0z" />
+                    </svg>
                     <span>GPS Track Simplification</span>
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure coordinate decimation scale (0–10) to
@@ -480,19 +506,102 @@
             </div>
         </div>
         <div class="p-6 space-y-4">
+            <!-- Hidden SVG Pattern Definitions for Chessboard Fields (0 to 10) -->
+            <svg class="sr-only" aria-hidden="true">
+                <defs>
+                    <!-- Level 0: 1x1 point square (checkerboard period 2x2) -->
+                    <pattern id="simp-pat-0" width="2" height="2" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="1" height="1" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="1" y="0" width="1" height="1" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="1" width="1" height="1" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="1" y="1" width="1" height="1" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 1: 2x2 square (checkerboard period 4x4) -->
+                    <pattern id="simp-pat-1" width="4" height="4" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="2" height="2" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="2" y="0" width="2" height="2" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="2" width="2" height="2" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="2" y="2" width="2" height="2" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 2: 3x3 square (checkerboard period 6x6) -->
+                    <pattern id="simp-pat-2" width="6" height="6" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="3" height="3" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="3" y="0" width="3" height="3" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="3" width="3" height="3" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="3" y="3" width="3" height="3" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 3: 4x4 square (checkerboard period 8x8) -->
+                    <pattern id="simp-pat-3" width="8" height="8" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="4" height="4" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="4" y="0" width="4" height="4" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="4" width="4" height="4" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="4" y="4" width="4" height="4" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 4: 5x5 square (checkerboard period 10x10) -->
+                    <pattern id="simp-pat-4" width="10" height="10" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="5" height="5" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="5" y="0" width="5" height="5" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="5" width="5" height="5" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="5" y="5" width="5" height="5" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 5: 6x6 square (checkerboard period 12x12) -->
+                    <pattern id="simp-pat-5" width="12" height="12" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="6" height="6" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="6" y="0" width="6" height="6" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="6" width="6" height="6" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="6" y="6" width="6" height="6" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 6: 8x8 square (checkerboard period 16x16) -->
+                    <pattern id="simp-pat-6" width="16" height="16" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="8" height="8" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="8" y="0" width="8" height="8" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="8" width="8" height="8" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="8" y="8" width="8" height="8" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 7: 10x10 square (checkerboard period 20x20) -->
+                    <pattern id="simp-pat-7" width="20" height="20" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="10" height="10" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="10" y="0" width="10" height="10" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="10" width="10" height="10" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="10" y="10" width="10" height="10" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 8: 12x12 square (checkerboard period 24x24) -->
+                    <pattern id="simp-pat-8" width="24" height="24" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="12" height="12" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="12" y="0" width="12" height="12" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="12" width="12" height="12" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="12" y="12" width="12" height="12" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 9: 16x16 square (checkerboard period 32x32) -->
+                    <pattern id="simp-pat-9" width="32" height="32" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="16" height="16" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="16" y="0" width="16" height="16" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="16" width="16" height="16" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="16" y="16" width="16" height="16" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                    <!-- Level 10: 24x24 maximum single square / block -->
+                    <pattern id="simp-pat-10" width="48" height="48" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="24" height="24" fill="currentColor" fill-opacity="0.85"/>
+                        <rect x="24" y="0" width="24" height="24" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="0" y="24" width="24" height="24" fill="currentColor" fill-opacity="0.12"/>
+                        <rect x="24" y="24" width="24" height="24" fill="currentColor" fill-opacity="0.85"/>
+                    </pattern>
+                </defs>
+            </svg>
+
             <div class="max-w-xl">
-                <label for="gps-simplification-select"
+                <label for="gps-simplification-trigger"
                     class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Simplification Level <span class="font-normal text-gray-400 dark:text-gray-500">(0 = Disabled, 10 =
-                        Max decimation)</span>
+                    Simplification Level <span class="font-normal text-gray-400 dark:text-gray-500">(0 = Disabled, 10 = Max decimation)</span>
                 </label>
-                <select id="gps-simplification-select"
-                    class="w-full bg-white dark:bg-zinc-700 border border-gray-300 dark:border-zinc-600 text-gray-900 dark:text-white text-sm rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                
+                <!-- Native Select kept for script and form accessibility -->
+                <select id="gps-simplification-select" class="sr-only" tabindex="-1">
                     <option value="0">Level 0 — Disabled (0m threshold; exact raw GPS stream)</option>
                     <option value="1">Level 1 — Minimal (3m threshold; subtle jitter removal)</option>
                     <option value="2">Level 2 — Light (6m threshold)</option>
                     <option value="3">Level 3 — Moderate (10m threshold)</option>
-                    <option value="4">Level 4 — Standard (15m threshold; recommended web map balance)</option>
+                    <option value="4" selected>Level 4 — Standard (15m threshold; recommended web map balance)</option>
                     <option value="5">Level 5 — Medium (20m threshold)</option>
                     <option value="6">Level 6 — High (30m threshold)</option>
                     <option value="7">Level 7 — Strong (45m threshold)</option>
@@ -500,6 +609,36 @@
                     <option value="9">Level 9 — Very High (80m threshold)</option>
                     <option value="10">Level 10 — Maximum (100m threshold; max payload reduction)</option>
                 </select>
+
+                <!-- Custom Dropdown Trigger (Text Box with Dropdown) -->
+                <div class="relative w-full z-30" id="gps-simplification-container">
+                    <button id="gps-simplification-trigger"
+                            type="button"
+                            class="w-full min-h-[42px] px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-lg text-xs font-medium text-gray-800 dark:text-zinc-200 flex items-center justify-between gap-3 shadow-xs hover:bg-gray-50 dark:hover:bg-zinc-700/60 focus:outline-none focus:ring-2 focus:ring-blue-500 transition cursor-pointer"
+                            aria-haspopup="listbox"
+                            aria-expanded="false"
+                            aria-controls="gps-simplification-menu">
+                        <div id="gps-simplification-trigger-icon" class="shrink-0 flex items-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" class="w-6 h-6 shrink-0 rounded border border-gray-300 dark:border-zinc-600 overflow-hidden text-gray-700 dark:text-gray-200" aria-hidden="true">
+                                <rect width="24" height="24" fill="url(#simp-pat-4)"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0 text-left">
+                            <span id="gps-simplification-selected-title" class="font-semibold text-gray-900 dark:text-white mr-1.5">Level 4 — Standard</span>
+                            <span id="gps-simplification-selected-desc" class="text-gray-500 dark:text-gray-400 text-[11px] hidden sm:inline">(15m threshold; recommended web map balance)</span>
+                        </div>
+                        <svg class="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500 shrink-0 transition-transform duration-150" id="gps-simplification-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    <!-- Floating Options Menu -->
+                    <div id="gps-simplification-menu"
+                         class="custom-dropdown-menu hidden absolute left-0 top-full mt-1 w-full max-h-80 overflow-y-auto bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg shadow-2xl p-1.5 z-[100]"
+                         role="listbox"
+                         aria-label="Simplification Level options">
+                    </div>
+                </div>
             </div>
             <div
                 class="p-4 rounded-xl bg-warm-50/80 dark:bg-zinc-900/80 border border-warm-200 dark:border-zinc-700 text-xs text-gray-600 dark:text-gray-300 space-y-2">
@@ -527,15 +666,13 @@
 
     <!-- AI provider settings -->
     <div id="ai"
-        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 relative mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 rounded-t-xl">
             <div>
-                <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
-                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="M19 14v6m-3-3h6M5 3v4M3 5h4" />
-                        </svg>
-                    </span>
+                <h2 class="flex items-center gap-2.5 text-lg font-medium text-warm-900 dark:text-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="M19 14v6m-3-3h6M5 3v4M3 5h4" />
+                    </svg>
                     <span>AI</span>
                 </h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure your AI providers and models for AI
@@ -1373,18 +1510,41 @@
         #ai-provider-detail-panel select {
             padding: 0.625rem 0.875rem !important;
         }
+
+        /* Custom dropdown menu styling (web-elements skill standard) */
+        .custom-dropdown-menu {
+            position: absolute;
+            z-index: 100 !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.25) !important;
+            scrollbar-width: thin;
+            scrollbar-color: #d1d5db transparent;
+        }
+        html.dark .custom-dropdown-menu {
+            scrollbar-color: #52525b transparent;
+        }
+        .custom-dropdown-menu::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-dropdown-menu::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 9999px;
+        }
+        html.dark .custom-dropdown-menu::-webkit-scrollbar-thumb {
+            background: #52525b;
+        }
+        .custom-dropdown-menu::-webkit-scrollbar-track {
+            background: transparent;
+        }
     </style>
 
     <!-- Sync Schedules & Database Backend -->
     <div id="sync"
-        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="flex items-center gap-3 text-lg font-medium text-warm-900 dark:text-gray-100">
-                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-900 dark:bg-zinc-800 dark:text-white" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5m-16 6v6c0 1.7 3.6 3 8 3" /><path d="M20 11v2m-2.5 2.5A3.5 3.5 0 1 1 14 19" /><path d="M14 15v4h4" />
-                    </svg>
-                </span>
+        class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 relative mb-6">
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 rounded-t-xl">
+            <h2 class="flex items-center gap-2.5 text-lg font-medium text-warm-900 dark:text-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5m-16 6v6c0 1.7 3.6 3 8 3" /><path d="M20 11v2m-2.5 2.5A3.5 3.5 0 1 1 14 19" /><path d="M14 15v4h4" />
+                </svg>
                 <span>Sync Schedules &amp; Database</span>
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">These schedules are defined by environment
@@ -3365,6 +3525,145 @@
         const weatherEnabled = document.getElementById('enable-weather-data');
         const statusWeather = document.getElementById('status-weather-data');
 
+        // GPS Simplification custom dropdown logic with chessboard SVG icons (web-elements standard)
+        const GPS_LEVEL_DEFS = [
+            { level: 0, title: 'Level 0 — Disabled', desc: '0m threshold; exact raw GPS stream' },
+            { level: 1, title: 'Level 1 — Minimal', desc: '3m threshold; subtle jitter removal' },
+            { level: 2, title: 'Level 2 — Light', desc: '6m threshold' },
+            { level: 3, title: 'Level 3 — Moderate', desc: '10m threshold' },
+            { level: 4, title: 'Level 4 — Standard', desc: '15m threshold; recommended web map balance' },
+            { level: 5, title: 'Level 5 — Medium', desc: '20m threshold' },
+            { level: 6, title: 'Level 6 — High', desc: '30m threshold' },
+            { level: 7, title: 'Level 7 — Strong', desc: '45m threshold' },
+            { level: 8, title: 'Level 8 — Aggressive', desc: '60m threshold' },
+            { level: 9, title: 'Level 9 — Very High', desc: '80m threshold' },
+            { level: 10, title: 'Level 10 — Maximum', desc: '100m threshold; max payload reduction' }
+        ];
+
+        const gpsTrigger = document.getElementById('gps-simplification-trigger');
+        const gpsTriggerIcon = document.getElementById('gps-simplification-trigger-icon');
+        const gpsSelectedTitle = document.getElementById('gps-simplification-selected-title');
+        const gpsSelectedDesc = document.getElementById('gps-simplification-selected-desc');
+        const gpsMenu = document.getElementById('gps-simplification-menu');
+        const gpsChevron = document.getElementById('gps-simplification-chevron');
+        const gpsContainer = document.getElementById('gps-simplification-container');
+
+        function updateGpsSimplificationDisplay(level) {
+            const lvl = Number.parseInt(level, 10);
+            const clamped = Number.isNaN(lvl) ? 4 : Math.max(0, Math.min(10, lvl));
+            const def = GPS_LEVEL_DEFS.find(d => d.level === clamped) || GPS_LEVEL_DEFS[4];
+
+            if (gpsTriggerIcon) {
+                gpsTriggerIcon.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" class="w-6 h-6 shrink-0 rounded border border-gray-300 dark:border-zinc-600 overflow-hidden text-gray-700 dark:text-gray-200" aria-hidden="true"><rect width="24" height="24" fill="url(#simp-pat-${clamped})"/></svg>`;
+            }
+            if (gpsSelectedTitle) {
+                gpsSelectedTitle.textContent = def.title;
+            }
+            if (gpsSelectedDesc) {
+                gpsSelectedDesc.textContent = `(${def.desc})`;
+            }
+
+            if (gpsMenu) {
+                const items = gpsMenu.querySelectorAll('.gps-simp-item');
+                items.forEach(btn => {
+                    const btnLvl = Number.parseInt(btn.dataset.level, 10);
+                    const isSelected = btnLvl === clamped;
+                    btn.classList.toggle('bg-blue-50', isSelected);
+                    btn.classList.toggle('dark:bg-blue-950/40', isSelected);
+                    btn.classList.toggle('text-blue-700', isSelected);
+                    btn.classList.toggle('dark:text-blue-300', isSelected);
+                    btn.classList.toggle('font-semibold', isSelected);
+                    const check = btn.querySelector('.gps-simp-check');
+                    if (check) check.classList.toggle('hidden', !isSelected);
+                    btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+                });
+            }
+        }
+
+        function initGpsSimplificationDropdown() {
+            if (!gpsMenu || !gpsTrigger) return;
+
+            // Render all 11 items with 24x24 SVG chessmate icons
+            gpsMenu.innerHTML = '';
+            const currentLevel = gpsSelect ? Number.parseInt(gpsSelect.value, 10) || 4 : 4;
+
+            GPS_LEVEL_DEFS.forEach(def => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'gps-simp-item w-full flex items-center gap-3 px-3 py-2 text-xs rounded-md text-left transition hover:bg-gray-100 dark:hover:bg-zinc-700 cursor-pointer text-gray-800 dark:text-gray-200';
+                btn.dataset.level = String(def.level);
+                btn.setAttribute('role', 'option');
+                btn.innerHTML = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" class="w-6 h-6 shrink-0 rounded border border-gray-300 dark:border-zinc-600 overflow-hidden text-gray-700 dark:text-gray-200" aria-hidden="true">
+                        <rect width="24" height="24" fill="url(#simp-pat-${def.level})"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-gray-900 dark:text-white leading-tight">${def.title}</div>
+                        <div class="text-[11px] text-gray-500 dark:text-gray-400 truncate leading-tight">${def.desc}</div>
+                    </div>
+                    <svg class="gps-simp-check w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
+                `;
+
+                btn.addEventListener('click', () => {
+                    const chosen = Number.parseInt(def.level, 10);
+                    if (gpsSelect) {
+                        gpsSelect.value = String(chosen);
+                        gpsSelect.dispatchEvent(new Event('change'));
+                    }
+                    updateGpsSimplificationDisplay(chosen);
+                    closeGpsMenu();
+                });
+
+                gpsMenu.appendChild(btn);
+            });
+
+            updateGpsSimplificationDisplay(currentLevel);
+
+            function toggleGpsMenu() {
+                const isOpen = !gpsMenu.classList.contains('hidden');
+                if (isOpen) {
+                    closeGpsMenu();
+                } else {
+                    openGpsMenu();
+                }
+            }
+
+            function openGpsMenu() {
+                if (gpsContainer) gpsContainer.classList.add('z-50');
+                gpsMenu.classList.remove('hidden');
+                gpsTrigger.setAttribute('aria-expanded', 'true');
+                if (gpsChevron) gpsChevron.classList.add('rotate-180');
+            }
+
+            function closeGpsMenu() {
+                gpsMenu.classList.add('hidden');
+                if (gpsContainer) gpsContainer.classList.remove('z-50');
+                gpsTrigger.setAttribute('aria-expanded', 'false');
+                if (gpsChevron) gpsChevron.classList.remove('rotate-180');
+            }
+
+            gpsTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleGpsMenu();
+            });
+
+            document.addEventListener('click', (e) => {
+                if (gpsContainer && !gpsContainer.contains(e.target)) {
+                    closeGpsMenu();
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !gpsMenu.classList.contains('hidden')) {
+                    closeGpsMenu();
+                    gpsTrigger.focus();
+                }
+            });
+        }
+        initGpsSimplificationDropdown();
+
         function updateAthleteSummary(data) {
             const nameEl = document.getElementById('athlete-summary-name');
             const weightEl = document.getElementById('athlete-summary-weight');
@@ -3449,6 +3748,9 @@
                 }
                 if (gpsSelect && data.gps_simplification !== undefined && data.gps_simplification !== null) {
                     gpsSelect.value = String(data.gps_simplification);
+                    if (typeof updateGpsSimplificationDisplay === 'function') {
+                        updateGpsSimplificationDisplay(data.gps_simplification);
+                    }
                 }
                 if (weatherEnabled) {
                     weatherEnabled.checked = Boolean(data.enable_weather_data);
@@ -3495,6 +3797,9 @@
                     .then(updated => {
                         if (gpsSelect && updated && updated.gps_simplification !== undefined && updated.gps_simplification !== null) {
                             gpsSelect.value = String(updated.gps_simplification);
+                            if (typeof updateGpsSimplificationDisplay === 'function') {
+                                updateGpsSimplificationDisplay(updated.gps_simplification);
+                            }
                         }
                         if (statusGpsSimp) {
                             statusGpsSimp.textContent = 'Saved ✓';
@@ -3699,46 +4004,186 @@
                 document.getElementById('db-table-counts').innerHTML = '<tr><td class="px-4 py-2">Error</td><td class="px-4 py-2">-</td></tr>';
             });
 
-        // Initialize Supported Strava Template Variables Explorer
+        // Initialize Supported Strava Template Variables Explorer (Web-elements standard)
         const STRAVA_VARIABLES = JSON.parse(document.getElementById("strava-variables-data")?.textContent || "[]");
-
         STRAVA_VARIABLES.sort((a, b) => a.token.localeCompare(b.token));
 
         const dropdown = document.getElementById('strava-var-dropdown');
         const searchInput = document.getElementById('strava-var-search');
+        const stravaVarMenu = document.getElementById('strava-var-menu');
+        const stravaVarChevronBtn = document.getElementById('strava-var-chevron-btn');
+        const stravaVarChevron = document.getElementById('strava-var-chevron');
+        const stravaVarContainer = document.getElementById('strava-var-dropdown-container');
+        const stravaVarCountBadge = document.getElementById('strava-var-count-badge');
         const previewToken = document.getElementById('strava-var-preview-token');
         const previewDesc = document.getElementById('strava-var-preview-desc');
         const copyBtn = document.getElementById('strava-var-copy-btn');
         const copyToast = document.getElementById('strava-var-copy-toast');
 
-        function renderDropdown(filterText = '') {
-            if (!dropdown) return;
-            const query = filterText.toLowerCase().trim();
-            dropdown.innerHTML = '';
+        function getVariableCategoryIcon(token) {
+            // AI Agent: Kinetiqo Agents SVG
+            if (token.includes('agent-ai') || token.includes('ai-agent')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="AI Agent">
+                    <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+                </svg>`;
+            }
+            // Weather: Header SVG from weather box
+            if (/weather|temp|wind|rain|humid|sun|uv|baro/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-sky-500 dark:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Weather">
+                    <path d="M20 16.2A4.5 4.5 0 0 0 18 7.5a6 6 0 0 0-11.6 1.8A4 4 0 0 0 7 17h11a4 4 0 0 0 2-0.8Z" /><path d="m8 20 1-2m4 2 1-2m4 2 1-2" />
+                </svg>`;
+            }
+            // Elevation: Mountain SVG
+            if (/elev|climb|gain|alt|grade|vam|hill/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Elevation">
+                    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+                </svg>`;
+            }
+            // Distance: Route SVG
+            if (/dist/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-blue-500 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Distance">
+                    <circle cx="6" cy="19" r="3" /><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" /><circle cx="18" cy="5" r="3" />
+                </svg>`;
+            }
+            // Clock: Nicer simple monochromatic clock
+            if (/time|date|year|month|day|elapsed|moving|hour|min|sec/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Time & Date">
+                    <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+                </svg>`;
+            }
+            // Power: Lightning bolt SVG
+            if (/power|watt|ftp|np|tss|work|intensity|zone/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-purple-500 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Power Metric">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>`;
+            }
+            // Heart Rate: Heart SVG
+            if (/heart|hr/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Heart Rate">
+                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                </svg>`;
+            }
+            // Speed & Cadence: Speedometer SVG
+            if (/speed|pace|velo|cadence|rpm/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-teal-500 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Speed & Cadence">
+                    <path d="m12 14 4-4" /><path d="M3.34 19a10 10 0 1 1 17.32 0" />
+                </svg>`;
+            }
+            // Achievements: Trophy SVG
+            if (/kom|pr|troph|rank|achieve/i.test(token)) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Achievements">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.45 1-1 1H7v4h10v-4h-2c-.55 0-1-.45-1-1v-2.34" /><path d="M6 4h12a2 2 0 0 1 2 2v3c0 3.31-2.69 6-6 6h0c-3.31 0-6-2.69-6-6V6a2 2 0 0 1 2-2Z" />
+                </svg>`;
+            }
+            // Number / Count / Milestones / Fallback (# symbol)
+            return `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" title="Number / Variable">
+                <line x1="4" y1="9" x2="20" y2="9" /><line x1="4" y1="15" x2="20" y2="15" /><line x1="10" y1="3" x2="8" y2="21" /><line x1="16" y1="3" x2="14" y2="21" />
+            </svg>`;
+        }
 
+        function openVarMenu() {
+            if (!stravaVarMenu) return;
+            if (stravaVarContainer) stravaVarContainer.classList.add('z-50');
+            stravaVarMenu.classList.remove('hidden');
+            if (searchInput) searchInput.setAttribute('aria-expanded', 'true');
+            if (stravaVarChevron) stravaVarChevron.classList.add('rotate-180');
+        }
+
+        function closeVarMenu() {
+            if (!stravaVarMenu) return;
+            stravaVarMenu.classList.add('hidden');
+            if (stravaVarContainer) stravaVarContainer.classList.remove('z-50');
+            if (searchInput) searchInput.setAttribute('aria-expanded', 'false');
+            if (stravaVarChevron) stravaVarChevron.classList.remove('rotate-180');
+        }
+
+        function selectVariable(token, desc) {
+            if (searchInput) {
+                searchInput.value = token;
+            }
+            if (dropdown) {
+                dropdown.value = token;
+            }
+            updatePreview(token, desc);
+            closeVarMenu();
+        }
+
+        function renderDropdown(filterText = '') {
+            const query = filterText.toLowerCase().trim();
             const matches = STRAVA_VARIABLES.filter(item =>
                 item.token.toLowerCase().includes(query) || item.desc.toLowerCase().includes(query)
             );
 
-            if (matches.length === 0) {
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = 'No matching variables found';
-                dropdown.appendChild(opt);
-                if (previewToken) previewToken.textContent = '—';
-                if (previewDesc) previewDesc.textContent = 'No matching variable';
-                return;
+            // Update badge count
+            if (stravaVarCountBadge) {
+                stravaVarCountBadge.textContent = query
+                    ? `${matches.length} of ${STRAVA_VARIABLES.length}`
+                    : `${STRAVA_VARIABLES.length} variables`;
             }
 
-            matches.forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item.token;
-                opt.dataset.desc = item.desc;
-                opt.textContent = `${item.token} — ${item.desc}`;
-                dropdown.appendChild(opt);
-            });
+            // Sync hidden native select for backwards compatibility
+            if (dropdown) {
+                dropdown.innerHTML = '';
+                if (matches.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No matching variables found';
+                    dropdown.appendChild(opt);
+                } else {
+                    matches.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.token;
+                        opt.dataset.desc = item.desc;
+                        opt.textContent = `${item.token} — ${item.desc}`;
+                        dropdown.appendChild(opt);
+                    });
+                }
+            }
 
-            updatePreview(matches[0].token, matches[0].desc);
+            // Populate custom dropdown menu
+            if (stravaVarMenu) {
+                stravaVarMenu.innerHTML = '';
+                if (matches.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'px-3 py-3 text-xs text-gray-500 dark:text-gray-400 text-center';
+                    empty.textContent = 'No matching variables found';
+                    stravaVarMenu.appendChild(empty);
+                    if (previewToken) previewToken.textContent = '—';
+                    if (previewDesc) previewDesc.textContent = 'No matching variable';
+                    return;
+                }
+
+                matches.forEach(item => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    const isSelected = searchInput && searchInput.value === item.token;
+                    btn.className = `strava-var-item w-full flex items-center justify-between gap-2.5 px-3 py-2 text-xs rounded-md text-left transition cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 ${isSelected ? 'bg-blue-50 dark:bg-blue-950/40 font-semibold' : 'text-gray-800 dark:text-gray-200'}`;
+                    btn.setAttribute('role', 'option');
+                    btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+                    btn.innerHTML = `
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                            ${getVariableCategoryIcon(item.token)}
+                            <span class="font-mono text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.5 rounded text-[11px] shrink-0 font-medium">${item.token}</span>
+                            <span class="text-gray-500 dark:text-gray-400 text-xs truncate">${item.desc}</span>
+                        </div>
+                    `;
+
+                    btn.addEventListener('click', () => {
+                        selectVariable(item.token, item.desc);
+                    });
+
+                    stravaVarMenu.appendChild(btn);
+                });
+
+                // Update preview with first match if nothing selected or current doesn't match
+                const currentVal = searchInput ? searchInput.value.trim() : '';
+                const exactMatch = matches.find(m => m.token === currentVal);
+                if (exactMatch) {
+                    updatePreview(exactMatch.token, exactMatch.desc);
+                } else if (matches.length > 0 && !currentVal) {
+                    updatePreview(matches[0].token, matches[0].desc);
+                }
+            }
         }
 
         function updatePreview(token, desc) {
@@ -4147,19 +4592,55 @@
             window.location.reload();
         });
 
-        if (dropdown && searchInput) {
+        if (searchInput) {
             renderDropdown();
+
+            searchInput.addEventListener('focus', () => {
+                openVarMenu();
+            });
 
             searchInput.addEventListener('input', (e) => {
                 renderDropdown(e.target.value);
+                openVarMenu();
             });
 
-            dropdown.addEventListener('change', () => {
-                const selectedOpt = dropdown.options[dropdown.selectedIndex];
-                if (selectedOpt && selectedOpt.value) {
-                    updatePreview(selectedOpt.value, selectedOpt.dataset.desc);
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeVarMenu();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    openVarMenu();
+                    const firstBtn = stravaVarMenu?.querySelector('.strava-var-item');
+                    if (firstBtn) firstBtn.focus();
                 }
             });
+
+            if (stravaVarChevronBtn) {
+                stravaVarChevronBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (stravaVarMenu?.classList.contains('hidden')) {
+                        openVarMenu();
+                        searchInput.focus();
+                    } else {
+                        closeVarMenu();
+                    }
+                });
+            }
+
+            document.addEventListener('click', (e) => {
+                if (stravaVarContainer && !stravaVarContainer.contains(e.target)) {
+                    closeVarMenu();
+                }
+            });
+
+            if (dropdown) {
+                dropdown.addEventListener('change', () => {
+                    const selectedOpt = dropdown.options[dropdown.selectedIndex];
+                    if (selectedOpt && selectedOpt.value) {
+                        updatePreview(selectedOpt.value, selectedOpt.dataset.desc);
+                    }
+                });
+            }
 
             if (copyBtn) {
                 copyBtn.addEventListener('click', () => {
