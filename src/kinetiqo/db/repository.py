@@ -155,6 +155,11 @@ class DatabaseRepository(ABC):
         pass
 
     @abstractmethod
+    def get_activity_detail(self, activity_id: int | str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive activity details for a single activity ID."""
+        pass
+
+    @abstractmethod
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
         pass

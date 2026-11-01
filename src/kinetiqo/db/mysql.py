@@ -430,6 +430,79 @@ class MySQLRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_activity_detail(self, activity_id: int | str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive activity details for a single activity ID (MySQL)."""
+        if not activity_id:
+            return None
+
+        self._ensure_connected()
+        with self.conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT 
+                    activity_id as id,
+                    name,
+                    sport as type,
+                    athlete_id,
+                    distance,
+                    moving_time,
+                    elapsed_time,
+                    total_elevation_gain,
+                    start_date,
+                    average_speed,
+                    max_speed,
+                    average_heartrate,
+                    max_heartrate,
+                    average_cadence,
+                    average_watts,
+                    max_watts,
+                    weighted_average_watts,
+                    device_watts,
+                    calories,
+                    kilojoules,
+                    achievement_count,
+                    pr_count,
+                    suffer_score,
+                    average_temp,
+                    elev_high,
+                    elev_low,
+                    gear_id,
+                    has_heartrate,
+                    workout_type,
+                    trophies,
+                    ai_responses,
+                    weather_temp_min,
+                    weather_temp_max,
+                    weather_temp_avg,
+                    weather_condition,
+                    weather_condition_icon,
+                    weather_wind_deg,
+                    weather_wind_speed,
+                    weather_wind_gust_max,
+                    weather_precipitation
+                FROM activities 
+                WHERE activity_id = %s
+                LIMIT 1
+            """, (int(activity_id),))
+            row = cur.fetchone()
+
+        if not row:
+            return None
+
+        activity = dict(row)
+        if isinstance(activity.get('start_date'), datetime):
+            activity['start_date'] = activity['start_date'].isoformat()
+        if activity.get('trophies') and isinstance(activity['trophies'], str):
+            try:
+                activity['trophies'] = json.loads(activity['trophies'])
+            except Exception:
+                pass
+        if activity.get('ai_responses') and isinstance(activity['ai_responses'], str):
+            try:
+                activity['ai_responses'] = json.loads(activity['ai_responses'])
+            except Exception:
+                pass
+        return activity
+
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
         self._ensure_connected()

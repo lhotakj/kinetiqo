@@ -674,6 +674,121 @@ class FirebirdRepository(DatabaseRepository):
                 activities.append(activity)
             return activities
 
+    def get_activity_detail(self, activity_id: int | str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive activity details for a single activity ID (Firebird)."""
+        if not activity_id:
+            return None
+
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    "activity_id" as id,
+                    CAST("name" AS VARCHAR(500)) as "name",
+                    "sport" as type,
+                    "athlete_id",
+                    "distance",
+                    "moving_time",
+                    "elapsed_time",
+                    "total_elevation_gain",
+                    "start_date",
+                    "average_speed",
+                    "max_speed",
+                    "average_heartrate",
+                    "max_heartrate",
+                    "average_cadence",
+                    "average_watts",
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type",
+                    "trophies",
+                    "ai_responses",
+                    "weather_temp_min",
+                    "weather_temp_max",
+                    "weather_temp_avg",
+                    "weather_condition",
+                    "weather_condition_icon",
+                    "weather_wind_deg",
+                    "weather_wind_speed",
+                    "weather_wind_gust_max",
+                    "weather_precipitation"
+                FROM "activities"
+                WHERE "activity_id" = ?
+            """, (int(activity_id),))
+            row = cur.fetchone()
+
+        if not row:
+            return None
+
+        trophies_parsed = None
+        if row[29]:
+            try:
+                trophies_parsed = json.loads(row[29]) if isinstance(row[29], str) else row[29]
+            except Exception:
+                trophies_parsed = None
+
+        ai_parsed = None
+        if row[30]:
+            try:
+                val = row[30].read() if hasattr(row[30], 'read') else row[30]
+                ai_parsed = json.loads(val) if isinstance(val, str) else val
+            except Exception:
+                ai_parsed = None
+
+        return {
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'athlete_id': row[3],
+            'distance': row[4],
+            'moving_time': row[5],
+            'elapsed_time': row[6],
+            'total_elevation_gain': row[7],
+            'start_date': row[8].isoformat() if isinstance(row[8], datetime) else row[8],
+            'average_speed': row[9],
+            'max_speed': row[10],
+            'average_heartrate': row[11],
+            'max_heartrate': row[12],
+            'average_cadence': row[13],
+            'average_watts': row[14],
+            'max_watts': row[15],
+            'weighted_average_watts': row[16],
+            'device_watts': row[17],
+            'calories': row[18],
+            'kilojoules': row[19],
+            'achievement_count': row[20],
+            'pr_count': row[21],
+            'suffer_score': row[22],
+            'average_temp': row[23],
+            'elev_high': row[24],
+            'elev_low': row[25],
+            'gear_id': row[26],
+            'has_heartrate': row[27],
+            'workout_type': row[28],
+            'trophies': trophies_parsed,
+            'ai_responses': ai_parsed,
+            'weather_temp_min': row[31],
+            'weather_temp_max': row[32],
+            'weather_temp_avg': row[33],
+            'weather_condition': row[34],
+            'weather_condition_icon': row[35],
+            'weather_wind_deg': row[36],
+            'weather_wind_speed': row[37],
+            'weather_wind_gust_max': row[38],
+            'weather_precipitation': row[39],
+        }
+
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
         self._ensure_connected()

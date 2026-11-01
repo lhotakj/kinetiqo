@@ -269,7 +269,8 @@ def ensure_startup_profile_sync() -> None:
         if not _startup_sync_jobs_cleared:
             repo = get_db()
             try:
-                repo.interrupt_active_sync_jobs()
+                if hasattr(repo, "interrupt_active_sync_jobs"):
+                    repo.interrupt_active_sync_jobs()
                 _startup_sync_jobs_cleared = True
                 logger.info("Cleared persisted active sync jobs and lease during application startup.")
             except Exception:
@@ -4601,6 +4602,353 @@ def stop_sync():
         return '', 204
     except Exception as e:
         logger.exception(f"Failed to create stop signal: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Activity Detail Routes & Endpoints
+# ---------------------------------------------------------------------------
+
+@app.route('/activity/<activity_id>', methods=['GET'])
+@login_required
+def activity_detail(activity_id):
+    """Render comprehensive Activity Detail view for a given activity ID."""
+    repo = get_db()
+    activity = repo.get_activity_detail(activity_id)
+    if not activity:
+        flash("Activity not found.")
+        return redirect(url_for('activities'))
+
+    # Load athlete profile
+    profile = repo.get_profile()
+    athlete_id = session.get('athlete_id') or (profile.get('athlete_id') if profile else None) or activity.get('athlete_id')
+
+    # Configured agents
+    agents_cfg = _strava_agents_config(profile) if profile else {'enabled': True, 'agents': []}
+    configured_agents = agents_cfg.get('agents', [])
+
+    # Stream coverage
+    coverage = {}
+    try:
+        coverage = repo.get_stream_coverage(int(activity_id))
+    except Exception as e:
+        logger.warning(f"Failed to get stream coverage for activity {activity_id}: {e}")
+
+    # Compute analytical breakdowns server-side
+    stream_rows = []
+    try:
+        stream_rows = repo.get_activity_stream_window(
+            int(activity_id),
+            columns=["ts", "distance", "altitude", "heartrate", "watts", "cadence", "speed", "lat", "lng", "grade_smooth", "moving"],
+            max_rows=20000
+        )
+    except Exception as e:
+        logger.warning(f"Failed to fetch streams for analytics for {activity_id}: {e}")
+
+    from kinetiqo.analytics.activity_summary import build_activity_analytics
+    ftp_val = profile.get('ftp') if profile else None
+    analytics = build_activity_analytics(
+        stream_rows,
+        ftp=float(ftp_val) if ftp_val else None,
+        max_hr=activity.get('max_heartrate')
+    )
+
+    # Weather
+    weather = None
+    try:
+        weather = repo.get_activity_weather(activity_id)
+    except Exception as e:
+        logger.warning(f"Failed to fetch weather for {activity_id}: {e}")
+
+    # Custom background image check
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'activity-detail-cache'
+    cache_dir.mkdir(exist_ok=True)
+    has_custom_image = (cache_dir / f"{activity_id}.png").exists()
+
+    is_export = request.args.get('export') == '1'
+
+    return render_template(
+        'activity_detail.html',
+        title=f"Activity: {activity.get('name', 'Detail')}",
+        activity=activity,
+        profile=profile,
+        configured_agents=configured_agents,
+        coverage=coverage,
+        analytics=analytics,
+        weather=weather,
+        has_custom_image=has_custom_image,
+        is_export=is_export,
+        tile_providers=_build_tile_providers(),
+    )
+
+
+@app.route('/api/activity/<activity_id>/streams', methods=['GET'])
+@login_required
+def activity_streams(activity_id):
+    """Return downsampled, timestamp-aligned streams for an activity."""
+    max_points = request.args.get('max_points', 1500, type=int)
+    max_points = max(100, min(max_points, 5000))
+    repo = get_db()
+    try:
+        raw_rows = repo.get_activity_stream_window(
+            int(activity_id),
+            columns=["ts", "distance", "altitude", "heartrate", "watts", "cadence", "speed", "lat", "lng", "grade_smooth"],
+            max_rows=20000
+        )
+        if not raw_rows:
+            return jsonify({'has_streams': False, 'points': [], 'bounds': None})
+
+        from kinetiqo.mcp.utils import downsample_stream_window
+        downsampled, _ = downsample_stream_window(raw_rows, max_auto_samples=max_points)
+
+        coords = [[float(r['lat']), float(r['lng'])] for r in downsampled if r.get('lat') is not None and r.get('lng') is not None]
+        bounds = None
+        if coords:
+            lats = [c[0] for c in coords]
+            lngs = [c[1] for c in coords]
+            bounds = [[min(lats), min(lngs)], [max(lats), max(lngs)]]
+
+        return jsonify({
+            'has_streams': True,
+            'points': downsampled,
+            'bounds': bounds
+        })
+    except Exception as e:
+        logger.exception(f"Failed to fetch streams for activity {activity_id}: {e}")
+        return jsonify({'error': str(e), 'has_streams': False, 'points': [], 'bounds': None}), 500
+
+
+@app.route('/api/activity/<activity_id>/ai-analyze', methods=['POST'])
+@login_required
+def activity_ai_analyze(activity_id):
+    """Execute on-demand AI analysis for an activity and persist to activities.ai_responses."""
+    payload = request.get_json(silent=True) or {}
+    agent_name = str(payload.get('agent_name') or '').strip().lower()
+    custom_directive = str(payload.get('custom_directive') or '').strip()
+
+    if not agent_name:
+        return jsonify({'success': False, 'error': 'Agent name is required.'}), 422
+
+    repo = get_db()
+    activity = repo.get_activity_detail(activity_id)
+    if not activity:
+        return jsonify({'success': False, 'error': 'Activity not found.'}), 404
+
+    profile = repo.get_profile()
+    athlete_id = session.get('athlete_id') or (profile.get('athlete_id') if profile else None) or activity.get('athlete_id')
+    agents_cfg = _strava_agents_config(profile) if profile else {'enabled': True, 'agents': []}
+    configured_agents = {a.get('name', '').lower(): a.get('prompt', '') for a in agents_cfg.get('agents', [])}
+
+    if agent_name not in configured_agents:
+        return jsonify({'success': False, 'error': f"Agent '{agent_name}' is not configured in Settings."}), 422
+
+    base_prompt = configured_agents[agent_name]
+    full_prompt = base_prompt
+    if custom_directive:
+        full_prompt += f"\n\nAdditional Directive:\n{custom_directive}"
+
+    from kinetiqo.chat.service import ChatService
+    from kinetiqo.chat.agent_runner import run_agent_prompt
+
+    chat_service = ChatService(repo, config)
+    resp_text, status = run_agent_prompt(
+        chat_service=chat_service,
+        athlete_id=str(athlete_id),
+        activity=activity,
+        athlete_prompt=full_prompt,
+    )
+
+    if resp_text:
+        ai_responses = activity.get('ai_responses')
+        if not isinstance(ai_responses, dict):
+            ai_responses = {}
+        token = f"agent-ai-{agent_name}"
+        ai_responses[token] = resp_text
+        try:
+            repo.update_activity_ai_responses(int(activity_id), ai_responses)
+        except Exception as save_err:
+            logger.warning(f"Failed to update activity ai_responses: {save_err}")
+
+        return jsonify({
+            'success': True,
+            'agent_name': agent_name,
+            'response': resp_text,
+            'status': status
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': f"AI generation failed: {status}. Check AI provider configuration in Settings."
+        }), 422
+
+
+@app.route('/api/activity/photo/<activity_id>', methods=['GET'])
+@login_required
+def activity_photo_get(activity_id):
+    """Serve cached custom background image for an activity."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'activity-detail-cache'
+    cache_dir.mkdir(exist_ok=True)
+    cached = cache_dir / f"{activity_id}.png"
+    if cached.exists():
+        return Response(cached.read_bytes(), mimetype=PNG_MIMETYPE)
+    return '', 404
+
+
+@app.route('/api/activity/upload/<activity_id>', methods=['POST'])
+@login_required
+def activity_photo_upload(activity_id):
+    """Upload custom background image for an activity."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'activity-detail-cache'
+    cache_dir.mkdir(exist_ok=True)
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    filename = file.filename.lower() if file.filename else ''
+    allowed = ('.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif')
+    if not any(filename.endswith(ext) for ext in allowed):
+        return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, WEBP, HEIC'}), 400
+
+    try:
+        raw = file.read()
+        if not raw:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
+        if filename.endswith(('.heic', '.heif')):
+            import pillow_heif
+            heif_file = pillow_heif.read_heif(raw)
+            img = Image.frombytes(heif_file.mode, heif_file.size, heif_file.data, "raw")
+        else:
+            img = Image.open(io.BytesIO(raw))
+
+        img = img.convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        png_bytes = buf.getvalue()
+
+        target = cache_dir / f"{activity_id}.png"
+        target.write_bytes(png_bytes)
+        return Response(png_bytes, mimetype=PNG_MIMETYPE)
+    except Exception as e:
+        logger.exception(f"Failed to process activity image upload: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/activity/clear-image/<activity_id>', methods=['POST'])
+@login_required
+def activity_photo_clear(activity_id):
+    """Remove custom background image for an activity."""
+    cache_dir = pathlib.Path(os.path.dirname(os.path.abspath(__file__))) / 'activity-detail-cache'
+    target = cache_dir / f"{activity_id}.png"
+    if target.exists():
+        try:
+            target.unlink()
+        except Exception as e:
+            logger.warning(f"Failed to delete activity image {target}: {e}")
+    return jsonify({'success': True})
+
+
+@app.route('/api/activity/export/<activity_id>', methods=['POST'])
+@login_required
+def activity_export(activity_id):
+    """Export the Activity Detail canvas as a pixel-perfect PNG or vector PDF via Playwright."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.exception('playwright package is not installed')
+        return jsonify({'error': 'playwright is not installed on the server. '
+                                 'Run: pip install playwright && playwright install chromium'}), 500
+
+    payload = request.get_json(silent=True) or {}
+    export_format = str(payload.get('format', 'png')).lower()
+    width = max(800, min(int(payload.get('width', 1280)), 2560))
+    ratio = str(payload.get('ratio', 'auto')).lower()
+    height = int(payload.get('height', 960)) if ratio != 'auto' else None
+
+    host_header = request.host
+    port = host_header.split(':')[1] if ':' in host_header else '4444'
+    internal_url = f"http://127.0.0.1:{port}/activity/{activity_id}?export=1"
+
+    cookies_for_playwright = [
+        {'name': n, 'value': v, 'domain': '127.0.0.1', 'path': '/'}
+        for n, v in request.cookies.items()
+    ]
+    chromium_exe = _find_system_chromium()
+
+    try:
+        with sync_playwright() as p:
+            launch_kwargs = {
+                'headless': True,
+                'args': [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--font-render-hinting=none',
+                ],
+            }
+            if chromium_exe:
+                launch_kwargs['executable_path'] = chromium_exe
+
+            browser = p.chromium.launch(**launch_kwargs)
+            context = browser.new_context(
+                viewport={'width': width, 'height': height or 1200},
+                device_scale_factor=2 if export_format == 'png' else 1,
+                ignore_https_errors=True,
+            )
+            if cookies_for_playwright:
+                context.add_cookies(cookies_for_playwright)
+
+            page = context.new_page()
+            page.goto(internal_url, wait_until='networkidle', timeout=30_000)
+            page.wait_for_function('document.fonts.ready', timeout=10_000)
+            page.wait_for_selector('#activity-canvas', state='visible', timeout=10_000)
+
+            # Ingest settings into localStorage and trigger canvas update
+            settings_json = json_module.dumps(payload)
+            page.evaluate(f"""() => {{
+                const s = {settings_json};
+                if (window.applyExportSettings) {{
+                    window.applyExportSettings(s);
+                }}
+            }}""")
+
+            # Give Leaflet and Chart.js a moment to stabilize
+            page.wait_for_timeout(1000)
+
+            element = page.locator('#activity-canvas')
+            repo = get_db()
+            act_name = "activity"
+            try:
+                name_val = repo.get_activity_name(activity_id)
+                if name_val:
+                    act_name = re.sub(r'[^a-zA-Z0-9_-]', '_', name_val)[:40]
+            except Exception:
+                pass
+
+            if export_format == 'pdf':
+                pdf_bytes = page.pdf(
+                    width=f"{width}px",
+                    height=f"{height}px" if height else None,
+                    print_background=True,
+                    margin={'top': '0px', 'right': '0px', 'bottom': '0px', 'left': '0px'}
+                )
+                browser.close()
+                return Response(
+                    pdf_bytes,
+                    mimetype='application/pdf',
+                    headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.pdf"'}
+                )
+            else:
+                png_bytes = element.screenshot(type='png')
+                browser.close()
+                return Response(
+                    png_bytes,
+                    mimetype=PNG_MIMETYPE,
+                    headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.png"'}
+                )
+    except Exception as e:
+        logger.exception(f"Activity export failed for {activity_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
 
