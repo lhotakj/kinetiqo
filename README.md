@@ -1,1701 +1,211 @@
-# Kinetiqo 2.5
+# Kinetiqo
 
-<!-- Badges: SonarCloud (main branch), Docker Hub pulls, Python version -->
-[![SonarCloud Quality Gate (main)](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&branch=main&metric=alert_status)](https://sonarcloud.io/project/overview?id=lhotakj_kinetiqo)
+<!-- Badges: SonarCloud, Docker Hub pulls, Python version, Release, Dependabot, Snyk -->
+[![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=lhotakj_kinetiqo&branch=main&metric=alert_status)](https://sonarcloud.io/project/overview?id=lhotakj_kinetiqo)
 [![Docker Pulls](https://img.shields.io/docker/pulls/kinetiqo/web?style=flat-square&logo=docker)](https://hub.docker.com/r/kinetiqo/web)
 [![Python Version](https://img.shields.io/badge/python-3.14%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
 <img src="https://img.shields.io/github/v/release/lhotakj/kinetiqo.svg" alt="Releases"></img>
 ![Dependabot Status](https://img.shields.io/badge/Dependabot-enabled-brightgreen?logo=dependabot)
 <img src="https://snyk.io/test/github/lhotakj/kinetiqo/badge.svg" alt="Known Vulnerabilities"></img>
 
-Kinetiqo is a self-hosted data warehouse for your Strava activities. It synchronizes your data into a high-performance SQL database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**), providing full ownership and control over your fitness history.
+**Kinetiqo** is a self-hosted personal fitness data warehouse that synchronizes workout activities and high-resolution sensor streams from the **Strava API** into a relational database (**PostgreSQL**, **MySQL/MariaDB**, or **Firebird**). It provides complete data ownership, deep athletic telemetry analysis, visual infographics, and an evidence-based **Model Context Protocol (MCP)** server connecting AI assistants directly to your athletic history.
 
-Visualize your progress with the **built-in Web UI** or integrate with your preferred business intelligence tools. For advanced analytics, Kinetiqo includes pre-configured **Grafana dashboards**, transforming your workout data into actionable insights.
-
-> Full project documentation is available at [kinetiqo.org](https://kinetiqo.org) 
-
-| [![Activity Sync & Data Grid](docs/grid-dark.webp)](docs/grid-dark.webp)<br/>**Activity Sync & Data Grid**<br/>Searchable DataTables 2.x grid with bulk selection, CSV/XLSX export, and local storage state persistence | [![Real-Time SSE Sync Progress](docs/activities-sync.webp)](docs/activities-sync.webp)<br/>**Real-Time Sync Engine**<br/>Live Server-Sent Events (SSE) progress bar streaming incremental sync and full history audit status | [![Column Reordering & Visibility](docs/activities-colums-dark.webp)](docs/activities-colums-dark.webp)<br/>**Column Visibility & Reorder**<br/>Drag-and-drop column reordering with persistent visibility toggles across sessions |
-|---|---|---|
-| [![Interactive Canvas Maps](docs/map-dark.webp)](docs/map-dark.webp)<br/>**Interactive Canvas Maps**<br/>Leaflet Canvas rendering for GPS tracks with 16 basemaps across 7 tile providers and local OSM proxy | [![Multi-Stage Polyline Styling](docs/map2.webp)](docs/map2.webp)<br/>**Route Polyline Styling**<br/>Persistent route color, stroke weight, opacity, and tone controls for multi-stage activities | [![Multi-DB Zero-ORM Architecture](docs/database.webp)](docs/database.webp)<br/>**Multi-DB Zero-ORM Warehouse**<br/>Direct parameterized SQL architecture supporting PostgreSQL 12+, MySQL 8 / MariaDB, and Firebird |
-| [![Power Skills Spider Chart](docs/power-dark.webp)](docs/power-dark.webp)<br/>**Power Skills Analysis**<br/>Radar spider chart of peak average power efforts across intervals from 5 seconds to 1 hour | [![Fitness & Freshness](docs/chart-dark.webp)](docs/chart-dark.webp)<br/>**Fitness & Freshness (CTL/ATL/TSB)**<br/>Banister impulse-response model for Chronic Load (Fitness), Fatigue, and Form curves | [![FTP Estimation History](docs/ftp.webp)](docs/ftp.webp)<br/>**FTP Estimation Trends**<br/>Automated 95% 20-min threshold power tracking with per-ride historical trend |
-| [![WYSIWYG Poster Builder](docs/poster-example.webp)](docs/poster-example.webp)<br/>**WYSIWYG Poster Builder**<br/>Draggable layouts, build-in photo editor, custom typography, elevation profiles, and Playwright high-res PNG export | [![MEGA Stats Infographic](docs/mega-stats.webp)](docs/mega-stats.webp)<br/>**MEGA Stats Infographic**<br/>Veloviewer-style yearly infographic with 365-day calendar heatmaps & vector PDF/PNG export | [![Fondo-o-meter Infographic](docs/fondo-o-meter.webp)](docs/fondo-o-meter.webp)<br/>**Fondo-o-meter Infographic**<br/>Concentric radial milestone rings with sport thresholds, Gran Fondo badges, verified KOMs, and vector PDF/PNG export |
-| [![Strava Auto-Description Engine](docs/strava-stats.webp)](docs/strava-stats.webp)<br/>**Strava Auto-Descriptions**<br/>150+ placeholders, workout summaries, power zones, and milestone triggers (🎉) | [![VO₂max Trends & Classification](docs/vo2.webp)](docs/vo2.webp)<br/>**VO₂max Trends**<br/>Townsend 5-min MAP and Coggan FTP-based VO₂max estimates with fitness classification bands | [![Athlete Profile & Target Goals](docs/settings.webp)](docs/settings.webp)<br/>**Athlete Goals & Settings**<br/>Weekly, monthly, and yearly distance/elevation goals with real-time description template validation |
-
-
-## Table of Contents
-
-- [Features](#features)
-- [Web UI Pages](#web-ui-pages)
-- [Getting Started](#getting-started)
-  - [Dependencies](#dependencies)
-  - [Local Setup](#local-setup)
-  - [Configuration](#configuration)
-    - [1. Strava API Credentials](#1-strava-api-credentials)
-    - [2. Database Configuration](#2-database-configuration)
-    - [3. Scheduling (Cron)](#3-scheduling-cron)
-    - [4. Logging Configuration](#4-logging-configuration)
-    - [5. Web Interface Configuration](#5-web-interface-configuration)
-    - [6. Athlete Configuration](#6-athlete-configuration)
-    - [7. Database Settings vs. Environment Variable Synchronization Architecture](#7-database-settings-vs-environment-variable-synchronization-architecture)
-    - [8. Display Configuration](#8-display-configuration)
-    - [9. Map Configuration](#9-map-configuration)
-    - [10. Historical Activity Weather](#10-historical-activity-weather)
-    - [11. Strava Description Auto-Update (`UPDATE_STRAVA_*`)](#11-strava-description-auto-update-update_strava_)
-- [Command-Line Interface (CLI)](#command-line-interface-cli)
-  - [CLI Commands](#cli-commands)
-  - [Manual Sync](#manual-sync)
-  - [Web Interface](#web-interface)
-  - [Model Context Protocol (MCP) Server](#model-context-protocol-mcp-server)
-    - [Overview & Capabilities](#mcp-overview)
-    - [CLI Execution](#mcp-cli-execution)
-    - [AI Client Configuration](#mcp-client-configuration)
-    - [MCP Toolset Reference](#mcp-toolset-reference)
-    - [Gated Mutation Controls](#mcp-gated-mutations)
-- [Architecture](#architecture)
-  - [Project Structure](#project-structure)
-  - [Technology Stack](#technology-stack)
-- [Building Docker Images](#building-docker-images)
-  - [Architecture: Two-Phase Build](#architecture-two-phase-build)
-  - [Local Build](#local-build)
-  - [CI/CD Workflows](#cicd-workflows)
-- [Deployment](#deployment)
-  - [Official Docker Image Variants](#official-docker-image-variants)
-  - [Deployment Option 1: Standalone Kinetiqo (Web UI + Cron Sync)](#deployment-option-1-standalone-kinetiqo-web-ui--cron-sync)
-    - [Docker Run (Standalone)](#docker-run-standalone)
-    - [Docker Compose (Standalone)](#docker-compose-standalone)
-  - [Deployment Option 2: Kinetiqo + Embedded MCP Server (Web UI + Cron + MCP SSE)](#deployment-option-2-kinetiqo--embedded-mcp-server-web-ui--cron--mcp-sse)
-    - [Docker Run (Embedded MCP)](#docker-run-embedded-mcp)
-    - [Docker Compose (Embedded MCP)](#docker-compose-embedded-mcp)
-    - [Connecting AI Assistants to the Running Container](#connecting-ai-assistants-to-the-running-container)
-  - [Configuration Options & Environment Variables Reference](#configuration-options--environment-variables-reference)
-- [License](#license)
-  - [Map Tile Attributions](#map-tile-attributions)
-- [Benchmark of databases](#benchmark-of-databases)
-
-## Features
-
-- ⚡ **Activity Sync & Searchable Data Grid**: Fast incremental sync vs. full history audit reconciliation, Server-Sent Events (SSE) real-time progress bar, and **DataTables 2.x** grid with column reordering (ColReorder), bulk actions, CSV/XLSX export, and `localStorage` state persistence.
-- ⚡ **Power Skills Analysis**: Visualize your best power efforts across different time intervals (5s, 30s, 1min, 5min, 10min, 20min, 1h) with an interactive radar/spider chart, selectable per-activity or aggregated across all activities.
-- 🏋️ **FTP & VO₂max Estimation**: Automatically estimates your Functional Threshold Power (95% of best 20-minute average power) from your recorded power-meter data with per-ride history chart, plus Townsend/Storer-Davis best 5-minute MAP and Coggan FTP-based VO₂max trends with fitness classifications.
-- 🏃 **Fitness & Freshness**: Banister impulse-response model for CTL (Fitness), ATL (Fatigue), and TSB (Form) curves calculated from suffer scores, with configurable time constants.
-- 📸 **WYSIWYG Activity Poster Generator**: Create professional activity posters with customizable fonts (Italiana, Inter, Outfit, JetBrains Mono, Fanwood Text), colors, layouts (4:3, 16:9, 1:1 ratios), and sizes (800px–2048px width). Features live WYSIWYG preview, elevation profile chart, background photo mode (upload personal photos in PNG, JPG, WEBP, or HEIC formats, with clear image option and built-in photo editing tool for Color, Light, and Details adjustments) or interactive Leaflet canvas map background mode (tile provider selection, map opacity control, line color, opacity, and weight controls), collapsible control boxes with element checkboxes, and Playwright-powered PNG export at exact pixel dimensions.
-- 📈 **MEGA Stats Infographic**: Generate Veloviewer-style infographics showcasing year, half-year, quarter, and custom-period statistics with 365-day activity calendar heatmaps. Features custom background photo upload (PNG, JPG, WEBP, or HEIC with reset), configurable tint color overlay and opacity slider, typography font selector (Inter, Italiana, Outfit, etc.), unified collapsible control panels (Stats Options, Appearance, Size, Period), responsive column width layout with stacked default (20%) and expanded full-width row layout (>20% up to 50%), metrics for Most Active Month by Distance and Most Active Month by Elevation, visible stat toggles with dynamic 1px hairline auto-cleanup, complete `localStorage` state persistence, and vector PDF / PNG Playwright export.
-- 🎯 **Fondo-o-meter Infographic**: Showcase infographic celebrating milestone endurance efforts with dynamic concentric radial progress rings and smart distance binning (up to 8 harmonic rings from sport threshold to single longest activity with bold distance label, e.g. **213.2 km**). Features dedicated Gran Fondo emblem (`gran-fondo.svg`), hero-sized total Fondos completed counter, KOMs conquered on cycling activities and PR segment badges across seasons, discipline-specific thresholds (≥100km cycling, ≥42.2km marathon running/walking, ≥50km skiing, ≥10km swimming), customizable canvas size (1280–2048px, 4:3 fixed), custom background photo upload with tint/opacity controls, arc base color & width customizer, typography selectors, dynamic auto-expanding layout, complete `localStorage` state persistence, and vector PDF / PNG Playwright export. See [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md).
-- ✍️ **Strava Description Auto-Update Engine**: Automatically render custom templates with 150+ dynamic placeholders into synced Strava activity descriptions. Includes the `{{workout-summary}}` engine (power zones, normalized power % FTP, sustained blocks, peak surges via `WORKOUT_SUMMARY_PEAK_THRESHOLD_W`), 6 independent activity buckets, begin/end placement, milestone handling (🎉), server-side validation, and a 30-activity-per-sync safety cap. See [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md).
-- 🌦️ **Historical Activity Weather**: Optionally enrich eligible outdoor GPS activities with stored hourly Visual Crossing weather, including conditions, temperature, precipitation, wind, gusts, and calculated headwind. Provider limits stop only weather enrichment; sync continues. See [docs/weather.md](docs/weather.md).
-- 🗺️ **Interactive Canvas Maps**: Multi-provider Leaflet map with Canvas renderer for thousands of GPS points, 16 basemaps across 7 providers (OpenStreetMap, Mapy.cz, Thunderforest, MapTiler, Geoapify, CARTO, and Esri). Includes built-in server-side OSM tile proxy (`/tiles/osm/...`), distance-based GPS track simplification (`GPS_SIMPLIFICATION` levels 1–10) for 10–30× payload reduction, persistent route/map styling, tone controls, fullscreen mode, and viewport PNG export.
-- 💾 **Multi-DB Zero-ORM Warehouse**: Direct parameterized raw SQL execution with strict SQL injection immunity and zero ORM overhead across **PostgreSQL** (12+), **MySQL 8 / MariaDB 10+**, and **Firebird** (3.0, 4.0, 5.0). Includes automated built-in benchmark utility (`kinetiqo benchmark` with `-s, --scope` and `-d, --database-type`). See [docs/DATABASE.md](docs/DATABASE.md).
-- 🎯 **Activity Goals**: Set weekly, monthly, and yearly distance and elevation goals per activity type (Cycling, Running, Hiking, etc.) with progress tracking on the Settings page.
-- 🌓 **Dark Mode Support**: Fully supported dark theme with automatic system preference detection and manual toggle.
-- 📝 **Audit Logging**: Records all synchronization operations and data modifications, viewable in the Web UI.
-- 🐳 **Container-Native**: Dockerised on `python:3.14-slim` with a two-phase build (Firebird base + app) and `cron` scheduler.
-- 🚀 **Response Compression**: All HTTP responses (HTML, JSON, static assets) are automatically compressed via `flask-compress` (gzip/brotli), reducing transfer sizes by 74–99%.
-- 🔒 **Security & Authentication**: OAuth 2.0 for Strava, `flask-login` session authentication, and `flask-wtf` CSRF protection on all mutating routes.
-- 🔔 **Version Check**: Asynchronous, cached check for new releases against GitHub.
-- 🤖 **Model Context Protocol (MCP) Server**: Built-in FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO, SSE, or streamable HTTP. It exposes 32 evidence-based read-only tools by default and up to 36 tools when explicit mutation gates are enabled, across activity discovery, telemetry time-series, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact generation. See [Model Context Protocol (MCP) Server](#model-context-protocol-mcp-server).
+> Full project documentation is available at [kinetiqo.org](https://kinetiqo.org)
 
 ---
 
-## Web UI Pages
+## Visual Showcase
 
-| Route | Page | Description |
+| [![Activity Sync & Data Grid](docs/grid-dark.webp)](docs/activities.md)<br/>**[Activity Sync & Data Grid](docs/activities.md)**<br/>Searchable DataTables 2.x grid with bulk actions, CSV/XLSX export, and local storage state persistence | [![Real-Time SSE Sync Progress](docs/activities-sync.webp)](docs/sync.md)<br/>**[Real-Time Sync Engine](docs/sync.md)**<br/>Live Server-Sent Events (SSE) progress bar streaming incremental sync and full history audit status | [![Column Reordering & Visibility](docs/activities-colums-dark.webp)](docs/activities.md)<br/>**[Column Visibility & Reorder](docs/activities.md)**<br/>Drag-and-drop column reordering with persistent visibility toggles across sessions |
 |---|---|---|
-| `/` | Dashboard | Redirects to Activities |
-| `/activities` | Activities | Searchable, filterable activity list (DataTables 2.x) with bulk selection, delete, map, Power Skills, CSV export, and XLSX export actions |
-| `/map` | Map | Interactive Leaflet map displaying selected activity GPS tracks with multiple tile layers, persistent styling/tone controls, fullscreen mode, and PNG export |
-| `/powerskills` | Power Skills | Spider chart of best average power over 5s, 30s, 1min, 5min, 10min, 20min, 1h durations |
-| `/ftp` | FTP | FTP estimation history chart (95% of best 20-min power) |
-| `/fitness` | Fitness & Freshness | CTL / ATL / TSB chart calculated from suffer score |
-| `/vo2max` | VO₂max | Townsend/Storer-Davis 5-minute MAP and Coggan FTP-based VO₂max estimates with trend and classification |
-| `/stats` | MEGA Stats | Veloviewer-style infographic of year, half-year, quarter, custom-period, and activity-group statistics with calendar heatmap, custom background photo upload (PNG, JPG, WEBP, HEIC with reset), tint/opacity controls, font selection, collapsible control panels, responsive column width (stacked 20% default vs expanded full-width), configurable visible metrics, full state persistence, and PNG/PDF export |
-| `/fondo-o-meter` | Fondo-o-meter | Showcase infographic of Fondo distance tiers, KOMs, and PRs with concentric radial gauge chart, customizable size (1280–2048px), year selector, appearance controls (background color, photo upload with tint/opacity, font selection), dynamic auto-expanding layout, and Playwright PNG/PDF export |
-| `/poster/<activity_id>` | Activity Poster | Professional activity poster generator with customizable fonts, colors, sizes (800–2048px), aspect ratios (4:3, 16:9, 1:1), draggable persistent layout, background image (Strava reload, custom photo upload supporting PNG, JPG, WEBP, and HEIC, clear, and photo editing tool for Color, Light, Details) or interactive Leaflet map mode, persistent map center/zoom, elevation chart, and Playwright PNG export |
-| `/profile` | Profile | Athlete profile data (First Name, Last Name, Weight, FTP with 1–1000 W validation) and activity training goals |
-| `/settings` | Settings | Strava activity description templates with server validation, template variable explorer, Authorization card, sync schedules, and database backend details |
-| `/logs` | Logs | Audit log viewer for sync operations and data changes |
-| `/fonts` | Fonts | Self-hosted typography showcase and font preview |
-| `/license` | License | Open-source licenses, map tile attributions, and third-party credits |
-| `/login` | Login | Session-based authentication |
-| `/logout` | Logout | Session logout (POST) |
-| `/fullsync` | Full Sync Trigger | Initiates full synchronization audit from web UI |
-| `/fastsync` | Fast Sync Trigger | Initiates incremental fast sync from web UI |
-| `/sync/start/<type>` | Progress View | Interactive real-time SSE sync progress bar page |
-
-### JSON API Endpoints
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/activities` | GET | Activity list (supports filtering by type, date range) |
-| `/api/activities` | DELETE | Bulk delete activities |
-| `/api/activities/<id>` | DELETE | Delete single activity |
-| `/api/map/data` | POST | GPS coordinate arrays for map rendering |
-| `/api/fitness_data` | GET | CTL/ATL/TSB time series |
-| `/api/ftp_history` | GET | FTP estimation history |
-| `/api/vo2max_history` | GET | VO₂max estimation history |
-| `/api/stats_data` | GET | MEGA Stats infographic data (year, period, group params) |
-| `/api/fondo_o_meter_data` | GET | Fondo-o-meter infographic data (year, group params) |
-| `/api/poster/photo/<activity_id>` | GET | Cached activity poster background photo |
-| `/api/poster/photo/<activity_id>` | POST | Fetch and cache poster photo from Strava |
-| `/api/poster/upload/<activity_id>` | POST | Upload custom poster background image |
-| `/api/poster/elevation/<activity_id>` | GET | Activity elevation profile data for poster chart |
-| `/api/poster/export/<activity_id>` | POST | Generate pixel-perfect PNG via Playwright (respects posterSize, ratio settings) |
-| `/api/stats/export` | POST | Generate a MEGA Stats PNG or PDF export via Playwright |
-| `/api/stats/upload` | POST | Upload custom background image for MEGA Stats infographic |
-| `/api/stats/image` | GET | Retrieve cached custom background image for MEGA Stats infographic |
-| `/api/stats/image/reset` | POST/DELETE | Reset custom background image for MEGA Stats infographic |
-| `/api/fondo_o_meter/export` | POST | Generate a Fondo-o-meter PNG or PDF export via Playwright |
-| `/api/fondo_o_meter/upload` | POST | Upload custom background image for Fondo-o-meter infographic |
-| `/api/fondo_o_meter/image` | GET | Retrieve cached custom background image for Fondo-o-meter infographic |
-| `/api/fondo_o_meter/image/reset` | POST/DELETE | Reset custom background image for Fondo-o-meter infographic |
-| `/tiles/osm/<z>/<x>/<y>.png` | GET | Server-side OpenStreetMap tile proxy |
-| `/strava/reconnect` | GET | Start Strava OAuth reconnection, including `activity:write` when required |
-| `/strava/callback` | GET | Complete Strava OAuth callback |
-| `/api/sync/stream/<type>` | GET | Stream sync progress through SSE |
-| `/api/sync/stop` | POST | Request cancellation of the active sync |
-| `/api/settings` | GET | Application settings |
-| `/api/profile` | GET/PUT/POST | Athlete profile (weight, name, GPS simplification, description templates) |
-| `/api/profile/sync` | POST | Manually synchronize athlete profile (name, weight) from Strava API |
-| `/api/goals` | GET/PUT | Activity goals per type |
-| `/latest-version` | GET | Asynchronous GitHub release update check |
+| [![Interactive Canvas Maps](docs/map-dark.webp)](docs/maps.md)<br/>**[Interactive Canvas Maps](docs/maps.md)**<br/>Leaflet Canvas rendering for GPS tracks with 16 basemaps across 7 tile providers and local OSM proxy | [![Multi-Stage Polyline Styling](docs/map2.webp)](docs/maps.md)<br/>**[Route Polyline Styling](docs/maps.md)**<br/>Persistent route color, stroke weight, opacity, and tone controls for multi-stage activities | [![Multi-DB Zero-ORM Architecture](docs/database.webp)](docs/DATABASE.md)<br/>**[Multi-DB Zero-ORM Warehouse](docs/DATABASE.md)**<br/>Direct parameterized SQL architecture supporting PostgreSQL 12+, MySQL 8 / MariaDB, and Firebird |
+| [![Power Skills Spider Chart](docs/power-dark.webp)](docs/power.md)<br/>**[Power Skills Analysis](docs/power.md)**<br/>Radar spider chart of peak average power efforts across intervals from 5 seconds to 1 hour | [![Fitness & Freshness](docs/chart-dark.webp)](docs/fitness.md)<br/>**[Fitness & Freshness (CTL/ATL/TSB)](docs/fitness.md)**<br/>Banister impulse-response model for Chronic Load (Fitness), Fatigue, and Form curves | [![FTP Estimation History](docs/ftp.webp)](docs/ftp-vo2max.md)<br/>**[FTP Estimation Trends](docs/ftp-vo2max.md)**<br/>Automated 95% 20-min threshold power tracking with per-ride historical trend |
+| [![WYSIWYG Poster Builder](docs/poster-example.webp)](docs/poster.md)<br/>**[WYSIWYG Poster Builder](docs/poster.md)**<br/>Draggable layouts, built-in photo editor, custom typography, elevation profiles, and Playwright high-res PNG export | [![MEGA Stats Infographic](docs/mega-stats.webp)](docs/mega-stats.md)<br/>**[MEGA Stats Infographic](docs/mega-stats.md)**<br/>Veloviewer-style yearly infographic with 365-day calendar heatmaps & vector PDF/PNG export | [![Fondo-o-meter Infographic](docs/fondo-o-meter.webp)](docs/FONDO_O_METER.md)<br/>**[Fondo-o-meter Infographic](docs/FONDO_O_METER.md)**<br/>Concentric radial milestone rings with sport thresholds, Gran Fondo badges, verified KOMs, and vector PDF/PNG export |
+| [![Strava Auto-Description Engine](docs/strava-stats.webp)](docs/UPDATE_STRAVA.md)<br/>**[Strava Auto-Descriptions](docs/UPDATE_STRAVA.md)**<br/>150+ placeholders, workout summaries, power zones, and milestone triggers (🎉) | [![VO₂max Trends & Classification](docs/vo2.webp)](docs/ftp-vo2max.md)<br/>**[VO₂max Trends](docs/ftp-vo2max.md)**<br/>Townsend 5-min MAP and Coggan FTP-based VO₂max estimates with fitness classification bands | [![Athlete Profile & Target Goals](docs/settings.webp)](docs/goals.md)<br/>**[Athlete Goals & Settings](docs/goals.md)**<br/>Weekly, monthly, and yearly distance/elevation goals with real-time description template validation |
 
 ---
 
-## Getting Started
+## Feature Catalog & Documentation Hub
 
-### Dependencies
+Every capability in Kinetiqo is documented in detail in the [`docs/`](docs/) directory:
 
-- Python 3.14+
-- A running instance of PostgreSQL, MySQL/MariaDB, or Firebird.
-- Python package dependencies as listed in `requirements.txt`.
-- For Firebird, the client library is compiled from source inside the Docker base image (see [Building Docker Images](#building-docker-images)). For local (non-Docker) development on Ubuntu, install `libfbclient2`.
-- **Chromium/Headless browser** for poster and stats image export:
-  - The app auto-detects chromium in this order:
-    1. System package: `chromium` or `chromium-headless` (e.g., `apt install chromium`)
-    2. Playwright headless-shell: `playwright install chromium-headless-shell`
-    3. Playwright full chromium: `playwright install chromium` or bundled download
-  - Docker images ship with Playwright headless-shell pre-installed (minimal, ~150 MB).
-  - To use system chromium instead, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` (or `/usr/bin/chromium-headless`).
-
-`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` takes precedence when set and must point to an installed Chromium-compatible executable.
-
-### Local Setup
-
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/lhotakj/kinetiqo.git
-    cd kinetiqo
-    ```
-    
-2.  **Install Firebird Client (Optional):**
-    Required only if using Firebird as the database backend. Install on Ubuntu:
-    ```bash
-    sudo apt update
-    sudo apt install -y libfbclient2
-    ```
-
-3.  **Initialize Virtual Environment:**
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
-    pip install -r requirements.txt
-    ```
-
-4.  **Environment Management with `direnv` (Optional):**
-    The `development` directory contains a script to configure `direnv` for automated environment management.
-    ```bash
-    cd development
-    ./setup-direnv.sh
-    ```
-    Upon configuration, `direnv` will automatically load the environment variables when entering the project directory.
-
-5.  **Refresh local frontend vendors (Optional):**
-    The `development` directory contains a unified Python script and YAML config to download all offline frontend vendor assets (HTMX, Leaflet, jQuery, Chart.js, Moment, DataTables, Select2, Date Range Picker, JSZip, SheetJS, SortableJS, Tailwind CSS CLI) into `src/kinetiqo/web/static/vendor/`.
-    ```bash
-    python development/download-vendor-libraries.py
-    ```
-    Pass `--force` to re-download existing files, or `--library <id>` (e.g. `--library htmx`, `--library chart`, `--library tailwind`, `--library sheetjs`) to update a specific asset suite. Parameters are defined in `development/vendor-libraries.yaml`.
-
-    # Check & update Python requirements (PyPI)
-    A helper script is provided to check your Python `requirements.txt` files against the latest PyPI releases and optionally pin them to the newest versions.
-
-    - Script: `development/check-pypi-updates.py`
-    - Default behaviour: only checks and reports available updates for the common requirements files (`requirements.txt` and `../kinetiqo-web/requirements.txt` when present).
-    - To apply changes (pin to latest), run with `--apply`. Use `-f/--force` to skip the interactive confirmation. When writing files you can request a timestamped backup using `--backup` (default: no backup).
-
-    Example:
-    ```bash
-    python development/check-pypi-updates.py         # report available updates
-    python development/check-pypi-updates.py --apply # apply and pin to latest
-    ```
-
-    The project CI/automation can be triggered by the agent skill keywords `update pypi` or `update python` to request an automated update workflow; the skill name is registered in the repository agent configurations.
-
-    Note: New vendor entries "htmx-ext-sse" and "sheetjs" have been added and are served locally. Templates reference these local copies with Subresource Integrity (SRI) attributes and `crossorigin="anonymous"`. To refresh or pin different versions, update `development/vendor-libraries.yaml` and run the downloader.
-
-6.  **Configure Environment Variables:**
-    Create a `.env` file in the project root to define your configuration. This file is excluded from version control.
-    
-    **Example `.env` file:**
-    ```env
-    STRAVA_CLIENT_ID=12345
-    STRAVA_CLIENT_SECRET=your_secret_here
-    STRAVA_REFRESH_TOKEN=your_refresh_token_here
-    SECRET_KEY=replace_with_a_long_random_secret
-    DATABASE_TYPE=postgresql  # or mysql or firebird
-    # PostgreSQL
-    POSTGRESQL_HOST=localhost
-    POSTGRESQL_PORT=5432
-    POSTGRESQL_USER=postgres
-    POSTGRESQL_PASSWORD=password
-    POSTGRESQL_DATABASE=kinetiqo
-    POSTGRESQL_SSL_MODE=disable
-    # MySQL
-    MYSQL_HOST=localhost
-    MYSQL_PORT=3306
-    MYSQL_USER=root
-    MYSQL_PASSWORD=password
-    MYSQL_DATABASE=kinetiqo
-    MYSQL_SSL_MODE=disable
-    # Firebird
-    FIREBIRD_HOST=localhost
-    FIREBIRD_PORT=3050
-    FIREBIRD_USER=firebird
-    FIREBIRD_PASSWORD=firebird
-    FIREBIRD_DATABASE=/db/data/kinetiqo.fdb
-    LOG_LEVEL=INFO
-    # GPS Map Optimization
-    GPS_SIMPLIFICATION=0  # 0 = disabled, 1-10 = decimation levels (3m-100m thresholds)
-    # API for Maps
-    MAPY_API_KEY=mapy-com-api-key
-    THUNDERFOREST_API_KEY=thunderforest-api-key
-    MAPTILER_API_KEY=maptiler-api-key
-    GEOAPIFY_API_KEY=geoapify-api-key
-    # Optional historical activity weather
-    VISUAL_CROSSING_API_KEY=your_visual_crossing_api_key
-    CARTO_API_KEY=carto-api-key
-    ```
-    - Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird` as needed.
-    - Only the relevant database section is required for your selected type.
-
-7.  **Secure Secret Storage with GPG (Optional):**
-    For enhanced security, environment files can be encrypted using GPG. The included `.envrc` script supports automatic decryption.
-    
-    1. **Import GPG Key and get the ID of your key:**
-       ```shell
-       gpg --import ~/.ssh/id_rsa
-       gpg --list-secret-keys
-       ```
-       You will get something like this:
-       ```
-       $ gpg --list-secret-keys
-       /home/<username>/.gnupg/pubring.kbx
-       ------------------------------
-       sec   rsa4096 YYYY-DD-MM [SCEAR]
-             AEF3913052EEAA5039B14A73F0AE6963F52751B6
-       uid           [ultimate] name <email>
-       ssb   rsa4096 YYYY-DD-MM [SEA]
-       ```
-       your key ID is the 40-character string after `rsa4096` (e.g., `AEF3913052EEAA5039B14A73F0AE6963F52751B6`).
-
-    2. **Encrypt Environment File:**
-       The following command encrypts `.secrets.<username>.development`.
-       ```shell
-       mkdir -p secrets
-       gpg -r <your-key-id> -o ./secrets/<username>.development.gpg -e ./.secrets.<username>.development
-       ```
-       Ensure the unencrypted source file (`.secrets.*`) is included in [`.gitignore`](.gitignore).
-
-### Configuration
-
-Configuration is managed exclusively via environment variables.
-
-#### 1. Strava API Credentials
-Register an application in the [Strava API Settings](https://www.strava.com/settings/api) to obtain the necessary credentials.
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `STRAVA_CLIENT_ID` | Strava Application Client ID. | ✅ |
-| `STRAVA_CLIENT_SECRET` | Strava Application Client Secret. | ✅ |
-| `STRAVA_REFRESH_TOKEN` | Valid Refresh Token with `activity:read_all` and `profile:read_all` scopes. Also requires `activity:write` if you use the [Strava Description Auto-Update](#10-strava-description-auto-update-update_strava_) feature. | ✅ |
-
-#### 2. Database Configuration
-
-Database selection is unified across the entire application according to the following precedence rules:
-
-1. **Default**: `postgresql` is used if no environment variable or CLI parameter is specified.
-2. **Environment Variable (`DATABASE_TYPE` or legacy `DATABASE`)**: Set `DATABASE_TYPE` to `postgresql`, `mysql`, or `firebird`. If `DATABASE_TYPE` is set to an invalid value, the application logs a warning and falls back to `postgresql`.
-3. **CLI Options (`--database-type` or `--database` / `-d`)**: Overrides environment variables and defaults. If an invalid database backend is passed on the CLI, the application terminates immediately with an error message and non-zero exit code.
-
-**PostgreSQL (Default):**
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRESQL_HOST` | Database server hostname. | Required |
-| `POSTGRESQL_PORT` | Database server port. Override via env var. | `5432` |
-| `POSTGRESQL_USER` | Database username. | Required |
-| `POSTGRESQL_PASSWORD` | Database password. | Required |
-| `POSTGRESQL_DATABASE` | Database name. | Required |
-| `POSTGRESQL_SSL_MODE` | SSL connection mode (`disable`, `require`, etc.). | `disable` |
-
-**MySQL / MariaDB:**
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MYSQL_HOST` | Database server hostname. | Required |
-| `MYSQL_PORT` | Database server port. Override via env var. | `3306` |
-| `MYSQL_USER` | Database username. | Required |
-| `MYSQL_PASSWORD` | Database password. | Required |
-| `MYSQL_DATABASE` | Database name. | Required |
-| `MYSQL_SSL_MODE` | SSL connection mode. | `disable` |
-
-> **Note:** For MySQL, ensure the user has `CREATE` and `ALL PRIVILEGES` on the target database to allow for schema management.
-
-**Firebird:**
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FIREBIRD_HOST` | Database server hostname. | Required |
-| `FIREBIRD_PORT` | Database server port. Override via env var. | `3050` |
-| `FIREBIRD_USER` | Database username. | Required |
-| `FIREBIRD_PASSWORD` | Database password. | Required |
-| `FIREBIRD_DATABASE` | Database file path or alias. | Required |
-
-> **Note:** Kinetiqo will automatically create the Firebird database and schema if they don't exist. 
-> 
-> **Version Compatibility:** Tested and fully compatible with Firebird 3.0, 4.0, and 5.0. Uses only standard SQL features available in all these versions (SEQUENCE, TRIGGER, UPDATE OR INSERT, FIRST/SKIP pagination).
-> 
-> **Permissions Required:**
-> - The user must have rights to **create databases** on the Firebird server (typically `SYSDBA` or a user with equivalent privileges)
-> - Once the database exists, the user needs rights to **create tables, sequences, triggers, and indexes**
-> - For embedded Firebird, ensure the application has **write access** to the database file directory
-
-See [Benchmark of databases](#benchmark-of-databases) for basic comparison of all databases
-
-#### 3. Scheduling (Cron)
-The Docker image includes a built-in cron scheduler powered by Debian `cron`. When the container starts, the entrypoint script registers cron jobs for any sync schedules you define via environment variables. If neither variable is set, no automatic synchronization occurs.
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `FULL_SYNC` | Schedule for full synchronization. | `0 3 * * *` (Daily at 3 AM) |
-| `FAST_SYNC` | Schedule for incremental synchronization. | `*/15 * * * *` (Every 15 minutes) |
-
-Both variables accept standard **5-field cron expressions** (`minute hour day-of-month month day-of-week`):
-
-| Field | Allowed Values |
-|-------|---------------|
-| Minute | `0–59` |
-| Hour | `0–23` |
-| Day of month | `1–31` |
-| Month | `1–12` |
-| Day of week | `0–7` (0 and 7 = Sunday) |
-
-**How the two sync modes differ:**
-
-- **`FAST_SYNC`** runs an incremental sync (`--fast-sync`). It only fetches activities newer than the most recent one already in the database. This is lightweight and ideal for frequent scheduling (e.g., every 15 minutes) to keep data nearly real-time.
-- **`FULL_SYNC`** runs a comprehensive audit (`--full-sync`). It retrieves your entire Strava activity history, inserts any missing activities, and removes any that were deleted on Strava. This is heavier and best scheduled infrequently (e.g., once daily during off-hours).
-
-**Recommended setup:** Use both together — `FAST_SYNC` for frequent, low-cost updates and `FULL_SYNC` as a daily reconciliation pass.
-
-**Common cron examples:**
-
-| Expression | Meaning |
-|-----------|---------|
-| `*/15 * * * *` | Every 15 minutes |
-| `0 * * * *` | Every hour, on the hour |
-| `0 3 * * *` | Daily at 3:00 AM |
-| `0 3 * * 0` | Weekly on Sunday at 3:00 AM |
-| `0 */6 * * *` | Every 6 hours |
-
-#### 4. Logging Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `LOG_LEVEL` | Log verbosity for the CLI, web app, and Dockerized Gunicorn process (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). | `INFO` |
-
-How to control logging level:
-
-- Environment variable (recommended for services / Docker):
-
-```env
-LOG_LEVEL=DEBUG
-```
-
-- CLI argument (overrides the environment value when using the CLI entrypoint):
-
-```bash
-# Set debug logging for a single CLI invocation
-python kinetiqo.py --log-level DEBUG sync --fast-sync
-
-# Start the web server with INFO logging (default)
-python kinetiqo.py web
-```
-
-Default behaviour: when no value is provided the application uses the default log level `INFO`. The application uses `kinetiqo.logging_utils.configure_logging()` to set the level for both the `kinetiqo` and `kinetiqo.web` loggers so `--log-level` and `LOG_LEVEL` affect both the CLI and the web UI.
-
-#### 5. Web Interface Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `WEB_LOGIN` | Username for web access. | `admin` |
-| `WEB_PASSWORD` | Password for web access. | `admin123` |
-| `SECRET_KEY` | Long random secret used by Flask to sign session cookies and CSRF tokens. Required for stable and secure production deployments. | Generated at startup in development; required when `KINETIQO_PRODUCTION=1` |
-| `KINETIQO_PRODUCTION` | Set to `1` in production so startup fails if required security settings such as `SECRET_KEY` or Flask-WTF CSRF support are missing. | _(empty)_ |
-
-Set `SECRET_KEY` to a persistent random value and keep it private. It protects login sessions and CSRF validation; if it changes, existing browser sessions and CSRF tokens become invalid, which can cause unexpected logouts or "CSRF token is missing/invalid" errors. In multi-worker or replicated deployments every Kinetiqo instance must use the same `SECRET_KEY`.
-
-Generate one with:
-
-```bash
-openssl rand -hex 32
-```
-
-#### 6. Athlete Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ATHLETE_WEIGHT` | Athlete body weight in kilograms, used for VO₂max estimation. | `0` (not set) |
-
-#### 7. Database Settings vs. Environment Variable Synchronization Architecture
-
-Kinetiqo implements a **unified synchronization architecture** across all configurable settings that exist both as Environment Variables and stored Database profile fields (`UPDATE_STRAVA_*` templates, `GPS_SIMPLIFICATION`, `ATHLETE_WEIGHT`, and `STRAVA_REFRESH_TOKEN`):
-
-1. **Environment Variable Override on Startup / Sync:**
-   - If an Environment Variable is explicitly defined in your environment (e.g. `$UPDATE_STRAVA_CYCLING_OUTDOOR`, `GPS_SIMPLIFICATION`, `ATHLETE_WEIGHT`), its value is compared against the stored Database value. If the Environment Variable value **differs** from the Database (or if the Database field is unconfigured/empty), Kinetiqo automatically updates the Database to match the Environment Variable.
-2. **Database Value Preservation when Env Var is Omitted:**
-   - If an Environment Variable is **NOT set** in the environment (or left omitted/empty), Kinetiqo preserves whatever value is stored in the Database (such as custom templates or settings configured via the Web UI).
-3. **Live Web UI Synchronization:**
-   - Changes made through the Web UI (e.g. on the **Settings** page at `/settings`) write directly to the Database profile table and take effect immediately.
-
-#### 8. Display Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATE_FORMAT` | Date format string (Python `strftime` syntax). | `%b %d, %Y` |
-
-#### 9. Map Configuration
-
-Kinetiqo ships with **16 map tile layers** from 7 providers. Mapy.cz, Thunderforest, MapTiler, and Geoapify require API keys. CARTO supports `CARTO_API_KEY` for authenticated basemap access and watermark removal; layers are unavailable when the key is required but missing.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GPS_SIMPLIFICATION` | GPS track decimation level from `0` to `10` for map rendering. `0` disables simplification (returns exact raw track data). Levels `1`–`10` apply distance-based sampling thresholds from 3 m (`1`) up to 100 m (`10`). Stored in `profile.gps_simplification` DB column and editable via Settings UI. | `0` |
-| `MAPY_API_KEY` | API key for Mapy.cz tile layers (Basic & Outdoor). | _(empty)_ |
-| `THUNDERFOREST_API_KEY` | API key for Thunderforest tile layers (OpenCycleMap & Outdoors). | _(empty)_ |
-| `MAPTILER_API_KEY` | API key for MapTiler tile layers (Bright, Outdoor, Topo, Satellite, Aquarelle). | _(empty)_ |
-| `GEOAPIFY_API_KEY` | API key for Geoapify tile layers (OSM Bright, OSM Carto, Dark Matter). | _(empty)_ |
-| `CARTO_API_KEY` | API key for CARTO basemaps (Positron and Dark Matter). | _(empty)_ |
-| `GPS_SIMPLIFICATION_LEVEL` | Legacy alias for `GPS_SIMPLIFICATION`. | _(empty)_ |
-
-**GPS Simplification Levels & Persistence Rules:**
-
-The setting is stored in the database (`profile.gps_simplification`) and can be adjusted directly from the **Settings** page (`/settings`).
-
-- **If `GPS_SIMPLIFICATION` environment variable is set:** The env var value (0–10) takes precedence on startup. If the database value differs or is not saved yet, the database is automatically updated to match the env var.
-- **If `GPS_SIMPLIFICATION` environment variable is NOT set:** Uses `0` as initial default. If a value has already been saved in the database (e.g. via the Settings UI), the stored database value is preserved. If no value is in the database yet, it is initialized to `0`.
-
-| Level | Distance Threshold | Best For / Description |
+| Feature | Detailed Guide | Description |
 |---|---|---|
-| `0` | `0 m` (Disabled) | Exact raw GPS coordinates (default, original behavior) |
-| `1` | `3 m` | Microscopic jitter removal; maximum track fidelity |
-| `2` | `6 m` | Very high detail |
-| `3` | `10 m` | High detail route overlay |
-| `4` | `15 m` | Recommended web map balance (~10–30× payload reduction) |
-| `5` | `20 m` | Standard cycling & running overlay |
-| `6` | `30 m` | Moderate decimation for large activity selections |
-| `7` | `45 m` | Coarse simplification |
-| `8` | `60 m` | Low point count overview |
-| `9` | `80 m` | Minimalist track overview |
-| `10` | `100 m` | Maximum decimation; preserves major route shape |
-
-**Available map layers:**
-
-| # | Layer Name | Provider | API Key Required | Max Zoom | Best For |
-|---|---|---|---|---|---|
-| 1 | **OpenStreetMap** | OpenStreetMap | No | 19 | General use (default) |
-| 2 | **Mapy.cz (Basic)** | Seznam.cz | `MAPY_API_KEY` | 19 | Detailed Czech/European maps |
-| 3 | **Mapy.cz (Outdoor)** | Seznam.cz | `MAPY_API_KEY` | 19 | Hiking & outdoor trails |
-| 4 | **Thunderforest (OpenCycleMap)** | Thunderforest | `THUNDERFOREST_API_KEY` | 22 | Cycling routes, bike infrastructure |
-| 5 | **Thunderforest (Outdoors)** | Thunderforest | `THUNDERFOREST_API_KEY` | 22 | Hiking, contours, terrain |
-| 6 | **MapTiler (Bright)** | MapTiler | `MAPTILER_API_KEY` | 20 | Clean, modern basemap |
-| 7 | **MapTiler (Outdoor)** | MapTiler | `MAPTILER_API_KEY` | 20 | Hiking, terrain, contours |
-| 8 | **MapTiler (Topo)** | MapTiler | `MAPTILER_API_KEY` | 20 | Topographic map for outdoor activities |
-| 9 | **MapTiler (Satellite)** | MapTiler | `MAPTILER_API_KEY` | 20 | Satellite imagery |
-| 10 | **MapTiler (Aquarelle)** | MapTiler | `MAPTILER_API_KEY` | 20 | Artistic watercolor-style map |
-| 11 | **Geoapify (OSM Bright)** | Geoapify | `GEOAPIFY_API_KEY` | 20 | Clean OSM-derived basemap |
-| 12 | **Geoapify (OSM Carto)** | Geoapify | `GEOAPIFY_API_KEY` | 20 | Familiar OpenStreetMap-style cartography |
-| 13 | **Geoapify (Dark Matter)** | Geoapify | `GEOAPIFY_API_KEY` | 20 | Dark basemap with strong route contrast |
-| 14 | **CARTO (Positron)** | CARTO | `CARTO_API_KEY` | 20 | Minimalist light basemap |
-| 15 | **CARTO (Dark Matter)** | CARTO | `CARTO_API_KEY` | 20 | Dark theme basemap |
-| 16 | **Esri World Imagery** | Esri | No | 18 | Satellite imagery |
-
-> Layers that require a missing API key appear **greyed-out** in the map selector with a hint. They are not removed — just disabled until the key is configured.
-
-> The map page also persists route styling, map opacity, and an optional map-tone colour in `localStorage` so your preferred look comes back on the next visit.
-
-**How to get API keys:**
-
-| Provider | Free Tier | How to Get the Key |
-|---|---|---|
-| **Mapy.cz** (Seznam.cz) | Up to 250,000 credits/month for non-commercial / personal use | 1. Go to [developer.mapy.com](https://developer.mapy.com) → 2. Register or sign in with a Seznam account → 3. Create a new project → 4. Copy the API key → 5. Set `MAPY_API_KEY` env var |
-| **Thunderforest** | Up to 150,000 tiles/month for hobby / personal projects | 1. Go to [manage.thunderforest.com/signup](https://manage.thunderforest.com/signup) → 2. Register for a free "Hobby Project" account → 3. Copy the API key from the dashboard → 4. Set `THUNDERFOREST_API_KEY` env var |
-| **MapTiler** | Up to 100,000 requests/month for development & personal use | 1. Go to [cloud.maptiler.com](https://cloud.maptiler.com) → 2. Register for a free account → 3. Go to [Account → Keys](https://cloud.maptiler.com/account/keys/) → 4. Copy your API key → 5. Set `MAPTILER_API_KEY` env var |
-| **Geoapify** | Credit/quota based. In general, one map tile request costs one credit; daily quota and rate limits depend on your plan. Limits are described as soft, but repeated overuse may require an upgrade or be restricted. | 1. Go to [myprojects.geoapify.com](https://myprojects.geoapify.com) → 2. Register or sign in → 3. Create/select a project → 4. Copy the API key (choose Map Tiles API) → 5. Set `GEOAPIFY_API_KEY` env var. See [Geoapify pricing](https://www.geoapify.com/pricing/) and [pricing details](https://www.geoapify.com/pricing-details/). |
-| **CARTO** | Up to 5,000,000 tile requests/month; key required for current raster basemap access and watermark removal | 1. Create a key at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) → 2. Copy the key → 3. Set `CARTO_API_KEY` env var |
-
-> **OSM tile proxy:** OpenStreetMap tiles are served through a built-in server-side proxy (`/tiles/osm/...`) so the browser never contacts `tile.openstreetmap.org` directly. This satisfies the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) by attaching a proper `User-Agent` and `Referer` header from the server.
-
-> **Map controls:** The map page remembers route color, width, and route opacity together with base-map opacity (default `100%`), tone opacity (default `50%`), and an optional color tone overlay in `localStorage`. When base-map opacity is set to `0%`, the selected tone fills the map exactly.
-
-> **Map export:** The map export control renders the current map viewport as a PNG, including the visible route and attribution. Fullscreen mode can be used before export; export-only controls are removed from the image and a Kinetiqo watermark is added. Tile positioning is normalized to prevent visible seams, including on Mapy.cz layers.
-
-> **Note:** Synchronization errors are recorded in the `logs` database table and are accessible via the Web UI or `docker logs`.
-
-#### 10. Historical Activity Weather
-
-Set `VISUAL_CROSSING_API_KEY` to make server-side hourly historical weather
-available during enabled syncs. The key alone does not fetch weather: enable
-the saved Weather data preference for Fast Sync or select **Fetch weather
-data** for a run. Full Sync remains opt-in.
-
-Eligible outdoor GPS activities store provider conditions, temperature,
-precipitation, wind, gusts, and calculated headwind. GPS coordinates are used
-only for the provider lookup and are never saved in weather payloads or
-returned by AI/MCP tools. A valid `X-RateLimit-Remaining: 0` response or HTTP
-429 stops only weather requests in that server process until UTC midnight; the
-rest of the sync completes with a warning. See [docs/weather.md](docs/weather.md)
-for provider setup, privacy, retries, and rate-limit details.
-
-#### 11. Strava Description Auto-Update (`UPDATE_STRAVA_*`)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `UPDATE_STRAVA_CYCLING_INDOOR` | Template for indoor rides (`VirtualRide`, `IndoorRide`). | _(empty — disabled)_ |
-| `UPDATE_STRAVA_CYCLING_OUTDOOR` | Template for outdoor rides (all other Ride variants). | _(empty — disabled)_ |
-| `UPDATE_STRAVA_RUNNING_INDOOR` | Template for indoor runs (`VirtualRun`). | _(empty — disabled)_ |
-| `UPDATE_STRAVA_RUNNING_OUTDOOR` | Template for outdoor runs (`Run`, `TrailRun`, etc.). | _(empty — disabled)_ |
-| `UPDATE_STRAVA_WALKING` | Template for walks/hikes (`Walk`, `Hike` — no indoor/outdoor split in Strava's taxonomy). | _(empty — disabled)_ |
-| `UPDATE_STRAVA_SWIMMING` | Template for swims (`Swim` — no indoor/outdoor split in Strava's taxonomy). | _(empty — disabled)_ |
-| `UPDATE_STRAVA_PLACEMENT` | Where a brand-new stats block is inserted: `begin` or `end`. Invalid values fall back to `end` with a warning. | `end` |
-| `WORKOUT_SUMMARY_PEAK_THRESHOLD_W` | Absolute watt floor for sustained high-power peak highlights in `{{workout-summary}}`; the effective threshold is the higher of this value and 110% of FTP. | `300` |
-
-Each variable is a text template containing `{{placeholder}}` tokens
-(distance, elevation, count, ordinal, goal, percent, deviation stats — see
-below). Every activity picks **exactly one** of the six templates based on
-its own sport type; when that template is non-empty, the activity's Strava
-description is rendered from it and inserted/updated in the description,
-without disturbing the rest of the text. Activities whose sport type doesn't
-map to one of the six buckets (e.g. `WeightTraining`) are never touched. When
-all six variables are empty/unset (the default), no description updates are
-performed and no extra Strava API calls are made.
-
-> ⚠️ **Requires the `activity:write` scope.** Updating a description is a
-> *write* call, unlike the rest of Kinetiqo's Strava usage (which is
-> read-only). If your `STRAVA_REFRESH_TOKEN` was only ever authorized with
-> `activity:read_all`/`profile:read_all`, every description update will fail
-> with `401 Unauthorized` even though syncing activities themselves works
-> fine. Reconnect via **Settings → Reconnect with Strava** to grant
-> `activity:write` (the button now requests it automatically). Once the
-> first update in a sync run 401s, Kinetiqo stops trying for the rest of
-> that run instead of retrying every remaining activity.
-
-Basic example — a single template applied to outdoor rides only:
-
-```bash
-UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled ({{cycling-distance-percent-total-year}} of the {{current-year}} goal, {{cycling-distance-deviation-total-year}})."
-```
-
-This renders to something like:
-
-```
-Year-to-date: 6,540.0 km cycled (56.10% of the 2026 goal, ahead of the plan by 1,201 km).
-```
-
-On every sync, the applicable template is re-rendered per activity (using
-data "as of" that activity's own date), then wrapped as a single line starting
-with `✨ Kinetiqo:` and merged into the Strava description. Existing lines that
-start with that prefix are replaced, and the new line is inserted at the
-position set by `UPDATE_STRAVA_PLACEMENT` (**end** of the description by
-default, or **beginning** if set to `begin`). To protect Strava API limits,
-description updates are capped to the latest 30 eligible activities per sync.
-Placeholders that can't be resolved (unrecognized name, no goal configured,
-etc.) resolve to an empty string and log a warning — they never break the sync.
-
-The current values of all six variables are also shown (read-only) on the
-**Settings → Athlete** page. This display value is seeded into the database
-the first time each template is non-empty; once seeded, it keeps showing that
-value even if the env var is later changed or removed — env var edits only
-take effect for a bucket whose database value is still empty. (Actual
-description rendering during sync always uses the live env var directly, so
-this only affects what the Settings page displays.)
-
-📖 **Full placeholder reference, formatting rules, and known limitations: [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md)**
-
-## Command-Line Interface (CLI)
-
-The CLI tool is located in the `src` directory.
-
-### CLI Commands
-
--   `--database-type` / `--database` / `-d`: Selects the database backend (`postgresql`, `mysql`, or `firebird`), overriding environment variables and defaults. If an invalid backend is specified, the application terminates.
--   `--log-level`: Sets CLI/web/app log verbosity. Defaults to `INFO` and also reads `LOG_LEVEL`.
--   `sync`: Initiates data synchronization.
-    -   `--full-sync` / `-f`: Executes a full synchronization audit.
-    -   `--fast-sync` / `-q`: Executes an incremental synchronization.
-    -   `--period` / `-p`: Restricts full synchronization to a specific timeframe (e.g., '7d', '2w', '1m', '1y').
-    -   `--update-strava-description` / `--update-strava` / `-U`: Control Strava description auto-updates (`true`/`1`/`yes` or `false`/`0`/`no`, case-insensitive). Default: `true`.
-    -   `--retrigger-ai-agents`: Regenerate named AI-agent responses for eligible activities in the selected sync scope. The existing description-update cap still applies; this flag does not write to Strava unless description updates are enabled.
-    -   `--enable-strava-cache`: Activates API response caching.
-    -   `--cache-ttl`: Defines cache time-to-live in minutes (default: 60).
-    -   `--clear-cache`: Purges the cache prior to synchronization.
--   `web`: Launches the web server.
-    -   `--port`: Specifies the listening port (default: 4444).
-    -   `--host`: Specifies the bind address (default: 0.0.0.0).
--   `flightcheck`: Validates database connectivity and schema integrity.
--   `version`: Outputs the current version information.
--   `benchmark`: Profiles database operations for the configured backend.
-    -   `--scope` / `-s`: Lookback period in days (default: `365`).
--   `scan-trophies`: Scans and backfills segment trophies (placements 1st–10th) from Strava.
-    -   `--limit` / `-l`: Maximum number of activities with achievements to scan (default: `50`).
--   `mcp`: Launches the Model Context Protocol (MCP) server for AI agent integration.
-    -   `--transport` / `-t`: Transport protocol (`stdio`, `sse`, `streamable-http`, default: `stdio` or `$MCP_TRANSPORT`).
-    -   `--host` / `-h`: Host IP binding for SSE transport (default: `0.0.0.0` or `$MCP_HOST`).
-    -   `--port` / `-p`: Port to bind for SSE transport (default: `8000` or `$MCP_PORT`).
-    -   `--database` / `-d`: Override database backend (`postgresql`, `mysql`, `firebird`).
-
-### Manual Sync
-
-Execute the `sync` command from the `src` directory:
-
-```bash
-# Execute full synchronization
-python kinetiqo.py sync --full-sync
-
-# Execute full synchronization limited to the last 30 days
-python kinetiqo.py sync --full-sync --period 30d
-
-# Run a sync disabling Strava description updates
-python kinetiqo.py sync --fast-sync --update-strava false
-
-# Run a verbose fast sync
-python kinetiqo.py --log-level DEBUG sync --fast-sync
-
-# Execute incremental synchronization
-python kinetiqo.py sync --fast-sync
-
-# Scan and backfill segment trophies for historical activities
-python kinetiqo.py scan-trophies --limit 50
-
-# Run the database benchmark for the last 90 days
-python kinetiqo.py benchmark --scope 90
-```
-
-### Web Interface
-
-Launch the web server using the `web` command:
-
-```bash
-# Start server on default port (4444)
-python kinetiqo.py web
-
-# Start server on custom port with specific database backend
-python kinetiqo.py --database mysql web --port 8000
-```
-
-### Model Context Protocol (MCP) Server
-
-Kinetiqo includes a native [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server based on the official FastMCP Python SDK. It allows AI assistants—such as **Google Antigravity IDE**, **Claude Desktop**, **Cursor**, and **OpenClaw**—to connect directly to your local fitness data warehouse via STDIO, SSE, or streamable HTTP, performing evidence-based workout analysis, telemetry stream inspection, power curve computation, and creative artifact generation.
-
-📖 **Full Model Context Protocol (MCP) User Guide: [docs/MCP.md](docs/MCP.md)**
-
-#### CLI Execution & Quick Testing
-
-Start the MCP server directly using the `mcp` CLI command:
-
-```bash
-# Run MCP server using default database settings (STDIO transport)
-python kinetiqo.py mcp
-
-# Run MCP server over FastMCP SSE
-python kinetiqo.py mcp --transport sse --port 8000
-
-# Run MCP server over FastMCP streamable HTTP
-python kinetiqo.py mcp --transport streamable-http --port 8000
-
-# Run MCP server with a specific database backend
-python kinetiqo.py --database postgresql mcp
-```
-
-**Fast Interactive Testing (MCP Inspector):**
-```bash
-# Test tools visually in your browser with the official MCP Inspector
-npx @modelcontextprotocol/inspector python src/kinetiqo.py mcp
-```
-
-> **Clean STDIO Protocol Design**: The MCP server routes all application and diagnostic logs to `stderr`, guaranteeing that `stdout` carries strictly valid JSON-RPC protocol frames without banner pollution.
-
-#### AI Client Configuration (Example `mcpServers` JSON)
-
-To connect your favorite AI coding assistant or desktop client, register Kinetiqo's STDIO server in your client's configuration file:
-
-##### 1. Google Antigravity IDE (`mcp_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "command": "python",
-      "args": ["src/kinetiqo.py", "mcp"],
-      "cwd": "/path/to/kinetiqo",
-      "env": {
-        "DATABASE_TYPE": "postgresql",
-        "POSTGRESQL_HOST": "localhost",
-        "POSTGRESQL_USER": "athlete",
-        "POSTGRESQL_PASSWORD": "secret_password",
-        "POSTGRESQL_DATABASE": "kinetiqo",
-        "POSTGRESQL_PORT": "5432"
-      }
-    }
-  }
-}
-```
-
-##### 2. Claude Desktop (`claude_desktop_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "command": "/path/to/venv/bin/python",
-      "args": ["/path/to/kinetiqo/src/kinetiqo.py", "mcp"],
-      "cwd": "/path/to/kinetiqo",
-      "env": {
-        "DATABASE_TYPE": "mysql",
-        "MYSQL_HOST": "127.0.0.1",
-        "MYSQL_USER": "athlete",
-        "MYSQL_PASSWORD": "secret_password",
-        "MYSQL_DATABASE": "kinetiqo",
-        "MYSQL_PORT": "3306"
-      }
-    }
-  }
-}
-```
-
-##### 3. Cursor (`.cursor/mcp.json`)
-
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "command": "python",
-      "args": ["src/kinetiqo.py", "mcp"],
-      "cwd": "${workspaceFolder}"
-    }
-  }
-}
-```
-
-##### 4. OpenClaw CLI
-
-```bash
-openclaw mcp add kinetiqo \
-  --command /path/to/venv/bin/python \
-  --arg /path/to/kinetiqo/src/kinetiqo.py \
-  --arg mcp \
-  --cwd /path/to/kinetiqo
-openclaw mcp doctor kinetiqo --probe
-```
-
-##### 5. Zero-Install Execution via Docker
-
-Kinetiqo builds two official container variants:
-- **`kinetiqo/web:latest` (Standalone)**: Web UI (port `4444`) + Cron sync daemon.
-- **`kinetiqo/web-mcp:latest` (Kinetiqo + MCP)**: Web UI (port `4444`) + Cron + **FastMCP SSE Server (port `8000`)** in parallel (`ENABLE_MCP=1`).
-
-**Connect Claude Desktop / Cursor directly to running container via SSE:**
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "url": "http://localhost:8000/sse"
-    }
-  }
-}
-```
-
-**Or run ephemeral on-demand via STDIO:**
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-e", "DATABASE_TYPE=postgresql",
-        "-e", "POSTGRESQL_HOST=host.docker.internal",
-        "-e", "POSTGRESQL_PORT=5432",
-        "-e", "POSTGRESQL_USER=postgres",
-        "-e", "POSTGRESQL_PASSWORD=password",
-        "-e", "POSTGRESQL_DATABASE=kinetiqo",
-        "kinetiqo/web-mcp:latest",
-        "python", "kinetiqo.py", "mcp"
-      ]
-    }
-  }
-}
-```
-
-#### MCP Toolset Reference
-
-Kinetiqo exposes **32 specialized read-only tools** across 6 functional groups by default. Enabling all three explicit mutation gates adds four write tools, for a maximum of **36**:
-
-| Group | Tools Included | Description | Mutating? |
-|---|---|---|---|
-| **A: Activity Discovery** | `kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_totals`, `kinetiqo_compare_activities`, `kinetiqo_compare_periods`, `kinetiqo_find_similar_routes`, `kinetiqo_compare_route_attempts` | Filter, search with keyset pagination, compare activities, inspect route overlap. | No |
-| **B: Telemetry & Power** | `kinetiqo_get_activity_streams`, `kinetiqo_get_data_coverage`, `kinetiqo_calculate_power_curve`, `kinetiqo_get_personal_records`, `kinetiqo_analyze_workout_structure`, `kinetiqo_analyze_pacing`, `kinetiqo_get_route_highlights` | Aligned time-series streams, downsampling, MMP curves, NP/IF/TSS, pacing splits, decoupling. | No |
-| **C: Physiology & Fitness** | `kinetiqo_get_fitness_and_freshness`, `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`, `kinetiqo_get_power_skills`, `kinetiqo_get_training_load_trends`, `kinetiqo_get_weekly_training_profile`, `kinetiqo_analyze_recovery_turnaround` | Suffer-score CTL/ATL/TSB trends, FTP breakthroughs, VO₂max estimates, Acute:Chronic ratio, weekly habit & power profiles, recovery turnaround. | No |
-| **D: Achievements & Goals** | `kinetiqo_get_verified_koms`, `kinetiqo_get_segment_trophies`, `kinetiqo_get_fondo_milestones`, `kinetiqo_get_training_goals`, `kinetiqo_update_training_goals` | Verified crowns, top-10 segment ribbons, Gran Fondos (100k+), goals and remaining pace. | Only `update_training_goals` (Gated) |
-| **E: Visual Generation** | `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic`, `kinetiqo_generate_map_artifact` | Decoupled Playwright exports with inline base64 images and privacy start/end redaction. | No |
-| **F: Operations & Sync** | `kinetiqo_get_sync_job_status`, `kinetiqo_preview_strava_description`, `kinetiqo_trigger_sync`, `kinetiqo_update_strava_description`, `kinetiqo_update_athlete_profile` | Background sync triggers, description preview and publishing, profile weight/FTP updates. | Only `trigger_sync`, `update_strava_description`, `update_athlete_profile` (Gated) |
-
-#### Resources & Prompts
-
-* **Resources**:
-  - `kinetiqo://profile`: Sanitized athlete profile (weight, FTP, timezone, units).
-  - `kinetiqo://goals`: Active training targets and current progress.
-  - `kinetiqo://activities/latest`: Details and sensor coverage for the most recent session.
-  - `kinetiqo://analytics/fitness-freshness`: Current CTL/ATL/TSB and 90-day history.
-  - `kinetiqo://analytics/power-skills`: Power-duration benchmarks (5s to 1h).
-  - `kinetiqo://analytics/koms`: Locally verified King of the Mountains crowns.
-* **Pre-Packaged Prompts**:
-  - `post_ride_debrief`: Structured, evidence-based post-session debrief with sensor checks, workout intensity, fatigue form, and poster generation offers.
-  - `race_readiness_assessment`: Training readiness review evaluating TSB form, sustained power benchmarks, and recent volume.
-  - `poster_creative_director`: Basemap, color palette, and typography curation for activity art posters.
-  - `weekly_training_review`: Longitudinal review of weekly volume, elevation, power work (kJ, NP), and goal consistency.
-  - `endurance_recovery_advisor`: Post-100km+ recovery analysis detailing turnaround rest days, days to hard workouts, and TSB rebound.
-  - `season_power_audit`: Deep-dive audit of season power output, standout power week, MMP power curves, and benchmark PRs.
-  - `training_habit_and_volume_profile`: Behavioral analysis of typical weekly kilometers, elevation gain, and day-of-week routines.
-  - `aerobic_decoupling_and_efficiency`: Aerobic efficiency, cardiac drift, and power-to-heart-rate review.
-  - `ftp_breakthrough_and_power_zones_audit`: FTP progression, power breakthroughs, and Coggan-zone review.
-  - `training_stress_and_overreaching_check`: CTL/ATL/TSB, ramp-rate, and acute-to-chronic workload assessment.
-  - `cadence_and_pedaling_efficiency_analysis`: Cadence dynamics and pedaling-efficiency analysis.
-  - `interval_session_quality_audit`: Interval execution, recovery, consistency, and power-fade scorecard.
-
-#### Gated Mutation Controls
-
-By default, the MCP server runs in **100% read-only mode**. All mutating tools are **completely omitted from the MCP tool registry** (`tools/list`) unless explicitly activated via their respective environment gate flag:
-
-| Variable | Default | Purpose / Permission |
-|---|---|---|
-| `KINETIQO_MCP_ALLOW_SYNC` | `0` | If `1`, registers `kinetiqo_trigger_sync` allowing AI agents to trigger background activity syncs. |
-| `KINETIQO_MCP_ALLOW_PROFILE_WRITE` | `0` | If `1`, registers `kinetiqo_update_athlete_profile` and `kinetiqo_update_training_goals`. |
-| `KINETIQO_MCP_ALLOW_STRAVA_WRITE` | `0` | If `1`, registers `kinetiqo_update_strava_description` allowing AI agents to publish approved descriptions to Strava. |
-
-## Architecture
-
-### Project Structure
-
-```
-src/
-├── kinetiqo.py                 # CLI entry point (Click)
-├── app.py                      # Alternative WSGI entry point
-└── kinetiqo/                   # Core application package
-    ├── __init__.py
-    ├── __main__.py
-    ├── cache.py                 # Strava API response cache
-    ├── cli.py                   # Click CLI commands (sync, web, flightcheck, version, benchmark, scan-trophies)
-    ├── config.py                # Config dataclass (reads env vars)
-    ├── gps_simplify.py          # Distance-based GPS track simplification
-    ├── koms.py                  # KOMs and segment trophy extraction and persistence
-    ├── logging_utils.py         # Shared logging configuration
-    ├── profile_sync.py          # Environment/profile synchronization and token persistence
-    ├── strava.py                # Strava API client (OAuth2, activity streams)
-    ├── strava_description.py    # Description template rendering and validation
-    ├── sync.py                  # SyncService (core sync logic, SSE progress)
-    ├── version_check.py         # Async GitHub release version check
-    ├── workout_summary.py       # Power/heart-rate workout summary generation
-    ├── analytics/               # Pure analytical services (zero network/DB dependency)
-    │   ├── power.py             # NP, IF, TSS, and continuous MMP curves
-    │   ├── fitness.py           # Suffer-score CTL/ATL/TSB with EWMA warm-up
-    │   └── pacing.py            # Splits, stops, and aerobic decoupling
-    ├── db/
-    │   ├── repository.py        # DatabaseRepository ABC (contract for all backends)
-    │   ├── factory.py           # create_repository() factory
-    │   ├── pagination.py        # Keyset pagination & URL-safe base64 cursor codecs
-    │   ├── schema.py            # DDL schema definitions (including sync_jobs and verified_segment_efforts)
-    │   ├── postgresql.py        # PostgreSQL implementation
-    │   ├── mysql.py             # MySQL/MariaDB implementation
-    │   └── firebird.py          # Firebird implementation
-    ├── mcp/                     # Model Context Protocol (FastMCP server)
-    │   ├── server.py            # FastMCP factory & dynamic tool gating
-    │   ├── contracts.py         # Standard response envelope & error schemas
-    │   ├── resources.py         # MCP resources (profile, goals, latest activity, analytics)
-    │   ├── prompts.py           # Pre-packaged coaching workflows
-    │   ├── utils.py             # Telemetry downsampling & gap detection
-    │   └── tools/               # 35 master catalog tools (Groups A–F)
-    └── web/
-        ├── app.py               # Flask app, all routes & API endpoints
-        ├── auth.py              # flask-login User model & auth helpers
-        ├── renderers/           # Decoupled Playwright HTML-synthesis renderers (posters, stats, fondo)
-        ├── fitness.py           # CTL/ATL/TSB calculation (pandas)
-        ├── fondo_o_meter.py     # Fondo-o-meter infographic data aggregation
-        ├── fonts.py             # Single source of truth for all Google Fonts
-        ├── poster_filters.py    # Photo editing filters and adjustments for posters
-        ├── progress.py          # SSE sync progress stream
-        ├── stats.py             # MEGA Stats infographic data aggregation
-        ├── vo2max.py            # VO₂max estimation (Townsend/Storer-Davis and Coggan methods)
-        ├── static/
-        │   ├── css/
-        │   │   ├── google_fonts_local.css   # Generated base @font-face CSS (self-hosted)
-        │   │   └── google_fonts_poster_local.css # Self-hosted poster font catalog
-        │   └── fonts/           # Self-hosted woff2 files (baked into Docker image)
-        └── templates/           # Jinja2 templates
-            ├── base.html            # Base layout (sidebar, dark mode, shared assets)
-            ├── activities.html      # Activity list (DataTables, Select2, DateRangePicker)
-            ├── map.html             # Leaflet map with multi-provider tile layers
-            ├── powerskills.html     # Power Skills spider chart (Chart.js)
-            ├── ftp.html             # FTP estimation history chart
-            ├── fitness.html         # Fitness & Freshness chart (CTL/ATL/TSB)
-            ├── vo2max.html          # VO₂max estimation chart
-            ├── stats.html           # MEGA Stats Veloviewer-style infographic
-            ├── fondo-o-meter.html   # Fondo-o-meter concentric milestone rings infographic
-            ├── poster.html          # Activity poster generator (customizable fonts, colors, sizes)
-            ├── settings.html        # Settings page (profile, goals, config)
-            ├── logs.html            # Audit log viewer
-            ├── fonts.html           # Self-hosted typography showcase & font preview
-            ├── license.html         # License & attribution page
-            ├── login.html           # Login form
-            ├── sync.html            # Sync trigger page
-            ├── progress.html        # SSE progress bar
-            └── _*.html              # Reusable partials (filters, selectors)
-tests/
-├── test_sync_logic.py           # Canonical mocked unit test example
-├── test_cli_sync.py             # CLI sync command tests
-├── test_ftp.py                  # FTP estimation tests
-├── test_vo2max.py               # VO₂max estimation tests
-├── test_stats.py                # MEGA Stats infographic tests
-├── test_stats_image.py          # MEGA Stats image upload, reset, and UI tests
-├── test_fondo_o_meter.py        # Fondo-o-meter concentric rings & milestone tests
-├── test_kom_verification_e2e.py # Verified KOMs & trophy extraction tests
-├── test_mcp_contracts.py        # MCP protocol schemas and tool contracts
-├── test_mcp_tools.py            # MCP analytical and discovery tools
-├── test_mcp_server.py           # FastMCP server lifecycle, permissions, and SSE
-├── test_cli_mcp.py              # CLI 'mcp' command and argument validation
-├── test_mcp_sse.py              # FastMCP SSE Starlette endpoint tests
-├── test-docker-postgresql.sh    # Docker integration test (PostgreSQL)
-└── test-docker-firebird.sh      # Docker integration test (Firebird)
-development/
-├── download-fonts.py            # Refresh self-hosted Google Fonts from CDN
-├── download-vendor-libraries.py # Unified manager for offline vendor assets & Tailwind CLI
-├── vendor-libraries.yaml        # Parameter definitions for vendor assets & Tailwind CLI
-├── install-firebird.sh          # Compile Firebird 5.x client library & Python driver
-└── setup-direnv.sh              # Configure direnv for automated env management
-build/
-├── Dockerfile.web               # Application image (Standalone Web + Cron)
-├── Dockerfile.mcp               # Integrated Web + FastMCP SSE image
-├── Dockerfile.firebird-base     # Firebird base image (Phase 1)
-├── build.sh                     # Unified build script (targets: base, web, mcp, all)
-├── entrypoint.sh                # Container entrypoint (cron setup, Gunicorn, optional MCP)
-├── test-local.sh                # Local test script
-└── docker-overview.md           # Docker build documentation
-```
-
-### Technology Stack
-
-| Concern | Technology | Version |
-|---|---|---|
-| Language | Python | 3.14 |
-| Web framework | Flask[async] + flask-login | 3.1.3 / 0.6.3 |
-| Response compression | flask-compress | 1.25 |
-| CSRF protection | Flask-WTF | 1.3.0 |
-| WSGI server | Gunicorn | 26.2.0 |
-| CLI | Click | 8.5.0 |
-| HTTP client | httpx | 0.28.1 |
-| Data processing | pandas | 3.0.6 |
-| Versioning | packaging | ≥26.3 |
-| PostgreSQL driver | psycopg2-binary | 2.9.13 |
-| MySQL driver | mysql-connector-python | 26.7.0 |
-| Firebird driver | firebird-driver | 2.0.3 |
-| AI & MCP Protocol | FastMCP (`mcp[cli]`) | ≥1.2.0 |
-| Image processing | Pillow / pillow-heif | ≥13.0.0 / ≥1.8.1 |
-| Browser automation | Playwright | ≥1.64.0 |
-| Frontend CSS | Tailwind CSS | Local build (Tailwind CLI 4.3.3) |
-| Reactivity | HTMX + htmx-ext-sse | 2.0.10 (local vendor file) / 2.2.2 |
-| Data tables | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 |
-| Charting | Chart.js + chartjs-adapter-moment | 4.x / 1.0 |
-| Maps | Leaflet.js | 1.9.4 (local vendor files) |
-| Dropdowns | Select2 | 4.1 |
-| Date pickers | DateRangePicker + Moment.js | 3.1 / 2.31 |
-| Drag & drop | SortableJS | 1.15 |
-| Fonts | Self-hosted Inter + Italiana (woff2, baked into Docker image). Catalog in `fonts.py`. Refresh with `python development/download-fonts.py`. | — |
-| Leaflet.js | 1.9.4 (local vendor files in `src/kinetiqo/web/static/vendor/leaflet/`). Refresh with `python development/download-vendor-libraries.py --library leaflet`. | BSD 2-Clause |
-| jQuery | 3.7.1 (local vendor file in `src/kinetiqo/web/static/vendor/jquery/`). Refresh with `python development/download-vendor-libraries.py --library jquery`. | — |
-| Container base | python:3.14-slim | — |
-| Scheduler | cron | Debian package |
-| HTTP client | httpx / requests | 0.28.1 / 2.34.2 |
-| YAML parser | PyYAML | 6.0.3 |
-| Testing | unittest + unittest.mock | stdlib |
-
-## Building Docker Images
-
-### Architecture: Two-Phase Build
-
-The Docker build is split into **two independent phases** to keep day-to-day builds fast. Compiling the Firebird 5.x client library from source takes ~40 minutes on CI, so it is isolated into a dedicated **base image** that rarely needs rebuilding.
-
-```
-Phase 1 (rare)                          Phase 2 (every release)
-┌──────────────────────────┐            ┌──────────────────────────┐
-│  Dockerfile.firebird-base│            │  Dockerfile.web          │
-│                          │            │                          │
-│  python:3.14-slim        │            │  python:3.14-slim        │ ← pip install only
-│    + compile Firebird    │            │    (builder stage)       │
-│    + runtime libs        │            │                          │
-│           ↓              │            │  kinetiqo/firebird-python│ ← FROM base image
-│  kinetiqo/firebird-python│ ──────────│    + pip packages        │
-│         :3.14            │  used as   │    + app source          │
-└──────────────────────────┘  base      │           ↓              │
-                                        │  kinetiqo/web:x.y.z      │
-                                        │  kinetiqo/web-mcp:x.y.z  │
-                                        └──────────────────────────┘
-```
-
-| Phase | Image | Dockerfile | Rebuild when… |
-|---|---|---|---|
-| 1 — Base | `kinetiqo/firebird-python:3.14` | `build/Dockerfile.firebird-base` | Python or Firebird version changes |
-| 2 — App | `kinetiqo/web:x.y.z`<br>`kinetiqo/web-mcp:x.y.z` | `build/Dockerfile.web`<br>`build/Dockerfile.mcp` | Application code or dependencies change |
-
-### Unified Build Script (`build.sh`)
-
-All Docker builds are managed through the single unified script `build/build.sh`. A target argument (`base`, `web`, `mcp`, or `all`) is **mandatory**:
-
-```bash
-# Target: base image (~40 min one-time compilation, or when upgrading Python/Firebird)
-./build/build.sh base
-
-# Target: standalone web application (~2 min)
-./build/build.sh web
-
-# Target: integrated web + FastMCP application (~2 min)
-./build/build.sh mcp
-
-# Target: all images in proper sequence (base -> web -> mcp)
-./build/build.sh all
-```
-
-`build/build.sh` accepts the optional `--push` flag to authenticate and publish multi-platform (`linux/amd64,linux/arm64`) images to Docker Hub:
-
-```bash
-# Push with environment variables
-export DOCKER_USERNAME="kinetiqo"
-export DOCKER_TOKEN="your_dockerhub_token"
-./build/build.sh web --push
-
-# Push with explicit CLI credentials
-./build/build.sh all --push -u kinetiqo -t your_dockerhub_token
-
-# Simulate without building (dry-run)
-./build/build.sh all --dry-run
-```
-
-| Target | Local Build (without `--push`) | Publishing (with `--push`) |
-|---|---|---|
-| `./build.sh base` | Builds base image for `linux/amd64`, loads locally | Authenticates via `docker login`, builds multi-arch (`linux/amd64,linux/arm64`), pushes `kinetiqo/firebird-python:3.14` |
-| `./build.sh web` | Builds standalone web image for `linux/amd64`, loads locally | Authenticates via `docker login`, builds multi-arch (`linux/amd64,linux/arm64`), pushes `kinetiqo/web:latest` |
-| `./build.sh mcp` | Builds web + MCP image for `linux/amd64`, loads locally | Authenticates via `docker login`, builds multi-arch (`linux/amd64,linux/arm64`), pushes `kinetiqo/web-mcp:latest` |
-| `./build.sh all` | Builds `base`, then `web`, then `mcp` locally | Authenticates and builds all three multi-arch images in sequence and pushes to Docker Hub |
-
-### CI/CD Workflows
-
-Two GitHub Actions workflows mirror the two-phase build:
-
-| Workflow | File | Trigger | Purpose |
-|---|---|---|---|
-| **Build Firebird Python Base Image** | `.github/workflows/build-base-image.yaml` | Manual (`workflow_dispatch`) | Compiles Firebird, pushes `kinetiqo/firebird-python` to DockerHub |
-| **Build and publish Docker image** | `.github/workflows/build.yaml` | Manual or push to `main` with `/publish` or `/release` in commit message | Builds the app image, optionally pushes to DockerHub and creates a GitHub Release |
-
-#### Build Firebird Python Base Image
-
-Triggered **manually only** from the GitHub Actions UI. Inputs:
-
-| Input | Default | Description |
-|---|---|---|
-| `python_version` | `3.14` | Python version for the base Debian-slim image |
-| `firebird_version` | `5.0.4` | Firebird version to compile from source |
-| `platforms` | `linux/amd64,linux/arm64` | Target architectures |
-
-Pushes two tags to DockerHub:
-- `kinetiqo/firebird-python:3.14`
-- `kinetiqo/firebird-python:3.14-firebird5.0.4`
-
-#### Build and publish Docker image
-
-Triggered **manually** (with `publish` and `create_release` boolean inputs) or automatically on push to `main` when the commit message contains `/publish` and/or `/release`.
-
-| Commit commands | Effect |
-|---|---|
-| `/publish` | Build and push the Docker image to DockerHub |
-| `/release` | Create a GitHub Release with an auto-generated changelog |
-
-## Deployment
-
-Kinetiqo offers container-native deployment on Debian slim with built-in cron scheduling, parameterized database drivers, and optional concurrent FastMCP support for AI assistants.
-
-### Official Docker Image Variants
-
-Kinetiqo publishes two official multi-architecture (`linux/amd64`, `linux/arm64`) Docker images on Docker Hub:
-
-| Image Variant | Docker Tag | Default Ports | Included Services | Recommended For |
-|---|---|---|---|---|
-| **Standalone** | `kinetiqo/web:latest`<br>`kinetiqo/web:x.y.z` | `4444` | • Flask / Gunicorn Web UI (`0.0.0.0:4444`)<br>• Background Cron Sync Daemon (`FAST_SYNC`, `FULL_SYNC`)<br>• MCP disabled by default (`ENABLE_MCP=0`) | Standard self-hosted Strava data warehouse and web dashboard. |
-| **Kinetiqo + Embedded MCP** | `kinetiqo/web-mcp:latest`<br>`kinetiqo/web-mcp:x.y.z` | `4444`<br>`8000` | • Flask / Gunicorn Web UI (`0.0.0.0:4444`)<br>• Background Cron Sync Daemon (`FAST_SYNC`, `FULL_SYNC`)<br>• **FastMCP SSE Server (`0.0.0.0:8000/sse`)** in parallel (`ENABLE_MCP=1`) | AI assistant connectivity (Claude Desktop, Cursor, Antigravity IDE) directly to your data warehouse over HTTP/SSE without local Python or extra containers. |
-
-*(Note: Both images are full-featured with system Chromium, Playwright, and Firebird client pre-installed, supporting all 32 default read-only tools—including Group E visual poster and infographic exports—and up to 36 tools with mutation gates enabled).*
+| **Activity Grid** | [docs/activities.md](docs/activities.md) | Searchable DataTables 2.x table, column reordering, bulk actions, CSV/XLSX export, and trophies. |
+| **Interactive Maps** | [docs/maps.md](docs/maps.md) | 16 basemaps across 7 providers, Canvas rendering, GPS simplification, OSM tile proxy, and route styling. |
+| **Fitness & Freshness** | [docs/fitness.md](docs/fitness.md) | Banister impulse-response model for CTL (Fitness), ATL (Fatigue), and TSB (Form) curves. |
+| **Power Skills** | [docs/power.md](docs/power.md) | Spider chart of peak power efforts (5s to 1h), Mean Maximal Power curves, and Normalized Power. |
+| **FTP & VO₂max** | [docs/ftp-vo2max.md](docs/ftp-vo2max.md) | Automated 95% 20-min power FTP estimation and Townsend 5-min MAP VO₂max classification trends. |
+| **Activity Goals** | [docs/goals.md](docs/goals.md) | Weekly, monthly, and yearly distance and elevation targets with progress and pacing tracking. |
+| **Activity Posters** | [docs/poster.md](docs/poster.md) | WYSIWYG poster builder with photo editor, aspect ratios (4:3, 16:9, 1:1), elevation chart, and PNG export. |
+| **MEGA Stats** | [docs/mega-stats.md](docs/mega-stats.md) | Yearly infographic with 365-day calendar heatmaps, responsive full-width layout, and vector PDF/PNG export. |
+| **Fondo-o-meter** | [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md) | Dynamic concentric radial milestone rings, sport thresholds, verified KOMs, PRs, and export. |
+| **Weather Enrichment** | [docs/weather.md](docs/weather.md) | Historical hourly weather, temperature ranges, wind vectors, gusts, and route headwind calculations. |
+| **Strava Auto-Updates** | [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md) | Custom description template engine with 150+ placeholders, workout summaries, and power zones. |
+| **In-App AI Chat** | [docs/AI.md](docs/AI.md) | Conversational endurance coach supporting Google Gemini and OpenRouter (multi-provider). |
+| **Model Context Protocol** | [docs/MCP.md](docs/MCP.md) | FastMCP server exposing 32+ evidence-based tools to Antigravity, Claude Desktop, Cursor, and OpenClaw. |
+| **Database Architecture** | [docs/DATABASE.md](docs/DATABASE.md) | Multi-DB zero-ORM repository pattern, driver benchmarks, and production tuning for PG, MySQL, and Firebird. |
+| **Sync Engine** | [docs/sync.md](docs/sync.md) | 4-phase ETL synchronization pipeline, Fast vs. Full sync, HTMX + SSE progress, and rate-limit safety. |
+| **CLI Reference** | [docs/cli.md](docs/cli.md) | Command-line interface reference for `web`, `sync`, `mcp`, `benchmark`, `flightcheck`, and `scan-trophies`. |
+| **Usage & Deployment** | [docs/usage.md](docs/usage.md) | Production deployment guide for Docker, Docker Compose, native Python, and complete `.env` configuration. |
 
 ---
 
-### Deployment Option 1: Standalone Kinetiqo (Web UI + Cron Sync)
+## Quick Start
 
-Use this option if you want Kinetiqo purely as an activity warehouse and web dashboard.
+### 1. Docker Compose (Recommended)
 
-#### Docker Run (Standalone)
+Create `docker-compose.yml`:
 
-Run the container in the background with port `4444` exposed (mapped to host port `4444` or `8080`):
-
-```bash
-docker run -d \
-  --name kinetiqo \
-  --restart unless-stopped \
-  -p 4444:4444 \
-  -e STRAVA_CLIENT_ID="your_strava_client_id" \
-  -e STRAVA_CLIENT_SECRET="your_strava_client_secret" \
-  -e STRAVA_REFRESH_TOKEN="your_strava_refresh_token" \
-  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
-  -e KINETIQO_PRODUCTION=1 \
-  -e WEB_LOGIN="admin" \
-  -e WEB_PASSWORD="securepassword13" \
-  -e DATABASE_TYPE="postgresql" \
-  -e POSTGRESQL_HOST="host.docker.internal" \
-  -e POSTGRESQL_PORT=5432 \
-  -e POSTGRESQL_USER="postgres" \
-  -e POSTGRESQL_PASSWORD="your_database_password" \
-  -e POSTGRESQL_DATABASE="kinetiqo" \
-  -e POSTGRESQL_SSL_MODE="disable" \
-  -e FAST_SYNC="*/15 * * * *" \
-  -e FULL_SYNC="0 3 * * *" \
-  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
-  -e MAPY_API_KEY="your_mapy_com_api_token" \
-  -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
-  -e MAPTILER_API_KEY="your_maptiler_api_token" \
-  -e GEOAPIFY_API_KEY="your_geoapify_api_token" \
-  -e CARTO_API_KEY="your_carto_api_key" \
-  -e ATHLETE_WEIGHT="75" \
-  -e DATE_FORMAT="%b %d, %Y" \
-  -e GPS_SIMPLIFICATION="0" \
-  -e LOG_LEVEL="INFO" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled." \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}." \
-  -e UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run." \
-  -e UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}." \
-  -e UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked." \
-  -e UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum." \
-  -e UPDATE_STRAVA_PLACEMENT="end" \
-  -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
-  -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
-  kinetiqo/web:latest
-```
-
-The Web Dashboard is immediately available at **http://localhost:4444**.
-
-#### Docker Compose (Standalone)
-
-For a production deployment including **PostgreSQL** and **Grafana**:
-
-**`docker-compose.yml`:**
 ```yaml
 services:
-  kinetiqo:
-    image: kinetiqo/web:latest
-    container_name: kinetiqo
+  db:
+    image: postgres:16-alpine
     restart: unless-stopped
+    environment:
+      POSTGRES_DB: kinetiqo
+      POSTGRES_USER: kinetiqo
+      POSTGRES_PASSWORD: ChangeThisDatabasePassword123!
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinetiqo -d kinetiqo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: kinetiqo/web:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "4444:4444"
     env_file:
       - .env
-    environment:
-      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
-    depends_on:
-      postgresql:
-        condition: service_healthy
-
-  postgresql:
-    image: postgres:16-alpine
-    container_name: postgresql
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRESQL_PASSWORD}
-      - POSTGRES_DB=kinetiqo
     volumes:
-      - postgresql_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d kinetiqo"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-    depends_on:
-      - postgresql
+      - app_data:/app/data
 
 volumes:
-  postgresql_data:
+  pgdata:
+  app_data:
 ```
 
-**`.env`:**
+Provide your Strava credentials in `.env`:
+
 ```env
-# Strava OAuth API Credentials
-STRAVA_CLIENT_ID=your_strava_client_id
-STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REFRESH_TOKEN=your_strava_refresh_token
-
-# Web Authentication & Security
-KINETIQO_PRODUCTION=1
-KINETIQO_SECRET_KEY=replace_with_output_from_openssl_rand_hex_32
-WEB_LOGIN=admin
-WEB_PASSWORD=your_secure_password
-
-# Database Configuration (PostgreSQL)
+STRAVA_CLIENT_ID=your_client_id
+STRAVA_CLIENT_SECRET=your_client_secret
+STRAVA_REFRESH_TOKEN=your_refresh_token
+STRAVA_ATHLETE_ID=your_athlete_id
+SECRET_KEY=generate_a_random_32_character_secret_key
 DATABASE_TYPE=postgresql
-POSTGRESQL_HOST=postgresql
-POSTGRESQL_PORT=5432
-POSTGRESQL_USER=postgres
-POSTGRESQL_PASSWORD=your_secure_database_password
-POSTGRESQL_DATABASE=kinetiqo
-POSTGRESQL_SSL_MODE=disable
-
-# Automatic Cron Sync Schedules
-FAST_SYNC="*/15 * * * *"
-FULL_SYNC="0 3 * * *"
-
-# Optional Historical Activity Weather
-VISUAL_CROSSING_API_KEY=
-
-# Grafana Dashboard Password
-GRAFANA_ADMIN_PASSWORD=your_secure_grafana_password
-
-# Map Tile API Keys (Optional)
-MAPY_API_KEY=
-THUNDERFOREST_API_KEY=
-MAPTILER_API_KEY=
-GEOAPIFY_API_KEY=
-CARTO_API_KEY=
-
-# Athlete & Telemetry Settings
-ATHLETE_WEIGHT=75
-DATE_FORMAT="%b %d, %Y"
-GPS_SIMPLIFICATION=0
-LOG_LEVEL=INFO
-
-# Strava Description Auto-Update Templates (Optional)
-UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled."
-UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}."
-UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run."
-UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}."
-UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked."
-UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum."
-UPDATE_STRAVA_PLACEMENT=end
-WORKOUT_SUMMARY_PEAK_THRESHOLD_W=300
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=
+DB_HOST=db
+DB_NAME=kinetiqo
+DB_USER=kinetiqo
+DB_PASSWORD=ChangeThisDatabasePassword123!
 ```
 
-Deploy the stack:
+Launch the stack:
 ```bash
 docker compose up -d
+```
+Access the dashboard at `http://localhost:4444`.
+
+*For detailed configurations including MySQL, Firebird, and standalone Docker Run commands, see [docs/usage.md](docs/usage.md).*
+
+---
+
+### 2. Native Python Setup
+
+```bash
+# Clone and enter repository
+git clone https://github.com/lhotakj/kinetiqo.git
+cd kinetiqo
+
+# Create virtual environment (Python 3.14+)
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+
+# Install requirements & Playwright browser
+pip install -r requirements.txt
+playwright install chromium-headless-shell
+
+# Configure .env and launch web dashboard
+cp .env.example .env
+python src/kinetiqo.py web
 ```
 
 ---
 
-### Deployment Option 2: Kinetiqo + Embedded MCP Server (Web UI + Cron + MCP SSE)
+## Command-Line Interface (CLI)
 
-Use this option if you want to connect AI assistants (**Claude Desktop**, **Cursor**, **Google Antigravity IDE**, **OpenClaw**) to your private fitness data warehouse.
-
-In this mode, Kinetiqo runs three processes concurrently inside the container:
-1. **Flask / Gunicorn Web UI** on port **`4444`**
-2. **Debian Cron Scheduler** running scheduled background syncs
-3. **FastMCP SSE Server** on standard port **`8000`** (`http://localhost:8000/sse`)
-
-#### Docker Run (Embedded MCP)
-
-Expose **both ports** (`4444` for Web UI, `8000` for MCP SSE) and pass the MCP environment variables:
+Kinetiqo includes a Click-powered CLI (`src/kinetiqo.py`) for management and automation:
 
 ```bash
-docker run -d \
-  --name kinetiqo \
-  --restart unless-stopped \
-  -p 4444:4444 \
-  -p 8000:8000 \
-  -e ENABLE_MCP=1 \
-  -e MCP_PORT=8000 \
-  -e MCP_HOST="0.0.0.0" \
-  -e MCP_TRANSPORT="sse" \
-  -e KINETIQO_MCP_ALLOW_SYNC=0 \
-  -e KINETIQO_MCP_ALLOW_PROFILE_WRITE=0 \
-  -e KINETIQO_MCP_ALLOW_STRAVA_WRITE=0 \
-  -e STRAVA_CLIENT_ID="your_strava_client_id" \
-  -e STRAVA_CLIENT_SECRET="your_strava_client_secret" \
-  -e STRAVA_REFRESH_TOKEN="your_strava_refresh_token" \
-  -e SECRET_KEY="replace_with_output_from_openssl_rand_hex_32" \
-  -e KINETIQO_PRODUCTION=1 \
-  -e WEB_LOGIN="admin" \
-  -e WEB_PASSWORD="securepassword13" \
-  -e DATABASE_TYPE="postgresql" \
-  -e POSTGRESQL_HOST="host.docker.internal" \
-  -e POSTGRESQL_PORT=5432 \
-  -e POSTGRESQL_USER="postgres" \
-  -e POSTGRESQL_PASSWORD="your_database_password" \
-  -e POSTGRESQL_DATABASE="kinetiqo" \
-  -e POSTGRESQL_SSL_MODE="disable" \
-  -e FAST_SYNC="*/15 * * * *" \
-  -e FULL_SYNC="0 3 * * *" \
-  -e VISUAL_CROSSING_API_KEY="your_visual_crossing_api_key" \
-  -e MAPY_API_KEY="your_mapy_com_api_token" \
-  -e THUNDERFOREST_API_KEY="your_thunderforest_api_token" \
-  -e MAPTILER_API_KEY="your_maptiler_api_token" \
-  -e GEOAPIFY_API_KEY="your_geoapify_api_token" \
-  -e CARTO_API_KEY="your_carto_api_key" \
-  -e ATHLETE_WEIGHT="75" \
-  -e DATE_FORMAT="%b %d, %Y" \
-  -e GPS_SIMPLIFICATION="0" \
-  -e LOG_LEVEL="INFO" \
-  -e UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled." \
-  -e UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}." \
-  -e UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run." \
-  -e UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}." \
-  -e UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked." \
-  -e UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum." \
-  -e UPDATE_STRAVA_PLACEMENT="end" \
-  -e WORKOUT_SUMMARY_PEAK_THRESHOLD_W="300" \
-  -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="" \
-  kinetiqo/web-mcp:latest
+# Start Flask web server (default port 4444)
+python src/kinetiqo.py web
+
+# Execute fast incremental synchronization
+python src/kinetiqo.py sync --fast
+
+# Execute full historical sync audit
+python src/kinetiqo.py sync
+
+# Run FastMCP server over STDIO or SSE
+python src/kinetiqo.py mcp --transport sse --port 8000
+
+# Run pre-flight healthcheck (database, tokens, browser)
+python src/kinetiqo.py flightcheck
+
+# Benchmark database driver performance
+python src/kinetiqo.py benchmark --scope 365
 ```
 
-- Web UI: **http://localhost:4444**
-- FastMCP SSE Endpoint: **http://localhost:8000/sse**
-
-#### Docker Compose (Embedded MCP)
-
-The following `docker-compose.yml` deploys the full stack with Kinetiqo + Embedded FastMCP, PostgreSQL 16, and Grafana:
-
-**`docker-compose.yml`:**
-```yaml
-services:
-  kinetiqo:
-    image: kinetiqo/web-mcp:latest
-    container_name: kinetiqo
-    restart: unless-stopped
-    ports:
-      - "4444:4444"   # Kinetiqo Web Dashboard
-      - "8000:8000"   # FastMCP SSE Server for AI Assistants
-    env_file:
-      - .env
-    environment:
-      # Embedded MCP options (takes precedence or can be set in .env)
-      - ENABLE_MCP=1
-      - MCP_PORT=8000
-      - MCP_HOST=0.0.0.0
-      - MCP_TRANSPORT=sse
-      - KINETIQO_MCP_ALLOW_SYNC=${KINETIQO_MCP_ALLOW_SYNC:-0}
-      - KINETIQO_MCP_ALLOW_PROFILE_WRITE=${KINETIQO_MCP_ALLOW_PROFILE_WRITE:-0}
-      - KINETIQO_MCP_ALLOW_STRAVA_WRITE=${KINETIQO_MCP_ALLOW_STRAVA_WRITE:-0}
-      - VISUAL_CROSSING_API_KEY=${VISUAL_CROSSING_API_KEY:-}
-    depends_on:
-      postgresql:
-        condition: service_healthy
-
-  postgresql:
-    image: postgres:16-alpine
-    container_name: postgresql
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRESQL_PASSWORD}
-      - POSTGRES_DB=kinetiqo
-    volumes:
-      - postgresql_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d kinetiqo"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-    depends_on:
-      - postgresql
-
-volumes:
-  postgresql_data:
-```
-
-**`.env` for Embedded MCP:**
-```env
-# Strava OAuth API Credentials
-STRAVA_CLIENT_ID=your_strava_client_id
-STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REFRESH_TOKEN=your_strava_refresh_token
-
-# Web Authentication & Security
-KINETIQO_PRODUCTION=1
-KINETIQO_SECRET_KEY=replace_with_output_from_openssl_rand_hex_32
-WEB_LOGIN=admin
-WEB_PASSWORD=your_secure_password
-
-# Database Configuration (PostgreSQL)
-DATABASE_TYPE=postgresql
-POSTGRESQL_HOST=postgresql
-POSTGRESQL_PORT=5432
-POSTGRESQL_USER=postgres
-POSTGRESQL_PASSWORD=your_secure_database_password
-POSTGRESQL_DATABASE=kinetiqo
-POSTGRESQL_SSL_MODE=disable
-
-# Automatic Cron Sync Schedules
-FAST_SYNC="*/15 * * * *"
-FULL_SYNC="0 3 * * *"
-
-# Optional Historical Activity Weather
-VISUAL_CROSSING_API_KEY=
-
-# FastMCP Server Options
-ENABLE_MCP=1
-MCP_PORT=8000
-MCP_HOST=0.0.0.0
-MCP_TRANSPORT=sse
-
-# FastMCP Mutation Safety Gates (0=disabled/safe, 1=enabled)
-KINETIQO_MCP_ALLOW_SYNC=0
-KINETIQO_MCP_ALLOW_PROFILE_WRITE=0
-KINETIQO_MCP_ALLOW_STRAVA_WRITE=0
-
-# Grafana Dashboard Password
-GRAFANA_ADMIN_PASSWORD=your_secure_grafana_password
-
-# Map Tile API Keys (Optional)
-MAPY_API_KEY=
-THUNDERFOREST_API_KEY=
-MAPTILER_API_KEY=
-GEOAPIFY_API_KEY=
-CARTO_API_KEY=
-
-# Athlete & Telemetry Settings
-ATHLETE_WEIGHT=75
-DATE_FORMAT="%b %d, %Y"
-GPS_SIMPLIFICATION=0
-LOG_LEVEL=INFO
-
-# Strava Description Auto-Update Templates (Optional)
-UPDATE_STRAVA_CYCLING_OUTDOOR="Year-to-date: {{cycling-distance-total-year}} cycled."
-UPDATE_STRAVA_CYCLING_INDOOR="Indoor ride — {{cycling-distance-total-year}} cycled so far in {{current-year}}."
-UPDATE_STRAVA_RUNNING_OUTDOOR="Year-to-date: {{running-distance-total-year}} run."
-UPDATE_STRAVA_RUNNING_INDOOR="Treadmill run — {{running-distance-total-year}} run so far in {{current-year}}."
-UPDATE_STRAVA_WALKING="Year-to-date: {{walking-distance-total-year}} walked/hiked."
-UPDATE_STRAVA_SWIMMING="Year-to-date: {{swimming-distance-total-year}} swum."
-UPDATE_STRAVA_PLACEMENT=end
-WORKOUT_SUMMARY_PEAK_THRESHOLD_W=300
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=
-```
-
-Deploy the stack:
-```bash
-docker compose up -d
-```
-
-#### Connecting AI Assistants to the Running Container
-
-Because Kinetiqo exposes FastMCP natively over Server-Sent Events (SSE) on port `8000`, **no Python, virtual environment, or Docker CLI permissions are needed** in your AI assistant. Simply point your client to the running container's SSE endpoint:
-
-##### 1. Claude Desktop (`claude_desktop_config.json`)
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "url": "http://localhost:8000/sse"
-    }
-  }
-}
-```
-
-##### 2. Cursor (`.cursor/mcp.json`)
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "url": "http://localhost:8000/sse"
-    }
-  }
-}
-```
-
-##### 3. Google Antigravity IDE (`mcp_config.json`)
-```json
-{
-  "mcpServers": {
-    "kinetiqo": {
-      "url": "http://localhost:8000/sse"
-    }
-  }
-}
-```
-
-Once connected, your AI assistant automatically discovers 32 read-only tools, 6 resources, and 13 pre-packaged coaching prompts. Enabling all three mutation gates exposes up to 36 tools.
+*For complete CLI parameter documentation, see [docs/cli.md](docs/cli.md).*
 
 ---
 
-### Configuration Options & Environment Variables Reference
+## Model Context Protocol (MCP) Server
 
-| Category | Variable | Default | Description |
+Kinetiqo includes a built-in **FastMCP Server** connecting your local fitness data directly to AI assistants (**Google Antigravity IDE**, **Claude Desktop**, **Cursor**, **Windsurf**, and **OpenClaw**).
+
+- **Privacy-First**: Sensor streams and GPS coordinates stay entirely local.
+- **Evidence-Based Toolset**: Exposes 32 read-only tools (and up to 36 tools with gated mutation controls) covering activity searches, power curves, recovery turnaround, VO₂max trends, and Playwright infographic visual exports.
+- **Transports**: STDIO (local process) or FastMCP SSE over HTTP (`http://0.0.0.0:8000/sse`).
+
+*To configure your AI desktop client, see [docs/MCP.md](docs/MCP.md).*
+
+---
+
+## Architecture & Technology Stack
+
+| Component | Technology | Version | Description |
 |---|---|---|---|
-| **MCP Server** | `ENABLE_MCP` | `0` (`web`), `1` (`web-mcp`) | Concurrently run FastMCP server in background (`1`/`0`, `true`/`false`). |
-| | `MCP_PORT` | `8000` | Port for the FastMCP SSE server (standard non-privileged port). |
-| | `MCP_HOST` | `0.0.0.0` | Host interface IP binding for the MCP server. |
-| | `MCP_TRANSPORT` | `sse` | Transport protocol: `stdio`, `sse` (HTTP Server-Sent Events), or `streamable-http`. |
-| | `KINETIQO_MCP_ALLOW_SYNC` | `0` | If `1`, registers `kinetiqo_trigger_sync` enabling AI to trigger background syncs. |
-| | `KINETIQO_MCP_ALLOW_PROFILE_WRITE` | `0` | If `1`, registers `kinetiqo_update_athlete_profile` & `kinetiqo_update_training_goals`. |
-| | `KINETIQO_MCP_ALLOW_STRAVA_WRITE` | `0` | If `1`, registers `kinetiqo_update_strava_description` enabling AI to publish descriptions. |
-| **Strava API** | `STRAVA_CLIENT_ID` | — | Strava Application Client ID (required). |
-| | `STRAVA_CLIENT_SECRET` | — | Strava Application Client Secret (required). |
-| | `STRAVA_REFRESH_TOKEN` | — | Strava OAuth Refresh Token with `activity:read_all` and `profile:read_all` scopes. |
-| **Security** | `SECRET_KEY` | Auto-generated in dev | Cryptographic signing key for Flask session cookies and CSRF tokens. |
-| | `KINETIQO_PRODUCTION` | `0` | If `1`, enforces persistent `SECRET_KEY` across container restarts. |
-| | `WEB_LOGIN` | `admin` | Username for the Web UI login form. |
-| | `WEB_PASSWORD` | `admin123` | Password for the Web UI login form. |
-| **Database** | `DATABASE_TYPE` | `postgresql` | Relational backend: `postgresql`, `mysql`, or `firebird`. |
-| | `POSTGRESQL_HOST` | — | PostgreSQL server hostname or IP. |
-| | `POSTGRESQL_PORT` | `5432` | PostgreSQL listening port. |
-| | `POSTGRESQL_USER` | `postgres` | PostgreSQL username. |
-| | `POSTGRESQL_PASSWORD` | `postgres` | PostgreSQL password. |
-| | `POSTGRESQL_DATABASE` | `kinetiqo` | PostgreSQL database name. |
-| | `POSTGRESQL_SSL_MODE` | `disable` | PostgreSQL SSL mode (`disable`, `require`, `verify-full`). |
-| | `MYSQL_HOST` / `PORT` / ... | `3306` | Equivalent parameters for MySQL / MariaDB backend. |
-| | `FIREBIRD_HOST` / `PORT` / ... | `3050` | Equivalent parameters for Firebird 3/4/5 backend. |
-| **Scheduling** | `FAST_SYNC` | `*/15 * * * *` | Cron schedule for fast incremental sync (picks up new workouts). |
-| | `FULL_SYNC` | `0 3 * * *` | Cron schedule for full audit sync (reconciles history & deleted activities). |
-| **Weather (Optional)** | `VISUAL_CROSSING_API_KEY` | _(empty)_ | Visual Crossing API key for server-side hourly historical weather during enabled syncs. See [docs/weather.md](docs/weather.md). |
-| **Athlete** | `ATHLETE_WEIGHT` | `0` | Athlete body weight in kg (used for VO₂max and W/kg computations). |
-| | `DATE_FORMAT` | `%b %d, %Y` | Python `strftime` format used for charts, tables, and infographics. |
-| | `GPS_SIMPLIFICATION` | `0` | Coordinate decimation level (0=disabled, 1–10=3m–100m thresholds). |
-| | `LOG_LEVEL` | `INFO` | Shared logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
-| **Maps (Optional)** | `MAPY_API_KEY` | _(empty)_ | API key for Mapy.cz outdoor, winter, and aerial tiles. |
-| | `THUNDERFOREST_API_KEY` | _(empty)_ | API key for Thunderforest Outdoors, Cycle, and Landscape tiles. |
-| | `MAPTILER_API_KEY` | _(empty)_ | API key for MapTiler Outdoor, Topo, and Satellite tiles. |
-| | `GEOAPIFY_API_KEY` | _(empty)_ | API key for Geoapify Osm-Carto and DarkMatter tiles. |
-| | `CARTO_API_KEY` | _(empty)_ | API key for CARTO Positron and Dark Matter tiles. |
-| **Strava Updates** | `UPDATE_STRAVA_CYCLING_OUTDOOR` | _(empty)_ | Jinja template for outdoor rides. |
-| | `UPDATE_STRAVA_CYCLING_INDOOR` | _(empty)_ | Jinja template for indoor rides. |
-| | `UPDATE_STRAVA_RUNNING_OUTDOOR` | _(empty)_ | Jinja template for outdoor runs. |
-| | `UPDATE_STRAVA_RUNNING_INDOOR` | _(empty)_ | Jinja template for treadmill runs. |
-| | `UPDATE_STRAVA_WALKING` | _(empty)_ | Jinja template for walks and hikes. |
-| | `UPDATE_STRAVA_SWIMMING` | _(empty)_ | Jinja template for pool and open-water swims. |
-| | `UPDATE_STRAVA_PLACEMENT` | `end` | Description block placement: `begin` or `end`. |
-| | `WORKOUT_SUMMARY_PEAK_THRESHOLD_W` | `300` | Minimum watt threshold for surge highlights in `{{workout-summary}}`. |
-| **Browser Export** | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | Auto-detected | Path to Chromium executable for poster / infographic exports. |
+| **Runtime** | Python | 3.14+ | Dockerized on `python:3.14-slim` |
+| **Web Framework** | Flask[async] + Gunicorn | 3.1.3 / 26.2.0 | Async-enabled WSGI architecture with Server-Sent Events |
+| **Frontend Styling** | Tailwind CSS | v4 (4.3.3) | Compiled standalone stylesheet (`download-tailwind.sh`) |
+| **Interactive Grid** | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 | Client-side reactive grid with localStorage state persistence |
+| **Maps** | Leaflet.js | 1.9.4 | Canvas renderer with 16 basemaps and server-side tile proxy |
+| **Visual Exports** | Playwright | ≥1.64.0 | Server-side headless Chromium rendering for pixel-perfect posters/PDFs |
+| **AI Protocol** | FastMCP | ≥1.2.0 | Model Context Protocol server exposing 32+ fitness telemetry tools |
+| **Database Drivers** | psycopg2, mysql-connector, firebird-driver | Latest | Direct parameterized raw SQL — **Zero ORM** overhead |
 
-- For more details and advanced configuration, see the project documentation at [kinetiqo.org](https://kinetiqo.org).
+*For deep architectural design and benchmark analysis, see [docs/DATABASE.md](docs/DATABASE.md) and [docs/sync.md](docs/sync.md).*
 
-## License
+---
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+## License & Map Attributions
 
-### Map providers (links, terms, free usage & env vars)
+This project is licensed under the terms of the MIT License. See `LICENSE` for details.
 
-Consolidated provider table: links to official terms, free monthly usage where available, required attribution, and the environment variable to set when applicable.
-
-| Provider | Terms | Free usage limit (per month) | Required attribution | Env var |
-|---|---|---:|---|---|
-| [OpenStreetMap](https://www.openstreetmap.org) | Data: [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) · Tiles: [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) · [Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/) | N/A (served via server-side proxy) | © OpenStreetMap contributors | — |
-| [Mapy.cz](https://mapy.com) (Seznam.cz) | [Developer Terms & Conditions](https://developer.mapy.com/terms-and-conditions/) | Free tier for non-commercial / personal use — up to 250,000 credits/month (API key required) | © Seznam.cz, a.s. · © OpenStreetMap | `MAPY_API_KEY` |
-| [Thunderforest](https://www.thunderforest.com/) | [Terms of Service](https://www.thunderforest.com/terms/) | Hobby tier — up to 150,000 tiles/month (API key required) | Maps © Thunderforest · Data © OpenStreetMap contributors | `THUNDERFOREST_API_KEY` |
-| [MapTiler](https://www.maptiler.com/) | [Terms & Conditions](https://www.maptiler.com/terms/) | Free tier — up to 100,000 requests/month (API key required) | © MapTiler · © OpenStreetMap contributors | `MAPTILER_API_KEY` |
-| [Geoapify](https://www.geoapify.com/) | [Terms & Conditions](https://www.geoapify.com/terms-and-conditions/) · [Pricing](https://www.geoapify.com/pricing/) · [Pricing details](https://www.geoapify.com/pricing-details/) | ~90,000 credits/month (≈360,000 map tiles/month) (API key required) | Powered by Geoapify · © OpenStreetMap contributors | `GEOAPIFY_API_KEY` |
-| [CARTO](https://carto.com/) | [Basemaps API & Key Info](https://carto.com/basemaps/apikey) | Free up to 5,000,000 tile requests/month (API key required to remove watermark) | © OpenStreetMap contributors · © CARTO | `CARTO_API_KEY` |
-| [Esri World Imagery](https://www.esri.com/) | [Esri Master License Agreement](https://www.esri.com/en-us/legal/terms/full-master-agreement) | N/A (subject to Esri licensing) | © Esri, Maxar, Earthstar Geographics | — |
-
-For API key setup instructions, see [Map Configuration](#9-map-configuration) above.
-
-## Benchmark of databases
-
-Kinetiqo includes a CLI benchmark utility (`python src/kinetiqo.py benchmark`) for technical database performance profiling and optimization.
-
-```bash
-# Run benchmark on default configured database for last 365 days
-python src/kinetiqo.py benchmark
-
-# Run benchmark for last 90 days on PostgreSQL
-python src/kinetiqo.py benchmark --scope 90 --database postgresql
-```
-
-**Options:**
-- `-s`, `--scope INTEGER`: Lookback scope in days from today (default: `365`).
-- `-d`, `--database`, `--database-type [mysql|postgresql|firebird]`: Database backend to benchmark. Overrides `.env` config.
-
-**Metrics benchmark example on three database types using default dockerized setup:**
-```text
-2026-10-20 23:38:55 [INFO] Running database benchmark (backend=MYSQL, scope=365 days)...
-
-==========================================================================
-  Kinetiqo Database Benchmark (MYSQL)
-  Scope: Last 365 days
-==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 3710.61 ms (1,829,887 records)
-  * Order all activities by name:                             9.50 ms (656 activities)
-  * Order all activities by distance:                         8.85 ms (656 activities)
-  * Order all activities by elevation gained:                 11.89 ms (656 activities)
-  * Paged grid fetch (LIMIT 50 - UI DataTables):              1.89 ms (50 activities)
-  * Aggregate metric totals (Infographics/Goals):             3.81 ms (distance, elev, time)
-  * Fitness suffer scores (CTL/ATL/TSB trend):                3.60 ms (549 activities)
-  * Activity count query (Filter badges & pagination):        0.91 ms (656 activities)
-==========================================================================
-
-2026-10-20 23:39:00 [INFO] Running database benchmark (backend=POSTGRESQL, scope=365 days)...
-
-==========================================================================
-  Kinetiqo Database Benchmark (POSTGRESQL)
-  Scope: Last 365 days
-==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 2016.83 ms (1,829,887 records)
-  * Order all activities by name:                             8.34 ms (656 activities)
-  * Order all activities by distance:                         10.26 ms (656 activities)
-  * Order all activities by elevation gained:                 7.14 ms (656 activities)
-  * Paged grid fetch (LIMIT 50 - UI DataTables):              1.99 ms (50 activities)
-  * Aggregate metric totals (Infographics/Goals):             0.97 ms (distance, elev, time)
-  * Fitness suffer scores (CTL/ATL/TSB trend):                2.24 ms (617 activities)
-  * Activity count query (Filter badges & pagination):        0.58 ms (656 activities)
-==========================================================================
-
-2026-10-20 23:39:02 [INFO] Running database benchmark (backend=FIREBIRD, scope=365 days)...
-
-==========================================================================
-  Kinetiqo Database Benchmark (FIREBIRD)
-  Scope: Last 365 days
-==========================================================================
-  * Fetch all GPS data for last 365 days all activity types: 24223.35 ms (1,829,887 records)
-  * Order all activities by name:                             38.69 ms (656 activities)
-  * Order all activities by distance:                         35.91 ms (656 activities)
-  * Order all activities by elevation gained:                 41.27 ms (656 activities)
-  * Paged grid fetch (LIMIT 50 - UI DataTables):              6.15 ms (50 activities)
-  * Aggregate metric totals (Infographics/Goals):             1.53 ms (distance, elev, time)
-  * Fitness suffer scores (CTL/ATL/TSB trend):                16.94 ms (617 activities)
-  * Activity count query (Filter badges & pagination):        1.83 ms (656 activities)
-==========================================================================
-```
-
-> 📖 **Deep Dive**: For a full technical analysis of database engine differences, driver bottlenecks, and production tuning guidelines, refer to [docs/DATABASE.md](docs/DATABASE.md).
+Map tiles and cartography are provided by:
+- **OpenStreetMap**: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL).
+- **Mapy.cz**: © [Seznam.cz, a.s.](https://mapy.cz/) and OpenStreetMap contributors.
+- **Thunderforest**: Maps © [Thunderforest](https://www.thunderforest.com/), Data © OpenStreetMap contributors.
+- **MapTiler**: © [MapTiler](https://www.maptiler.com/), © OpenStreetMap contributors.
+- **Geoapify**: Powered by [Geoapify](https://www.geoapify.com/), © OpenStreetMap contributors.
+- **CARTO**: © [CARTO](https://carto.com/), © OpenStreetMap contributors.
+- **Esri**: World Imagery sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community.
+- **Weather Data**: Powered by [Visual Crossing](https://www.visualcrossing.com/).

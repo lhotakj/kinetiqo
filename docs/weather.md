@@ -1,76 +1,85 @@
-# Weather enrichment
+# Historical Activity Weather Enrichment
 
-Kinetiqo can add historical, hourly weather to eligible outdoor activities
-during synchronization. It uses the Visual Crossing Timeline Weather API and
-requires the server environment variable:
+**Historical Activity Weather** automatically enriches outdoor GPS workouts with true hourly weather conditions, ambient and apparent temperatures, wind vectors, gusts, and route-relative headwind analysis using the Visual Crossing Timeline API.
+
+---
+
+## 1. Overview & Capabilities
+
+- 🌦️ **True Historical Conditions**: Enriches eligible outdoor GPS activities with historical hourly observations matching the exact time and GPS route of the activity.
+- 🌡️ **Monochromatic Skin-Adaptive Telemetry**: Clean temperature range display (`min-max°C` or steady `avg°C`) paired with a monochromatic outline thermometer icon that automatically adapts to the active UI skin and dark mode.
+- 💨 **Route-Relative Wind & Headwind Vectors**: Calculates dynamic bearing between GPS track points and wind direction, determining actual headwind and crosswind impact.
+- 🌪️ **Wind Gust Tracking**: Automatically alerts on significant peak wind gusts (`>= 10 m/s` or `>= spd + 3 m/s`) with regular inline styling and detailed km/h conversion tooltips.
+- 🌧️ **Precipitation Detection**: Identifies rain or snow with total accumulated amounts (e.g. `Rain (1.8mm)`).
+- 🔒 **Privacy-First Zero Coordinate Persistence**: GPS track coordinates are sent transiently to the weather API in UTC; coordinates are never saved in weather JSON documents, audit logs, or AI/MCP responses.
+- 🛡️ **In-Memory Rate Limit Protection (Multi-Worker Safe)**: Respects provider rate limits (`X-RateLimit-Remaining: 0` or HTTP 429) using POSIX shared memory across all Gunicorn workers. Ceases queries until UTC midnight without slamming the API gateway.
+- 📝 **Strava Description Integration**: Dynamically injects weather summaries and 15+ weather placeholders (`{{weather-summary}}`, `{{weather-temp-avg}}`, `{{weather-headwind-pct}}`) into Strava activity descriptions.
+
+---
+
+## 2. Weather Column in Activities Grid
+
+The `/activities` grid features a dedicated, toggleable **Weather** column:
 
 ```text
-VISUAL_CROSSING_API_KEY=your-key
+[thermometer-icon] <min-max>°C [condition-icon] [wind-direction-arrow] <speed> m/s (gust <speed> m/s) <precipitation>
 ```
 
-The API key is used only by the server and is never shown in the web interface,
-stored in activity weather data, or written to logs.
+- **Temperature**: Monochromatic outline thermometer icon rendered in `currentColor` (matching the selected theme/skin) followed by compact temperature range without spaces (e.g. `14-20°C` or `18°C` when steady). Sorts numerically by `weather_temp_avg`.
+- **Weather Condition Icon**: Duration-weighted condition icon (Clear, Partially cloudy, Overcast) with severe condition promotion (Thunderstorm, Rain, Snow).
+- **Wind Vector**: Dynamic arrow rotated to the wind travel direction with cardinal tooltip (e.g. `West wind (270°) · 3.4 m/s`).
+- **Wind Gust**: Regular inline text (no lozenges/pills) displaying `(gust 12.3 m/s)` with peak km/h conversion tooltip.
+- **Precipitation**: Regular blue inline text displaying rain/snow accumulations (e.g. `Rain (1.8mm)`).
+- **Default Visibility**: Hidden by default, toggleable via the **Column Visibility** picker.
 
-## Enabling weather
+---
 
-Enable **Weather data** in Settings to use it by default for Fast Sync. On the
-sync page, **Fetch weather data** enables it for that run and **Resync weather**
-replaces saved weather for the selected sync scope.
+## 3. Web Routes & API Endpoints
 
-Full Sync does not fetch weather unless it is explicitly enabled. Weather is
-never fetched by the browser or when viewing an activity, chart, chat response,
-or MCP tool result.
+| URL Route / Endpoint | Method | Purpose |
+|---|---|---|
+| `/activities` | GET | Interactive activities grid featuring the toggleable Weather column |
+| `/api/activities` | GET | JSON activities list including the structured `weather` payload |
+| `/fastsync` | POST | Incremental sync pass honoring the `enable_weather_data` profile preference |
+| `/fullsync` | POST | Full sync audit pass with opt-in weather resync |
 
-When weather is enabled, each activity is processed in a single ordered pass:
-Kinetiqo saves the activity and streams, fetches missing weather, then updates
-the Strava description. Weather placeholders therefore use the newly saved
-weather during that same sync. When weather is disabled, Kinetiqo makes no
-weather-provider request; a description requiring unavailable weather is
-deferred until a weather-enabled sync.
+---
 
-## What is stored
+## 4. Configuration & Environment Variables
 
-For each eligible activity, Kinetiqo samples the GPS route at hourly intervals
-and requests the matching historical weather. Short or sparse routes use the
-nearest recorded GPS point in the overlapping provider hour when a midpoint
-cannot be interpolated. A stationary route still receives weather, although
-headwind is omitted when no travel bearing is available. Saved data can include:
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `VISUAL_CROSSING_API_KEY` | string | `""` | Optional Visual Crossing Timeline API key. When omitted, weather enrichment is gracefully disabled. |
 
-- temperature and apparent temperature;
-- provider condition text and source;
-- rain, snow, wind direction, wind speed, and gusts;
-- calculated route bearing and headwind component.
+The API key is strictly maintained on the server; it is never transmitted to the browser, stored in activity tables, or logged.
 
-Weather is an hourly estimate, not a sensor measurement made on the athlete.
-Conditions can vary over short distances and terrain. Route coordinates are
-sent to Visual Crossing only for the lookup; they are not saved in the weather
-payload or returned by AI/MCP tools.
+---
 
-Weather is retained when activities are deleted from the Kinetiqo interface.
-If the same Strava activity is synchronized again, its saved weather can be
-reused without another provider request.
+## 5. Rate Limit Architecture
 
-Indoor activities and activities without a usable GPS route are skipped. A
-temporary provider or network failure leaves the activity available for a later
-retry.
+Visual Crossing reports remaining daily quota in the `X-RateLimit-Remaining` HTTP response header, which resets at 00:00 UTC.
 
-## Visual Crossing rate limits
+1. **Authoritative Limit Signal**: A response header `X-RateLimit-Remaining: 0` or HTTP 429 immediately stops further weather queries.
+2. **Multi-Worker Shared Memory**: State is shared across all Gunicorn web and background workers via `/dev/shm` (POSIX shared memory) with filesystem fallback.
+3. **Graceful Sync Completion**: Activity synchronization continues uninterrupted. Only weather enrichment is skipped for subsequent activities until the daily quota resets at UTC midnight.
 
-Visual Crossing reports the remaining daily quota in the
-`X-RateLimit-Remaining` HTTP response header. When the API reports `0`,
-Kinetiqo stops making further weather requests in that server process until the
-next midnight UTC. HTTP 429 has the same effect.
+---
 
-Kinetiqo does not maintain a separate database quota counter. The stop state is
-best effort: Gunicorn workers and a restarted server do not share in-memory
-state. If another worker makes a request after the limit is exhausted, Visual
-Crossing returns its current limit information and that worker stops too.
+## 6. MCP & AI Integration
 
-When the provider limit is reached, activity synchronization still completes.
-Kinetiqo displays a warning that only weather enrichment stopped.
+The Model Context Protocol (MCP) server exposes weather data to AI assistants:
+- `kinetiqo_get_activity_weather`: Retrieves hourly conditions, apparent temperature, precipitation, wind speed, gusts, and route headwind for any activity.
+- AI Search: Assistants can search workouts with criteria like `weather_condition='rain'`, `max_temp_c=0` (freezing rides), or `min_temp_c=30` (hot summer runs).
 
-## Attribution
+---
+
+## 7. Deep Architecture & Concept
+
+For full mathematical formulas, headwind bearing calculations, database schemas, and weighted average computations, refer to:
+- [docs/concepts/weather-concept.md](concepts/weather-concept.md)
+
+---
+
+## 8. Attribution
 
 Weather data is provided by [Visual Crossing](https://www.visualcrossing.com/).
-Use of the service remains subject to your Visual Crossing plan, terms, and
-current quota allowance.

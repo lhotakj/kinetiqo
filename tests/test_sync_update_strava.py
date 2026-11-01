@@ -526,6 +526,75 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
             "".join(events),
         )
 
+    @patch("kinetiqo.sync.WEATHER_RATE_LIMIT_STATE")
+    @patch("kinetiqo.sync.build_activity_weather")
+    def test_weather_rate_limit_stops_asking_in_subsequent_activity_fetch(self, mock_build_weather, mock_rate_limit_state):
+        from kinetiqo.weather import WeatherProviderError
+        service = self._make_service()
+        activities = [
+            {"id": 101, "sport_type": "Hike", "name": "Hike 1", "start_date": "2026-10-27T10:00:00Z"},
+            {"id": 102, "sport_type": "Hike", "name": "Hike 2", "start_date": "2026-10-27T12:00:00Z"},
+            {"id": 103, "sport_type": "Hike", "name": "Hike 3", "start_date": "2026-10-27T14:00:00Z"},
+        ]
+        service.db.get_profile.return_value = {"enable_weather_data": False}
+        service.db.get_activity_weather.return_value = None
+        service.strava.get_activities.return_value = iter([activities])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+        service.db.get_activity_stream_window.return_value = [
+            {"ts": "2026-10-27T10:00:00Z", "lat": 50.0, "lng": 14.0, "distance": 0.0},
+        ]
+        service.strava.get_athlete.return_value = None
+
+        mock_rate_limit_state.is_exhausted.return_value = False
+        mock_build_weather.side_effect = WeatherProviderError(
+            "Visual Crossing rate limit is exhausted until the next UTC midnight.",
+            stop_run=True,
+        )
+
+        events = list(service.sync(
+            full_sync=False,
+            trigger="test",
+            user="tester",
+            limit_days=0,
+            update_weather=True,
+        ))
+
+        output = "".join(events)
+        warning_msg = "Warning: Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
+        self.assertIn(warning_msg, output)
+        self.assertIn("Sync completed with 1 warning(s).", events[-1])
+        self.assertEqual(mock_build_weather.call_count, 1)
+
+    @patch("kinetiqo.sync.WEATHER_RATE_LIMIT_STATE")
+    @patch("kinetiqo.sync.build_activity_weather")
+    def test_weather_pre_exhausted_emits_single_warning_and_skips_asking(self, mock_build_weather, mock_rate_limit_state):
+        service = self._make_service()
+        activities = [
+            {"id": 201, "sport_type": "Hike", "name": "Hike A", "start_date": "2026-10-27T10:00:00Z"},
+            {"id": 202, "sport_type": "Hike", "name": "Hike B", "start_date": "2026-10-27T12:00:00Z"},
+        ]
+        service.db.get_profile.return_value = {"enable_weather_data": False}
+        service.db.get_activity_weather.return_value = None
+        service.strava.get_activities.return_value = iter([activities])
+        service.strava.get_streams.return_value = {"time": {"data": [1, 2, 3]}}
+        service.strava.get_athlete.return_value = None
+
+        mock_rate_limit_state.is_exhausted.return_value = True
+
+        events = list(service.sync(
+            full_sync=False,
+            trigger="test",
+            user="tester",
+            limit_days=0,
+            update_weather=True,
+        ))
+
+        output = "".join(events)
+        warning_msg = "Warning: Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
+        self.assertIn(warning_msg, output)
+        self.assertIn("Sync completed with 1 warning(s).", events[-1])
+        mock_build_weather.assert_not_called()
+
     def test_sync_limits_description_updates_to_latest_eligible_activities(self):
         service = self._make_service()
         base = datetime(2026, 1, 1, tzinfo=timezone.utc)

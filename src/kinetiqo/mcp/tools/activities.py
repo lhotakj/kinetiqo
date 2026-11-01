@@ -44,6 +44,18 @@ def kinetiqo_search_activities(
     workout_type: Optional[int] = None,
     has_trophies: Optional[bool] = None,
     koms_only: Optional[bool] = None,
+    weather_condition: Optional[str] = None,
+    min_temp_c: Optional[float] = None,
+    max_temp_c: Optional[float] = None,
+    min_wind_speed_kmh: Optional[float] = None,
+    max_wind_speed_kmh: Optional[float] = None,
+    min_wind_speed_ms: Optional[float] = None,
+    max_wind_speed_ms: Optional[float] = None,
+    min_wind_gust_kmh: Optional[float] = None,
+    max_wind_gust_kmh: Optional[float] = None,
+    min_wind_gust_ms: Optional[float] = None,
+    max_wind_gust_ms: Optional[float] = None,
+    has_weather: Optional[bool] = None,
     cursor: Optional[str] = None,
     limit: int = 20,
     sort_by: str = "start_date",
@@ -118,6 +130,30 @@ def kinetiqo_search_activities(
         filters["has_trophies"] = has_trophies
     if koms_only is not None:
         filters["koms_only"] = koms_only
+    if weather_condition:
+        filters["weather_condition"] = weather_condition.strip()
+    if min_temp_c is not None:
+        filters["min_temp_c"] = min_temp_c
+    if max_temp_c is not None:
+        filters["max_temp_c"] = max_temp_c
+    if min_wind_speed_kmh is not None:
+        filters["min_wind_speed_kmh"] = min_wind_speed_kmh
+    if max_wind_speed_kmh is not None:
+        filters["max_wind_speed_kmh"] = max_wind_speed_kmh
+    if min_wind_speed_ms is not None:
+        filters["min_wind_speed_ms"] = min_wind_speed_ms
+    if max_wind_speed_ms is not None:
+        filters["max_wind_speed_ms"] = max_wind_speed_ms
+    if min_wind_gust_kmh is not None:
+        filters["min_wind_gust_kmh"] = min_wind_gust_kmh
+    if max_wind_gust_kmh is not None:
+        filters["max_wind_gust_kmh"] = max_wind_gust_kmh
+    if min_wind_gust_ms is not None:
+        filters["min_wind_gust_ms"] = min_wind_gust_ms
+    if max_wind_gust_ms is not None:
+        filters["max_wind_gust_ms"] = max_wind_gust_ms
+    if has_weather is not None:
+        filters["has_weather"] = has_weather
 
     try:
         rows, next_cursor, has_more = repo.search_activities(
@@ -173,6 +209,33 @@ def kinetiqo_search_activities(
             act_data["trophies"] = r["trophies"]
         if r.get("pr_count"):
             act_data["pr_count"] = int(r["pr_count"])
+
+        weather_info = None
+        if (
+            r.get("weather_temp_avg") is not None
+            or r.get("weather_condition") is not None
+            or r.get("weather_wind_speed") is not None
+            or r.get("weather_wind_gust_max") is not None
+        ):
+            w_spd_ms = float(r["weather_wind_speed"]) if r.get("weather_wind_speed") is not None else None
+            w_spd_kmh = round(w_spd_ms * 3.6, 1) if w_spd_ms is not None else None
+            w_gst_ms = float(r["weather_wind_gust_max"]) if r.get("weather_wind_gust_max") is not None else None
+            w_gst_kmh = round(w_gst_ms * 3.6, 1) if w_gst_ms is not None else None
+            weather_info = {
+                "condition": r.get("weather_condition"),
+                "condition_icon": r.get("weather_condition_icon"),
+                "precipitation": r.get("weather_precipitation"),
+                "temp_avg_c": float(r["weather_temp_avg"]) if r.get("weather_temp_avg") is not None else None,
+                "temp_min_c": float(r["weather_temp_min"]) if r.get("weather_temp_min") is not None else None,
+                "temp_max_c": float(r["weather_temp_max"]) if r.get("weather_temp_max") is not None else None,
+                "wind_speed_kmh": w_spd_kmh,
+                "wind_speed_ms": w_spd_ms,
+                "wind_gust_max_kmh": w_gst_kmh,
+                "wind_gust_max_ms": w_gst_ms,
+                "wind_direction_deg": int(r["weather_wind_deg"]) if r.get("weather_wind_deg") is not None else None,
+            }
+        act_data["weather"] = weather_info
+
         activities.append(act_data)
 
     payload = {

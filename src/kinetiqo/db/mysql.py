@@ -342,6 +342,7 @@ class MySQLRepository(DatabaseRepository):
                 weather_condition_icon,
                 weather_wind_deg,
                 weather_wind_speed,
+                weather_wind_gust_max,
                 weather_precipitation
             FROM activities
             {where_clause}
@@ -623,6 +624,7 @@ class MySQLRepository(DatabaseRepository):
                     weather_condition_icon = %s,
                     weather_wind_deg = %s,
                     weather_wind_speed = %s,
+                    weather_wind_gust_max = %s,
                     weather_precipitation = %s
                 WHERE activity_id = %s
                 """,
@@ -634,6 +636,7 @@ class MySQLRepository(DatabaseRepository):
                     summary.get("weather_condition_icon"),
                     summary.get("weather_wind_deg"),
                     summary.get("weather_wind_speed"),
+                    summary.get("weather_wind_gust_max"),
                     summary.get("weather_precipitation"),
                     int(activity_id),
                 ),
@@ -1338,6 +1341,15 @@ class MySQLRepository(DatabaseRepository):
             "max_heartrate": "max_heartrate",
             "suffer_score": "suffer_score",
             "calories": "calories",
+            "wind_gust": "weather_wind_gust_max",
+            "weather_wind_gust": "weather_wind_gust_max",
+            "weather_wind_gust_max": "weather_wind_gust_max",
+            "wind_speed": "weather_wind_speed",
+            "weather_wind_speed": "weather_wind_speed",
+            "wind": "weather_wind_speed",
+            "temp": "weather_temp_avg",
+            "weather_temp": "weather_temp_avg",
+            "weather_temp_avg": "weather_temp_avg",
         }
         sort_by = filters.get("sort_by", "date")
         sort_col = sort_field_map.get(sort_by, "start_date")
@@ -1478,10 +1490,57 @@ class MySQLRepository(DatabaseRepository):
             where_clauses.append("trophies LIKE %s")
             params.append('%"1":%')
 
+        cond = filters.get("weather_condition")
+        if cond:
+            where_clauses.append("(weather_condition LIKE %s OR weather_precipitation LIKE %s)")
+            params.extend([f"%{cond}%", f"%{cond}%"])
+
+        if filters.get("min_temp_c") is not None:
+            where_clauses.append("weather_temp_avg >= %s")
+            params.append(float(filters["min_temp_c"]))
+
+        if filters.get("max_temp_c") is not None:
+            where_clauses.append("weather_temp_avg <= %s")
+            params.append(float(filters["max_temp_c"]))
+
+        min_wind_spd = filters.get("min_wind_speed_ms")
+        if min_wind_spd is None and filters.get("min_wind_speed_kmh") is not None:
+            min_wind_spd = float(filters["min_wind_speed_kmh"]) / 3.6
+        if min_wind_spd is not None:
+            where_clauses.append("weather_wind_speed >= %s")
+            params.append(float(min_wind_spd))
+
+        max_wind_spd = filters.get("max_wind_speed_ms")
+        if max_wind_spd is None and filters.get("max_wind_speed_kmh") is not None:
+            max_wind_spd = float(filters["max_wind_speed_kmh"]) / 3.6
+        if max_wind_spd is not None:
+            where_clauses.append("weather_wind_speed <= %s")
+            params.append(float(max_wind_spd))
+
+        min_gust = filters.get("min_wind_gust_ms")
+        if min_gust is None and filters.get("min_wind_gust_kmh") is not None:
+            min_gust = float(filters["min_wind_gust_kmh"]) / 3.6
+        if min_gust is not None:
+            where_clauses.append("weather_wind_gust_max >= %s")
+            params.append(float(min_gust))
+
+        max_gust = filters.get("max_wind_gust_ms")
+        if max_gust is None and filters.get("max_wind_gust_kmh") is not None:
+            max_gust = float(filters["max_wind_gust_kmh"]) / 3.6
+        if max_gust is not None:
+            where_clauses.append("weather_wind_gust_max <= %s")
+            params.append(float(max_gust))
+
+        if filters.get("has_weather") is not None:
+            if bool(filters["has_weather"]):
+                where_clauses.append("weather_temp_avg IS NOT NULL")
+            else:
+                where_clauses.append("weather_temp_avg IS NULL")
+
         keyword = filters.get("keyword") or filters.get("query")
         if keyword:
-            where_clauses.append("(name LIKE %s OR CAST(activity_id AS CHAR) LIKE %s)")
-            params.extend([f"%{keyword}%", f"%{keyword}%"])
+            where_clauses.append("(name LIKE %s OR CAST(activity_id AS CHAR) LIKE %s OR weather_condition LIKE %s OR weather_precipitation LIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
         if cursor:
             decoded = decode_cursor(cursor)
@@ -1498,7 +1557,7 @@ class MySQLRepository(DatabaseRepository):
         if sort_col == "start_date":
             order_sql = f"ORDER BY start_date {sort_order}, activity_id {sort_order}"
         else:
-            order_sql = f"ORDER BY {sort_col} {sort_order}, start_date {sort_order}, activity_id {sort_order}"
+            order_sql = f"ORDER BY ({sort_col} IS NULL), {sort_col} {sort_order}, start_date {sort_order}, activity_id {sort_order}"
 
         fetch_limit = limit + 1
         query = f"""
@@ -1507,7 +1566,11 @@ class MySQLRepository(DatabaseRepository):
                    average_heartrate, max_heartrate, average_cadence, average_watts,
                    max_watts, weighted_average_watts, device_watts, calories,
                    kilojoules, achievement_count, pr_count, suffer_score, average_temp,
-                   gear_id, has_heartrate, workout_type, trophies
+                   gear_id, has_heartrate, workout_type, trophies,
+                   weather_temp_min, weather_temp_max, weather_temp_avg,
+                   weather_condition, weather_condition_icon,
+                   weather_wind_deg, weather_wind_speed, weather_wind_gust_max,
+                   weather_precipitation
             FROM activities
             {where_sql}
             {order_sql}

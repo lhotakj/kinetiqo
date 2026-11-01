@@ -90,7 +90,7 @@ class TestActivitiesAPI(unittest.TestCase):
         self.assertIn('display', row['date'])
         self.assertIn('timestamp', row['date'])
         self.assertIn('weather', row)
-        self.assertEqual(row['weather']['temp_display'], '14 - 20°C')
+        self.assertEqual(row['weather']['temp_display'], '14-20°C')
         self.assertEqual(row['weather']['temp_avg'], 17.0)
         self.assertEqual(row['weather']['condition'], 'Partially cloudy')
         self.assertEqual(row['weather']['wind_cardinal'], 'W')

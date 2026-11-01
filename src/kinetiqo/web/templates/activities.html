@@ -1031,7 +1031,11 @@ var table = null;
                             return data.temp_avg;
                         }
                         if (type === 'filter') {
-                            return `${data.temp_display} ${data.condition || ''} ${data.wind_cardinal || ''} ${data.precipitation || ''}`;
+                            const gustStr = (data.wind_gust_max !== null && data.wind_gust_max !== undefined)
+                                ? `gust ${Number(data.wind_gust_max).toFixed(1)}m/s ${Math.round(Number(data.wind_gust_max) * 3.6)}km/h`
+                                : '';
+                            const rawTempFilter = (data.temp_display || '').replace(/\s*-\s*/g, '-');
+                            return `${rawTempFilter} ${data.condition || ''} ${data.wind_cardinal || ''} ${data.precipitation || ''} ${gustStr}`;
                         }
                         return renderWeatherBadge(data);
                     }
@@ -1936,10 +1940,11 @@ var table = null;
                 return '<span class="text-gray-400 dark:text-zinc-500">-</span>';
             }
 
-            // 1. Thermometer + Temp range
-            const thermSvg = '<svg class="w-4 h-4 inline-block text-rose-500 flex-shrink-0 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
-                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0a3 3 0 100 6 3 3 0 000-6zm0-7a2 2 0 00-2 2v7.172a5 5 0 104 0V4a2 2 0 00-2-2z"/></svg>';
-            const tempHtml = '<span class="font-medium whitespace-nowrap">' + $('<div>').text(data.temp_display || '').html() + '</span>';
+            // 1. Thermometer (monochromatic outline in text color of current skin) + Temp range (no spaces)
+            const thermSvg = '<svg class="w-3.5 h-3.5 inline-block text-current flex-shrink-0 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>';
+            const rawTemp = (data.temp_display || '').replace(/\s*-\s*/g, '-');
+            const tempHtml = '<span class="inline-flex items-center font-medium whitespace-nowrap text-current">' + thermSvg + $('<div>').text(rawTemp).html() + '</span>';
 
             // 2. Weather condition icon
             const iconKey = (data.condition_icon || '').toLowerCase();
@@ -1977,14 +1982,27 @@ var table = null;
                 }
             }
 
-            // 4. Precipitation badge
+            // 3b. Significant wind gust info (regular styling, no lozenge)
+            let gustHtml = '';
+            if (data.wind_gust_max !== null && data.wind_gust_max !== undefined) {
+                const gustVal = Number(data.wind_gust_max);
+                const spdVal = (data.wind_speed !== null && data.wind_speed !== undefined) ? Number(data.wind_speed) : 0;
+                if (!Number.isNaN(gustVal) && (gustVal >= 10.0 || (gustVal >= spdVal + 3.0 && gustVal >= 8.0))) {
+                    const gustKmh = Math.round(gustVal * 3.6);
+                    const gustTitle = $('<div>').text(`Peak wind gust: ${gustVal.toFixed(1)} m/s (${gustKmh} km/h)`).html();
+                    const gustText = windHtml ? `(gust ${gustVal.toFixed(1)} m/s)` : `gust ${gustVal.toFixed(1)} m/s`;
+                    gustHtml = '<span class="text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap" title="' + gustTitle + '">' + gustText + '</span>';
+                }
+            }
+
+            // 4. Precipitation info (regular styling, no lozenge)
             let precipHtml = '';
             if (data.precipitation) {
                 const escPrecip = $('<div>').text(data.precipitation).html();
-                precipHtml = '<span class="px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 whitespace-nowrap">' + escPrecip + '</span>';
+                precipHtml = '<span class="text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">' + escPrecip + '</span>';
             }
 
-            return '<div class="flex items-center gap-2 text-xs text-gray-800 dark:text-gray-200">' + thermSvg + tempHtml + condSvg + windHtml + precipHtml + '</div>';
+            return '<div class="flex items-center gap-2 text-xs text-gray-800 dark:text-gray-200">' + tempHtml + condSvg + windHtml + gustHtml + precipHtml + '</div>';
         }
 
         // Global delete function

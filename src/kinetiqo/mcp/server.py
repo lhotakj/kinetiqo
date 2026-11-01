@@ -100,7 +100,8 @@ def create_mcp_server(
         description=(
             "Search and filter activities with comprehensive telemetry criteria and deterministic keyset pagination. "
             "Supports flexible dates (e.g. '2026', '2026-08', '24.10.2026', 'yesterday', 'this_week', 'this_month', 'this_year', '7_days', '30_days', 'all_time'), "
-            "name keywords, sport types (e.g. ['cycling'], ['running']), distance, elevation, moving time, watts, heartrate, speed, suffer score, gear, PRs, and trophies."
+            "name keywords, sport types (e.g. ['cycling'], ['running']), weather conditions (rain, snow, clear), temperature, wind speed, wind gusts, distance, elevation, moving time, watts, heartrate, speed, suffer score, gear, PRs, and trophies. "
+            "Supports sort_by='wind_gust', 'wind_speed', 'temp', 'start_date', 'distance', etc."
         ),
     )
     def search_activities(
@@ -132,6 +133,18 @@ def create_mcp_server(
         workout_type: Optional[int] = None,
         has_trophies: Optional[bool] = None,
         koms_only: Optional[bool] = None,
+        weather_condition: Optional[str] = None,
+        min_temp_c: Optional[float] = None,
+        max_temp_c: Optional[float] = None,
+        min_wind_speed_kmh: Optional[float] = None,
+        max_wind_speed_kmh: Optional[float] = None,
+        min_wind_speed_ms: Optional[float] = None,
+        max_wind_speed_ms: Optional[float] = None,
+        min_wind_gust_kmh: Optional[float] = None,
+        max_wind_gust_kmh: Optional[float] = None,
+        min_wind_gust_ms: Optional[float] = None,
+        max_wind_gust_ms: Optional[float] = None,
+        has_weather: Optional[bool] = None,
         cursor: Optional[str] = None,
         limit: int = 20,
         sort_by: str = "start_date",
@@ -170,6 +183,18 @@ def create_mcp_server(
                 workout_type=workout_type,
                 has_trophies=has_trophies,
                 koms_only=koms_only,
+                weather_condition=weather_condition,
+                min_temp_c=min_temp_c,
+                max_temp_c=max_temp_c,
+                min_wind_speed_kmh=min_wind_speed_kmh,
+                max_wind_speed_kmh=max_wind_speed_kmh,
+                min_wind_speed_ms=min_wind_speed_ms,
+                max_wind_speed_ms=max_wind_speed_ms,
+                min_wind_gust_kmh=min_wind_gust_kmh,
+                max_wind_gust_kmh=max_wind_gust_kmh,
+                min_wind_gust_ms=min_wind_gust_ms,
+                max_wind_gust_ms=max_wind_gust_ms,
+                has_weather=has_weather,
                 cursor=cursor,
                 limit=limit,
                 sort_by=sort_by,

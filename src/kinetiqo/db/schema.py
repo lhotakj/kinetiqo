@@ -81,10 +81,18 @@ SCHEMA_DEFINITION = {
              "type_firebird": "INTEGER"},
             {"name": "weather_wind_speed", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
              "type_firebird": _DOUBLE_PRECISION},
+            {"name": "weather_wind_gust_max", "type_mysql": _DOUBLE_PRECISION, "type_pg": _DOUBLE_PRECISION,
+             "type_firebird": _DOUBLE_PRECISION},
             {"name": "weather_precipitation", "type_mysql": "VARCHAR(64)", "type_pg": "TEXT",
              "type_firebird": "VARCHAR(64)"},
         ],
         "indexes": [
+            {
+                "name": "idx_activities_weather_wind_gust",
+                "def_mysql": "CREATE INDEX idx_activities_weather_wind_gust ON activities (weather_wind_gust_max DESC)",
+                "def_pg": "CREATE INDEX idx_activities_weather_wind_gust ON activities (weather_wind_gust_max DESC)",
+                "def_firebird": 'CREATE DESCENDING INDEX idx_activities_weather_wind_gust ON "activities" ("weather_wind_gust_max")'
+            },
             {
                 "name": "idx_activities_start_date",
                 "def_mysql": "CREATE INDEX idx_activities_start_date ON activities (start_date DESC)",
@@ -798,6 +806,7 @@ class SchemaManager:
                 f'{self._quote_identifier("weather_condition_icon")} = ?, '
                 f'{self._quote_identifier("weather_wind_deg")} = ?, '
                 f'{self._quote_identifier("weather_wind_speed")} = ?, '
+                f'{self._quote_identifier("weather_wind_gust_max")} = ?, '
                 f'{self._quote_identifier("weather_precipitation")} = ? '
                 f'WHERE {col_aid} = ?'
             ) if self.db_type == "firebird" else (
@@ -809,6 +818,7 @@ class SchemaManager:
                 f"weather_condition_icon = %s, "
                 f"weather_wind_deg = %s, "
                 f"weather_wind_speed = %s, "
+                f"weather_wind_gust_max = %s, "
                 f"weather_precipitation = %s "
                 f"WHERE {col_aid} = %s"
             )
@@ -830,6 +840,7 @@ class SchemaManager:
                             summary.get("weather_condition_icon"),
                             summary.get("weather_wind_deg"),
                             summary.get("weather_wind_speed"),
+                            summary.get("weather_wind_gust_max"),
                             summary.get("weather_precipitation"),
                             int(aid),
                         ),

@@ -4231,7 +4231,7 @@ def get_activities_api():
                     'temp_display': (
                         f"{round(float(a['weather_temp_avg']))}°C"
                         if a.get('weather_temp_min') is not None and a.get('weather_temp_max') is not None and round(float(a['weather_temp_min'])) == round(float(a['weather_temp_max']))
-                        else f"{round(float(a['weather_temp_min']))} - {round(float(a['weather_temp_max']))}°C"
+                        else f"{round(float(a['weather_temp_min']))}-{round(float(a['weather_temp_max']))}°C"
                         if a.get('weather_temp_min') is not None and a.get('weather_temp_max') is not None
                         else f"{round(float(a['weather_temp_avg']))}°C" if a.get('weather_temp_avg') is not None else ""
                     ),
@@ -4243,6 +4243,7 @@ def get_activities_api():
                         if a.get('weather_wind_deg') is not None else None
                     ),
                     'wind_speed': float(a['weather_wind_speed']) if a.get('weather_wind_speed') is not None else None,
+                    'wind_gust_max': float(a['weather_wind_gust_max']) if a.get('weather_wind_gust_max') is not None else None,
                     'precipitation': a.get('weather_precipitation') or None
                 } if a.get('weather_temp_avg') is not None else None
             })

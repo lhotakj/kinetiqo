@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import math
 import os
+import struct
+import tempfile
 import threading
 import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
+
+try:
+    from multiprocessing.shared_memory import SharedMemory
+except ImportError:
+    SharedMemory = None  # type: ignore
 
 import requests
 
@@ -51,12 +61,148 @@ class WeatherProviderError(RuntimeError):
         self.stop_run = stop_run
 
 
-class WeatherRateLimitState:
-    """Best-effort per-process Visual Crossing limit state."""
+logger = logging.getLogger(__name__)
+DEFAULT_WEATHER_SHM_NAME = "kinetiqo_weather_rate_limit"
+WEATHER_SHM_SIZE = 64
 
-    def __init__(self) -> None:
+
+def _token_hash(token: str | None) -> int:
+    """Return a deterministic 64-bit unsigned integer hash of an API token."""
+    if not token or not str(token).strip():
+        return 0
+    return int.from_bytes(hashlib.sha256(str(token).strip().encode("utf-8")).digest()[:8], "big")
+
+
+class WeatherRateLimitState:
+    """Visual Crossing rate limit state shared in-memory across worker processes."""
+
+    def __init__(
+        self,
+        *,
+        use_shared_memory: bool = False,
+        shm_name: str | None = None,
+    ) -> None:
         self._lock = threading.Lock()
-        self._exhausted_until: datetime | None = None
+        self._local_exhausted_until: datetime | None = None
+        self._local_exhausted_token_hash: int = 0
+        self._use_shared_memory = use_shared_memory and (SharedMemory is not None)
+        self._shm_name = (
+            shm_name
+            or os.getenv("KINETIQO_WEATHER_SHM_NAME")
+            or DEFAULT_WEATHER_SHM_NAME
+        )
+        self._shm: Any = None
+        self._shm_file_path: Path | None = None
+        if self._use_shared_memory:
+            self._init_shared_memory()
+
+    def _init_shared_memory(self) -> None:
+        if SharedMemory is not None:
+            try:
+                try:
+                    self._shm = SharedMemory(name=self._shm_name, track=False)
+                except TypeError:
+                    self._shm = SharedMemory(name=self._shm_name)
+            except FileNotFoundError:
+                try:
+                    try:
+                        self._shm = SharedMemory(
+                            name=self._shm_name,
+                            create=True,
+                            size=WEATHER_SHM_SIZE,
+                            track=False,
+                        )
+                    except TypeError:
+                        self._shm = SharedMemory(
+                            name=self._shm_name,
+                            create=True,
+                            size=WEATHER_SHM_SIZE,
+                        )
+                    self._shm.buf[:WEATHER_SHM_SIZE] = b"\x00" * WEATHER_SHM_SIZE
+                except FileExistsError:
+                    try:
+                        try:
+                            self._shm = SharedMemory(name=self._shm_name, track=False)
+                        except TypeError:
+                            self._shm = SharedMemory(name=self._shm_name)
+                    except Exception as exc:
+                        logger.debug("Could not attach to shared memory %s: %s", self._shm_name, exc)
+                except Exception as exc:
+                    logger.debug("Could not create shared memory %s: %s", self._shm_name, exc)
+            except Exception as exc:
+                logger.debug("Could not open shared memory %s: %s", self._shm_name, exc)
+
+        try:
+            shm_dir = (
+                Path("/dev/shm")
+                if os.path.isdir("/dev/shm") and os.access("/dev/shm", os.W_OK)
+                else Path(tempfile.gettempdir())
+            )
+            self._shm_file_path = shm_dir / f"{self._shm_name}.bin"
+        except Exception:
+            self._shm_file_path = None
+
+    def _ensure_shm(self) -> None:
+        if not self._use_shared_memory:
+            return
+        if self._shm is not None:
+            try:
+                _ = self._shm.buf[0]
+                return
+            except Exception:
+                self._shm = None
+        self._init_shared_memory()
+
+    def _read_exhausted(self) -> tuple[float, int]:
+        self._ensure_shm()
+        epoch = 0.0
+        token_hash = 0
+        if self._shm is not None:
+            try:
+                buf = self._shm.buf
+                if len(buf) >= 16:
+                    raw_epoch, raw_hash = struct.unpack(">dQ", buf[:16])
+                    if not math.isnan(raw_epoch) and 0.0 < raw_epoch <= 32503680000.0:
+                        epoch = raw_epoch
+                        token_hash = raw_hash
+                elif len(buf) >= 8:
+                    raw_epoch = struct.unpack(">d", buf[:8])[0]
+                    if not math.isnan(raw_epoch) and 0.0 < raw_epoch <= 32503680000.0:
+                        epoch = raw_epoch
+            except Exception as exc:
+                logger.debug("Failed reading shared memory buffer %s: %s", self._shm_name, exc)
+
+        if epoch <= 0.0 and self._shm_file_path is not None and self._shm_file_path.exists():
+            try:
+                data = self._shm_file_path.read_bytes()
+                if len(data) >= 16:
+                    file_epoch, file_hash = struct.unpack(">dQ", data[:16])
+                    if not math.isnan(file_epoch) and 0.0 < file_epoch <= 32503680000.0:
+                        epoch = file_epoch
+                        token_hash = file_hash
+                elif len(data) >= 8:
+                    file_epoch = struct.unpack(">d", data[:8])[0]
+                    if not math.isnan(file_epoch) and 0.0 < file_epoch <= 32503680000.0:
+                        epoch = file_epoch
+            except Exception:
+                pass
+
+        return epoch, token_hash
+
+    def _write_exhausted(self, epoch: float, token_hash: int) -> None:
+        self._ensure_shm()
+        packed = struct.pack(">dQ", epoch, token_hash)
+        if self._shm is not None:
+            try:
+                self._shm.buf[:16] = packed
+            except Exception as exc:
+                logger.debug("Failed writing shared memory buffer %s: %s", self._shm_name, exc)
+
+        if self._shm_file_path is not None:
+            try:
+                self._shm_file_path.write_bytes(packed)
+            except Exception:
+                pass
 
     @staticmethod
     def _next_utc_midnight(now_utc: datetime) -> datetime:
@@ -64,22 +210,111 @@ class WeatherRateLimitState:
             hour=0, minute=0, second=0, microsecond=0,
         )
 
-    def is_exhausted(self, now_utc: datetime | None = None) -> bool:
+    def is_exhausted(
+        self,
+        now_utc: datetime | None = None,
+        api_key: str | None = None,
+    ) -> bool:
         now = now_utc or datetime.now(timezone.utc)
-        with self._lock:
-            if self._exhausted_until is not None and now >= self._exhausted_until:
-                self._exhausted_until = None
-            return self._exhausted_until is not None
+        target_token = api_key if api_key is not None else os.getenv("VISUAL_CROSSING_API_KEY", "")
+        current_hash = _token_hash(target_token)
 
-    def mark_exhausted(self, now_utc: datetime | None = None) -> None:
-        now = now_utc or datetime.now(timezone.utc)
         with self._lock:
-            self._exhausted_until = self._next_utc_midnight(now)
+            if self._use_shared_memory:
+                epoch, stored_hash = self._read_exhausted()
+                if epoch > 0.0:
+                    # If both token hashes are known and differ, user changed the API key: reset!
+                    if current_hash != 0 and stored_hash != 0 and stored_hash != current_hash:
+                        self._write_exhausted(0.0, 0)
+                        self._local_exhausted_until = None
+                        self._local_exhausted_token_hash = 0
+                        return False
+
+                    if now.timestamp() >= epoch:
+                        self._write_exhausted(0.0, 0)
+                        self._local_exhausted_until = None
+                        self._local_exhausted_token_hash = 0
+                        return False
+
+                    self._local_exhausted_until = datetime.fromtimestamp(epoch, tz=timezone.utc)
+                    self._local_exhausted_token_hash = stored_hash
+                    return True
+
+                self._local_exhausted_until = None
+                self._local_exhausted_token_hash = 0
+                return False
+
+            if self._local_exhausted_until is not None:
+                if current_hash != 0 and self._local_exhausted_token_hash != 0 and self._local_exhausted_token_hash != current_hash:
+                    self._local_exhausted_until = None
+                    self._local_exhausted_token_hash = 0
+                    return False
+
+                if now >= self._local_exhausted_until:
+                    self._local_exhausted_until = None
+                    self._local_exhausted_token_hash = 0
+                    return False
+                return True
+
+            return False
+
+    def mark_exhausted(
+        self,
+        now_utc: datetime | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        now = now_utc or datetime.now(timezone.utc)
+        target_token = api_key if api_key is not None else os.getenv("VISUAL_CROSSING_API_KEY", "")
+        token_hash = _token_hash(target_token)
+        next_midnight = self._next_utc_midnight(now)
+        with self._lock:
+            self._local_exhausted_until = next_midnight
+            self._local_exhausted_token_hash = token_hash
+            if self._use_shared_memory:
+                self._write_exhausted(next_midnight.timestamp(), token_hash)
+
+    def reset(self) -> None:
+        """Reset the rate limit state (in local memory, shared memory, and ramdisk file)."""
+        with self._lock:
+            self._local_exhausted_until = None
+            self._local_exhausted_token_hash = 0
+            if self._use_shared_memory:
+                self._write_exhausted(0.0, 0)
+
+    def close(self) -> None:
+        """Close shared memory handle."""
+        with self._lock:
+            if self._shm is not None:
+                try:
+                    self._shm.close()
+                except Exception:
+                    pass
+                self._shm = None
+
+    def unlink(self) -> None:
+        """Unlink shared memory segment and remove backing ramdisk file."""
+        with self._lock:
+            if self._shm is not None:
+                try:
+                    self._shm.unlink()
+                except Exception:
+                    pass
+                try:
+                    self._shm.close()
+                except Exception:
+                    pass
+                self._shm = None
+            if self._shm_file_path is not None and self._shm_file_path.exists():
+                try:
+                    self._shm_file_path.unlink()
+                except Exception:
+                    pass
 
     def observe_remaining(
         self,
         headers: Mapping[str, Any] | None,
         now_utc: datetime | None = None,
+        api_key: str | None = None,
     ) -> bool:
         """Record a valid zero remaining-quota response header."""
         if not isinstance(headers, Mapping) or not headers:
@@ -98,11 +333,13 @@ class WeatherRateLimitState:
             return False
         if remaining != 0:
             return False
-        self.mark_exhausted(now_utc)
+        self.mark_exhausted(now_utc, api_key=api_key)
         return True
 
 
-WEATHER_RATE_LIMIT_STATE = WeatherRateLimitState()
+WEATHER_RATE_LIMIT_STATE = WeatherRateLimitState(
+    use_shared_memory=os.getenv("KINETIQO_WEATHER_USE_SHM", "1") != "0"
+)
 
 
 def parse_utc(value: Any) -> datetime | None:
@@ -339,7 +576,7 @@ def fetch_visual_crossing_hour(
     )
     if cached_hour is not None:
         return cached_hour
-    if rate_limit_state.is_exhausted():
+    if rate_limit_state.is_exhausted(api_key=credential):
         raise WeatherProviderError(
             "Visual Crossing rate limit is exhausted until the next UTC midnight.",
             stop_run=True,
@@ -368,9 +605,9 @@ def fetch_visual_crossing_hour(
 
         status_code = int(getattr(response, "status_code", 0))
         if status_code == 429:
-            rate_limit_state.mark_exhausted()
+            rate_limit_state.mark_exhausted(api_key=credential)
             raise WeatherProviderError(
-                "Visual Crossing rate limit reached.",
+                "Visual Crossing rate limit is exhausted until the next UTC midnight.",
                 status_code=429,
                 retry_after=getattr(response, "headers", {}).get("Retry-After"),
                 stop_run=True,
@@ -414,7 +651,7 @@ def fetch_visual_crossing_hour(
                     if returned_date == cache_key[1]:
                         cached_day[returned_epoch] = normalize_visual_crossing_hour(returned_hour)
             cached_day[requested_epoch] = normalized_hour
-        rate_limit_state.observe_remaining(getattr(response, "headers", None))
+        rate_limit_state.observe_remaining(getattr(response, "headers", None), api_key=credential)
         return normalized_hour
     raise WeatherProviderError("Visual Crossing request exhausted retries.")
 
@@ -901,6 +1138,11 @@ def extract_weather_summary(payload: Any) -> dict[str, Any] | None:
     mean_wind = _weighted_mean(samples, "wind_speed_ms")
     wind_speed = round(mean_wind, 1) if mean_wind is not None else None
 
+    # 2b. Wind gusts: maximum gust recorded across all hourly samples
+    gusts = [_number_or_none(s.get("wind_gusts_ms")) for s in samples]
+    valid_gusts = [g for g in gusts if g is not None]
+    wind_gust_max = round(max(valid_gusts), 1) if valid_gusts else None
+
     # 3. Precipitation: rain vs snow vs dry
     precip_total = sum(
         (_number_or_none(s.get("precipitation_mm")) or 0.0)
@@ -981,6 +1223,7 @@ def extract_weather_summary(payload: Any) -> dict[str, Any] | None:
         "weather_condition_icon": condition_icon,
         "weather_wind_deg": wind_deg,
         "weather_wind_speed": wind_speed,
+        "weather_wind_gust_max": wind_gust_max,
         "weather_precipitation": precipitation_text,
     }
 

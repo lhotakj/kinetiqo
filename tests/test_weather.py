@@ -499,6 +499,32 @@ class WeatherSummaryTests(unittest.TestCase):
         self.assertEqual(summary["weather_condition_icon"], "snow")
         self.assertEqual(summary["weather_precipitation"], "Snow (1.0cm)")
 
+    def test_extract_weather_summary_extracts_max_wind_gust(self):
+        payload = {
+            "status": "complete",
+            "samples": [
+                {
+                    "temperature_c": 15.0,
+                    "conditions": "Clear",
+                    "wind_direction_deg": 270.0,
+                    "wind_speed_ms": 5.0,
+                    "wind_gusts_ms": 12.4,
+                    "interval_seconds": 3600,
+                },
+                {
+                    "temperature_c": 16.0,
+                    "conditions": "Clear",
+                    "wind_direction_deg": 280.0,
+                    "wind_speed_ms": 6.5,
+                    "wind_gusts_ms": 15.8,
+                    "interval_seconds": 3600,
+                },
+            ],
+        }
+        summary = extract_weather_summary(payload)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["weather_wind_gust_max"], 15.8)
+
     def test_extract_weather_summary_returns_none_for_skipped_or_invalid(self):
         self.assertIsNone(extract_weather_summary(None))
         self.assertIsNone(extract_weather_summary({"status": "skipped_indoor", "samples": []}))
@@ -579,6 +605,93 @@ class WeatherSummaryTests(unittest.TestCase):
             get=Mock(side_effect=AssertionError("Should not call get() on cache hit")),
         )
         self.assertEqual(result["temperature_c"], 12.9)
+
+
+class WeatherSharedMemoryTests(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.shm_name = f"test_kinetiqo_wl_{self._testMethodName}"
+        self.state1 = WeatherRateLimitState(use_shared_memory=True, shm_name=self.shm_name)
+        self.state2 = WeatherRateLimitState(use_shared_memory=True, shm_name=self.shm_name)
+        self.state1.reset()
+
+    def tearDown(self):
+        self.state1.unlink()
+        self.state2.unlink()
+        self.state1.close()
+        self.state2.close()
+        super().tearDown()
+
+    def test_shared_memory_shares_rate_limit_between_simulated_workers(self):
+        now = datetime(2026, 11, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self.assertFalse(self.state1.is_exhausted(now))
+        self.assertFalse(self.state2.is_exhausted(now))
+
+        # Worker 1 hits rate limit and marks exhausted
+        self.state1.mark_exhausted(now)
+
+        # Worker 2 immediately observes that rate limit is exhausted
+        self.assertTrue(self.state2.is_exhausted(now))
+        self.assertTrue(self.state2.is_exhausted(datetime(2026, 11, 1, 23, 59, 59, tzinfo=timezone.utc)))
+
+    def test_shared_memory_resets_automatically_after_utc_midnight(self):
+        now = datetime(2026, 11, 1, 15, 30, 0, tzinfo=timezone.utc)
+        self.state1.mark_exhausted(now)
+        self.assertTrue(self.state2.is_exhausted(now))
+
+        # 1 second after UTC midnight
+        past_midnight = datetime(2026, 11, 2, 0, 0, 1, tzinfo=timezone.utc)
+
+        # Worker 2 checks and observes expiry, resetting shared memory
+        self.assertFalse(self.state2.is_exhausted(past_midnight))
+
+        # Worker 1 now also observes that shared memory was reset
+        self.assertFalse(self.state1.is_exhausted(past_midnight))
+        self.assertFalse(self.state1.is_exhausted(datetime(2026, 11, 2, 10, 0, 0, tzinfo=timezone.utc)))
+
+    def test_shared_memory_explicit_reset_clears_all_workers(self):
+        now = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+        self.state1.mark_exhausted(now)
+        self.assertTrue(self.state2.is_exhausted(now))
+
+        # Explicit reset from Worker 2
+        self.state2.reset()
+
+        self.assertFalse(self.state1.is_exhausted(now))
+        self.assertFalse(self.state2.is_exhausted(now))
+
+    def test_shared_memory_observe_remaining_zero_marks_exhausted(self):
+        now = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+        headers = {"X-RateLimit-Remaining": "0"}
+        observed = self.state1.observe_remaining(headers, now)
+
+        self.assertTrue(observed)
+        self.assertTrue(self.state2.is_exhausted(now))
+
+    def test_shared_memory_recovers_gracefully_from_corrupted_buffer(self):
+        # Corrupt the shared memory buffer with NaNs
+        import struct
+        if self.state1._shm is not None:
+            self.state1._shm.buf[:8] = struct.pack(">d", float("nan"))
+
+        # Should recover and not crash, returning False
+        self.assertFalse(self.state2.is_exhausted())
+
+    def test_shared_memory_invalidates_exhaustion_when_token_changes(self):
+        now = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+        self.state1.mark_exhausted(now, api_key="old-token-123")
+        # Same token is exhausted
+        self.assertTrue(self.state2.is_exhausted(now, api_key="old-token-123"))
+
+        # User changed token -> new token must NOT be blocked!
+        self.assertFalse(self.state2.is_exhausted(now, api_key="new-token-456"))
+
+        # State is now cleared for all workers
+        self.assertFalse(self.state1.is_exhausted(now, api_key="new-token-456"))
+
+    def test_production_weather_rate_limit_state_uses_shared_memory(self):
+        from kinetiqo.weather import WEATHER_RATE_LIMIT_STATE
+        self.assertTrue(WEATHER_RATE_LIMIT_STATE._use_shared_memory)
 
 
 if __name__ == "__main__":

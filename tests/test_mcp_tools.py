@@ -156,6 +156,66 @@ class TestMCPTools(unittest.TestCase):
         self.assertEqual(act["trophies"], {"1": 2})
         self.assertEqual(act["pr_count"], 3)
 
+    def test_search_activities_weather_filters_and_payload(self):
+        self.mock_repo.search_activities.return_value = (
+            [
+                {
+                    "activity_id": 555,
+                    "name": "Rainy Ride",
+                    "start_date": "2026-10-24T14:00:00Z",
+                    "sport": "Ride",
+                    "distance": 45000.0,
+                    "moving_time": 5400,
+                    "total_elevation_gain": 320.0,
+                    "average_speed": 8.33,
+                    "weather_temp_min": 14.0,
+                    "weather_temp_max": 19.0,
+                    "weather_temp_avg": 16.3,
+                    "weather_condition": "Rain",
+                    "weather_condition_icon": "rain",
+                    "weather_wind_deg": 270,
+                    "weather_wind_speed": 3.4,
+                    "weather_wind_gust_max": 11.5,
+                    "weather_precipitation": "Rain (1.4mm)",
+                }
+            ],
+            None,
+            False,
+        )
+
+        res = activities.kinetiqo_search_activities(
+            self.mock_repo,
+            athlete_id=1,
+            weather_condition="rain",
+            min_temp_c=10.0,
+            max_temp_c=20.0,
+            min_wind_speed_kmh=10.0,
+            min_wind_gust_kmh=40.0,
+            has_weather=True,
+            sort_by="wind_gust",
+            sort_order="desc",
+        )
+
+        called_filters = self.mock_repo.search_activities.call_args[1]["filters"]
+        self.assertEqual(called_filters["weather_condition"], "rain")
+        self.assertEqual(called_filters["min_temp_c"], 10.0)
+        self.assertEqual(called_filters["max_temp_c"], 20.0)
+        self.assertEqual(called_filters["min_wind_speed_kmh"], 10.0)
+        self.assertEqual(called_filters["min_wind_gust_kmh"], 40.0)
+        self.assertTrue(called_filters["has_weather"])
+        self.assertEqual(called_filters["sort_by"], "wind_gust")
+
+        act = res["data"]["activities"][0]
+        self.assertEqual(act["name"], "Rainy Ride")
+        self.assertIsNotNone(act["weather"])
+        self.assertEqual(act["weather"]["condition"], "Rain")
+        self.assertEqual(act["weather"]["temp_avg_c"], 16.3)
+        self.assertEqual(act["weather"]["wind_speed_ms"], 3.4)
+        self.assertEqual(act["weather"]["wind_speed_kmh"], 12.2)
+        self.assertEqual(act["weather"]["wind_gust_max_ms"], 11.5)
+        self.assertEqual(act["weather"]["wind_gust_max_kmh"], 41.4)
+        self.assertEqual(act["weather"]["precipitation"], "Rain (1.4mm)")
+
     def test_get_activity_details(self):
         self.mock_repo.get_activities_by_ids.return_value = [
             {

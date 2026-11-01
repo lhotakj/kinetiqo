@@ -19,6 +19,10 @@ Athletes can ask nuanced training questions in plain language:
 - *"In three consecutive biking activities find same/peak wattage output."*
 - *"In the last 2 weeks what was my average cadence?"*
 - *"What is my usual warm up time before I hit max watts in the last year?"*
+- *"Show me all activities when it was raining."*
+- *"What was my strongest wind gust faced on bike this year?"*
+- *"What was my coldest ride this winter?"*
+- *"Show me rides where temperature exceeded 30°C."*
 - *"Analyze my fatigue over the last 3 weeks — am I digging a hole or over-reaching productively?"*
 - *"What is my current VO₂max trend based on 5-minute MAP power intervals?"*
 - *"Compare my aerobic decoupling and cadence between indoor turbo trainer sessions and outdoor road rides."*
@@ -31,8 +35,8 @@ Athletes can ask nuanced training questions in plain language:
 
 ### 2.1 Direct Grounding via 32 Read-Only MCP Tools
 The assistant does not guess or hallucinate metrics. When asked a training question, it autonomously discovers and calls in-process read-only tools:
-- **Activity Discovery & Streams**: `kinetiqo_search_activities`, `kinetiqo_get_activity_details`, `kinetiqo_get_activity_streams`, `kinetiqo_get_activity_totals`, and route/period comparison tools.
-- **Activity Weather**: `kinetiqo_get_activity_weather` returns saved hourly historical weather and provenance for an activity. It is read-only, bounded, never requests weather, and never returns GPS coordinates. Configure `VISUAL_CROSSING_API_KEY` and enable weather during sync to populate it; see [Weather enrichment](weather.md).
+- **Activity Discovery & Telemetry Search**: `kinetiqo_search_activities` filters by power, heart rate, cadence, speed, distance, dates, and full weather criteria (`weather_condition`, `min_temp_c`, `max_temp_c`, `min_wind_speed_kmh`, `min_wind_gust_kmh`, `has_weather`), with fast keyset sorting by `wind_gust`, `wind_speed`, `temp`, `watts`, and `start_date`, returning dual-unit weather payloads (`km/h` and `m/s`).
+- **Activity Weather & Hourly Snapshots**: `kinetiqo_get_activity_weather` returns saved hourly historical weather snapshots, wind direction, and headwind provenance for an activity from the local `weather` table. For severe weather queries (e.g. peak wind gusts), the AI performs a two-step drill-down: fast candidate discovery via `kinetiqo_search_activities(sort_by='wind_gust')` followed by hourly snapshot analysis via `kinetiqo_get_activity_weather`. It is read-only, bounded, never requests live weather on demand, and never returns GPS coordinates. Configure `VISUAL_CROSSING_API_KEY` and enable weather during sync to populate it; see [Weather enrichment](weather.md).
 - **Power & Performance**: `kinetiqo_get_power_skills`, `kinetiqo_get_personal_records`, `kinetiqo_get_ftp_history`, `kinetiqo_get_vo2max_trend`.
 - **Fitness & Freshness**: `kinetiqo_get_fitness_and_freshness` (computing daily CTL, ATL, and TSB form using athlete-specific exponential moving averages).
 - **Milestones & Trophies**: `kinetiqo_get_verified_koms`, `kinetiqo_get_segment_trophies`, `kinetiqo_get_fondo_milestones`, and `kinetiqo_get_training_goals`.

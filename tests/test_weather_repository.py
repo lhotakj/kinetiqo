@@ -119,6 +119,7 @@ class WeatherRepositoryTests(unittest.TestCase):
             "weather_condition_icon": "partly-cloudy-day",
             "weather_wind_deg": 270,
             "weather_wind_speed": 3.4,
+            "weather_wind_gust_max": 9.5,
             "weather_precipitation": "Rain (1.2mm)",
         }
         from kinetiqo.db.mysql import MySQLRepository
@@ -136,6 +137,7 @@ class WeatherRepositoryTests(unittest.TestCase):
                 cursor.execute.assert_called_once()
                 sql, params = cursor.execute.call_args.args
                 self.assertIn("weather_temp_min", sql)
+                self.assertIn("weather_wind_gust_max", sql)
                 self.assertIn("weather_precipitation", sql)
                 self.assertEqual(params[-1], 12345)
                 if database_type == "firebird":
@@ -200,6 +202,37 @@ class WeatherRepositoryTests(unittest.TestCase):
         epoch = int(datetime(2026, 10, 15, 16, 0, tzinfo=timezone.utc).timestamp())
         self.assertIn(epoch, cache[("50.04500,14.32200", "2026-10-15")])
         self.assertEqual(cache[("50.04500,14.32200", "2026-10-15")][epoch]["temperature_c"], 12.9)
+
+    def test_search_activities_weather_filters_and_wind_gust_sort_across_dialects(self):
+        from kinetiqo.db.mysql import MySQLRepository
+        from kinetiqo.db.firebird import FirebirdRepository
+
+        repo_classes = {
+            "postgresql": PostgresqlRepository,
+            "mysql": MySQLRepository,
+            "firebird": FirebirdRepository,
+        }
+        for database_type, repo_class in repo_classes.items():
+            with self.subTest(database_type=database_type):
+                repository, cursor = self._repository(repo_class, database_type)
+                cursor.fetchall.return_value = []
+                cursor.description = [("activity_id",), ("name",), ("start_date",)]
+                filters = {
+                    "weather_condition": "rain",
+                    "min_wind_gust_kmh": 40.0,
+                    "min_temp_c": 12.0,
+                    "max_temp_c": 24.0,
+                    "has_weather": True,
+                    "sort_by": "wind_gust",
+                    "sort_order": "desc",
+                }
+                repository.search_activities(athlete_id=1, filters=filters, limit=10)
+                cursor.execute.assert_called_once()
+                sql = cursor.execute.call_args.args[0]
+                self.assertIn("weather_wind_gust_max", sql)
+                self.assertIn("weather_condition", sql)
+                self.assertIn("weather_temp_avg", sql)
+                self.assertIn("ORDER BY", sql)
 
 
 if __name__ == "__main__":

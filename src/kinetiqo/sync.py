@@ -641,6 +641,8 @@ class SyncService:
             trophies_cache = load_verified_trophies()
             hourly_weather_cache: dict[tuple[str, str], dict[int, dict[str, Any]]] = {}
             if weather_enabled:
+                if resync_weather:
+                    WEATHER_RATE_LIMIT_STATE.reset()
                 try:
                     if hasattr(self.db, "load_weather_cache"):
                         hourly_weather_cache = self.db.load_weather_cache()
@@ -664,6 +666,15 @@ class SyncService:
                         if summary:
                             self.db.update_activity_weather_summary(activity_id, summary)
                         return "", None
+
+                if weather_enrichment_stopped:
+                    return "", None
+
+                if WEATHER_RATE_LIMIT_STATE.is_exhausted():
+                    weather_enrichment_stopped = True
+                    return "", (
+                        "Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
+                    )
 
                 try:
                     activity_type = str(
@@ -748,8 +759,7 @@ class SyncService:
                     if payload["status"] == "deferred_rate_limit":
                         weather_enrichment_stopped = True
                         return "", (
-                            "Weather enrichment stopped: Visual Crossing reported no remaining "
-                            "quota until the next UTC midnight."
+                            "Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
                         )
                     return "", (
                         f"Weather deferred for activity {activity_id}: "
