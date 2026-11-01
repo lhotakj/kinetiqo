@@ -128,3 +128,13 @@ To protect against external API quota exhaustion (Visual Crossing HTTP 429) and 
 4. **Hour Matching Nearest Fallback**:
    * If Visual Crossing or cached records return timestamps slightly offset from the exact requested epoch (e.g. half-hour reporting), `_weather_hour()` selects the nearest hour within 3600 seconds.
 
+---
+
+## 8. Visual Crossing Service Quotas & API Key Setup
+
+* **Registration & Free API Key**: Obtain a key at [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api). No credit card required.
+* **Daily Free Quota**: **1,000 free records per day**, resetting automatically at 00:00 UTC.
+* **Overage Rate**: Metered pay-as-you-go pricing at $0.0001 per record ($1 per 10,000 records).
+* **Multi-Worker Rate Limiting**: Visual Crossing supplies `X-RateLimit-Remaining` headers. When remaining reaches 0 or HTTP 429 is received, Kinetiqo's POSIX shared memory rate limiter locks further requests across all Gunicorn workers until UTC midnight.
+* **Privacy**: Latitude and longitude are sent in real-time transiently to Visual Crossing in UTC; route coordinates are never stored in weather tables or logs.
+

@@ -252,11 +252,11 @@ For Firebird, use `FIREBIRD_HOST`, `FIREBIRD_PORT` (default `3050`),
 | `FAST_SYNC` | Cron schedule for a fast sync | `*/15 * * * *` (Every 15 mins) |
 
 ### Historical activity weather (optional)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VISUAL_CROSSING_API_KEY` | Visual Crossing API key for server-side hourly historical weather during enabled syncs. | _(empty)_ |
+| Variable | Description | Default | Free Allowance |
+|----------|-------------|---------|----------------|
+| `VISUAL_CROSSING_API_KEY` | Visual Crossing API key for server-side hourly historical weather during enabled syncs. | _(empty)_ | 1,000 records / day |
 
-Set the key only when you want weather enrichment. It does not enable weather by
+Set the key only when you want weather enrichment. Create your free API key at [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api) (free tier includes 1,000 records per day resetting at 00:00 UTC, no credit card required). It does not enable weather by
 itself: enable it in Settings or for an individual sync. When Visual Crossing
 reports no remaining quota or returns HTTP 429, Kinetiqo stops only weather
 requests until the next UTC midnight and completes the rest of the sync. See

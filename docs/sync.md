@@ -51,7 +51,7 @@ During a sync pass, each workout progresses through four discrete ETL phases:
 1. **Phase 1: Summary Discovery**: Fetches activity summaries, checks for existing records in the database, and identifies new or modified workouts.
 2. **Phase 2: Detailed Streams**: Downloads full sensor time-series (time, lat/lng, distance, altitude, velocity, heart rate, cadence, watts, temperature, moving, grade).
 3. **Phase 3: Verified KOMs & Trophies**: Queries Strava's athlete KOM endpoint to retrieve true King of the Mountains crowns, and parses detailed segment efforts to log top-10 leaderboard trophies.
-4. **Phase 4: Weather Enrichment**: If enabled, requests historical hourly weather at the activity midpoint and calculates route headwind vectors.
+4. **Phase 4: Weather Enrichment**: If enabled, requests historical hourly weather at the activity midpoint and calculates route headwind vectors via Visual Crossing Timeline API (1,000 free records/day from [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api); see [docs/weather.md](weather.md)).
 
 ---
 

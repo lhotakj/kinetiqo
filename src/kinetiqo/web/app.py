@@ -14,7 +14,7 @@ import threading
 import time as _time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from PIL import Image
 
@@ -4666,6 +4666,7 @@ def activity_detail(activity_id):
     has_custom_image = (cache_dir / f"{activity_id}.png").exists()
 
     is_export = request.args.get('export') == '1'
+    selected_agent = request.args.get('agent', '').strip()
 
     return render_template(
         'activity_detail.html',
@@ -4673,6 +4674,7 @@ def activity_detail(activity_id):
         activity=activity,
         profile=profile,
         configured_agents=configured_agents,
+        selected_agent=selected_agent,
         coverage=coverage,
         analytics=analytics,
         weather=weather,
@@ -4747,10 +4749,9 @@ def activity_ai_analyze(activity_id):
     if custom_directive:
         full_prompt += f"\n\nAdditional Directive:\n{custom_directive}"
 
-    from kinetiqo.chat.service import ChatService
     from kinetiqo.chat.agent_runner import run_agent_prompt
 
-    chat_service = ChatService(repo, config)
+    chat_service = _chat_service()
     resp_text, status = run_agent_prompt(
         chat_service=chat_service,
         athlete_id=str(athlete_id),
@@ -4867,7 +4868,9 @@ def activity_export(activity_id):
 
     host_header = request.host
     port = host_header.split(':')[1] if ':' in host_header else '4444'
-    internal_url = f"http://127.0.0.1:{port}/activity/{activity_id}?export=1"
+    selected_agent = str(payload.get('selectedAgent') or payload.get('agentName') or '').strip()
+    agent_param = f"&agent={quote(selected_agent)}" if selected_agent else ""
+    internal_url = f"http://127.0.0.1:{port}/activity/{activity_id}?export=1{agent_param}"
 
     cookies_for_playwright = [
         {'name': n, 'value': v, 'domain': '127.0.0.1', 'path': '/'}
@@ -4890,9 +4893,13 @@ def activity_export(activity_id):
             if chromium_exe:
                 launch_kwargs['executable_path'] = chromium_exe
 
+            # Viewport sized to fit the canvas at full configured width plus sidebar & panel margin (matching poster export)
+            viewport_width = width + 700
+            viewport_height = (height or 1400) + 400
+
             browser = p.chromium.launch(**launch_kwargs)
             context = browser.new_context(
-                viewport={'width': width, 'height': height or 1200},
+                viewport={'width': viewport_width, 'height': viewport_height},
                 device_scale_factor=2 if export_format == 'png' else 1,
                 ignore_https_errors=True,
             )
@@ -4911,10 +4918,59 @@ def activity_export(activity_id):
                 if (window.applyExportSettings) {{
                     window.applyExportSettings(s);
                 }}
+                document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-container').forEach(el => {{
+                    el.style.setProperty('display', 'none', 'important');
+                }});
+                const wrapper = document.getElementById('detail-wrapper');
+                if (wrapper) {{
+                    wrapper.style.transform = 'none';
+                }}
+                const scaler = document.getElementById('detail-preview-scaler');
+                if (scaler) {{
+                    scaler.style.transform = 'none';
+                }}
             }}""")
 
+            # Wait for Telemetry Chart to finish rendering (matching poster elevation chart wait)
+            page.wait_for_function(
+                """
+(function() {
+    var sec = document.getElementById('sec-streams');
+    if (!sec || sec.style.display === 'none') return true;
+    if (window.telemetryChartReady === true) {
+        var c = document.getElementById('telemetry-chart');
+        if (!c) return true;
+        if (c.width > 0) return true;
+        if (typeof Chart !== 'undefined' && Chart.instances && Object.keys(Chart.instances).length > 0) return true;
+        try { return (c.getContext && c.getContext('2d')) ? true : false; } catch(e) { return false; }
+    }
+    return false;
+})()
+""",
+                timeout=30_000
+            )
+
+            # Re-trigger Chart.js resize so the telemetry chart fills the container dimensions
+            page.evaluate("""
+                (function() {
+                    var canvas = document.getElementById('telemetry-chart');
+                    if (canvas && canvas.__chartjs_instance) {
+                        canvas.__chartjs_instance.resize();
+                    }
+                    if (typeof Chart !== 'undefined' && Chart.instances) {
+                        Object.values(Chart.instances).forEach(function(c) { c.resize(); });
+                    }
+                    if (window.ensureMapBounds) {
+                        window.ensureMapBounds();
+                    }
+                    if (typeof window.updateCanvasWatermark === 'function') {
+                        window.updateCanvasWatermark();
+                    }
+                })();
+            """)
+
             # Give Leaflet and Chart.js a moment to stabilize
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(300)
 
             element = page.locator('#activity-canvas')
             repo = get_db()

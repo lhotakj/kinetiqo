@@ -4,7 +4,7 @@
 <div class="mb-8">
     <h1 class="font-serif text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ title }}</h1>
     <p class="text-sm text-gray-500 dark:text-gray-400">
-        Open-source licenses, map tile attributions, and third-party credits.
+        Open-source licenses, map tile attributions, weather service terms, and third-party credits.
     </p>
 </div>
 
@@ -208,6 +208,67 @@ SOFTWARE.</pre>
     </div>
 </div>
 
+<!-- ─── Weather Data Provider ─── -->
+<div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"/>
+        </svg>
+        Weather Data Provider
+    </h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Kinetiqo optionally enriches outdoor GPS activities with historical hourly weather data, ambient and apparent temperatures, precipitation, wind vectors, and route-relative headwind analysis.
+    </p>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                    <th class="py-3 pr-4">Provider</th>
+                    <th class="py-3 pr-4">License / Terms &amp; Limits</th>
+                    <th class="py-3 pr-4">Required Attribution</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-700 dark:text-gray-300">
+                <tr>
+                    <td class="py-3 pr-4 font-medium align-top">
+                        <a href="https://www.visualcrossing.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Visual Crossing</a>
+                        <span class="block text-xs text-gray-400 dark:text-gray-500 mt-0.5">(Timeline Weather API)</span>
+                    </td>
+                    <td class="py-3 pr-4 align-top">
+                        <a href="https://www.visualcrossing.com/weather-data-editions" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">Visual Crossing Weather Terms &amp; Pricing</a><br>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 block mt-1 space-y-1">
+                            <span>
+                                <strong>Free Tier Allowance:</strong> <strong>1,000 free records per day</strong> (refreshes daily at 00:00 UTC). No credit card required.
+                            </span>
+                            <span class="block">
+                                <strong>Pay-As-You-Go:</strong> Additional usage beyond the daily free quota is billed at $0.0001 per record ($1 per 10,000 records).
+                            </span>
+                            <span class="block">
+                                <strong>Create Own API Key:</strong> Sign up and generate a free API key at
+                                <a href="https://www.visualcrossing.com/weather-api" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">visualcrossing.com/weather-api</a>.
+                            </span>
+                            <span class="block">
+                                <strong>Configuration:</strong> Provide your key via the <code class="bg-gray-100 dark:bg-zinc-900 px-1 py-0.5 rounded text-gray-800 dark:text-zinc-200">VISUAL_CROSSING_API_KEY</code> environment variable in your <code class="bg-gray-100 dark:bg-zinc-900 px-1 py-0.5 rounded text-gray-800 dark:text-zinc-200">.env</code> file.
+                            </span>
+                            <span class="block">
+                                <strong>Rate Limit Protection:</strong> When Visual Crossing reports no remaining quota (<code class="bg-gray-100 dark:bg-zinc-900 px-1 py-0.5 rounded text-gray-800 dark:text-zinc-200">X-RateLimit-Remaining: 0</code> or HTTP 429), Kinetiqo's in-memory multi-worker lock automatically ceases further weather queries across all workers until the next UTC midnight without slamming the API gateway.
+                            </span>
+                            <span class="block">
+                                <strong>Proximity Caching &amp; Privacy:</strong> Includes a 15 km spatial proximity cache and local database persistence to prevent redundant API queries. GPS route coordinates are transmitted transiently in UTC and are never persisted in weather records, audit logs, or AI/MCP responses.
+                            </span>
+                        </span>
+                    </td>
+                    <td class="py-3 pr-4 align-top">
+                        Powered by <a href="https://www.visualcrossing.com/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Visual Crossing</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- ─── Frontend Libraries ─── -->
 <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-700 p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
@@ -246,9 +307,9 @@ SOFTWARE.</pre>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">HTMX Ext SSE</td>
-                    <td class="py-2 pr-4">2.2.2 (local copy)</td>
+                    <td class="py-2 pr-4">2.2.4 (local copy)</td>
                     <td class="py-2 pr-4">BSD 2-Clause</td>
-                    <td class="py-2"><a href="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">unpkg / htmx-ext-sse</a></td>
+                    <td class="py-2"><a href="https://unpkg.com/htmx-ext-sse@2.2.4/sse.js" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">unpkg / htmx-ext-sse</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Leaflet.js</td>
@@ -403,86 +464,115 @@ SOFTWARE.</pre>
                     <td class="py-2 pr-4 font-medium">Flask</td>
                     <td class="py-2 pr-4">3.1.3</td>
                     <td class="py-2 pr-4">BSD 3-Clause</td>
-                    <td class="py-2"><a href="https://flask.palletsprojects.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">flask.palletsprojects.com</a></td>
+                    <td class="py-2"><a href="https://flask.palletsprojects.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">flask.palletsprojects.com</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">flask-compress</td>
                     <td class="py-2 pr-4">1.25</td>
                     <td class="py-2 pr-4">MIT</td>
-                    <td class="py-2"><a href="https://github.com/colour-science/flask-compress" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                    <td class="py-2"><a href="https://github.com/colour-science/flask-compress" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">flask-login</td>
+                    <td class="py-2 pr-4">0.6.3</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://flask-login.readthedocs.io/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">flask-login.readthedocs.io</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Flask-WTF</td>
                     <td class="py-2 pr-4">1.3.0</td>
                     <td class="py-2 pr-4">BSD 3-Clause</td>
-                    <td class="py-2"><a href="https://flask-wtf.readthedocs.io/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">flask-wtf.readthedocs.io</a></td>
+                    <td class="py-2"><a href="https://flask-wtf.readthedocs.io/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">flask-wtf.readthedocs.io</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">cryptography</td>
+                    <td class="py-2 pr-4">46.0.5</td>
+                    <td class="py-2 pr-4">Apache 2.0 / BSD 3-Clause</td>
+                    <td class="py-2"><a href="https://cryptography.io/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">cryptography.io</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Pillow</td>
-                    <td class="py-2 pr-4">≥13.0.0</td>
+                    <td class="py-2 pr-4">13.0.0</td>
                     <td class="py-2 pr-4">HPND</td>
-                    <td class="py-2"><a href="https://python-pillow.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">python-pillow.org</a></td>
+                    <td class="py-2"><a href="https://python-pillow.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">python-pillow.org</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">pillow-heif</td>
-                    <td class="py-2 pr-4">≥1.8.1</td>
+                    <td class="py-2 pr-4">1.8.1</td>
                     <td class="py-2 pr-4">BSD 3-Clause / LGPL</td>
-                    <td class="py-2"><a href="https://github.com/bigcat88/pillow_heif" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">github.com/bigcat88/pillow_heif</a></td>
+                    <td class="py-2"><a href="https://github.com/bigcat88/pillow_heif" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">github.com/bigcat88/pillow_heif</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Click</td>
                     <td class="py-2 pr-4">8.5.0</td>
                     <td class="py-2 pr-4">BSD 3-Clause</td>
-                    <td class="py-2"><a href="https://click.palletsprojects.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">click.palletsprojects.com</a></td>
+                    <td class="py-2"><a href="https://click.palletsprojects.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">click.palletsprojects.com</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">httpx</td>
                     <td class="py-2 pr-4">0.28.1</td>
                     <td class="py-2 pr-4">BSD 3-Clause</td>
-                    <td class="py-2"><a href="https://www.python-httpx.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">python-httpx.org</a></td>
+                    <td class="py-2"><a href="https://www.python-httpx.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">python-httpx.org</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">pandas</td>
                     <td class="py-2 pr-4">3.0.6</td>
                     <td class="py-2 pr-4">BSD 3-Clause</td>
-                    <td class="py-2"><a href="https://pandas.pydata.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">pandas.pydata.org</a></td>
+                    <td class="py-2"><a href="https://pandas.pydata.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">pandas.pydata.org</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Gunicorn</td>
                     <td class="py-2 pr-4">26.2.0</td>
                     <td class="py-2 pr-4">MIT</td>
-                    <td class="py-2"><a href="https://gunicorn.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">gunicorn.org</a></td>
+                    <td class="py-2"><a href="https://gunicorn.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">gunicorn.org</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">psycopg2-binary</td>
                     <td class="py-2 pr-4">2.9.13</td>
                     <td class="py-2 pr-4">LGPL 3.0</td>
-                    <td class="py-2"><a href="https://www.psycopg.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">psycopg.org</a></td>
+                    <td class="py-2"><a href="https://www.psycopg.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">psycopg.org</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">mysql-connector-python</td>
                     <td class="py-2 pr-4">26.7.0</td>
                     <td class="py-2 pr-4">GPLv2 (with FOSS exception)</td>
-                    <td class="py-2"><a href="https://dev.mysql.com/doc/connector-python/en/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">dev.mysql.com</a></td>
+                    <td class="py-2"><a href="https://dev.mysql.com/doc/connector-python/en/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">dev.mysql.com</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">firebird-driver</td>
                     <td class="py-2 pr-4">2.0.3</td>
                     <td class="py-2 pr-4">MIT</td>
-                    <td class="py-2"><a href="https://github.com/FirebirdSQL/python3-driver" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                    <td class="py-2"><a href="https://github.com/FirebirdSQL/python3-driver" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">packaging</td>
-                    <td class="py-2 pr-4">≥26.3</td>
+                    <td class="py-2 pr-4">26.3</td>
                     <td class="py-2 pr-4">Apache 2.0 / BSD 2-Clause</td>
-                    <td class="py-2"><a href="https://packaging.pypa.io" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">packaging.pypa.io</a></td>
+                    <td class="py-2"><a href="https://packaging.pypa.io" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">packaging.pypa.io</a></td>
                 </tr>
-
+                <tr>
+                    <td class="py-2 pr-4 font-medium">pydantic</td>
+                    <td class="py-2 pr-4">2.14.1</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://docs.pydantic.dev/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">docs.pydantic.dev</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">PyYAML</td>
+                    <td class="py-2 pr-4">6.0.3</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://pyyaml.org/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">pyyaml.org</a></td>
+                </tr>
+                <tr>
+                    <td class="py-2 pr-4 font-medium">FastMCP (mcp)</td>
+                    <td class="py-2 pr-4">1.30.0</td>
+                    <td class="py-2 pr-4">MIT</td>
+                    <td class="py-2"><a href="https://github.com/modelcontextprotocol/python-sdk" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">github.com/modelcontextprotocol</a></td>
+                </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Playwright</td>
-                    <td class="py-2 pr-4">≥1.64.0</td>
+                    <td class="py-2 pr-4">1.64.0</td>
                     <td class="py-2 pr-4">Apache 2.0</td>
-                    <td class="py-2"><a href="https://playwright.dev/python/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">playwright.dev</a></td>
+                    <td class="py-2"><a href="https://playwright.dev/python/" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">playwright.dev</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">Chromium (Playwright managed)</td>
@@ -506,19 +596,19 @@ SOFTWARE.</pre>
                         {% endif %}
                     </td>
                     <td class="py-2 pr-4">PSF License</td>
-                    <td class="py-2"><a href="https://www.python.org" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">python.org</a></td>
+                    <td class="py-2"><a href="https://www.python.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">python.org</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">requests</td>
                     <td class="py-2 pr-4">2.34.2</td>
                     <td class="py-2 pr-4">Apache 2.0</td>
-                    <td class="py-2"><a href="https://requests.readthedocs.io" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">requests.readthedocs.io</a></td>
+                    <td class="py-2"><a href="https://requests.readthedocs.io" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">requests.readthedocs.io</a></td>
                 </tr>
                 <tr>
                     <td class="py-2 pr-4 font-medium">python-dateutil</td>
-                    <td class="py-2 pr-4">≥2.9.0.post0</td>
+                    <td class="py-2 pr-4">2.9.0.post0</td>
                     <td class="py-2 pr-4">Apache 2.0 / BSD</td>
-                    <td class="py-2"><a href="https://github.com/dateutil/dateutil" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
+                    <td class="py-2"><a href="https://github.com/dateutil/dateutil" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a></td>
                 </tr>
             </tbody>
         </table>

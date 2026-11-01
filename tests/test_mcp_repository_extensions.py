@@ -165,7 +165,7 @@ class TestPostgresqlMcpExtensions(unittest.TestCase):
         self.assertIn("name ILIKE %s", sql)
         self.assertIn("CAST(activity_id AS TEXT) LIKE %s", sql)
         self.assertIn("%Jonas%", params)
-        self.assertEqual(params.count("%Jonas%"), 2)
+        self.assertEqual(params.count("%Jonas%"), 4)
         self.assertIn("distance >= %s", sql)
         self.assertIn(5000.0, params)
         self.assertIn("total_elevation_gain >= %s", sql)

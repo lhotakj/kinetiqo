@@ -17,9 +17,10 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Activity Goals**: Weekly, monthly, and yearly distance/elevation goals per activity type.
 - **MEGA Stats Infographic**: Infographic with selectable period/activity groups, custom photo background upload & reset, configurable tint overlay and opacity slider, font selector (Inter, Italiana, Outfit, etc.), unified collapsible control panels (Stats Options, Appearance, Size, Period), responsive column width with stacked default (20%) and expanded full-width row layout (>20% up to 50%), most active month by distance & elevation metrics, custom date formatting, full localStorage state persistence, and vector PDF / PNG export.
 - **Fondo-o-meter Infographic**: Dynamic endurance showcase infographic displaying up to 8 harmonic concentric rings with smart distance binning, sport thresholds (100km cycling, 42.2km marathon running/walking, 50km skiing, 10km swimming), KOMs, PRs, custom background photo upload with tint/opacity controls, arc color and arch width customization, and vector PDF / PNG export via Playwright.
+- **Activity Detail Infographic**: Single-workout analytical showcase featuring 2-column hero split (50% Key metrics grid 1–6 cols, 50% Leaflet route map), interactive multi-stream telemetry chart (Elevation fill, HR, Power, Cadence, Speed) with Distance vs. Time X-axis mode toggle, on-demand AI Coach analysis with Run prompt / Re-prompt execution and real-time generation indicator, 5-column analytical card grid (Power Zones, Peak MMP, HR Zones, Climbs, Stored Weather), font scale slider (-30% to +50%), custom background photo upload, and Playwright-powered pixel-perfect PNG/vector PDF export with Kinetiqo brand watermark.
 - **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, background photo mode (with clear image option) or interactive Leaflet map mode (tile provider selection, map opacity control, route line color/opacity/weight), collapsible control boxes with element checkboxes, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), configurable placement (`begin`/`end`), workout summary with power zones / NP (% FTP), sustained blocks, and high-power sprint peak surge detection (`≥ 1000W` adjectives).
-- **Historical Activity Weather**: Optional `VISUAL_CROSSING_API_KEY` enriches eligible outdoor GPS activities during enabled syncs with stored hourly weather and calculated headwind. Never expose route coordinates or fetch weather on demand; a valid `X-RateLimit-Remaining: 0` or HTTP 429 stops weather enrichment across all Gunicorn workers via shared in-memory state until UTC midnight (automatically resetting after UTC midnight), without a database quota counter, and skips subsequent activity weather requests during the sync pass to prevent gateway slamming.
+- **Historical Activity Weather**: Optional `VISUAL_CROSSING_API_KEY` enriches eligible outdoor GPS activities during enabled syncs with stored hourly weather and calculated headwind (free tier provides 1,000 records/day via [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api)). Never expose route coordinates or fetch weather on demand; a valid `X-RateLimit-Remaining: 0` or HTTP 429 stops weather enrichment across all Gunicorn workers via shared in-memory state until UTC midnight (automatically resetting after UTC midnight), without a database quota counter, and skips subsequent activity weather requests during the sync pass to prevent gateway slamming.
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
 - **Model Context Protocol (MCP) Server**: FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO or FastMCP SSE over HTTP (`0.0.0.0:8000/sse`). Exposes 35 evidence-based tools across activity discovery, telemetry streams, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact exports, with strictly gated mutation flags (`KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`).
 - **Security & Performance**: Session auth (`flask-login`), CSRF validation (`flask-wtf`), response compression (`flask-compress`), self-hosted base fonts, and compiled Tailwind CSS.
@@ -54,19 +55,21 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | Session & CSRF | **Flask-WTF** / **flask-login** | 1.3.0 / 0.6.3 | CSRF tokens on all POST/PUT/DELETE routes |
 | Response Compression | **flask-compress** | 1.25 | Automatic gzip/brotli compression |
 | Frontend CSS | **Tailwind CSS** | v4 CLI (4.3.3) | Compiled to `static/css/tailwind.css` via `download-tailwind.sh` |
-| Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.2 | SSE for sync progress bar |
+| Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.4 | SSE for sync progress bar |
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
 | CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`, `mcp`, `scan-trophies`, `version`) |
-| AI & MCP Protocol | **FastMCP** (`mcp[cli]`) | ≥1.2.0 | FastMCP server for AI agent integration (STDIO & SSE) |
+| AI & MCP Protocol | **FastMCP** (`mcp[cli]`) | 1.30.0 | FastMCP server for AI agent integration (STDIO & SSE) |
 | Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 26.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
-| Data Processing | **pandas** | 3.0.6 | CTL/ATL/TSB calculation |
-| Browser Automation | **Playwright** | ≥1.64.0 | PNG poster and infographic rendering |
-| Image Processing | **Pillow** / **pillow-heif** | ≥13.0.0 / ≥1.8.1 | Poster and image processing (HEIC/HEIF support) |
-| Date Parsing | **python-dateutil** | ≥2.9.0.post0 | Date parsing utilities |
-| Versioning | **packaging** | ≥26.3 | SemVer comparisons |
+| Data Processing | **pandas** / **pydantic** | 3.0.6 / 2.14.1 | CTL/ATL/TSB calculation and data schemas |
+| Browser Automation | **Playwright** | 1.64.0 | PNG poster and infographic rendering |
+| Image Processing | **Pillow** / **pillow-heif** | 13.0.0 / 1.8.1 | Poster and image processing (HEIC/HEIF support) |
+| Cryptography | **cryptography** | 46.0.5 | Secure key generation & crypto primitives |
+| Date Parsing | **python-dateutil** | 2.9.0.post0 | Date parsing utilities |
+| YAML Parsing | **PyYAML** | 6.0.3 | Configuration & library metadata parsing |
+| Versioning | **packaging** | 26.3 | SemVer comparisons |
 
 ---
 

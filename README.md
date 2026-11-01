@@ -38,6 +38,7 @@ Every capability in Kinetiqo is documented in detail in the [`docs/`](docs/) dir
 | **FTP & VO₂max** | [docs/ftp-vo2max.md](docs/ftp-vo2max.md) | Automated 95% 20-min power FTP estimation and Townsend 5-min MAP VO₂max classification trends. |
 | **Activity Goals** | [docs/goals.md](docs/goals.md) | Weekly, monthly, and yearly distance and elevation targets with progress and pacing tracking. |
 | **Activity Posters** | [docs/poster.md](docs/poster.md) | WYSIWYG poster builder with photo editor, aspect ratios (4:3, 16:9, 1:1), elevation chart, and PNG export. |
+| **Activity Detail** | [docs/activity-detail.md](docs/activity-detail.md) | Single-workout infographic with Leaflet map, multi-stream telemetry chart, AI Coach analysis, 5 analytical cards, and PNG/PDF export. |
 | **MEGA Stats** | [docs/mega-stats.md](docs/mega-stats.md) | Yearly infographic with 365-day calendar heatmaps, responsive full-width layout, and vector PDF/PNG export. |
 | **Fondo-o-meter** | [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md) | Dynamic concentric radial milestone rings, sport thresholds, verified KOMs, PRs, and export. |
 | **Weather Enrichment** | [docs/weather.md](docs/weather.md) | Historical hourly weather, temperature ranges, wind vectors, gusts, and route headwind calculations. |
@@ -105,6 +106,8 @@ DB_HOST=db
 DB_NAME=kinetiqo
 DB_USER=kinetiqo
 DB_PASSWORD=ChangeThisDatabasePassword123!
+# Optional: Historical activity weather (1,000 free records/day from visualcrossing.com/weather-api)
+VISUAL_CROSSING_API_KEY=
 ```
 
 Launch the stack:
@@ -189,14 +192,14 @@ Kinetiqo includes a built-in **FastMCP Server** connecting your local fitness da
 | **Interactive Grid** | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 | Client-side reactive grid with localStorage state persistence |
 | **Maps** | Leaflet.js | 1.9.4 | Canvas renderer with 16 basemaps and server-side tile proxy |
 | **Visual Exports** | Playwright | ≥1.64.0 | Server-side headless Chromium rendering for pixel-perfect posters/PDFs |
-| **AI Protocol** | FastMCP | ≥1.2.0 | Model Context Protocol server exposing 32+ fitness telemetry tools |
+| **AI Protocol** | FastMCP | 1.30.0 | Model Context Protocol server exposing 35+ fitness telemetry tools |
 | **Database Drivers** | psycopg2, mysql-connector, firebird-driver | Latest | Direct parameterized raw SQL — **Zero ORM** overhead |
 
 *For deep architectural design and benchmark analysis, see [docs/DATABASE.md](docs/DATABASE.md) and [docs/sync.md](docs/sync.md).*
 
 ---
 
-## License & Map Attributions
+## License, Map & Weather Attributions
 
 This project is licensed under the terms of the MIT License. See `LICENSE` for details.
 
@@ -208,4 +211,6 @@ Map tiles and cartography are provided by:
 - **Geoapify**: Powered by [Geoapify](https://www.geoapify.com/), © OpenStreetMap contributors.
 - **CARTO**: © [CARTO](https://carto.com/), © OpenStreetMap contributors.
 - **Esri**: World Imagery sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community.
-- **Weather Data**: Powered by [Visual Crossing](https://www.visualcrossing.com/).
+
+Historical activity weather data is provided by:
+- **Visual Crossing**: Powered by [Visual Crossing](https://www.visualcrossing.com/) Timeline Weather API. The free plan provides **1,000 free records per day** (resets daily at 00:00 UTC, no credit card required). Create your free API key at [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api) and configure via `VISUAL_CROSSING_API_KEY`. See [docs/weather.md](docs/weather.md) for complete details.

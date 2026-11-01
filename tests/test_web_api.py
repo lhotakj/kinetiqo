@@ -262,3 +262,28 @@ def test_sync_stream_replays_owned_job_events(monkeypatch):
     response = client.get('/api/sync/stream/job-1')
     assert response.status_code == 200
     assert b'id: 1\nevent: message\ndata: <p>progress</p>' in b''.join(response.response)
+
+
+def test_license_page_contains_visual_crossing(monkeypatch):
+    """The license page displays Visual Crossing, free quota limits, API key link, and requirements dependencies."""
+    app.config['LOGIN_DISABLED'] = True
+    client = app.test_client()
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
+
+    response = client.get('/license')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    assert "Weather Data Provider" in html
+    assert "Visual Crossing" in html
+    assert "1,000 free records per day" in html
+    assert "visualcrossing.com/weather-api" in html
+    assert "VISUAL_CROSSING_API_KEY" in html
+    assert "weather service terms" in html
+    assert "flask-login" in html
+    assert "cryptography" in html
+    assert "FastMCP (mcp)" in html
+    assert "pydantic" in html
+    assert "PyYAML" in html
+    assert "2.2.4 (local copy)" in html
+

@@ -53,6 +53,15 @@ The `/activities` grid features a dedicated, toggleable **Weather** column:
 
 The API key is strictly maintained on the server; it is never transmitted to the browser, stored in activity tables, or logged.
 
+### How to Get Your Free API Key:
+1. **Sign Up**: Register for a free account at [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api). No credit card is required to get started.
+2. **Free Allowance**: The free plan provides **1,000 free weather records per day**, which resets automatically every day at **00:00 UTC**.
+3. **Pay-As-You-Go**: If you exceed the free allowance, additional records are metered at **$0.0001 per record** ($1 per 10,000 records). See [Visual Crossing Editions & Pricing](https://www.visualcrossing.com/weather-data-editions) for details.
+4. **Efficiency & Spatial Caching**:
+   - Visual Crossing counts 1 record per requested hour along the workout route.
+   - Kinetiqo includes a **15 km spatial proximity cache** and saves all hourly observations in the local database. Multiple activities in the same area on the same day share weather data with zero extra API queries, making 1,000 records/day sufficient for hundreds of hours of outdoor activities.
+   - Re-syncing or restoring activities re-computes summaries directly from local records with **0 Visual Crossing queries**.
+
 ---
 
 ## 5. Rate Limit Architecture
@@ -80,6 +89,10 @@ For full mathematical formulas, headwind bearing calculations, database schemas,
 
 ---
 
-## 8. Attribution
+## 8. Attribution & Service Terms
 
-Weather data is provided by [Visual Crossing](https://www.visualcrossing.com/).
+Weather data is provided by [Visual Crossing](https://www.visualcrossing.com/) via the Timeline Weather API:
+- **Service Website**: [visualcrossing.com](https://www.visualcrossing.com/)
+- **Get Free API Key**: [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api) (1,000 free records/day)
+- **Editions & Pricing**: [visualcrossing.com/weather-data-editions](https://www.visualcrossing.com/weather-data-editions)
+- **Terms of Service**: [visualcrossing.com/terms](https://www.visualcrossing.com/terms/)

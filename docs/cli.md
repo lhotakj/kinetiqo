@@ -50,7 +50,7 @@ python src/kinetiqo.py sync [OPTIONS]
 - `--full-sync, --full`: Complete historical audit of all activities.
 - `--period, -p TEXT`: Limit synchronization scope (e.g. `30d`, `6m`, `1y`).
 - `--update-strava-description / --no-update-strava-description`: Toggle automatic description generation.
-- `--weather-data / --no-weather-data`: Toggle historical weather enrichment via Visual Crossing.
+- `--weather-data / --no-weather-data`: Toggle historical weather enrichment via Visual Crossing Timeline API (1,000 free records/day from [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api); see [docs/weather.md](weather.md)).
 - `--resync-weather`: Force weather re-download and recalculation for workouts in scope.
 - `--database, -d [postgresql|mysql|firebird]`: Override database backend.
 

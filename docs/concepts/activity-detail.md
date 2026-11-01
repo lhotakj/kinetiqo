@@ -26,15 +26,18 @@ During the requirements interrogation sessions, all foundational architectural b
      - Standard dark control box theme (`#18181b` background, `#202023` headers, `#27272a` borders) with chevron collapse toggles and `localStorage` persistence under `activityDetailBoxCollapsed`.
      - Action buttons: Download PNG and Download PDF (`_infographic_action_buttons.html`).
      - Size box: Presets M (1280px), L (1440px), XL (1600px), XXL (1920px), ratio (Auto / 16:9 / 4:3), and live dimensions display (`_infographic_size_box.html`).
-     - Appearance & Map box: Background color picker, text/accent color picker, basemap selector (`#map-tile-provider` moved from canvas to sidebar), font selector (`_font_select.html`), tint overlay (`_control_color_tint.html`), opacity slider (`_control_range.html`), custom background photo upload & reset (`_image_upload_buttons.html`).
+     - Appearance box: Background color picker, text/accent color picker, font selector (`_font_select.html`), generic Font Size Scale range slider (`#detail-font-scale`, -30% to +50%, default 0% / 1.0x, unified via `_control_range.html`), tint overlay (`_control_color_tint.html`), opacity slider (`_control_range.html`), custom background photo upload & reset (`_image_upload_buttons.html`).
+     - **Key Metrics Box**: Columns selector (1, 2, 3, 4, 5, or 6 columns) and 15 individual metric toggles (all ON by default, persisted under `actDetail_km_*`).
+     - Dedicated Map box: Migrated from `/map` with Base Map select, Map Opacity, Map Color Tone + Clear, Tone Opacity (in Leaflet `tonePane` z-index 250), Route Color, Route Width, and Route Opacity.
+     - **Dedicated Telemetry Streams Box**: X-Axis mode segmented toggle (Distance vs Time) and Visible Streams checkboxes (Elevation, Heart Rate, Power, Cadence, Speed — all ON by default).
      - **AI Agent & Re-Prompt Box**: Configured agent selector dropdown, optional custom directive textarea, real-time status indicator, error checking with theme-aware styling, and "Generate / Re-Prompt" action button.
-     - Visible Stats / Options box: Checkboxes matching Mega Stats `stat-toggle` styling (uniform `text-xs`, 3px margin, truncation) to toggle individual stat cards and sections.
+     - Visible Stats / Options box: Checkboxes matching Mega Stats `stat-toggle` styling (uniform `text-xs`, 3px margin, truncation) to toggle individual sections.
    - **Main Canvas & Scaler Preview Area**:
      - Embedded in a responsive preview scaler (`stats-preview-scaler` / `infographic-wrapper`) calculating dynamic scale transforms (`scale = Math.min(1.0, availWidth / width)`) so the entire canvas fits compactly on a single screen without vertical or horizontal scrolling.
-     - Top row: Compact activity header (Sport badge, Name, Date, Gear, Poster & Strava buttons).
-     - Hero overview: 2-column side-by-side split (Key metrics 3x4 grid on left, Leaflet route map on right with matched height ~250px and robust `invalidateSize()` tile rendering).
-     - Middle row: Compact telemetry multi-stream profile chart (`h-[135px]`) with inline channel pills and Dist/Time toggle.
-     - Bottom row: Compact AI Analysis card (2-line quote with scroll) + 5-column analytical card grid (Power Zones, Peak MMP, HR Zones, Climb, Stored Weather) designed for optimal horizontal space utilization.
+     - Top row: Clean activity header with Name on left, Date & Time far on the right, no underline line or sport badge clutter.
+     - Hero overview: 2-column side-by-side design (`#overview-two-col`, 50% Key metrics grid on left, 50% Leaflet route map on right with matched height and robust `invalidateSize()` tile rendering). Leaflet zoom controls (+ -) are suppressed during PNG/PDF exports.
+     - Middle row: Compact telemetry multi-stream profile chart with clickable stream lozenges (Elev, HR, Power, Cadence, Speed) floating without underline separator lines.
+     - Bottom row: Compact AI Analysis card (2-line quote with scroll) + 5-column analytical card grid (Power Zones, Peak MMP, HR Zones, Climb, Stored Weather) designed for optimal horizontal space utilization without underline lines below widget titles.
 2. **Canvas Sizing & Ratio**:
    - Default: **Auto Height (Fit All Content)** so all enabled cards fit cleanly without vertical clipping during PNG/PDF export.
    - Selectable fixed ratios (**4:3** and **16:9**) available in the ratio dropdown if the athlete desires a constrained poster/infographic frame.
@@ -46,15 +49,13 @@ During the requirements interrogation sessions, all foundational architectural b
 4. **AI Agent Selection, Re-Prompting & Database Persistence**:
    - **Database Storage**: Persisted directly in `activities.ai_responses` JSON column under key `agent-ai-<agent_name>` using `repo.update_activity_ai_responses(activity_id, ai_responses)`.
      - *Advantages*: Zero schema migration required, 100% database portability (PostgreSQL, MySQL, Firebird), immediately reflects on both Activity Detail canvas and `activities.html` grid table, and integrates seamlessly with `{{agent-ai-<name>}}` placeholders for Strava description updates.
-   - **Sidebar Re-Prompt Controls**:
-     - Agent dropdown populated from `strava_agents_config`, defaulting to the first configured agent.
-     - Optional "Custom Directive" text field (e.g. *"Focus on the final 15km climb"*, *"Summarize pace in 2 sentences"*) allowing one-off instruction overrides without modifying the athlete's base profile agent.
-     - "Generate / Re-Prompt" button executing `agent_runner.py` via `ChatService`.
-   - **Status & Error Checking**:
-     - *Neutral State*: Displays "Cached response from `<agent>`" or "Not generated yet".
-     - *Running State*: Action button transforms to rotating `kinetiqo-loading-32x32.webp` icon (no accompanying text in button per Kinetiqo UI standards), with an adjacent status message: *"Generating with `<provider/model>`..."*.
-     - *Success State*: Green **`Saved ✓`** indicator auto-fading after 3 seconds, immediately updating the AI Analysis card on the canvas.
-     - *Error State*: Input box highlights in light red (`bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-600`), accompanied by clear error text (e.g., missing API key, rate limit 429, timeout) and a "Retry" button.
+   - **Sidebar Prompt Actions & Cached Status**:
+     - Agent pulldown displays cached status directly in each option (e.g. `coach (cached)` vs `witty`).
+     - Dynamic action button: shows **"Run prompt"** when no cached response exists for the selected agent, and **"Re-prompt"** when a response is already cached.
+     - Removed one-off "Custom Directive" field to keep the prompt workflow focused and streamlined.
+   - **Execution & Real-Time Progress**:
+     - *Running State*: Button replaces with rotating `kinetiqo-loading-32x32.webp` icon (disabled per UI loading standards), sidebar status displays running progress (e.g. *"Running prompt with coach..."*), and the canvas card displays an animated generation indicator.
+     - *Completion*: Persists response to database `activities.ai_responses`, updates local cache, renders text in canvas card, marks pulldown option as `(cached)`, changes button to **"Re-prompt"**, and flashes green **`Saved ✓`** tag.
 5. **Telemetry Chart Interactivity**:
    - Full interactive Chart.js canvas with area fill for elevation, colored lines for Power (orange), Heart Rate (red), Cadence (green), and Speed (blue).
    - Individual toggle pills for each metric.
@@ -172,8 +173,11 @@ During the requirements interrogation sessions, all foundational architectural b
   ```
 - **Behavior**:
   - Uses Playwright to render the internal URL `/activity/<activity_id>?export=1` headlessly with athlete session cookies.
-  - Waits for `#activity-map` tiles and `#telemetry-chart` rendering to stabilize (`networkidle` + custom ready flag).
-  - Captures pixel-perfect PNG screenshot (`clip` or full element screenshot) or vector PDF (`page.pdf()`).
+  - Slices a generous viewport (`width + 700`, `(height or 1400) + 400`) matching Poster export to eliminate CSS transform shrinkage on `#detail-wrapper`.
+  - Sets `animation: false` on Chart.js telemetry datasets to eliminate rendering race conditions and frame delays.
+  - Waits explicitly for `#telemetry-chart` and `window.telemetryChartReady === true` via `page.wait_for_function()` (up to 30s timeout matching Poster elevation chart).
+  - Re-triggers Chart.js instances resize (`c.resize()`) and Leaflet map bounds (`ensureMapBounds()`) after dimension overrides before screenshotting.
+  - Captures pixel-perfect PNG screenshot (`#activity-canvas`) or vector PDF (`page.pdf()`), featuring the Kinetiqo brand watermark logo (`#canvasWatermark`, `.activity-canvas-watermark`) positioned at the bottom right.
   - Returns binary image or PDF with `Content-Disposition: attachment; filename="kinetiqo-activity-<id>.<ext>"`.
 
 ---

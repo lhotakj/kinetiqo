@@ -270,11 +270,16 @@ python src/kinetiqo.py benchmark --scope 365
 
 *OpenStreetMap, Mapy.cz, CARTO Positron/Dark, and Esri World Imagery work out of the box with zero API keys required.*
 
-### 5.6 Historical Activity Weather
+### 5.6 Historical Activity Weather (Optional)
 
-| Variable | Default | Description |
-|---|---|---|
-| `VISUAL_CROSSING_API_KEY` | `""` | Visual Crossing Timeline API key. When present, outdoor GPS workouts are automatically enriched with hourly weather and headwind calculations. |
+| Variable | Free Tier Link | Free Quota | Description |
+|---|---|---|---|
+| `VISUAL_CROSSING_API_KEY` | [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api) | 1,000 records / day | Visual Crossing Timeline API key. When present, outdoor GPS workouts are automatically enriched with hourly historical weather and route-relative headwind calculations. |
+
+* **Get a Free API Key**: Register at [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api). No credit card required.
+* **Daily Quota**: The free plan provides **1,000 weather records per day** (resets every day at 00:00 UTC). Additional records are metered at $0.0001 per record ($1 per 10,000 records).
+* **Smart Caching**: Kinetiqo caches weather records within a **15 km radius** and stores hourly records in the database, meaning multiple activities in the same area share cached data with zero redundant API calls.
+* **Rate-Limit Safe**: When Visual Crossing reports no remaining quota (`X-RateLimit-Remaining: 0` or HTTP 429), weather queries halt automatically across all workers until the next UTC midnight while activity sync proceeds normally.
 
 ### 5.7 FastMCP Server & Mutation Controls
 

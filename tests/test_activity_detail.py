@@ -18,6 +18,7 @@ from kinetiqo.web.app import app
 
 class DummyActivityDetailRepo:
     def __init__(self, activity=None, streams=None, profile=None):
+        self.conn = MagicMock()
         self._activity = activity or {
             "id": 999123,
             "activity_id": 999123,
@@ -50,7 +51,10 @@ class DummyActivityDetailRepo:
             "has_heartrate": True,
             "workout_type": 10,
             "trophies": {"1": 1, "2": 0},
-            "ai_responses": {"agent-ai-coach": "Great sustained pacing and hill climbs."},
+            "ai_responses": {
+                "agent-ai-coach": "Great sustained pacing and hill climbs.",
+                "agent-ai-witty": "Look at those hills! Your legs must be screaming funny jokes.",
+            },
             "weather_temp_min": 17.0,
             "weather_temp_max": 22.0,
             "weather_temp_avg": 19.5,
@@ -197,6 +201,36 @@ def test_activity_detail_page_found(test_client):
     assert "Stored Activity Weather" in html
     assert "OpenStreetMap" in html
     assert 'value="openstreetmap"' in html
+    assert 'id="canvas-activity-date"' in html
+    assert 'id="detail-font-scale"' in html
+    assert 'id="detailKeyMetrics"' in html or 'data-box-id="detailKeyMetrics"' in html
+    assert 'id="detail-metrics-cols"' in html
+    assert 'value="5"' in html
+    assert 'value="6"' in html
+    assert 'id="overview-two-col"' in html
+    assert 'id="metrics-grid"' in html
+    assert 'id="chk-km-distance"' in html
+    assert 'id="chk-km-moving-time"' in html
+    assert 'id="chk-km-elevation-gain"' in html
+    assert 'id="card-km-distance"' in html
+    assert 'id="card-km-elevation-gain"' in html
+    assert 'id="card-km-calories"' in html
+    assert 'id="telemetry-axis-dist-btn"' in html
+    assert 'id="telemetry-axis-time-btn"' in html
+    assert 'id="stream-chk-altitude"' in html
+    assert 'id="stream-chk-watts"' in html
+    # Ensure RIDE & gear div and top-right Kinetiqo brand are removed
+    assert "Gear: b12345" not in html
+    assert "Activity Detail</span>" not in html
+    # Ensure Custom Directive textarea and canvas agent badge are removed
+    assert 'id="detail-custom-directive"' not in html
+    assert 'id="canvas-agent-badge"' not in html
+    assert 'coach (cached)' in html
+    assert 'id="btn-reprompt-agent"' in html
+    # Ensure Kinetiqo logo watermark is present on canvas bottom-right
+    assert 'id="canvasWatermark"' in html
+    assert 'activity-canvas-watermark' in html
+    assert 'kinetiqo_logo.png' in html
 
 
 def test_activity_detail_page_not_found(test_client):
@@ -309,20 +343,42 @@ def test_activity_export_mocked(test_client, monkeypatch):
     # PNG Export test
     resp_png = client.post(
         "/api/activity/export/999123",
-        json={"format": "png", "width": 1280, "ratio": "auto"},
+        json={"format": "png", "width": 1280, "ratio": "auto", "selectedAgent": "witty"},
     )
     assert resp_png.status_code == 200
     assert resp_png.mimetype == "image/png"
     assert b"dummy png" in resp_png.data
+    called_url = mock_page.goto.call_args[0][0]
+    assert "&agent=witty" in called_url
 
     # PDF Export test
     resp_pdf = client.post(
         "/api/activity/export/999123",
-        json={"format": "pdf", "width": 1280, "ratio": "4:3"},
+        json={"format": "pdf", "width": 1280, "ratio": "4:3", "selectedAgent": "coach"},
     )
     assert resp_pdf.status_code == 200
     assert resp_pdf.mimetype == "application/pdf"
     assert b"dummy pdf" in resp_pdf.data
+    called_pdf_url = mock_page.goto.call_args[0][0]
+    assert "&agent=coach" in called_pdf_url
+
+
+def test_activity_detail_selected_agent(test_client):
+    """Ensure activity_detail respects ?agent= query param for rendering agent responses and selection."""
+    client, repo = test_client
+    # Default (no query parameter) -> coach
+    resp_default = client.get("/activity/999123")
+    assert resp_default.status_code == 200
+    html_default = resp_default.data.decode("utf-8")
+    assert "Great sustained pacing and hill climbs." in html_default
+    assert '<option value="coach" selected>' in html_default
+
+    # Explicit ?agent=witty -> witty
+    resp_witty = client.get("/activity/999123?agent=witty")
+    assert resp_witty.status_code == 200
+    html_witty = resp_witty.data.decode("utf-8")
+    assert "Look at those hills! Your legs must be screaming funny jokes." in html_witty
+    assert '<option value="witty" selected>' in html_witty
 
 
 def test_activity_detail_zero_arg_get_profile_contract(test_client):

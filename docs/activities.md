@@ -22,7 +22,7 @@ The **Activity Grid** is the central command center of Kinetiqo, powered by **Da
 |---|---|---|---|
 | **Selection** | `activity_id` | Boolean | Checkbox for individual and bulk row selection |
 | **Date** | `start_date_local` | Timestamp | Formatted activity start date and time |
-| **Name** | `name` | String | Activity title with direct link to Strava and local actions |
+| **Name** | `name` | String | Activity title with direct links to [Activity Detail Infographic](activity-detail.md) (`/activity/<id>`), Strava, and Poster Generator |
 | **Type** | `type` | String | Discipline badge (Ride, Run, Swim, Walk, Hike, VirtualRide, AlpineSki, etc.) |
 | **Distance** | `distance` | Numeric (m) | Total distance formatted in km (or miles) with 1 decimal precision |
 | **Moving Time** | `moving_time` | Seconds | Net active time formatted as `HH:MM:SS` |
@@ -50,6 +50,7 @@ The **Activity Grid** is the central command center of Kinetiqo, powered by **Da
 | URL Route / Endpoint | Method | Purpose |
 |---|---|---|
 | `/activities` | GET | Render the full interactive DataTables 2.x activity grid |
+| `/activity/<id>` | GET | Comprehensive single-workout analytical showcase (see [docs/activity-detail.md](activity-detail.md)) |
 | `/api/activities` | GET | JSON data provider supporting sorting, filtering by sport type, date ranges, and pagination |
 | `/api/activities` | DELETE | Bulk delete activities by ID list with CSRF protection |
 | `/api/activities/<id>` | DELETE | Delete single activity by ID |
