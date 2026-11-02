@@ -46,9 +46,9 @@
                     </span>
                 </span>
             </label>
-            <label class="inline-flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+            <label class="inline-flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 {% if not weather_configured %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}">
                 <input type="hidden" name="weather_data" value="off">
-                <input type="checkbox" id="weatherData" name="weather_data" value="on" class="rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500 h-4 w-4 mr-2" {% if weather_enabled %}checked{% endif %}>
+                <input type="checkbox" id="weatherData" name="weather_data" value="on" class="rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500 h-4 w-4 mr-2" {% if weather_enabled and weather_configured %}checked{% endif %} {% if not weather_configured %}disabled{% endif %}>
                 Fetch weather data
                 <span class="group relative ml-1 inline-flex shrink-0" tabindex="0" aria-describedby="sync-fetch-weather-help">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -56,12 +56,12 @@
                         <path d="M9 8v4m0-7h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
                     </svg>
                     <span id="sync-fetch-weather-help" role="tooltip" style="width: 300px; max-width: calc(100vw - 2rem); top: calc(100% + 23px);" class="pointer-events-none invisible absolute left-1/2 z-40 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-xs font-normal leading-relaxed text-gray-700 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                        Fetches and stores historical weather for eligible activities during this sync. Requires a server-side Visual Crossing API key and activities with GPS data.
+                        {% if not weather_configured %}<span class="text-red-500 dark:text-red-400 font-medium">Weather is not configured. Please provide VISUAL_CROSSING_API_KEY<br></span>{% endif %}Fetches and stores historical weather for eligible activities during this sync. Requires a server-side Visual Crossing API key and activities with GPS data.
                     </span>
                 </span>
             </label>
-            <label class="inline-flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                <input type="checkbox" id="resyncWeather" name="resync_weather" value="on" class="rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500 h-4 w-4 mr-2">
+            <label class="inline-flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 {% if not weather_configured %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}">
+                <input type="checkbox" id="resyncWeather" name="resync_weather" value="on" class="rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500 h-4 w-4 mr-2" {% if not weather_configured %}disabled{% endif %}>
                 Resync weather
                 <span class="group relative ml-1 inline-flex shrink-0" tabindex="0" aria-describedby="sync-resync-weather-help">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -69,7 +69,7 @@
                         <path d="M9 8v4m0-7h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
                     </svg>
                     <span id="sync-resync-weather-help" role="tooltip" style="width: 300px; max-width: calc(100vw - 2rem); top: calc(100% + 23px);" class="pointer-events-none invisible absolute left-1/2 z-40 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-xs font-normal leading-relaxed text-gray-700 opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                        Replaces saved weather data for eligible activities in this sync scope. Selecting this also enables Fetch weather data.
+                        {% if not weather_configured %}<span class="text-red-500 dark:text-red-400 font-medium">Weather is not configured. Please provide VISUAL_CROSSING_API_KEY<br></span>{% endif %}Replaces saved weather data for eligible activities in this sync scope. Selecting this also enables Fetch weather data.
                     </span>
                 </span>
             </label>
@@ -173,19 +173,21 @@
     const weatherDataCheckbox = document.getElementById('weatherData');
     const resyncWeatherCheckbox = document.getElementById('resyncWeather');
     if (weatherDataCheckbox && resyncWeatherCheckbox) {
-        weatherDataCheckbox.addEventListener('change', function () {
-            if (!weatherDataCheckbox.checked) {
-                resyncWeatherCheckbox.checked = false;
-                resyncWeatherCheckbox.disabled = true;
-            } else {
-                resyncWeatherCheckbox.disabled = false;
-            }
-        });
-        resyncWeatherCheckbox.addEventListener('change', function () {
-            if (resyncWeatherCheckbox.checked) {
-                weatherDataCheckbox.checked = true;
-            }
-        });
+        if (!weatherDataCheckbox.disabled) {
+            weatherDataCheckbox.addEventListener('change', function () {
+                if (!weatherDataCheckbox.checked) {
+                    resyncWeatherCheckbox.checked = false;
+                    resyncWeatherCheckbox.disabled = true;
+                } else {
+                    resyncWeatherCheckbox.disabled = false;
+                }
+            });
+            resyncWeatherCheckbox.addEventListener('change', function () {
+                if (resyncWeatherCheckbox.checked) {
+                    weatherDataCheckbox.checked = true;
+                }
+            });
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

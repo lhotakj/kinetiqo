@@ -451,7 +451,7 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
 
         self.assertEqual(operation_order, [("weather", 1), ("description", 1)])
         self.assertIn(
-            "[1/1] (100%) Morning Hike (Hike) | Weather updated | Strava description updated",
+            "[1/1] (100%) Morning Hike (Hike) | Strava description updated [weather: refreshed]",
             "".join(events),
         )
 

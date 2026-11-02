@@ -58,6 +58,11 @@
         box-sizing: border-box;
     }
 
+    #activity-canvas,
+    #activity-canvas * {
+        font-family: var(--detail-font-family) !important;
+    }
+
     .detail-bg-image {
         position: absolute;
         inset: 0;
@@ -287,7 +292,7 @@
         image-rendering: -webkit-optimize-contrast;
     }
 
-    /* ---- Proportional Font Size Scaling (-30% to +50%) ---- */
+    /* ---- Proportional Font Size Scaling (-30% to +80%) ---- */
     #activity-canvas {
         --act-font-scale: 1;
     }
@@ -488,7 +493,7 @@
                 {% set font_label = 'Font:' %}
                 {% include "_font_select.html" %}
 
-                {% with control_id='detail-font-scale', label='Font Size Scale', min_val=-30, max_val=50, step=5,
+                {% with control_id='detail-font-scale', label='Font Size Scale', min_val=-30, max_val=80, step=5,
                 value=0, value_id='detail-font-scale-val' %}
                 {% include "_control_range.html" %}
                 {% endwith %}
@@ -1132,7 +1137,7 @@
                                 </div>
                             </div>
                             <div id="ai-response-body"
-                                class="text-xs leading-relaxed text-slate-200 font-sans whitespace-pre-line max-h-20 overflow-y-auto">
+                                class="text-xs leading-relaxed text-slate-200 whitespace-pre-line max-h-20 overflow-y-auto">
                                 {% if configured_agents %}
                                 {% set active_agent_name = selected_agent or configured_agents[0].name %}
                                 {% set active_token = "agent-ai-" ~ active_agent_name|lower %}
@@ -1163,7 +1168,7 @@
                                         <div class="flex justify-between items-center text-[10px] mb-0.5">
                                             <span class="font-semibold truncate max-w-[80px]"
                                                 style="color: {{ z.color }};">{{ z.zone }} {{ z.name }}</span>
-                                            <span class="opacity-70 font-mono">{{ z.percent }}%</span>
+                                            <span class="opacity-70">{{ z.percent }}%</span>
                                         </div>
                                         <div class="w-full bg-black/30 rounded-full h-1 overflow-hidden">
                                             <div class="h-1 rounded-full"
@@ -1185,7 +1190,7 @@
                                         <div class="text-[9px] opacity-60 font-semibold uppercase">{{ m.label }}</div>
                                         <div class="text-xs font-extrabold text-amber-300">{{ m.watts }}W</div>
                                         {% if m.pct_ftp %}
-                                        <div class="text-[9px] text-amber-400/80 font-mono">{{ m.pct_ftp }}%</div>
+                                        <div class="text-[9px] text-amber-400/80">{{ m.pct_ftp }}%</div>
                                         {% endif %}
                                     </div>
                                     {% endfor %}
@@ -1203,7 +1208,7 @@
                                         <div class="flex justify-between items-center text-[10px] mb-0.5">
                                             <span class="font-semibold truncate max-w-[80px]"
                                                 style="color: {{ z.color }};">{{ z.zone }} {{ z.name }}</span>
-                                            <span class="opacity-70 font-mono">{{ z.percent }}%</span>
+                                            <span class="opacity-70">{{ z.percent }}%</span>
                                         </div>
                                         <div class="w-full bg-black/30 rounded-full h-1 overflow-hidden">
                                             <div class="h-1 rounded-full"
@@ -1527,22 +1532,27 @@
 
     function applyFontScale(val) {
         const num = Number.parseInt(val, 10);
-        const clamped = Number.isNaN(num) ? 0 : Math.max(-30, Math.min(50, num));
+        const clamped = Number.isNaN(num) ? 0 : Math.max(-30, Math.min(80, num));
         const scale = 1 + (clamped / 100.0);
         canvas.style.setProperty('--act-font-scale', scale);
         if (elFontScale) elFontScale.value = String(clamped);
         if (elFontScaleVal) elFontScaleVal.textContent = (clamped > 0 ? '+' : '') + clamped + '%';
         localStorage.setItem(KEY_FONT_SCALE, String(clamped));
         if (chart && chart.options && chart.options.scales) {
+            const fontName = elFont ? elFont.value : 'Inter';
             const tickSize = Math.max(8, Math.round(10 * scale));
             if (chart.options.scales.x && chart.options.scales.x.ticks) {
-                chart.options.scales.x.ticks.font = { size: tickSize };
+                chart.options.scales.x.ticks.font = { size: tickSize, family: fontName };
             }
             if (chart.options.scales.yElevation && chart.options.scales.yElevation.ticks) {
-                chart.options.scales.yElevation.ticks.font = { size: tickSize };
+                chart.options.scales.yElevation.ticks.font = { size: tickSize, family: fontName };
             }
             if (chart.options.scales.yMetrics && chart.options.scales.yMetrics.ticks) {
-                chart.options.scales.yMetrics.ticks.font = { size: tickSize };
+                chart.options.scales.yMetrics.ticks.font = { size: tickSize, family: fontName };
+            }
+            if (chart.options.plugins && chart.options.plugins.tooltip) {
+                chart.options.plugins.tooltip.titleFont = { size: Math.max(10, Math.round(12 * scale)), family: fontName };
+                chart.options.plugins.tooltip.bodyFont = { size: Math.max(9, Math.round(11 * scale)), family: fontName };
             }
             chart.update('none');
         }
@@ -1567,7 +1577,32 @@
             canvas.style.setProperty('--detail-text-color', elTextColor.value);
         }
         if (elFont) {
-            canvas.style.setProperty('--detail-font-family', `"${elFont.value}", sans-serif`);
+            const fontVal = elFont.value;
+            canvas.style.setProperty('--detail-font-family', `"${fontVal}", sans-serif`);
+            if (document.fonts && document.fonts.load) {
+                document.fonts.load('12px "' + fontVal + '"').then(function () {
+                    if (chart) chart.update('none');
+                }).catch(function () { });
+            }
+            if (chart && chart.options && chart.options.scales) {
+                const scaleVal = elFontScale ? Number.parseInt(elFontScale.value, 10) : 0;
+                const fontMultiplier = 1 + ((Number.isNaN(scaleVal) ? 0 : scaleVal) / 100.0);
+                const tickSize = Math.max(8, Math.round(10 * fontMultiplier));
+                if (chart.options.scales.x && chart.options.scales.x.ticks) {
+                    chart.options.scales.x.ticks.font = { size: tickSize, family: fontVal };
+                }
+                if (chart.options.scales.yElevation && chart.options.scales.yElevation.ticks) {
+                    chart.options.scales.yElevation.ticks.font = { size: tickSize, family: fontVal };
+                }
+                if (chart.options.scales.yMetrics && chart.options.scales.yMetrics.ticks) {
+                    chart.options.scales.yMetrics.ticks.font = { size: tickSize, family: fontVal };
+                }
+                if (chart.options.plugins && chart.options.plugins.tooltip) {
+                    chart.options.plugins.tooltip.titleFont = { size: Math.max(10, Math.round(12 * fontMultiplier)), family: fontVal };
+                    chart.options.plugins.tooltip.bodyFont = { size: Math.max(9, Math.round(11 * fontMultiplier)), family: fontVal };
+                }
+                chart.update('none');
+            }
         }
         if (elOpacity && bgOverlay) {
             const opVal = Number.parseInt(elOpacity.value, 10) / 100.0;
@@ -1599,6 +1634,10 @@
     if (elFont) {
         elFont.value = getStored(KEY_FONT, 'activityDetail_font', 'Inter');
         elFont.addEventListener('change', function () {
+            localStorage.setItem(KEY_FONT, elFont.value);
+            applyAppearance();
+        });
+        elFont.addEventListener('input', function () {
             localStorage.setItem(KEY_FONT, elFont.value);
             applyAppearance();
         });
@@ -2218,8 +2257,9 @@
         const cadenceData = streamPoints.map(p => p.cadence);
         const speedData = streamPoints.map(p => p.speed ? Number.parseFloat((p.speed * 3.6).toFixed(1)) : null);
 
+        const activeFontName = elFont ? elFont.value : 'Inter';
         const scaleVal = elFontScale ? Number.parseInt(elFontScale.value, 10) : 0;
-        const fontMultiplier = 1 + (scaleVal / 100.0);
+        const fontMultiplier = 1 + ((Number.isNaN(scaleVal) ? 0 : scaleVal) / 100.0);
         const tickSize = Math.max(8, Math.round(10 * fontMultiplier));
 
         const datasets = [
@@ -2317,6 +2357,8 @@
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        titleFont: { size: Math.max(10, Math.round(12 * fontMultiplier)), family: activeFontName },
+                        bodyFont: { size: Math.max(9, Math.round(11 * fontMultiplier)), family: activeFontName },
                         callbacks: {
                             label: function (context) {
                                 const dsLabel = context.dataset.label;
@@ -2334,20 +2376,20 @@
                 scales: {
                     x: {
                         grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: 'rgba(255, 255, 255, 0.55)', maxTicksLimit: 10, font: { size: tickSize } }
+                        ticks: { color: 'rgba(255, 255, 255, 0.55)', maxTicksLimit: 10, font: { size: tickSize, family: activeFontName } }
                     },
                     yElevation: {
                         type: 'linear',
                         position: 'left',
                         grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: 'rgba(203, 213, 225, 0.7)', font: { size: tickSize } },
+                        ticks: { color: 'rgba(203, 213, 225, 0.7)', font: { size: tickSize, family: activeFontName } },
                         title: { display: false }
                     },
                     yMetrics: {
                         type: 'linear',
                         position: 'right',
                         grid: { display: false },
-                        ticks: { color: 'rgba(255, 255, 255, 0.7)', font: { size: tickSize } },
+                        ticks: { color: 'rgba(255, 255, 255, 0.7)', font: { size: tickSize, family: activeFontName } },
                         title: { display: false }
                     }
                 },
@@ -2368,6 +2410,11 @@
         });
         window.telemetryChart = chart;
         window.telemetryChartReady = true;
+        if (document.fonts && document.fonts.load) {
+            document.fonts.load('12px "' + activeFontName + '"').then(function () {
+                if (chart) chart.update('none');
+            }).catch(function () { });
+        }
     }
 
     loadStreams();

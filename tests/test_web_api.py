@@ -204,6 +204,119 @@ def test_fastsync_post_accepts_rendered_form_csrf_token(monkeypatch):
     assert response.status_code == 200
 
 
+def test_sync_weather_options_when_visual_crossing_not_configured(monkeypatch):
+    monkeypatch.setitem(app.config, 'LOGIN_DISABLED', True)
+    monkeypatch.delenv('VISUAL_CROSSING_API_KEY', raising=False)
+    client = app.test_client()
+
+    class SyncJobRepo(DummyRepo):
+        def __init__(self):
+            super().__init__()
+            self.options = {}
+            self.job_id = ''
+
+        def get_profile(self):
+            return {'enable_weather_data': True}
+
+        def recover_expired_sync_jobs(self):
+            return 0
+
+        def has_active_sync_job(self, owner_id):
+            return False
+
+        def create_sync_job(self, job_id, sync_type, owner_id, options):
+            self.job_id = job_id
+            self.options = options
+
+        def close(self):
+            pass
+
+    class UnstartedThread:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    dummy_repo = SyncJobRepo()
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: dummy_repo)
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
+    monkeypatch.setattr('kinetiqo.web.app.threading.Thread', UnstartedThread)
+
+    page = client.get('/fastsync')
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert 'Weather is not configured. Please provide VISUAL_CROSSING_API_KEY<br>' in html
+    assert 'id="weatherData"' in html
+    assert 'disabled' in html
+
+    import re as re_test
+    match = re_test.search(r'id="syncCsrfToken" type="hidden" name="csrf_token" value="([^"]+)"', html)
+    csrf_token = match.group(1) if match else ''
+
+    # Server forces update_weather and resync_weather to False
+    resp = client.post('/sync/start/fast', data={'csrf_token': csrf_token, 'weather_data': 'on', 'resync_weather': 'on'})
+    assert resp.status_code == 200
+    assert dummy_repo.options['update_weather'] is False
+    assert dummy_repo.options['resync_weather'] is False
+
+
+def test_sync_weather_options_when_visual_crossing_is_configured(monkeypatch):
+    monkeypatch.setitem(app.config, 'LOGIN_DISABLED', True)
+    monkeypatch.setenv('VISUAL_CROSSING_API_KEY', 'test_key_12345')
+    client = app.test_client()
+
+    class SyncJobRepo(DummyRepo):
+        def __init__(self):
+            super().__init__()
+            self.options = {}
+            self.job_id = ''
+
+        def get_profile(self):
+            return {'enable_weather_data': True}
+
+        def recover_expired_sync_jobs(self):
+            return 0
+
+        def has_active_sync_job(self, owner_id):
+            return False
+
+        def create_sync_job(self, job_id, sync_type, owner_id, options):
+            self.job_id = job_id
+            self.options = options
+
+        def close(self):
+            pass
+
+    class UnstartedThread:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    dummy_repo = SyncJobRepo()
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: dummy_repo)
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
+    monkeypatch.setattr('kinetiqo.web.app.threading.Thread', UnstartedThread)
+
+    page = client.get('/fastsync')
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert 'Weather is not configured. Please provide VISUAL_CROSSING_API_KEY<br>' not in html
+    assert 'checked' in html
+
+    import re as re_test
+    match = re_test.search(r'id="syncCsrfToken" type="hidden" name="csrf_token" value="([^"]+)"', html)
+    csrf_token = match.group(1) if match else ''
+
+    # When configured, server accepts weather_data
+    resp = client.post('/sync/start/fast', data={'csrf_token': csrf_token, 'weather_data': 'on'})
+    assert resp.status_code == 200
+    assert dummy_repo.options['update_weather'] is True
+    assert dummy_repo.options['resync_weather'] is False
+
+
 def test_base_template_authenticated_vs_anonymous_user(monkeypatch):
     """Base template renders user initial when authenticated, and fallback 'U' when anonymous."""
     app.config['LOGIN_DISABLED'] = True

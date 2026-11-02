@@ -10,7 +10,7 @@
 - 📈 **Interactive Multi-Stream Telemetry Chart**: Downsampled 1 Hz sensor stream canvas (Elevation fill with Power, Heart Rate, Cadence, and Speed overlays), clickable metric lozenge toggles, and an instant **Distance vs. Time** X-axis mode toggle.
 - 🤖 **On-Demand AI Coach Analysis**: Interactive sidebar agent prompt workflow with cached indicator status, dynamic **Run prompt** / **Re-prompt** execution, and real-time generation indicators persisted to the database (`activities.ai_responses`).
 - 🧩 **5-Column Analytical Card Grid**: Modular metric breakdown widgets spanning Power Zones (Coggan), Peak Power MMP curve, Heart Rate Zones, Major Climbs analysis, and Stored Historical Weather.
-- 🎨 **WYSIWYG Appearance & Sizing Controls**: Responsive preview scaler with dimension presets (**M 1280px**, **L 1440px**, **XL 1600px**, **XXL 1920px**), aspect ratio locks (**Auto Fit**, **16:9**, **4:3**), generic Font Scale slider (-30% to +50%), background color picker, tint overlays, and custom background photo upload with instant reset.
+- 🎨 **WYSIWYG Appearance & Sizing Controls**: Responsive preview scaler with dimension presets (**M 1280px**, **L 1440px**, **XL 1600px**, **XXL 1920px**), aspect ratio locks (**Auto Fit**, **16:9**, **4:3**), generic Font Scale slider (-30% to +80%), background color picker, tint overlays, and custom background photo upload with instant reset.
 - 🖨️ **High-Resolution Playwright Export**: Server-side headless Chromium rendering producing pixel-perfect standalone PNGs and vector PDFs with the official Kinetiqo brand watermark logo (`kinetiqo-logo.svg`).
 
 ---
@@ -45,7 +45,7 @@ All sidebar panels are collapsible via chevron toggles, open by default, and per
 | `actDetail_km_<metric>` | `true` | Individual visibility toggle for each of the 15 key metrics |
 | `actDetail_chart_x_mode` | `"distance"` | Telemetry chart X-axis mode (`distance` or `time`) |
 | `actDetail_stream_<channel>` | `true` | Channel visibility toggles (elev, hr, watts, cadence, speed) |
-| `actDetail_font_scale` | `0` | Canvas typography scale modifier (-30% to +50%) |
+| `actDetail_font_scale` | `0` | Canvas typography scale modifier (-30% to +80%) |
 
 ---
 

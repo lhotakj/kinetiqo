@@ -171,6 +171,20 @@ Enable weather on a later sync to retry enrichment and the description update.
 See [Weather enrichment](weather.md) for provider-limit, privacy, and retry
 behavior.
 
+### Named AI Agent placeholders (`{{agent-ai-<name>}}`) & Non-Destructive Retriggering
+
+Templates can include specialized AI Agent placeholders configured under **Settings → Strava description templates** (e.g. `{{agent-ai-road}}`, `{{agent-ai-coach}}`, `{{agent-ai-daily-commentary}}`).
+
+When an AI placeholder is present:
+- **Dynamic AI Prefix**: The rendered line automatically adopts the `✨ Kinetiqo AI:` prefix instead of `✨ Kinetiqo:`.
+- **Independent Per-Activity Caching**: Agent responses are generated once per activity and cached as structured JSON in the database (`activity.ai_responses`). Subsequent syncs reuse the cached text without re-querying the AI provider.
+- **Retrigger AI Agents Option**:
+  - Available as an opt-in checkbox on `/fastsync` and `/fullsync`, or via CLI flag `kinetiqo.py sync --retrigger-ai-agents`.
+  - **Scoped Invalidation**: Only agent tokens referenced by the active sport template are evaluated; other agent responses cached on that activity are **preserved**.
+  - **Non-Destructive Fallback**: Cache invalidation occurs **only upon a successful, non-empty response**. If generation fails, the prior cached response is retained, an explicit warning is logged to the sync log, and the activity is tagged as `[agent-<name>: error kept cached]`.
+  - **Normalized Logging**: Sync outputs regular Strava update status first, followed by tags (e.g. `... (Ride) | Strava description updated [agent-road: refreshed] [weather: cache]`).
+
+
 ### Peak highlights in `{{workout-summary}}`
 
 When an activity's watts stream contains **significant high-watt peaks** —

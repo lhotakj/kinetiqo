@@ -86,7 +86,11 @@ Use **Try this prompt with your activity** beside an agent prompt to open its la
 
 **Delete agent** opens a dark-overlay confirmation dialog for every row, including drafts. For a referenced saved agent, it lists the affected templates and explains that confirming removes the agent placeholder from each of them.
 
-On Fast or Full Sync, **Retrigger AI agents** is off by default. When enabled, it refreshes named-agent responses only for named placeholders referenced by each of the newest 30 eligible activities in the selected sync scope. Successful responses replace cached values; failed agents retain their prior cached value and are reported in the live log and final warning summary. This cache refresh does not write to Strava unless **Update Strava description** is also selected; when it is, the description can use fresh successful responses alongside retained failed-agent responses. The CLI equivalent is `--retrigger-ai-agents`.
+On Fast or Full Sync, **Retrigger AI agents** is off by default. When enabled, it refreshes named-agent responses only for named placeholders referenced by each of the newest 30 eligible activities in the selected sync scope. Cache invalidation is strictly **per activity and per agent token**:
+- **Non-destructive preservation**: Any other agent responses cached on that activity (outside the active sport template) are preserved intact.
+- **Safe fallback on failure**: Invalidation occurs only upon a successful, non-empty response. If an agent fails or times out, its previous cached response is retained in memory and the database, an explicit warning is logged in the sync progress log (`Warning: AI Agent regeneration failed for activity <id> ('<name>'): <agent> (<status>). Previous cached response(s) were retained.`), and the activity is tagged as `[agent-<name>: error kept cached]`.
+- **Normalized sync tags**: Each processed activity line reports its agent status as `[agent-<name>: cache]`, `[agent-<name>: refreshed]`, `[agent-<name>: error kept cached]`, or `[agent-<name>: error]` directly following the Strava description status.
+This cache refresh does not write to Strava unless **Update Strava description** is also selected; when it is, the description can use fresh successful responses alongside retained failed-agent responses. The CLI equivalent is `kinetiqo.py sync --retrigger-ai-agents`.
 
 Kinetiqo separates the chat orchestration service from underlying AI providers, allowing athletes to choose the intelligence engine that best fits their budget, speed, and privacy preferences:
 

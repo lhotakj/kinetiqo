@@ -124,6 +124,50 @@ class TestDescriptionContextAIAgent(unittest.TestCase):
         self.assertTrue(rendered.startswith(f"{UPDATE_STRAVA_PREFIX} Completed workout."))
         self.assertNotIn("Previously generated text.", rendered)
 
+    def test_retriggered_token_sets_last_ai_status_to_retriggered(self):
+        ctx = DescriptionContext(config=self.config, repo=self.repo)
+        ctx.retriggered_tokens.add("agent-ai-indoor-bike")
+        activity = {
+            "id": 1001,
+            "start_date": "2026-06-10T10:00:00Z",
+            "sport_type": "VirtualRide",
+            "ai_responses": {"agent-ai-indoor-bike": "Freshly retriggered text."},
+        }
+
+        rendered = ctx.render_for_activity(
+            "{{agent-ai-indoor-bike}}",
+            activity["start_date"],
+            "",
+            activity=activity,
+        )
+
+        self.assertIn("Freshly retriggered text.", rendered)
+        self.assertEqual(ctx.last_ai_status, "retriggered")
+        self.assertEqual(ctx.agent_statuses.get("agent-ai-indoor-bike"), "refreshed")
+
+    def test_unretriggered_token_sets_last_ai_status_to_cached(self):
+        ctx = DescriptionContext(config=self.config, repo=self.repo)
+        activity = {
+            "id": 1001,
+            "start_date": "2026-06-10T10:00:00Z",
+            "sport_type": "VirtualRide",
+            "ai_responses": {"agent-ai-indoor-bike": "Previously cached text."},
+        }
+
+        rendered = ctx.render_for_activity(
+            "{{agent-ai-indoor-bike}}",
+            activity["start_date"],
+            "",
+            activity=activity,
+        )
+
+        self.assertIn("Previously cached text.", rendered)
+        self.assertEqual(ctx.last_ai_status, "cached")
+        self.assertEqual(ctx.agent_statuses.get("agent-ai-indoor-bike"), "cache")
+
+        self.assertIn("Previously cached text.", rendered)
+        self.assertEqual(ctx.last_ai_status, "cached")
+
 
 class TestAgentRunnerAndTelemetryPrompt(unittest.TestCase):
     """Unit tests for building telemetry prompt and executing agent runner."""
@@ -710,6 +754,93 @@ class TestCliSyncWithAiAgent(unittest.TestCase):
         self.assertIn("Crushed the morning ride!", call_args[1])
         self.assertTrue(call_args[1].endswith(f"{UPDATE_STRAVA_AI_PREFIX} Crushed the morning ride!\n"))
         self.assertIn("Existing strava text", call_args[1])
+
+        log_str = "".join(logs)
+        self.assertIn("Morning Ride (Ride) | Strava description updated [agent-road: refreshed]", log_str)
+
+    @patch("kinetiqo.sync.create_repository")
+    @patch("kinetiqo.sync.StravaClient")
+    def test_retrigger_preserves_other_cached_agents_and_previous_value_on_failure(self, _mock_strava, mock_create_repo):
+        from kinetiqo.sync import SyncService
+        from kinetiqo.config import Config
+        from kinetiqo.strava_description import DescriptionContext
+
+        config = Config()
+        config.update_strava_cycling_outdoor = "{{agent-ai-road}}"
+        repo = MagicMock()
+        mock_create_repo.return_value = repo
+        service = SyncService(config)
+
+        mock_ai_handler = MagicMock(return_value=("", "service_error"))
+        ctx = DescriptionContext(config=config, repo=repo, ai_handler=mock_ai_handler)
+
+        activity = {
+            "id": 5555,
+            "sport_type": "Ride",
+            "ai_responses": {
+                "agent-ai-coach": "Preserved coach response",
+                "agent-ai-road": "Old road response",
+            },
+        }
+
+        failed = service._retrigger_ai_agents(ctx, activity, {"road"})
+
+        self.assertEqual(failed, ["road (service_error)"])
+        # Unrelated agent preserved
+        self.assertEqual(activity["ai_responses"]["agent-ai-coach"], "Preserved coach response")
+        # Target agent's old response preserved because fetch failed
+        self.assertEqual(activity["ai_responses"]["agent-ai-road"], "Old road response")
+        self.assertEqual(ctx.agent_statuses.get("agent-ai-road"), "error kept cached")
+        repo.update_activity_ai_responses.assert_called_once_with(5555, activity["ai_responses"])
+
+    @patch("kinetiqo.sync.create_repository")
+    @patch("kinetiqo.sync.StravaClient")
+    def test_cli_sync_with_retrigger_failure_emits_warning_and_normalized_tag(self, mock_strava_cls, mock_create_repo):
+        from kinetiqo.sync import SyncService
+        from kinetiqo.config import Config
+
+        mock_repo = MagicMock()
+        mock_create_repo.return_value = mock_repo
+        mock_repo.get_profile.return_value = {
+            "athlete_id": "12345",
+            "strava_agents_config": '{"enabled": true, "agents": [{"name": "road", "prompt": "Summarize run"}]}',
+            "update_strava_cycling_outdoor": "{{agent-ai-road}}",
+        }
+        mock_repo.get_synced_activity_ids.return_value = {"88888"}
+        mock_repo.get_synced_activity_ids_since.return_value = {"88888"}
+        mock_repo.get_activities_totals.return_value = {"total_distance": 0, "total_elevation": 0}
+        mock_repo.get_activity_ai_responses.return_value = {"agent-ai-road": "Old road text"}
+
+        mock_strava = MagicMock()
+        mock_strava_cls.return_value = mock_strava
+        activity = {
+            "id": 88888,
+            "name": "Evening Ride",
+            "sport_type": "Ride",
+            "start_date": "2026-10-25T18:00:00Z",
+            "distance": 20000,
+            "moving_time": 3000,
+        }
+        mock_strava.get_activities.return_value = iter([[activity]])
+        mock_strava.get_activity_detail.return_value = {"id": 88888, "description": "Existing text"}
+
+        config = Config()
+        config.update_strava_cycling_outdoor = "{{agent-ai-road}}"
+        config.database_type = "postgresql"
+
+        service = SyncService(config)
+        with patch.dict(os.environ, {"SECRET_KEY": "0123456789abcdef0123456789abcdef"}), \
+             patch("kinetiqo.chat.repository.ChatRepository.resolve_athlete_id", return_value="12345"), \
+             patch("kinetiqo.chat.repository.ChatRepository.get_provider_key", return_value="fake_key"), \
+             patch("kinetiqo.chat.repository.ChatRepository.get_default_model", return_value={"provider": "gemini", "model_id": "gemini-3.1-flash-lite"}), \
+             patch("kinetiqo.chat.repository.ChatRepository.list_configured_providers", return_value=["gemini"]), \
+             patch("kinetiqo.chat.agent_runner.run_agent_prompt", return_value=("", "model_timeout")):
+            logs = list(service.sync(full_sync=False, trigger="cli", update_strava=True, retrigger_ai_agents=True))
+
+        log_str = "".join(logs)
+        self.assertIn("Warning: AI Agent regeneration failed for activity 88888", log_str)
+        self.assertIn("Previous cached response(s) were retained.", log_str)
+        self.assertIn("Evening Ride (Ride) | Strava description updated [agent-road: error kept cached]", log_str)
 
 
 if __name__ == '__main__':

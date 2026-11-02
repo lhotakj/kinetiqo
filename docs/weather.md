@@ -49,9 +49,24 @@ The `/activities` grid features a dedicated, toggleable **Weather** column:
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `VISUAL_CROSSING_API_KEY` | string | `""` | Optional Visual Crossing Timeline API key. When omitted, weather enrichment is gracefully disabled. |
+| `VISUAL_CROSSING_API_KEY` | string | `""` | Optional Visual Crossing Timeline API key. When omitted, weather enrichment is gracefully disabled and UI sync options are disabled. |
 
 The API key is strictly maintained on the server; it is never transmitted to the browser, stored in activity tables, or logged.
+
+### Unconfigured Key Safeguards & UI Behavior
+When `VISUAL_CROSSING_API_KEY` is not configured:
+- The **"Fetch weather data"** and **"Resync weather"** checkboxes in `/sync` are disabled and forced off.
+- The `(i)` info popup next to the labels displays an explicit red alert: `Weather is not configured. Please provide VISUAL_CROSSING_API_KEY<br>`.
+- Server-side endpoints (`/fastsync`, `/fullsync`, `/sync/start/<type>`) automatically force weather enrichment off to prevent unnecessary API queries.
+
+### Normalized Weather Sync Status Tags
+During activity synchronization, weather status is appended after the Strava description status in the sync log:
+- `[weather: cache]` — Pre-existing stored weather was loaded from the database without external API calls.
+- `[weather: refreshed]` — Fresh hourly weather was fetched from Visual Crossing and saved to the database.
+- `[weather: deferred]` — Deferred due to provider daily quota exhaustion (`X-RateLimit-Remaining: 0`), GPS route not covering an hourly sample, or missing placeholder.
+- `[weather: error - indoor activity]` — Weather skipped because the activity is indoor/virtual (VirtualRide, Treadmill, etc.).
+- `[weather: error - no GPS route]` — Weather skipped because no GPS route coordinates exist.
+- `[weather: error]` — Weather provider API or processing error.
 
 ### How to Get Your Free API Key:
 1. **Sign Up**: Register for a free account at [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api). No credit card is required to get started.

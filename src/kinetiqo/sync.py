@@ -19,6 +19,7 @@ from kinetiqo.profile_sync import (
     sync_athlete_weight_from_env,
 )
 from kinetiqo.strava_description import (
+    AI_AGENT_TOKEN_PREFIX,
     DescriptionContext,
     any_update_strava_template_configured,
     get_template_for_activity,
@@ -244,24 +245,44 @@ class SyncService:
                 cached_responses = json.loads(cached_responses)
             except (TypeError, ValueError):
                 cached_responses = {}
-        previous_responses = cached_responses if isinstance(cached_responses, dict) else {}
-        refreshed_responses: dict[str, str] = {}
+        previous_responses = dict(cached_responses) if isinstance(cached_responses, dict) else {}
+        updated_responses: dict[str, str] = dict(previous_responses)
         failed_agents: list[str] = []
+        retriggered_count = 0
 
         for token in tokens:
-            agent_name = token.removeprefix("agent-ai-")
-            response_text, status = description_context.ai_handler(activity, agent_name)
+            agent_name = token.removeprefix(AI_AGENT_TOKEN_PREFIX)
+            try:
+                response_text, status = description_context.ai_handler(activity, agent_name)
+            except Exception as e:
+                response_text, status = "", f"exception: {e}"
+
             if response_text:
-                refreshed_responses[token] = response_text
+                updated_responses[token] = response_text
+                retriggered_count += 1
+                if hasattr(description_context, "retriggered_tokens"):
+                    description_context.retriggered_tokens.add(token)
+                if hasattr(description_context, "agent_statuses"):
+                    description_context.agent_statuses[token] = "refreshed"
             else:
-                if previous_responses.get(token):
-                    refreshed_responses[token] = str(previous_responses[token])
+                if token in previous_responses and previous_responses[token]:
+                    updated_responses[token] = str(previous_responses[token])
+                    if hasattr(description_context, "agent_statuses"):
+                        description_context.agent_statuses[token] = "error kept cached"
+                else:
+                    if hasattr(description_context, "agent_statuses"):
+                        description_context.agent_statuses[token] = "error"
                 failed_agents.append(f"{agent_name} ({status})")
 
-        activity["ai_responses"] = refreshed_responses
+        activity["ai_responses"] = updated_responses
         activity_id = activity.get("id") or activity.get("activity_id")
         if activity_id and hasattr(self.db, "update_activity_ai_responses"):
-            self.db.update_activity_ai_responses(activity_id, refreshed_responses)
+            try:
+                self.db.update_activity_ai_responses(activity_id, updated_responses)
+            except Exception as save_err:
+                logger.warning(f"UPDATE_STRAVA: failed to save ai_responses for activity {activity_id}: {save_err}")
+        if retriggered_count > 0 and hasattr(description_context, "last_ai_status"):
+            description_context.last_ai_status = "retriggered"
         return failed_agents
 
     def sync(
@@ -439,11 +460,18 @@ class SyncService:
                     except (TypeError, ValueError):
                         agents_config = {}
                     ai_enabled = bool(agents_config.get("enabled", True))
-                    agents = {
-                        str(agent.get("name") or ""): str(agent.get("prompt") or "")
-                        for agent in agents_config.get("agents", [])
-                        if isinstance(agent, dict) and agent.get("name")
-                    } if ai_enabled else {}
+                    agents = {}
+                    if ai_enabled:
+                        import re as re_mod
+                        for agent in agents_config.get("agents", []):
+                            if isinstance(agent, dict) and agent.get("name"):
+                                raw_name = str(agent.get("name")).strip()
+                                prompt_text = str(agent.get("prompt") or "")
+                                agents[raw_name] = prompt_text
+                                agents[raw_name.lower()] = prompt_text
+                                slug = re_mod.sub(r"[^a-z0-9]+", "-", raw_name.lower()).strip("-")
+                                if slug:
+                                    agents[slug] = prompt_text
                     ai_agent_names = set(agents)
 
                     secret_key = getattr(self.config, "secret_key", "") or os.getenv("SECRET_KEY", "")
@@ -487,6 +515,14 @@ class SyncService:
                     ai_handler=ai_handler,
                     ai_enabled=ai_enabled,
                 )
+
+            if retrigger_ai_agents and (description_context is None or description_context.ai_handler is None):
+                msg = (
+                    "AI Agent retriggering was requested, but AI Agent handler could not be initialized "
+                    "(check Settings -> AI Agents and provider API keys)."
+                )
+                sync_warnings.append(msg)
+                yield yield_log(f"Warning: {msg}")
 
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
@@ -665,14 +701,14 @@ class SyncService:
                         summary = extract_weather_summary(existing_weather.get("weather_json"))
                         if summary:
                             self.db.update_activity_weather_summary(activity_id, summary)
-                        return "", None
+                        return "[weather: cache]", None
 
                 if weather_enrichment_stopped:
-                    return "", None
+                    return "[weather: deferred]", None
 
                 if WEATHER_RATE_LIMIT_STATE.is_exhausted():
                     weather_enrichment_stopped = True
-                    return "", (
+                    return "[weather: deferred]", (
                         "Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
                     )
 
@@ -688,7 +724,7 @@ class SyncService:
                             activity_id,
                             skipped_activity_weather(activity, "skipped_indoor"),
                         )
-                        return " | Weather skipped: indoor activity", None
+                        return "[weather: error - indoor activity]", None
 
                     points = self.db.get_activity_stream_window(
                         activity_id,
@@ -721,7 +757,7 @@ class SyncService:
                             activity_id,
                             skipped_activity_weather(activity, "skipped_no_gps"),
                         )
-                        return " | Weather skipped: no GPS route", None
+                        return "[weather: error - no GPS route]", None
 
                     def fetch_cached_weather_hour(
                         latitude: float,
@@ -755,13 +791,13 @@ class SyncService:
                         summary = extract_weather_summary(payload)
                         if summary:
                             self.db.update_activity_weather_summary(activity_id, summary)
-                        return " | Weather updated", None
+                        return "[weather: refreshed]", None
                     if payload["status"] == "deferred_rate_limit":
                         weather_enrichment_stopped = True
-                        return "", (
+                        return "[weather: deferred]", (
                             "Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
                         )
-                    return "", (
+                    return "[weather: deferred]", (
                         f"Weather deferred for activity {activity_id}: "
                         "route GPS does not cover a sample."
                     )
@@ -775,7 +811,7 @@ class SyncService:
                     )
                     if error.retry_after:
                         warning += f" Provider Retry-After: {error.retry_after}."
-                    return "", warning
+                    return "[weather: error]", warning
                 except Exception as error:
                     if lease_lost.is_set():
                         raise
@@ -784,7 +820,7 @@ class SyncService:
                         activity_id,
                         activity_name,
                     )
-                    return "", f"Weather enrichment failed for activity {activity_id}: {error}"
+                    return "[weather: error]", f"Weather enrichment failed for activity {activity_id}: {error}"
 
             for i, activity in enumerate(activities, 1):
                 if should_stop():
@@ -842,7 +878,7 @@ class SyncService:
                             msg = f"Activity {activity_id} has no stream data."
                             logger.warning(msg)
                             sync_warnings.append(msg)
-                    weather_suffix, weather_warning = enrich_activity_weather(activity)
+                    weather_tag, weather_warning = enrich_activity_weather(activity)
                     if stopped:
                         yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
                         return
@@ -851,7 +887,26 @@ class SyncService:
                         yield yield_log(f"Warning: {weather_warning}")
 
                     desc_suffix = ""
-                    ai_suffix = ""
+                    if description_context is not None:
+                        description_context.last_ai_status = None
+                        description_context.last_weather_placeholder_missing = False
+                        if hasattr(description_context, "retriggered_tokens"):
+                            description_context.retriggered_tokens.clear()
+                        if hasattr(description_context, "agent_statuses"):
+                            description_context.agent_statuses.clear()
+
+                    if is_existing and "ai_responses" not in activity and hasattr(
+                        self.db, "get_activity_ai_responses"
+                    ):
+                        try:
+                            cached_ai = self.db.get_activity_ai_responses(activity_id)
+                            if cached_ai:
+                                activity["ai_responses"] = cached_ai
+                        except Exception as ai_fetch_err:
+                            logger.debug(
+                                "Failed to fetch cached ai_responses: %s", ai_fetch_err
+                            )
+
                     if retrigger_ai_agents and act_id_str in description_update_ids:
                         failed_agents = self._retrigger_ai_agents(
                             description_context, activity, ai_agent_names
@@ -863,37 +918,37 @@ class SyncService:
                                 "Previous cached response(s) were retained."
                             )
                             sync_warnings.append(warning)
-                            ai_suffix = " [AI: regeneration warning]"
+                            yield yield_log(f"Warning: {warning}")
+
                     if update_strava and act_id_str in description_update_ids:
-                        if is_existing and "ai_responses" not in activity and hasattr(
-                            self.db, "get_activity_ai_responses"
-                        ):
-                            try:
-                                cached_ai = self.db.get_activity_ai_responses(activity_id)
-                                if cached_ai:
-                                    activity["ai_responses"] = cached_ai
-                            except Exception as ai_fetch_err:
-                                logger.debug(
-                                    "Failed to fetch cached ai_responses: %s", ai_fetch_err
-                                )
                         status, warning = self._update_strava_description(
                             description_context,
                             activity,
                             detail=detail,
                         )
-                        if description_context.last_ai_status:
-                            ai_suffix = f" [AI: {description_context.last_ai_status}]"
-                            if description_context.last_ai_status == "failed":
-                                sync_warnings.append(
-                                    f"AI Agent generation failed for activity {activity_id} ('{name}')."
-                                )
+                        if description_context.last_ai_status == "failed":
+                            fail_warning = f"AI Agent generation failed for activity {activity_id} ('{name}')."
+                            sync_warnings.append(fail_warning)
+                            yield yield_log(f"Warning: {fail_warning}")
                         if warning:
                             sync_warnings.append(warning)
                         desc_suffix = _description_status_suffix(status)
+                        if status == DESC_DEFERRED and not weather_tag:
+                            weather_tag = "[weather: deferred]"
+
+                    tags = []
+                    if description_context and getattr(description_context, "agent_statuses", None):
+                        for tok, st in description_context.agent_statuses.items():
+                            agent_name = tok.removeprefix(AI_AGENT_TOKEN_PREFIX)
+                            tags.append(f"[agent-{agent_name}: {st}]")
+                    if weather_tag:
+                        tags.append(weather_tag)
+
+                    tags_str = (" " + " ".join(tags)) if tags else ""
 
                     yield yield_log(
                         f"[{i}/{total_activities}] ({percent:.0f}%) "
-                        f"{name} ({sport}){trophies_suffix}{weather_suffix}{ai_suffix}{desc_suffix}"
+                        f"{name} ({sport}){trophies_suffix}{desc_suffix}{tags_str}"
                     )
                 except Exception as e:
                     msg = f"Error syncing activity {activity_id}: {e}"

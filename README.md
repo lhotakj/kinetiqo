@@ -46,7 +46,7 @@ Every capability in Kinetiqo is documented in detail in the [`docs/`](docs/) dir
 | **In-App AI Chat** | [docs/AI.md](docs/AI.md) | Conversational endurance coach supporting Google Gemini and OpenRouter (multi-provider). |
 | **Model Context Protocol** | [docs/MCP.md](docs/MCP.md) | FastMCP server exposing 32+ evidence-based tools to Antigravity, Claude Desktop, Cursor, and OpenClaw. |
 | **Database Architecture** | [docs/DATABASE.md](docs/DATABASE.md) | Multi-DB zero-ORM repository pattern, driver benchmarks, and production tuning for PG, MySQL, and Firebird. |
-| **Sync Engine** | [docs/sync.md](docs/sync.md) | 4-phase ETL synchronization pipeline, Fast vs. Full sync, HTMX + SSE progress, and rate-limit safety. |
+| **Sync Engine** | [docs/sync.md](docs/sync.md) | 4-phase ETL pipeline, Fast vs. Full sync, normalized status tags, HTMX + SSE progress, and rate-limit safety. |
 | **CLI Reference** | [docs/cli.md](docs/cli.md) | Command-line interface reference for `web`, `sync`, `mcp`, `benchmark`, `flightcheck`, and `scan-trophies`. |
 | **Usage & Deployment** | [docs/usage.md](docs/usage.md) | Production deployment guide for Docker, Docker Compose, native Python, and complete `.env` configuration. |
 
@@ -155,6 +155,9 @@ python src/kinetiqo.py sync --fast
 
 # Execute full historical sync audit
 python src/kinetiqo.py sync
+
+# Retrigger AI description agents during sync
+python src/kinetiqo.py sync --fast --retrigger-ai-agents
 
 # Run FastMCP server over STDIO or SSE
 python src/kinetiqo.py mcp --transport sse --port 8000

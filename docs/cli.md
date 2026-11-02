@@ -52,6 +52,7 @@ python src/kinetiqo.py sync [OPTIONS]
 - `--update-strava-description / --no-update-strava-description`: Toggle automatic description generation.
 - `--weather-data / --no-weather-data`: Toggle historical weather enrichment via Visual Crossing Timeline API (1,000 free records/day from [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api); see [docs/weather.md](weather.md)).
 - `--resync-weather`: Force weather re-download and recalculation for workouts in scope.
+- `--retrigger-ai-agents / --no-retrigger-ai-agents`: Re-evaluate named AI agent tokens referenced in activity descriptions (off by default; uses non-destructive invalidation preserving previous cached response if regeneration fails).
 - `--database, -d [postgresql|mysql|firebird]`: Override database backend.
 
 *Examples:*
@@ -61,6 +62,9 @@ python src/kinetiqo.py sync --fast
 
 # Full historical audit
 python src/kinetiqo.py sync --full
+
+# Fast sync retriggering AI agents
+python src/kinetiqo.py sync --fast --retrigger-ai-agents
 
 # Sync last 90 days without modifying Strava descriptions
 python src/kinetiqo.py sync --period 90d --no-update-strava-description

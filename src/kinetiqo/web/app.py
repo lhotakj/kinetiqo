@@ -4365,6 +4365,11 @@ def _has_strava_description_templates() -> bool:
     return any_update_strava_template_configured(config)
 
 
+def _is_weather_configured() -> bool:
+    """Check if the Visual Crossing API key is configured."""
+    return bool((getattr(config, "visual_crossing_api_key", None) or os.getenv("VISUAL_CROSSING_API_KEY", "")).strip())
+
+
 @app.route('/fullsync', methods=['GET'])
 @login_required
 def fullsync():
@@ -4373,8 +4378,11 @@ def fullsync():
     Returns:
         Response: The rendered sync UI page configured for a full sync.
     """
+    weather_configured = _is_weather_configured()
     return render_template('sync.html', title="Full Sync", sync_type="full", limits=get_dynamic_limit_days(),
-                           has_strava_templates=_has_strava_description_templates(), weather_enabled=False)
+                           has_strava_templates=_has_strava_description_templates(),
+                           weather_enabled=False,
+                           weather_configured=weather_configured)
 
 
 @app.route('/fastsync', methods=['GET'])
@@ -4385,15 +4393,17 @@ def fastsync():
     Returns:
         Response: The rendered sync UI page configured for a fast/incremental sync.
     """
+    weather_configured = _is_weather_configured()
     try:
         profile = get_db().get_profile() or {}
-        weather_enabled = bool(profile.get('enable_weather_data', False))
+        weather_enabled = bool(profile.get('enable_weather_data', False)) if weather_configured else False
     except Exception:
         logger.exception("Could not load weather preference for fast sync page.")
         weather_enabled = False
     return render_template('sync.html', title="Fast Sync", sync_type="fast",
                            has_strava_templates=_has_strava_description_templates(),
-                           weather_enabled=weather_enabled)
+                           weather_enabled=weather_enabled,
+                           weather_configured=weather_configured)
 
 
 # --- HTMX / Reactive API Endpoints ---
@@ -4419,10 +4429,15 @@ def start_sync_ui(type):
 
     update_strava = request.form.get('update_strava') in ('on', 'true', '1')
     retrigger_ai_agents = request.form.get('retrigger_ai_agents') in ('on', 'true', '1')
-    update_weather = 'on' in request.form.getlist('weather_data')
-    resync_weather = request.form.get('resync_weather') in ('on', 'true', '1')
-    if resync_weather and not update_weather:
-        return jsonify({'error': 'Weather data must be enabled to resync existing weather.'}), 422
+    weather_configured = _is_weather_configured()
+    if weather_configured:
+        update_weather = 'on' in request.form.getlist('weather_data')
+        resync_weather = request.form.get('resync_weather') in ('on', 'true', '1')
+        if resync_weather and not update_weather:
+            return jsonify({'error': 'Weather data must be enabled to resync existing weather.'}), 422
+    else:
+        update_weather = False
+        resync_weather = False
     options = {
         'full_sync': type == 'full',
         'limit_days': limit_days,

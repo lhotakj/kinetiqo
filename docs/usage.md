@@ -280,6 +280,7 @@ python src/kinetiqo.py benchmark --scope 365
 * **Daily Quota**: The free plan provides **1,000 weather records per day** (resets every day at 00:00 UTC). Additional records are metered at $0.0001 per record ($1 per 10,000 records).
 * **Smart Caching**: Kinetiqo caches weather records within a **15 km radius** and stores hourly records in the database, meaning multiple activities in the same area share cached data with zero redundant API calls.
 * **Rate-Limit Safe**: When Visual Crossing reports no remaining quota (`X-RateLimit-Remaining: 0` or HTTP 429), weather queries halt automatically across all workers until the next UTC midnight while activity sync proceeds normally.
+* **Graceful Degradation**: When omitted or blank, weather sync options in the UI ("Fetch weather data" and "Resync weather") are automatically disabled with an informative red warning tooltip, preventing accidental network attempts.
 
 ### 5.7 FastMCP Server & Mutation Controls
 

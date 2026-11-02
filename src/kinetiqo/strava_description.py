@@ -247,10 +247,11 @@ def has_ai_agent_token(template: str) -> bool:
 def named_agent_tokens(template: str, agent_names: set[str]) -> list[str]:
     """Return distinct configured named-agent tokens in template order."""
     tokens: list[str] = []
+    norm_agent_names = {name.lower() for name in agent_names}
     for token in PLACEHOLDER_RE.findall(template or ""):
         if (
             token.startswith(AI_AGENT_TOKEN_PREFIX)
-            and token.removeprefix(AI_AGENT_TOKEN_PREFIX) in agent_names
+            and token.removeprefix(AI_AGENT_TOKEN_PREFIX).lower() in norm_agent_names
             and token not in tokens
         ):
             tokens.append(token)
@@ -599,6 +600,8 @@ class DescriptionContext:
         self.ai_handler = ai_handler
         self.ai_enabled = ai_enabled
         self.last_ai_status: Optional[str] = None
+        self.retriggered_tokens: set[str] = set()
+        self.agent_statuses: dict[str, str] = {}
         self.last_weather_placeholder_missing = False
         self._rendered_ai_content = False
         self._goals_by_type: Optional[Dict[int, Dict[str, Any]]] = None
@@ -684,6 +687,8 @@ class DescriptionContext:
         if token.startswith(AI_AGENT_TOKEN_PREFIX):
             if self.ai_enabled is False:
                 self.last_ai_status = "disabled"
+                if hasattr(self, "agent_statuses"):
+                    self.agent_statuses[token] = "disabled"
                 return ""
             agent_name = token.removeprefix(AI_AGENT_TOKEN_PREFIX)
             act_obj = activity or {}
@@ -695,7 +700,14 @@ class DescriptionContext:
                     ai_responses = {}
             if isinstance(ai_responses, dict):
                 if ai_responses.get(token):
-                    self.last_ai_status = "cached"
+                    if hasattr(self, "retriggered_tokens") and token in self.retriggered_tokens:
+                        self.last_ai_status = "retriggered"
+                        if hasattr(self, "agent_statuses") and token not in self.agent_statuses:
+                            self.agent_statuses[token] = "refreshed"
+                    else:
+                        self.last_ai_status = "cached"
+                        if hasattr(self, "agent_statuses") and token not in self.agent_statuses:
+                            self.agent_statuses[token] = "cache"
                     self._rendered_ai_content = True
                     return str(ai_responses.get(token) or "")
 
@@ -709,6 +721,8 @@ class DescriptionContext:
                             ai_responses = {}
                         ai_responses[token] = resp_text
                         act_obj["ai_responses"] = ai_responses
+                        if hasattr(self, "agent_statuses"):
+                            self.agent_statuses[token] = "refreshed"
                         act_id = act_obj.get("id") or act_obj.get("activity_id")
                         if act_id and hasattr(self.repo, "update_activity_ai_responses"):
                             try:
@@ -717,10 +731,14 @@ class DescriptionContext:
                                 logger.warning(f"UPDATE_STRAVA: failed to save ai_responses for activity {act_id}: {save_err}")
                         return resp_text
                     else:
+                        if hasattr(self, "agent_statuses") and token not in self.agent_statuses:
+                            self.agent_statuses[token] = "error"
                         return ""
                 except Exception as exc:
                     logger.warning(f"UPDATE_STRAVA: AI handler failed for activity: {exc}")
                     self.last_ai_status = "failed"
+                    if hasattr(self, "agent_statuses") and token not in self.agent_statuses:
+                        self.agent_statuses[token] = "error"
                     return ""
 
             self.last_ai_status = None

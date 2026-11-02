@@ -146,5 +146,6 @@ def test_retrigger_ai_agents_replaces_successes_and_retains_failed_cache(monkeyp
     assert activity['ai_responses'] == {
         'agent-ai-road': 'Fresh road response',
         'agent-ai-climb': 'Old climb response',
+        'agent-ai-unused': 'Unused response',
     }
     svc.db.update_activity_ai_responses.assert_called_once_with(42, activity['ai_responses'])
