@@ -33,15 +33,21 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Determine build flags
         id: flags
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_RELEASE: ${{ inputs.create_release }}
+          INPUT_BUILD_MCP: ${{ inputs.build_mcp }}
         run: |
-          EVENT="${{ github.event_name }}"
-          MSG="${{ github.event.head_commit.message }}"
+          EVENT="$EVENT_NAME"
+          MSG="$HEAD_COMMIT_MSG"
 
           if [[ "$EVENT" == "workflow_dispatch" ]]; then
             PROCEED=true
-            PUBLISH="${{ inputs.publish }}"
-            RELEASE="${{ inputs.create_release }}"
-            BUILD_MCP="${{ inputs.build_mcp }}"
+            PUBLISH="$INPUT_PUBLISH"
+            RELEASE="$INPUT_RELEASE"
+            BUILD_MCP="$INPUT_BUILD_MCP"
           else
             # push to main: driven by commit message keywords
             if echo "$MSG" | grep -qE '/(release|publish)'; then
@@ -54,10 +60,10 @@ jobs:
             BUILD_MCP=true
           fi
 
-          echo "proceed=$PROCEED"    >> $GITHUB_OUTPUT
-          echo "publish=$PUBLISH"    >> $GITHUB_OUTPUT
-          echo "release=$RELEASE"    >> $GITHUB_OUTPUT
-          echo "build_mcp=$BUILD_MCP" >> $GITHUB_OUTPUT
+          echo "proceed=$PROCEED"    >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH"    >> "$GITHUB_OUTPUT"
+          echo "release=$RELEASE"    >> "$GITHUB_OUTPUT"
+          echo "build_mcp=$BUILD_MCP" >> "$GITHUB_OUTPUT"
 
       - name: Checkout code
         if: steps.flags.outputs.proceed == 'true'
@@ -90,14 +96,15 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           BUILD_MCP: ${{ steps.flags.outputs.build_mcp }}
+          PUBLISH: ${{ steps.flags.outputs.publish }}
         run: |
           chmod +x build/build.sh
           PUSH_FLAG=""
-          if [[ "${{ steps.flags.outputs.publish }}" == "true" ]]; then
+          if [[ "$PUBLISH" == "true" ]]; then
             PUSH_FLAG="--push"
           fi
 
-          if [[ "${{ steps.flags.outputs.build_mcp }}" == "true" ]]; then
+          if [[ "$BUILD_MCP" == "true" ]]; then
             ./build/build.sh web mcp $PUSH_FLAG
           else
             ./build/build.sh web $PUSH_FLAG
@@ -118,6 +125,8 @@ jobs:
         uses: actions/github-script@v7
         env:
           VERSION: ${{ steps.get_version.outputs.version }}
+          IS_PUBLISH: ${{ steps.flags.outputs.publish }}
+          IS_MCP: ${{ steps.flags.outputs.build_mcp }}
         with:
           script: |
             const { data: releases } = await github.rest.repos.listReleases({
@@ -149,8 +158,8 @@ jobs:
               .map(c => `- ${c.commit.message.split('\n')[0]}`)
               .join('\n');
 
-            const isPublish = '${{ steps.flags.outputs.publish }}' === 'true';
-            const isMcp = '${{ steps.flags.outputs.build_mcp }}' === 'true';
+            const isPublish = process.env.IS_PUBLISH === 'true';
+            const isMcp = process.env.IS_MCP === 'true';
             const version = process.env.VERSION || '';
             let dockerLink = '';
             if (isPublish && version) {
@@ -185,19 +194,24 @@ jobs:
 
       - name: Add build summary
         if: steps.flags.outputs.proceed == 'true'
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          PUBLISH: ${{ steps.flags.outputs.publish }}
+          RELEASE: ${{ steps.flags.outputs.release }}
+          BUILD_MCP: ${{ steps.flags.outputs.build_mcp }}
         run: |
-          echo "### ✅ Build complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | \`${{ steps.get_version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Published | \`${{ steps.flags.outputs.publish }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release created | \`${{ steps.flags.outputs.release }}\` |" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ steps.flags.outputs.publish }}" == "true" ]]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "#### Published Docker Images" >> $GITHUB_STEP_SUMMARY
-            echo "- **App**: [kinetiqo/web:${{ steps.get_version.outputs.version }}](https://hub.docker.com/r/kinetiqo/web/tags?name=${{ steps.get_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
-            if [[ "${{ steps.flags.outputs.build_mcp }}" == "true" ]]; then
-              echo "- **Kinetiqo + MCP**: [kinetiqo/web-mcp:${{ steps.get_version.outputs.version }}](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=${{ steps.get_version.outputs.version }}) / [kinetiqo/web-mcp:latest](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=latest)" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Build complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Published | \`$PUBLISH\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Release created | \`$RELEASE\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$PUBLISH" == "true" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "#### Published Docker Images" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **App**: [kinetiqo/web:$VERSION](https://hub.docker.com/r/kinetiqo/web/tags?name=$VERSION)" >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$BUILD_MCP" == "true" ]]; then
+              echo "- **Kinetiqo + MCP**: [kinetiqo/web-mcp:$VERSION](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=$VERSION) / [kinetiqo/web-mcp:latest](https://hub.docker.com/r/kinetiqo/web-mcp/tags?name=latest)" >> "$GITHUB_STEP_SUMMARY"
             fi
           fi

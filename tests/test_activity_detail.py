@@ -2,6 +2,7 @@
 
 import io
 import json
+import unittest
 from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
@@ -114,62 +115,62 @@ class DummyActivityDetailRepo:
 
 # ─── 1. Unit Tests for Analytics Computations ─────────────────────────────────
 
-def test_calculate_coggan_zones():
-    watts = [100.0, 150.0, 200.0, 240.0, 280.0, 320.0, 450.0]
-    ftp = 250.0
-    zones = calculate_coggan_zones(watts, ftp)
-    assert len(zones) == 7
-    assert zones[0]["zone"] == "Z1"
-    assert zones[0]["name"] == "Active Recovery"
-    assert zones[0]["seconds"] >= 1
-    # Check total percentage sums to ~100%
-    total_pct = sum(z["percent"] for z in zones)
-    assert 99.0 <= total_pct <= 101.0
+class TestActivityAnalytics(unittest.TestCase):
+    """Unit tests for analytics calculations adhering to unittest.TestCase standards."""
 
+    def test_calculate_coggan_zones(self):
+        watts = [100.0, 150.0, 200.0, 240.0, 280.0, 320.0, 450.0]
+        ftp = 250.0
+        zones = calculate_coggan_zones(watts, ftp)
+        self.assertEqual(len(zones), 7)
+        self.assertEqual(zones[0]["zone"], "Z1")
+        self.assertEqual(zones[0]["name"], "Active Recovery")
+        self.assertGreaterEqual(zones[0]["seconds"], 1)
+        # Check total percentage sums to ~100%
+        total_pct = sum(z["percent"] for z in zones)
+        self.assertGreaterEqual(total_pct, 99.0)
+        self.assertLessEqual(total_pct, 101.0)
 
-def test_calculate_hr_zones():
-    hrs = [110, 125, 140, 155, 175]
-    max_hr = 190
-    zones = calculate_hr_zones(hrs, max_hr)
-    assert len(zones) == 5
-    assert zones[0]["zone"] == "Z1"
-    assert zones[4]["zone"] == "Z5"
-    assert sum(z["seconds"] for z in zones) == len(hrs)
+    def test_calculate_hr_zones(self):
+        hrs = [110, 125, 140, 155, 175]
+        max_hr = 190
+        zones = calculate_hr_zones(hrs, max_hr)
+        self.assertEqual(len(zones), 5)
+        self.assertEqual(zones[0]["zone"], "Z1")
+        self.assertEqual(zones[4]["zone"], "Z5")
+        self.assertEqual(sum(z["seconds"] for z in zones), len(hrs))
 
+    def test_calculate_climb_breakdown(self):
+        dist = [0.0, 100.0, 200.0, 300.0]
+        alt = [100.0, 105.0, 105.0, 100.0]  # Climb (5%), Flat (0%), Descent (-5%)
+        grades = [None, 5.0, 0.0, -5.0]
+        res = calculate_climb_breakdown(dist, alt, grades)
+        self.assertGreater(res["climb_km"], 0)
+        self.assertGreater(res["flat_km"], 0)
+        self.assertGreater(res["desc_km"], 0)
+        self.assertEqual(res["max_grade"], 5.0)
+        self.assertEqual(res["min_grade"], -5.0)
 
-def test_calculate_climb_breakdown():
-    dist = [0.0, 100.0, 200.0, 300.0]
-    alt = [100.0, 105.0, 105.0, 100.0]  # Climb (5%), Flat (0%), Descent (-5%)
-    grades = [None, 5.0, 0.0, -5.0]
-    res = calculate_climb_breakdown(dist, alt, grades)
-    assert res["climb_km"] > 0
-    assert res["flat_km"] > 0
-    assert res["desc_km"] > 0
-    assert res["max_grade"] == 5.0
-    assert res["min_grade"] == -5.0
+    def test_calculate_mmp_summary(self):
+        ts = list(range(100))
+        watts = [250.0] * 100
+        ftp = 250.0
+        mmp = calculate_mmp_summary(ts, watts, ftp)
+        self.assertEqual(len(mmp), 6)
+        self.assertEqual(mmp[0]["duration"], 5)
+        self.assertEqual(mmp[0]["watts"], 250)
+        self.assertEqual(mmp[0]["pct_ftp"], 100)
 
-
-def test_calculate_mmp_summary():
-    ts = list(range(100))
-    watts = [250.0] * 100
-    ftp = 250.0
-    mmp = calculate_mmp_summary(ts, watts, ftp)
-    assert len(mmp) == 6
-    assert mmp[0]["duration"] == 5
-    assert mmp[0]["watts"] == 250
-    assert mmp[0]["pct_ftp"] == 100
-
-
-def test_build_activity_analytics():
-    rows = [
-        {"ts": i, "watts": 200 + i, "heartrate": 140, "distance": i * 10.0, "altitude": 300.0, "grade_smooth": 0.0}
-        for i in range(20)
-    ]
-    analytics = build_activity_analytics(rows, ftp=250, max_hr=190)
-    assert "coggan_zones" in analytics
-    assert "hr_zones" in analytics
-    assert "mmp_table" in analytics
-    assert "climb_stats" in analytics
+    def test_build_activity_analytics(self):
+        rows = [
+            {"ts": i, "watts": 200 + i, "heartrate": 140, "distance": i * 10.0, "altitude": 300.0, "grade_smooth": 0.0}
+            for i in range(20)
+        ]
+        analytics = build_activity_analytics(rows, ftp=250, max_hr=190)
+        self.assertIn("coggan_zones", analytics)
+        self.assertIn("hr_zones", analytics)
+        self.assertIn("mmp_table", analytics)
+        self.assertIn("climb_stats", analytics)
 
 
 # ─── 2. Web Route Tests ───────────────────────────────────────────────────────

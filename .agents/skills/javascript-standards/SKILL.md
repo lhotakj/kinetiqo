@@ -76,3 +76,49 @@ const options = {
     pageLength: 25
 };
 ```
+
+---
+
+## 3. Promise Handling & Floating Promises (SonarQube javascript:S6544)
+
+In modern asynchronous JavaScript, promises must never be left "floating" (unhandled). Unhandled promises can silently swallow rejection errors, cause subtle race conditions, and fail SonarQube rule `javascript:S6544`.
+
+### 3.1 Requirements
+Every promise returned by an async function or API call must satisfy at least one of:
+1. Be `await`ed inside an `async` function with appropriate `try/catch` error handling.
+2. Chain a `.catch(...)` or `.then(..., onRejected)` rejection handler.
+3. Be explicitly marked as intentionally unawaited using the `void` operator (e.g. `void loadSessions().catch(...)`).
+
+### 3.2 Compliant Patterns
+```javascript
+// ❌ Non-compliant (floating promise in event listener / top-level):
+document.getElementById('refresh').addEventListener('click', () => {
+    loadSessions();
+});
+Promise.all([loadModels(), loadSessions()]);
+
+// ✅ Compliant (void with rejection handler or explicit chain):
+document.getElementById('refresh').addEventListener('click', () => {
+    void loadSessions().catch((err) => console.error('Failed to reload sessions:', err));
+});
+
+void Promise.all([loadModels(), loadSessions()])
+    .then(() => (sessionId ? openSession(sessionId) : null))
+    .catch((error) => setStatus(error.message, true));
+```
+
+---
+
+## 4. Catastrophic Backtracking Prevention in Regular Expressions (SonarQube javascript:S5852)
+
+Regular expressions with nested quantifiers (such as `(A+)+`, `(A*)+`, or `(?:<tag>.*?<\/tag>)+`) exhibit polynomial or exponential worst-case time complexity when presented with non-matching or malformed inputs. SonarQube flags these under `javascript:S5852`.
+
+### 4.1 Guidelines for Safe Regexes
+1. **Never Nest Quantifiers**: Never place a lazy or greedy quantifier inside a repeated group (e.g. avoid `(?:.*?)+` or `(?:[^\n]*)+`).
+2. **Use Strict Character Classes**: Instead of wildcards like `.*?`, constrain matches with negative character sets:
+   - Inline markdown bold/italic: Use `/\*\*([^*\n\r]+)\*\*/g` instead of `/\*\*(.*?)\*\*/g`.
+   - Single-line tags: Use `/<li class="...">(?:[^\n<]*)<\/li>/g` instead of `/<li class="...">.*?<\/li>/gis`.
+   - Fenced code blocks: Use `/```([a-zA-Z0-9_-]*)\r?\n((?:[^`]|`(?!``))*?)```/g` to ensure closing backticks do not backtrack across lines.
+   - Comment stripping: Use `/\/\/[^\r\n]*/g` instead of `/\/\/.*$/gm`.
+3. **Bound Multiline Searches**: When stripping multiline blocks (e.g., Mermaid live editor notes), check string containment first (`if (str.includes(...))`) and bound line counts (`{0,4}`) rather than using unbounded `[\s\S]*?`.
+

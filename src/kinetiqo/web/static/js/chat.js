@@ -164,7 +164,10 @@
 
     const renderMarkdown = (text) => {
         if (!text) return '';
-        const cleaned = text.replace(/(?:^|\n)\s*\*?Copy the block above[\s\S]*?Mermaid live editor[^\n]*\*?/gi, '');
+        let cleaned = text;
+        if (cleaned.includes('Mermaid live editor') && cleaned.includes('Copy the block above')) {
+            cleaned = cleaned.replace(/(?:^|\n)[ \t]*\*?Copy the block above[^\n\r]*(?:\r?\n[^\n\r]*){0,4}Mermaid live editor[^\n\r]*\*?/gi, '');
+        }
         if (typeof window.marked !== 'undefined' && typeof window.marked.parse === 'function') {
             try {
                 return window.marked.parse(cleaned);
@@ -173,7 +176,7 @@
             }
         }
         const codeBlocks = [];
-        let processed = cleaned.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        let processed = cleaned.replace(/```([a-zA-Z0-9_-]*)\r?\n((?:[^`]|`(?!``))*?)```/g, (_, lang, code) => {
             const id = `__CB_${codeBlocks.length}__`;
             const chartJson = tryParseToChartJson(code.trim(), lang);
             if (chartJson) {
@@ -199,15 +202,15 @@
         processed = processed.replace(/^# (.*$)/gim, '<h1 class="text-xl font-bold text-gray-900 dark:text-white mt-6 mb-2.5">$1</h1>');
 
         // Bold & Italic
-        processed = processed.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
-        processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-white">$1</strong>');
-        processed = processed.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+        processed = processed.replace(/\*\*\*([^*\n\r]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+        processed = processed.replace(/\*\*([^*\n\r]+)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-white">$1</strong>');
+        processed = processed.replace(/\*([^*\n\r]+)\*/g, '<em class="italic">$1</em>');
 
         // Blockquotes
         processed = processed.replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-orange-500 pl-3 my-2 italic text-gray-600 dark:text-gray-300">$1</blockquote>');
 
         // Tables: match all table rows even if EOF or trailing spaces
-        processed = processed.replace(/((?:^[ \t]*\|[^\n]*\|[ \t]*(?:\r?\n|$))+)/gm, (tableBlock) => {
+        processed = processed.replace(/((?:^[ \t]*\|(?:[^|\r\n]+\|)+[ \t]*(?:\r?\n|$))+)/gm, (tableBlock) => {
             const lines = tableBlock.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
             if (lines.length < 2) return tableBlock;
             if (!/^\|(?:\s*:?-+:?\s*\|)+$/.test(lines[1])) return tableBlock;
@@ -237,8 +240,8 @@
         // Ordered Lists
         processed = processed.replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li class="ml-4 list-decimal" value="$1">$2</li>');
 
-        processed = processed.replace(/((?:<li class="ml-4 list-disc">.*?<\/li>\s*)+)/gis, '<ul class="my-2 space-y-1">$1</ul>');
-        processed = processed.replace(/((?:<li class="ml-4 list-decimal".*?<\/li>\s*)+)/gis, '<ol class="my-2 space-y-1">$1</ol>');
+        processed = processed.replace(/((?:<li class="ml-4 list-disc">[^\n<]*<\/li>\s*)+)/gi, '<ul class="my-2 space-y-1">$1</ul>');
+        processed = processed.replace(/((?:<li class="ml-4 list-decimal"[^>]*>[^\n<]*<\/li>\s*)+)/gi, '<ol class="my-2 space-y-1">$1</ol>');
 
         // Horizontal Rules
         processed = processed.replace(/^---$/gim, '<hr class="my-4 border-warm-200 dark:border-zinc-700"/>');
@@ -340,7 +343,7 @@
 
             try {
                 let cleanJson = codeText
-                    .replace(/\/\/.*$/gm, '')
+                    .replace(/\/\/[^\r\n]*/g, '')
                     .replace(/,(\s*[\]}])/g, '$1');
                 const config = JSON.parse(cleanJson);
 
@@ -1402,11 +1405,13 @@
             });
             itemDiv.appendChild(deleteBtn);
 
-            itemDiv.addEventListener('click', () => openSession(item.session_id));
+            itemDiv.addEventListener('click', () => {
+                void openSession(item.session_id);
+            });
             itemDiv.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    openSession(item.session_id);
+                    void openSession(item.session_id);
                 }
             });
             sessions.appendChild(itemDiv);
@@ -1445,7 +1450,7 @@
         empty.classList.remove('hidden');
         status.classList.add('hidden');
         startAllSlotRotations();
-        loadSessions();
+        void loadSessions().catch((err) => console.error('Failed to reload sessions:', err));
     });
 
     const clearHistoryBtn = document.getElementById('clear-history');
@@ -1578,7 +1583,7 @@
         Array.from(suggestionsGrid.children).forEach((btn) => {
             btn.onclick = () => {
                 const label = btn.querySelector('.chat-suggestion-label');
-                const promptText = label ? label.textContent.trim() : btn.textContent.trim().replace(/^[^\w]+/, '');
+                const promptText = label ? label.textContent.trim() : btn.textContent.trim().replace(/^\W+/, '');
                 input.value = promptText;
                 input.focus();
                 input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2111,8 +2116,8 @@
 
     observeThemeChangesForCharts();
 
-    Promise.all([loadModels(), loadSessions(), loadAllPrompts()])
-        .then(() => sessionId ? openSession(sessionId) : null)
+    void Promise.all([loadModels(), loadSessions(), loadAllPrompts()])
+        .then(() => (sessionId ? openSession(sessionId) : null))
         .catch((error) => setStatus(error.message, true));
 })();
 

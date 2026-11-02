@@ -572,7 +572,6 @@ def merge_description(existing_description: str, template: str, rendered_block: 
     if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
         return rendered_block + existing_description
 
-    assert placement == UPDATE_STRAVA_PLACEMENT_END
     return existing_description.rstrip("\n") + "\n\n" + rendered_block
 
 

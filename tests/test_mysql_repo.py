@@ -839,3 +839,18 @@ def test_close_handles_exception():
     repo.close()
 
 
+def test_update_statistics():
+    cursor = DummyCursor(query_responses={
+        "ANALYZE TABLE": [("kinetiqo.activities", "analyze", "status", "OK"),
+                          ("kinetiqo.streams", "analyze", "status", "OK")]
+    })
+    conn = DummyConn(cursor_obj=cursor)
+    repo = make_repo_with_conn(conn)
+    res = repo.update_statistics()
+    assert res["engine"] == "mysql"
+    assert res["success"] is True
+    assert "kinetiqo.activities: status=OK" in res["details"]
+    executed_sql = [call[0] for call in cursor.queries]
+    assert any("ANALYZE TABLE" in sql for sql in executed_sql)
+
+

@@ -578,9 +578,10 @@ Each setting row inside the body uses `.control-row`:
 When reviewing or generating GUI elements in Kinetiqo, ensure compliance with these core tenets:
 
 1. **Fixed Button Heights**: All grid action buttons must enforce `h-[40px] px-3 py-2 text-sm flex items-center`.
-2. **Accessible Labels**: Every `<input>`, `<select>`, and `<textarea>` must have an associated `<label for="id">` or explicit `aria-label` (Sonar Web:S6853).
+2. **Accessible Labels**: Every `<input>`, `<select>`, and `<textarea>` must have an associated `<label for="id">` or explicit `aria-label` (Sonar Web:S6853). Never use `<label>` tags for non-form controls, button groups, or section headers; use `<span>` or `<div>` instead.
 3. **No Accompanying Text on Waiting Buttons**: Asynchronous actions must replace button text with `kinetiqo-loading-32x32.webp` and apply `opacity-60 cursor-wait` (ui-loading-standards).
 4. **Static Number Methods**: Inline scripts must always use `Number.parseInt(str, 10)`, `Number.parseFloat(str)`, etc., never global `parseInt()` (Sonar javascript:S7773).
 5. **Dual Theme Support**: Every component must specify both light mode and `dark:...` utility classes.
 6. **No External Assets**: All styles, icons, fonts, and scripts must be 100% self-hosted; never introduce external CDN links.
+7. **CSS Specificity over `!important`**: Never use `!important` in component classes or custom stylesheet declarations (Sonar `css:S4667`). Rely on selector specificity or container scoping.
 

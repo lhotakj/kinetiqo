@@ -803,4 +803,18 @@ def test_create_database(monkeypatch):
     monkeypatch.setattr(repo, "_connect", fake_connect)
     repo._create_database()
     assert conn_temp.closed is True
+
+
+def test_update_statistics():
+    cursor = DummyCursor()
+    conn = DummyConn(cursor_obj=cursor)
+    repo = make_repo_with_conn(conn)
+    res = repo.update_statistics()
+    assert res["engine"] == "postgresql"
+    assert res["success"] is True
+    assert "ANALYZE activities;" in res["statements"]
+    assert "ANALYZE streams;" in res["statements"]
+    executed_sql = [call[0] for call in cursor.queries]
+    assert "ANALYZE activities;" in executed_sql
+    assert "ANALYZE streams;" in executed_sql
     assert "CREATE DATABASE db" in cursor.executed[0][0]

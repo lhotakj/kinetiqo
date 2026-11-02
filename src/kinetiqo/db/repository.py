@@ -528,6 +528,15 @@ class DatabaseRepository(ABC):
         """Retrieve timestamp-aligned multi-channel stream samples within a window."""
         pass
 
+    @abstractmethod
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update optimizer statistics on key tables and indexes.
+
+        This is a lightweight, non-destructive maintenance operation that refreshes
+        index cardinality distributions and query planner statistics.
+        """
+        pass
+
     def _weather_row_dict(self, cursor: Any, row: Any) -> Dict[str, Any]:
         if row is None:
             return {}

@@ -1062,6 +1062,15 @@ class SyncService:
                 sync_warnings.append(f"Failed to sync athlete KOMs/trophies: {e}")
                 yield yield_log(f"Warning: Failed to sync athlete KOMs/trophies: {e}")
 
+            if full_sync and success and not stopped:
+                try:
+                    stats_res = self.db.update_statistics()
+                    stats_msg = f"Database statistics updated: {stats_res.get('engine', '')} ({stats_res.get('elapsed_ms', 0)} ms)"
+                    logger.info(stats_msg)
+                    yield yield_log(stats_msg)
+                except Exception as opt_err:
+                    logger.warning(f"Failed to update database statistics: {opt_err}")
+
             yield yield_log(
                 f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",
                 final=True

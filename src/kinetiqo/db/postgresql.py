@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
@@ -1790,3 +1791,25 @@ class PostgresqlRepository(DatabaseRepository):
                 d["ts"] = d["ts"].isoformat()
             result.append(d)
         return result
+
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update optimizer statistics for activities and streams tables via ANALYZE.
+
+        This is a lightweight, non-destructive operation that refreshes planner
+        statistics and index distribution maps.
+        """
+        self._ensure_connected()
+        t0 = time.perf_counter()
+        with self.conn.cursor() as cur:
+            cur.execute("ANALYZE activities;")
+            cur.execute("ANALYZE streams;")
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        logger.info(
+            f"PostgreSQL optimizer statistics updated for 'activities' and 'streams' (non-destructive) in {elapsed_ms} ms"
+        )
+        return {
+            "engine": "postgresql",
+            "success": True,
+            "statements": ["ANALYZE activities;", "ANALYZE streams;"],
+            "elapsed_ms": elapsed_ms,
+        }

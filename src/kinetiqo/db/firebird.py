@@ -2073,6 +2073,40 @@ class FirebirdRepository(DatabaseRepository):
             result.append(d)
         return result
 
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update index selectivity statistics in Firebird via SET STATISTICS INDEX.
+
+        This is a lightweight, non-destructive operation that recalculates
+        index selectivity values for Firebird query optimizer.
+        """
+        self._ensure_connected()
+        t0 = time.perf_counter()
+        target_indexes = ["idx_activities_start_date"]
+        updated = []
+        with self.conn.cursor() as cur:
+            for idx in target_indexes:
+                try:
+                    cur.execute(f"SET STATISTICS INDEX {idx};")
+                    updated.append(idx)
+                except Exception:
+                    try:
+                        cur.execute(f'SET STATISTICS INDEX "{idx}";')
+                        updated.append(idx)
+                    except Exception as err:
+                        logger.warning(f"Could not update Firebird statistics for index {idx}: {err}")
+            self.conn.commit()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        details = ", ".join(updated) if updated else "None"
+        logger.info(
+            f"Firebird index statistics updated for [{details}] (non-destructive) in {elapsed_ms} ms"
+        )
+        return {
+            "engine": "firebird",
+            "success": True,
+            "indexes": updated,
+            "elapsed_ms": elapsed_ms,
+        }
+
     def __del__(self):
         try:
             self.close()

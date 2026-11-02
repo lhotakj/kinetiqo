@@ -149,6 +149,7 @@ class TestActivitiesAPI(unittest.TestCase):
         self.assertTrue(data['success'])
 
         mock_repo.delete_activities.assert_called_once_with(['1001', '1002', '1003'])
+        mock_repo.update_statistics.assert_called_once()
         mock_repo.log_sync.assert_called_once()
 
     @patch('kinetiqo.web.app.get_db')

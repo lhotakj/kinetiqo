@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
@@ -1765,3 +1766,37 @@ class MySQLRepository(DatabaseRepository):
                 d["ts"] = d["ts"].isoformat()
             result.append(d)
         return result
+
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update optimizer index distribution statistics for activities and streams tables via ANALYZE TABLE.
+
+        This is a lightweight, non-destructive operation that refreshes index
+        cardinality distributions for query planner optimization.
+        """
+        self._ensure_connected()
+        t0 = time.perf_counter()
+        results = []
+        with self.conn.cursor() as cur:
+            cur.execute("ANALYZE TABLE activities, streams;")
+            rows = cur.fetchall()
+            for row in rows:
+                if isinstance(row, dict):
+                    table_name = row.get("Table", "")
+                    msg_type = row.get("Msg_type", "")
+                    msg_text = row.get("Msg_text", "")
+                else:
+                    table_name = row[0]
+                    msg_type = row[2]
+                    msg_text = row[3]
+                results.append(f"{table_name}: {msg_type}={msg_text}")
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        details = ", ".join(results) if results else "OK"
+        logger.info(
+            f"MySQL optimizer statistics updated (non-destructive) in {elapsed_ms} ms: {details}"
+        )
+        return {
+            "engine": "mysql",
+            "success": True,
+            "details": details,
+            "elapsed_ms": elapsed_ms,
+        }

@@ -4313,6 +4313,12 @@ def delete_activities_api():
         _power_cache.invalidate()
 
         try:
+            stats_res = repo.update_statistics()
+            logger.info(f"Database statistics updated after bulk deletion of {len(activity_ids)} activities: {stats_res}")
+        except Exception as opt_err:
+            logger.warning(f"Failed to update database statistics after bulk deletion: {opt_err}")
+
+        try:
             repo.log_sync(added=0, removed=len(activity_ids), trigger="web", success=True, action="delete_bulk",
                           user=getattr(current_user, 'id', 'admin'))
         except Exception as log_err:

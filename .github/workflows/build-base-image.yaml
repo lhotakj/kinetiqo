@@ -56,20 +56,26 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          PYTHON_VERSION: ${{ inputs.python_version }}
+          FIREBIRD_VERSION: ${{ inputs.firebird_version }}
         run: |
           chmod +x build/build.sh
-          ./build/build.sh base --push --python "${{ inputs.python_version }}" --firebird "${{ inputs.firebird_version }}"
+          ./build/build.sh base --push --python "$PYTHON_VERSION" --firebird "$FIREBIRD_VERSION"
 
       - name: Add build summary
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+          FIREBIRD_VERSION: ${{ inputs.firebird_version }}
+          PLATFORMS: ${{ inputs.platforms }}
         run: |
-          echo "### ✅ Base image published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | \`kinetiqo/firebird-python\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Python | \`${{ inputs.python_version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Firebird | \`${{ inputs.firebird_version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Platforms | \`${{ inputs.platforms }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "[View on DockerHub](https://hub.docker.com/r/kinetiqo/firebird-python/tags)" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Base image published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | \`kinetiqo/firebird-python\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Python | \`$PYTHON_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Firebird | \`$FIREBIRD_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Platforms | \`$PLATFORMS\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[View on DockerHub](https://hub.docker.com/r/kinetiqo/firebird-python/tags)" >> "$GITHUB_STEP_SUMMARY"
 

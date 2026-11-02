@@ -225,6 +225,18 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 - **JavaScript Object Property Uniqueness (`javascript:S1534`)**: Duplicate keys in JavaScript object literals (e.g. within inline DataTables configuration objects or chart options in Jinja templates) cause silent configuration overwrites and trigger SonarQube `javascript:S1534`. Always merge option groups (such as DataTables `language: { processing: ..., search: ... }`) into a single unified key.
 - **Anonymous User Safety in Web Endpoints & Templates**: Never access `current_user.id` or user-specific attributes without first verifying authentication status (`if current_user.is_authenticated:`). For unauthenticated requests or public views, access user attributes defensively via `getattr(current_user, 'id', None)` to prevent `AttributeError: 'AnonymousUserMixin' object has no attribute 'id'`.
 
+### 4.18 GitHub Actions Workflow Security Standard (Sonar githubactions:S7630)
+- **Expression Evaluation in `run:` Steps**: Never evaluate GitHub context expressions (`${{ github.event... }}`, `${{ inputs... }}`, or `${{ steps... }}`) directly inside bash/sh `run:` script bodies to prevent arbitrary command injection.
+- **Mandatory Environment Mapping**: Always map GitHub expressions to step-level environment variables under `env:` and reference them via standard shell syntax (e.g. `"$EVENT_NAME"`, `"$MSG"`, `"$VERSION"`).
+
+### 4.19 Prohibition of Bare Assert in Production Code & Test Class Standard (Sonar python:S5905 / python:S5960)
+- **Production Code Assertion Prohibition**: Never use `assert` statements in non-test application code, CLI tools, or repository classes. Because `assert` can be disabled with Python `-O` optimization flags, production logic must rely on explicit `if` statements with default fallbacks or raise appropriate exceptions (`ValueError`, `RuntimeError`).
+- **TestCase Test Structure**: All unit tests in `tests/` must belong to a `unittest.TestCase` class and utilize standard assertion methods (`self.assertEqual`, `self.assertGreater`, `self.assertIn`, etc.) rather than bare `assert` statements to ensure compatibility with SonarQube static analysis and native test discovery.
+
+### 4.20 JavaScript Promise Handling & Regular Expression Safety (Sonar javascript:S6544 & javascript:S5852)
+- **Floating Promise Prevention (`javascript:S6544`)**: Promises created by `async` functions or API calls must never be left unhandled. They must be awaited, chained with `.catch(...)`, or explicitly marked as intentionally unawaited with the `void` operator (e.g., `void loadSessions().catch(console.error);`).
+- **Catastrophic Backtracking Prevention (`javascript:S5852`)**: Never use nested quantifiers (`(?:A+)+`, `(?:.*?)+`) or unconstrained dot-all lazy patterns (`[\s\S]*?`) across multiline blocks in regular expressions. Prefer deterministic character exclusions (`[^*\n\r]+` for inline markup, `(?:[^`]|`(?!``))*` for code blocks, and bounded repetitions) to guarantee linear execution time.
+
 
 ---
 
