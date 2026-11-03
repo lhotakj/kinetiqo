@@ -20,9 +20,11 @@ from kinetiqo.profile_sync import (
 )
 from kinetiqo.strava_description import (
     AI_AGENT_TOKEN_PREFIX,
+    CONFIG_FIELD_BY_BUCKET,
     DescriptionContext,
     any_update_strava_template_configured,
     get_template_for_activity,
+    has_ai_agent_token,
     named_agent_tokens,
 )
 from kinetiqo.weather import (
@@ -319,6 +321,8 @@ class SyncService:
         added_count = 0
         updated_count = 0
         removed_count = 0
+        ai_changed_count = 0
+        weather_count = 0
         success = True
         stopped = False
         lease_token = secrets.token_urlsafe(32)
@@ -374,9 +378,9 @@ class SyncService:
                     </div>
                 </div>"""
                 hx_include = (
-                    'hx-include="#updateStravaDesc, [name=\'weather_data\'], #resyncWeather, #syncLimit"'
+                    'hx-include="#syncCsrfToken, #updateStravaDesc, #retriggerAiAgents, [name=\'weather_data\'], #resyncWeather, #syncLimit"'
                     if full_sync
-                    else 'hx-include="#updateStravaDesc, [name=\'weather_data\'], #resyncWeather"'
+                    else 'hx-include="#syncCsrfToken, #updateStravaDesc, #retriggerAiAgents, [name=\'weather_data\'], #resyncWeather"'
                 )
                 button_html = f"""<button id="start-sync-btn"
                         hx-post="/sync/start/{sync_type_str}"
@@ -384,7 +388,7 @@ class SyncService:
                         hx-swap="outerHTML"
                         hx-swap-oob="true"
                         {hx_include}
-                        class="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
+                        class="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800 text-white rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Start Sync
                 </button>"""
@@ -527,6 +531,13 @@ class SyncService:
             synced_ids = self.db.get_synced_activity_ids()
             yield yield_log(f"Found {len(synced_ids)} already synced activities in database.")
             profile = self.db.get_profile() or {}
+            weather_configured = bool(
+                (getattr(self.config, "visual_crossing_api_key", None) or os.getenv("VISUAL_CROSSING_API_KEY", "")).strip()
+            )
+            has_ai_in_templates = any(
+                has_ai_agent_token(getattr(self.config, field, "") or str(profile.get(field, "") or ""))
+                for field in CONFIG_FIELD_BY_BUCKET.values()
+            )
             weather_enabled = (
                 bool(update_weather)
                 if update_weather is not None
@@ -686,12 +697,12 @@ class SyncService:
                     logger.debug(f"Could not preload weather cache: {cache_err}")
             weather_enrichment_stopped = False
 
-            def enrich_activity_weather(activity: dict) -> tuple[str, str | None]:
+            def enrich_activity_weather(activity: dict) -> tuple[str, str | None, bool]:
                 """Persist missing weather for one activity before its description is rendered."""
                 nonlocal stopped, weather_enrichment_stopped
 
                 if not weather_enabled:
-                    return "", None
+                    return "", None, False
 
                 activity_id = activity["id"]
                 activity_name = str(activity.get("name") or f"Activity {activity_id}")
@@ -701,16 +712,17 @@ class SyncService:
                         summary = extract_weather_summary(existing_weather.get("weather_json"))
                         if summary:
                             self.db.update_activity_weather_summary(activity_id, summary)
-                        return "[weather: cache]", None
+                            return "[weather: cache]", None, True
+                        return "[weather: cache]", None, False
 
                 if weather_enrichment_stopped:
-                    return "[weather: deferred]", None
+                    return "[weather: deferred]", None, False
 
                 if WEATHER_RATE_LIMIT_STATE.is_exhausted():
                     weather_enrichment_stopped = True
                     return "[weather: deferred]", (
                         "Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
-                    )
+                    ), False
 
                 try:
                     activity_type = str(
@@ -724,7 +736,7 @@ class SyncService:
                             activity_id,
                             skipped_activity_weather(activity, "skipped_indoor"),
                         )
-                        return "[weather: error - indoor activity]", None
+                        return "[weather: error - indoor activity]", None, False
 
                     points = self.db.get_activity_stream_window(
                         activity_id,
@@ -757,7 +769,7 @@ class SyncService:
                             activity_id,
                             skipped_activity_weather(activity, "skipped_no_gps"),
                         )
-                        return "[weather: error - no GPS route]", None
+                        return "[weather: error - no GPS route]", None, False
 
                     def fetch_cached_weather_hour(
                         latitude: float,
@@ -785,22 +797,22 @@ class SyncService:
                         rate_limit_reached=WEATHER_RATE_LIMIT_STATE.is_exhausted,
                     )
                     if stopped:
-                        return "", "Weather sync stopped by user."
+                        return "", "Weather sync stopped by user.", False
                     if payload["status"] == "complete":
                         self.db.upsert_activity_weather(activity_id, payload)
                         summary = extract_weather_summary(payload)
                         if summary:
                             self.db.update_activity_weather_summary(activity_id, summary)
-                        return "[weather: refreshed]", None
+                        return "[weather: refreshed]", None, True
                     if payload["status"] == "deferred_rate_limit":
                         weather_enrichment_stopped = True
                         return "[weather: deferred]", (
                             "Weather enrichment stopped: Visual Crossing rate limit is exhausted until the next UTC midnight."
-                        )
+                        ), False
                     return "[weather: deferred]", (
                         f"Weather deferred for activity {activity_id}: "
                         "route GPS does not cover a sample."
-                    )
+                    ), False
                 except WeatherProviderError as error:
                     if error.stop_run:
                         weather_enrichment_stopped = True
@@ -811,7 +823,7 @@ class SyncService:
                     )
                     if error.retry_after:
                         warning += f" Provider Retry-After: {error.retry_after}."
-                    return "[weather: error]", warning
+                    return "[weather: error]", warning, False
                 except Exception as error:
                     if lease_lost.is_set():
                         raise
@@ -820,7 +832,7 @@ class SyncService:
                         activity_id,
                         activity_name,
                     )
-                    return "[weather: error]", f"Weather enrichment failed for activity {activity_id}: {error}"
+                    return "[weather: error]", f"Weather enrichment failed for activity {activity_id}: {error}", False
 
             for i, activity in enumerate(activities, 1):
                 if should_stop():
@@ -878,7 +890,12 @@ class SyncService:
                             msg = f"Activity {activity_id} has no stream data."
                             logger.warning(msg)
                             sync_warnings.append(msg)
-                    weather_tag, weather_warning = enrich_activity_weather(activity)
+                    weather_res = enrich_activity_weather(activity)
+                    weather_tag = weather_res[0]
+                    weather_warning = weather_res[1]
+                    has_weather = weather_res[2] if len(weather_res) > 2 else (weather_tag in ("[weather: refreshed]", "[weather: cache]"))
+                    if has_weather:
+                        weather_count += 1
                     if stopped:
                         yield yield_log("Weather sync stopped by user.", final=True, is_stopped=True)
                         return
@@ -938,6 +955,8 @@ class SyncService:
 
                     tags = []
                     if description_context and getattr(description_context, "agent_statuses", None):
+                        if any(st == "refreshed" for st in description_context.agent_statuses.values()):
+                            ai_changed_count += 1
                         for tok, st in description_context.agent_statuses.items():
                             agent_name = tok.removeprefix(AI_AGENT_TOKEN_PREFIX)
                             tags.append(f"[agent-{agent_name}: {st}]")
@@ -1071,10 +1090,17 @@ class SyncService:
                 except Exception as opt_err:
                     logger.warning(f"Failed to update database statistics: {opt_err}")
 
-            yield yield_log(
-                f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}.",
-                final=True
-            )
+            summary_lines = [
+                f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}."
+            ]
+            if has_ai_in_templates:
+                summary_lines.append(f"Activities with changed AI agents: {ai_changed_count}.")
+            if weather_configured and weather_enabled:
+                summary_lines.append(f"Activities with weather: {weather_count}.")
+
+            for idx, s_line in enumerate(summary_lines):
+                is_last = (idx == len(summary_lines) - 1)
+                yield yield_log(s_line, final=is_last)
 
         except Exception as e:
             success = False

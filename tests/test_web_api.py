@@ -203,6 +203,10 @@ def test_fastsync_post_accepts_rendered_form_csrf_token(monkeypatch):
     response = client.post('/sync/start/fast', data={'csrf_token': match.group(1)})
     assert response.status_code == 200
 
+    # Sync again without page reload (using the same csrf token from the rendered page)
+    response_again = client.post('/sync/start/fast', data={'csrf_token': match.group(1)})
+    assert response_again.status_code == 200
+
 
 def test_sync_weather_options_when_visual_crossing_not_configured(monkeypatch):
     monkeypatch.setitem(app.config, 'LOGIN_DISABLED', True)

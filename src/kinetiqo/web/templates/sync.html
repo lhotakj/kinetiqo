@@ -134,6 +134,13 @@
         const csrfToken = document.querySelector('meta[name="csrf-token"]');
         if (csrfToken && csrfToken.content) {
             event.detail.headers['X-CSRFToken'] = csrfToken.content;
+            event.detail.headers['X-CSRF-Token'] = csrfToken.content;
+        }
+        const csrfInput = document.getElementById('syncCsrfToken') || document.querySelector('input[name="csrf_token"]');
+        if (csrfInput && csrfInput.value) {
+            if (event.detail.parameters && !event.detail.parameters['csrf_token']) {
+                event.detail.parameters['csrf_token'] = csrfInput.value;
+            }
         }
     });
 

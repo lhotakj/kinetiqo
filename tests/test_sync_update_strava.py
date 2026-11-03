@@ -634,6 +634,62 @@ class TestSyncSurfacesWarningsInUi(unittest.TestCase):
         service.strava.get_activity_detail.assert_not_called()
         service.strava.update_activity_description.assert_not_called()
 
+    def test_sync_completion_swapped_button_includes_csrf_token(self):
+        """Swapped button at sync completion must include #syncCsrfToken and #retriggerAiAgents."""
+        service = self._make_service()
+        service.strava.get_activities.return_value = iter([[]])
+
+        # Test Fast Sync
+        events_fast = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0))
+        final_fast = events_fast[-1]
+        self.assertIn('hx-include="#syncCsrfToken, #updateStravaDesc, #retriggerAiAgents, [name=\'weather_data\'], #resyncWeather"', final_fast)
+        self.assertIn('id="start-sync-btn"', final_fast)
+
+        # Test Full Sync
+        events_full = list(service.sync(full_sync=True, trigger="test", user="tester", limit_days=0))
+        final_full = events_full[-1]
+        self.assertIn('hx-include="#syncCsrfToken, #updateStravaDesc, #retriggerAiAgents, [name=\'weather_data\'], #resyncWeather, #syncLimit"', final_full)
+        self.assertIn('id="start-sync-btn"', final_full)
+
+    def test_sync_completion_ai_agents_line_displayed_only_when_in_templates(self):
+        """Activities with changed AI agents is shown only if AI agents are in templates."""
+        service = self._make_service()
+        service.strava.get_activities.return_value = iter([[]])
+
+        # 1. No AI agent in templates -> line is omitted
+        service.config.update_strava_cycling_outdoor = "{{current-year}} - {{distance}} km"
+        events_no_ai = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0))
+        joined_no_ai = "".join(events_no_ai)
+        self.assertNotIn("Activities with changed AI agents:", joined_no_ai)
+
+        # 2. AI agent present in template -> line is emitted
+        service.config.update_strava_cycling_outdoor = "Morning {{distance}} km {{agent-ai-coach}}"
+        events_with_ai = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0))
+        joined_with_ai = "".join(events_with_ai)
+        self.assertIn("Activities with changed AI agents: 0.", joined_with_ai)
+
+    def test_sync_completion_weather_line_displayed_only_when_configured_and_enabled(self):
+        """Activities with weather is shown only when Visual Crossing is configured and weather is enabled."""
+        service = self._make_service()
+        service.strava.get_activities.return_value = iter([[]])
+
+        # 1. Weather not configured
+        with patch.dict(os.environ, {}, clear=True):
+            if hasattr(service.config, "visual_crossing_api_key"):
+                delattr(service.config, "visual_crossing_api_key")
+            events = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0, update_weather=True))
+            self.assertNotIn("Activities with weather:", "".join(events))
+
+        # 2. Weather configured but disabled
+        with patch.dict(os.environ, {"VISUAL_CROSSING_API_KEY": "test-key-123"}):
+            events = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0, update_weather=False))
+            self.assertNotIn("Activities with weather:", "".join(events))
+
+        # 3. Weather configured and enabled
+        with patch.dict(os.environ, {"VISUAL_CROSSING_API_KEY": "test-key-123"}):
+            events = list(service.sync(full_sync=False, trigger="test", user="tester", limit_days=0, update_weather=True))
+            self.assertIn("Activities with weather: 0.", "".join(events))
+
 
 class TestCliUpdateStravaFlag(unittest.TestCase):
     """Tests for CLI --update-strava / -U option parsing."""
