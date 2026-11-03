@@ -32,16 +32,22 @@ class TestFastMCPSSEIntegration(unittest.TestCase):
         # Allow uvicorn to bind
         time.sleep(2.0)
 
+        status_code = None
+        content_type = ""
+        first_chunk = ""
         try:
             with httpx.stream("GET", f"http://127.0.0.1:{test_port}/sse", timeout=5.0) as resp:
-                self.assertEqual(resp.status_code, 200)
-                self.assertIn("text/event-stream", resp.headers.get("content-type", ""))
+                status_code = resp.status_code
+                content_type = resp.headers.get("content-type", "")
                 # Read the initial endpoint event sent by FastMCP
                 first_chunk = next(resp.iter_text())
-                self.assertIn("event: endpoint", first_chunk)
-                self.assertIn("/messages/", first_chunk)
-        except Exception as e:
+        except (httpx.HTTPError, StopIteration, OSError) as e:
             self.fail(f"Failed connecting to FastMCP SSE endpoint: {e}")
+
+        self.assertEqual(status_code, 200)
+        self.assertIn("text/event-stream", content_type)
+        self.assertIn("event: endpoint", first_chunk)
+        self.assertIn("/messages/", first_chunk)
 
 
 if __name__ == "__main__":

@@ -133,11 +133,13 @@ class WeatherRateLimitState:
                 logger.debug("Could not open shared memory %s: %s", self._shm_name, exc)
 
         try:
-            shm_dir = (
-                Path("/dev/shm")
-                if os.path.isdir("/dev/shm") and os.access("/dev/shm", os.W_OK)
-                else Path(tempfile.gettempdir())
-            )
+            runtime_dir_env = os.getenv("XDG_RUNTIME_DIR")
+            if runtime_dir_env and os.path.isdir(runtime_dir_env):
+                shm_dir = Path(runtime_dir_env) / "kinetiqo"
+            else:
+                uid_suffix = f"_{os.getuid()}" if hasattr(os, "getuid") else ""
+                shm_dir = Path(tempfile.gettempdir()) / f"kinetiqo{uid_suffix}"
+            shm_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             self._shm_file_path = shm_dir / f"{self._shm_name}.bin"
         except Exception:
             self._shm_file_path = None
@@ -200,7 +202,18 @@ class WeatherRateLimitState:
 
         if self._shm_file_path is not None:
             try:
-                self._shm_file_path.write_bytes(packed)
+                flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+                if hasattr(os, "O_NOFOLLOW"):
+                    flags |= os.O_NOFOLLOW
+                fd = os.open(self._shm_file_path, flags, 0o600)
+                try:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(packed)
+                except Exception:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
             except Exception:
                 pass
 

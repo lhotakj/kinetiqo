@@ -392,7 +392,7 @@
         <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <a href="{{ url_for('activities') }}"
                 class="hover:text-blue-600 dark:hover:text-blue-400 font-medium inline-flex items-center gap-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
@@ -407,7 +407,7 @@
             <a href="{{ url_for('poster', activity_id=activity.id) }}"
                 class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium transition inline-flex items-center gap-1.5 shadow-sm"
                 title="Create Poster">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
                     </path>
@@ -417,7 +417,7 @@
             <a href="https://www.strava.com/activities/{{ activity.id }}" target="_blank" rel="noopener noreferrer"
                 class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs font-medium transition inline-flex items-center gap-1.5 shadow-sm"
                 title="Open in Strava">
-                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                     <path
                         d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7.38 14.544h4.168" />
                 </svg>
@@ -936,7 +936,7 @@
                     <!-- Background Image & Tint Overlay -->
                     <img id="detail-bg-img"
                         src="{{ url_for('activity_photo_get', activity_id=activity.id) if has_custom_image else '' }}"
-                        alt="Background Photo" class="detail-bg-image {{ '' if has_custom_image else 'hidden' }}">
+                        alt="Activity background" class="detail-bg-image {{ '' if has_custom_image else 'hidden' }}">
                     <div id="detail-bg-overlay" class="detail-bg-overlay"></div>
 
                     <!-- Canvas Content Container -->

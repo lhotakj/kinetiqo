@@ -2,6 +2,7 @@
 {% block head %}
 <script src="{{ url_for('static', filename='vendor/chartjs/chart-4.5.1.umd.min.js', v=app_version) }}"></script>
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/dompurify/purify.min.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/chat.js', v=app_version ~ '-chat-v38') }}" defer></script>
 <style>
   /* Remove outer padding and background on the chat page to use 100% space */
@@ -183,11 +184,11 @@
     max-width: 420px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
     transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-                background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-                color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
     opacity: 1;
     transform: scale(1);
@@ -1289,8 +1290,8 @@
 </style>
 {% endblock %}
 {% block content %}
-<div id="chat-app" data-initial-session-id="{{ initial_session_id | tojson }}" data-user-name="{{ user_name | tojson }}" data-initial-prompts="{{ initial_prompts | tojson }}"
-  class="chat-layout-wrapper">
+<div id="chat-app" data-initial-session-id="{{ initial_session_id | tojson }}" data-user-name="{{ user_name | tojson }}"
+  data-initial-prompts="{{ initial_prompts | tojson }}" class="chat-layout-wrapper">
   <!-- Left Navigation Column: Latest Chats & Settings -->
   <aside class="chat-sidebar" aria-label="Chat Navigation">
     <div style="padding: 12px;">
@@ -1315,11 +1316,13 @@
       <a href="{{ url_for('settings') }}#ai"
         class="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-200 rounded text-sm font-medium transition h-[38px] w-full flex items-center justify-center shadow-sm select-none"
         title="Open AI Provider Settings">
-        <svg class="w-4 h-4 mr-2 text-gray-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <svg class="w-4 h-4 mr-2 text-gray-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+          </path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+          </path>
         </svg>
         <span>AI Settings</span>
       </a>
@@ -1348,50 +1351,64 @@
 
         <!-- Empty State Hero -->
         <div id="chat-empty" style="padding: 32px 0 20px; text-align: center;">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/80 dark:border-orange-900/60 shadow-sm mb-3 select-none">
+          <div
+            class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40 border border-orange-200/80 dark:border-orange-900/60 shadow-sm mb-3 select-none">
             <span class="flex h-2 w-2 relative">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+              <span
+                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
             </span>
             <span>AI Training Companion</span>
           </div>
-          <h2 class="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 mb-2">How can I help with your training?</h2>
+          <h2 class="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 mb-2">How can I help with
+            your training?</h2>
           <p class="mx-auto max-w-lg text-xs leading-relaxed text-gray-600 dark:text-gray-300 mb-4">
-            I have direct read-only access to your Kinetiqo database to analyze workouts, power curves, totals, fitness trends, and milestones.
+            I have direct read-only access to your Kinetiqo database to analyze workouts, power curves, totals, fitness
+            trends, and milestones.
           </p>
           <div id="chat-suggestions-grid" class="chat-suggestions-grid">
-            <button type="button" class="chat-suggestion chat-suggestion-chip" title="How fresh am I right now (CTL / ATL / TSB)?">
+            <button type="button" class="chat-suggestion chat-suggestion-chip"
+              title="How fresh am I right now (CTL / ATL / TSB)?">
               <span class="chat-suggestion-icon">⚡</span>
               <span class="chat-suggestion-label">How fresh am I right now (CTL / ATL / TSB)?</span>
-              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
               </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip" title="Summarize my last 4 weeks of training">
+            <button type="button" class="chat-suggestion chat-suggestion-chip"
+              title="Summarize my last 4 weeks of training">
               <span class="chat-suggestion-icon">📊</span>
               <span class="chat-suggestion-label">Summarize my last 4 weeks of training</span>
-              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
               </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip" title="What are my benchmark power records?">
+            <button type="button" class="chat-suggestion chat-suggestion-chip"
+              title="What are my benchmark power records?">
               <span class="chat-suggestion-icon">🏆</span>
               <span class="chat-suggestion-label">What are my benchmark power records?</span>
-              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
               </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip" title="Compare this month's distance to last year">
+            <button type="button" class="chat-suggestion chat-suggestion-chip"
+              title="Compare this month's distance to last year">
               <span class="chat-suggestion-icon">📈</span>
               <span class="chat-suggestion-label">Compare this month's distance to last year</span>
-              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
               </svg>
             </button>
-            <button type="button" class="chat-suggestion chat-suggestion-chip" title="Show my FTP history and 5-min MAP progression">
+            <button type="button" class="chat-suggestion chat-suggestion-chip"
+              title="Show my FTP history and 5-min MAP progression">
               <span class="chat-suggestion-icon">🚴</span>
               <span class="chat-suggestion-label">Show my FTP history and 5-min MAP progression</span>
-              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+              <svg class="chat-suggestion-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 3.5l4.5 4.5L6 12.5" />
               </svg>
             </button>
@@ -1404,7 +1421,8 @@
     <div class="chat-composer-box">
       <div style="width: 100%; position: relative;">
         <!-- Copilot-Style History Autocomplete Suggestions Popup -->
-        <div id="chat-suggestions-popup" class="chat-suggestions-popup hidden" role="listbox" aria-label="Prompt suggestions"></div>
+        <div id="chat-suggestions-popup" class="chat-suggestions-popup hidden" role="listbox"
+          aria-label="Prompt suggestions"></div>
         <form id="chat-composer" class="chat-composer-card">
           <label for="chat-input" class="sr-only">Message to Kinetiqo AI Chat</label>
           <textarea id="chat-input" maxlength="32768" rows="2" aria-label="Message to Kinetiqo AI Chat"
@@ -1423,7 +1441,8 @@
                   <img id="chat-model-trigger-icon" class="chat-model-group-icon" src="" alt="" style="display:none;" />
                   <span id="chat-model-selected" class="chat-model-trigger-label">gemini-3.1-flash-lite</span>
                   <span class="chat-model-trigger-icons">
-                    <span id="chat-model-default-indicator" class="chat-model-default-indicator" aria-hidden="true"></span>
+                    <span id="chat-model-default-indicator" class="chat-model-default-indicator"
+                      aria-hidden="true"></span>
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
                     </svg>
@@ -1436,7 +1455,8 @@
                 title="Open AI Provider Settings">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                  </path>
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                 </svg>
@@ -1452,7 +1472,7 @@
               </span>
               <button id="chat-send" type="submit" class="chat-send-btn">
                 <span>Send</span>
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3">
                   </path>
                 </svg>
@@ -1460,13 +1480,15 @@
             </div>
           </div>
         </form>
-        <div class="flex items-center justify-end gap-2 mt-2 px-1 text-[11px] text-gray-400 dark:text-zinc-500 select-none">
+        <div
+          class="flex items-center justify-end gap-2 mt-2 px-1 text-[11px] text-gray-400 dark:text-zinc-500 select-none">
           <span>Kinetiqo AI uses local fitness data tools. Training advice is informational.</span>
           <button id="open-disclaimer-btn" type="button"
             class="inline-flex items-center gap-1 text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 font-medium transition cursor-pointer"
             title="Open Kinetiqo AI Training Disclaimer & Guidelines"
             aria-label="Open Kinetiqo AI Training Disclaimer & Guidelines">
-            <svg class="w-3.5 h-3.5 text-orange-500/80 hover:text-orange-600 dark:text-orange-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="w-3.5 h-3.5 text-orange-500/80 hover:text-orange-600 dark:text-orange-400 shrink-0" fill="none"
+              stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
@@ -1480,15 +1502,17 @@
   <!-- AI Disclaimer Modal (80% screen space, styled scrollbar, formatted markdown) -->
   <div id="ai-disclaimer-modal"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 opacity-0 pointer-events-none transition-opacity duration-200"
-    style="background-color: rgba(0, 0, 0, 0.65);"
-    role="dialog" aria-modal="true" aria-labelledby="ai-disclaimer-title">
+    style="background-color: rgba(0, 0, 0, 0.65);" role="dialog" aria-modal="true"
+    aria-labelledby="ai-disclaimer-title">
     <div id="ai-disclaimer-modal-card"
       class="relative flex flex-col w-[80vw] max-w-5xl h-[80vh] max-h-[85vh] bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden transform transition-transform duration-200 scale-95">
-      
+
       <!-- Modal Header -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-zinc-700 bg-gray-50/80 dark:bg-zinc-800/80 shrink-0">
+      <div
+        class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-zinc-700 bg-gray-50/80 dark:bg-zinc-800/80 shrink-0">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+          <div
+            class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -1498,13 +1522,14 @@
             <h3 id="ai-disclaimer-title" class="text-base font-bold text-gray-900 dark:text-white">
               Kinetiqo AI Disclaimer &amp; Usage Guidelines
             </h3>
-            <p class="text-xs text-gray-500 dark:text-zinc-400">Informational notice for AI-powered chat and telemetry insights</p>
+            <p class="text-xs text-gray-500 dark:text-zinc-400">Informational notice for AI-powered chat and telemetry
+              insights</p>
           </div>
         </div>
         <button id="close-disclaimer-x-btn" type="button"
           class="p-2 text-gray-400 hover:text-gray-600 dark:text-zinc-400 dark:hover:text-zinc-200 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
           aria-label="Close disclaimer modal">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -1517,9 +1542,12 @@
       </div>
 
       <!-- Modal Footer -->
-      <div class="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-zinc-700 bg-gray-50/80 dark:bg-zinc-800/80 shrink-0">
+      <div
+        class="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-zinc-700 bg-gray-50/80 dark:bg-zinc-800/80 shrink-0">
         <span class="text-xs text-gray-500 dark:text-zinc-400">
-          Press <kbd class="px-1.5 py-0.5 text-[10px] font-semibold bg-gray-200 dark:bg-zinc-700 rounded border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-zinc-300">Esc</kbd> or click outside to dismiss
+          Press <kbd
+            class="px-1.5 py-0.5 text-[10px] font-semibold bg-gray-200 dark:bg-zinc-700 rounded border border-gray-300 dark:border-zinc-600 text-gray-700 dark:text-zinc-300">Esc</kbd>
+          or click outside to dismiss
         </span>
         <button id="disclaimer-acknowledge-btn" type="button"
           class="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition shadow-sm select-none">
@@ -1529,6 +1557,6 @@
     </div>
   </div>
 
-  <script id="ai-disclaimer-raw" type="text/markdown">{{ disclaimer_markdown | safe }}</script>
+  <script id="ai-disclaimer-raw" type="application/json">{{ (disclaimer_markdown or '') | tojson }}</script>
 </div>
 {% endblock %}

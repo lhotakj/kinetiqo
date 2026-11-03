@@ -596,7 +596,7 @@
                 </label>
                 
                 <!-- Native Select kept for script and form accessibility -->
-                <select id="gps-simplification-select" class="sr-only" tabindex="-1">
+                <select id="gps-simplification-select" class="sr-only" tabindex="-1" aria-label="GPS Simplification Level">
                     <option value="0">Level 0 — Disabled (0m threshold; exact raw GPS stream)</option>
                     <option value="1">Level 1 — Minimal (3m threshold; subtle jitter removal)</option>
                     <option value="2">Level 2 — Light (6m threshold)</option>
@@ -694,7 +694,7 @@
                             <button type="button" aria-label="Fallback models information"
                                 class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                                    stroke="currentColor">
+                                    stroke="currentColor" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
@@ -703,7 +703,7 @@
                                 class="absolute left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-0 w-84 p-5 mt-2 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-700 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-30 text-xs text-gray-600 dark:text-gray-300 leading-relaxed pointer-events-none">
                                 <h4 class="font-bold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-orange-500" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
@@ -716,7 +716,7 @@
                                     <li
                                         class="flex items-center gap-2.5 p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-700/60">
                                         <svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none"
-                                            xmlns="http://www.w3.org/2000/svg">
+                                            xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                             <rect x="3.5" y="3.5" width="11" height="11" rx="2"
                                                 transform="rotate(45 9 9)" fill="#e03d5a" stroke="#e03d5a"
                                                 stroke-width="0.5" />
@@ -731,7 +731,7 @@
                                     <li
                                         class="flex items-center gap-2.5 p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-700/60">
                                         <svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none"
-                                            xmlns="http://www.w3.org/2000/svg">
+                                            xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                             <rect x="3.5" y="3.5" width="11" height="11" rx="2"
                                                 transform="rotate(45 9 9)" fill="#e37c47" stroke="#e37c47"
                                                 stroke-width="0.5" />
@@ -746,7 +746,7 @@
                                     <li
                                         class="flex items-center gap-2.5 p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900/60 border border-gray-100 dark:border-zinc-700/60">
                                         <svg class="w-4 h-4 inline-block flex-shrink-0" viewBox="0 0 18 18" fill="none"
-                                            xmlns="http://www.w3.org/2000/svg">
+                                            xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                             <rect x="3.5" y="3.5" width="11" height="11" rx="2"
                                                 transform="rotate(45 9 9)" fill="#edc859" stroke="#edc859"
                                                 stroke-width="0.5" />
@@ -1308,7 +1308,7 @@
                                 class="mb-6 p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-200 leading-relaxed space-y-2">
                                 <div class="font-semibold text-blue-950 dark:text-blue-100 flex items-center gap-1.5">
                                     <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
@@ -1377,7 +1377,7 @@
                                     <button type="button" id="ollama-test-btn"
                                         class="min-h-11 inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-700 transition cursor-pointer shadow-2xs">
                                         <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none"
-                                            viewBox="0 0 24 24" stroke="currentColor">
+                                            viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                 d="M13 10V3L4 14h7v7l9-11h-7z" />
                                         </svg>
@@ -4477,7 +4477,8 @@
                     const normalizedName = nameInput.value
                         .toLowerCase()
                         .replace(/[^a-z0-9]+/g, '-')
-                        .replace(/^-+|-+$/g, '')
+                        .replace(/^-+/, '')
+                        .replace(/-+$/, '')
                         .slice(0, 64);
                     agent.name = normalizedName;
                     updateDraftToken();

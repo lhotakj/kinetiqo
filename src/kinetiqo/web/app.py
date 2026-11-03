@@ -5025,7 +5025,8 @@ def activity_export(activity_id):
                     headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.png"'}
                 )
     except Exception as e:
-        logger.exception(f"Activity export failed for {activity_id}: {e}")
+        safe_act_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(activity_id))
+        logger.exception("Activity export failed for %s: %s", safe_act_id, e)
         return jsonify({'error': str(e)}), 500
 
 

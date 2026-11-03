@@ -86,7 +86,7 @@ def calculate_mmp_curve(
     :return: Dict mapping duration_seconds -> peak average watts.
     """
     if not timestamps or not watts or len(timestamps) != len(watts):
-        return {d: 0.0 for d in durations}
+        return dict.fromkeys(durations, 0.0)
 
     clean_watts = [float(w) if w is not None else 0.0 for w in watts]
     n = len(timestamps)

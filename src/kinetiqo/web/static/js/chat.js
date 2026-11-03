@@ -21,15 +21,16 @@
     let sessionId = JSON.parse(app.dataset.initialSessionId || 'null');
     const userName = JSON.parse(app.dataset.userName || '""') || '';
 
+    const DOMPurify = window.DOMPurify || { sanitize: (s) => s };
     const PREFERRED_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
     const escapeHtml = (str) => {
         return (str || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
     };
 
     const tryParseToChartJson = (text, lang) => {
@@ -52,7 +53,7 @@
         }
 
         // Automatic fallback: If model emits ```radar, ```spider, or Mermaid radar syntax
-        if (lowerLang === 'radar' || lowerLang === 'spider' || (lowerLang === 'mermaid' && /^\s*radar\b/im.test(raw))) {
+        if (lowerLang === 'radar' || lowerLang === 'spider' || (lowerLang === 'mermaid' && raw.trimStart().toLowerCase().startsWith('radar'))) {
             if (raw.startsWith('{')) {
                 try {
                     const parsed = JSON.parse(raw);
@@ -67,15 +68,19 @@
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (!trimmed || trimmed === 'radar' || trimmed.startsWith('%%')) continue;
-                const titleMatch = trimmed.match(/^title\s+(.*)$/i);
-                if (titleMatch) {
-                    title = titleMatch[1].trim();
+                if (/^title\s+/i.test(trimmed)) {
+                    title = trimmed.replace(/^title\s+/i, '').trim();
                     continue;
                 }
-                const pairMatch = trimmed.match(/^["']?([^"':\n]+)["']?\s*:\s*([0-9.]+)/);
-                if (pairMatch) {
-                    labels.push(pairMatch[1].trim());
-                    values.push(Number.parseFloat(pairMatch[2]));
+                const colonIdx = trimmed.indexOf(':');
+                if (colonIdx !== -1) {
+                    const rawKey = trimmed.slice(0, colonIdx).trim().replace(/^["']/, '').replace(/["']$/, '');
+                    const rawVal = trimmed.slice(colonIdx + 1).trim();
+                    const num = Number.parseFloat(rawVal);
+                    if (rawKey && Number.isFinite(num)) {
+                        labels.push(rawKey);
+                        values.push(num);
+                    }
                 }
             }
 
@@ -170,7 +175,7 @@
         }
         if (typeof window.marked !== 'undefined' && typeof window.marked.parse === 'function') {
             try {
-                return window.marked.parse(cleaned);
+                return DOMPurify.sanitize(window.marked.parse(cleaned));
             } catch (err) {
                 console.warn('Marked parse error, using fallback:', err);
             }
@@ -236,9 +241,9 @@
         });
 
         // Unordered Lists
-        processed = processed.replace(/^\s*[\-\*]\s+(.*$)/gim, '<li class="ml-4 list-disc">$1</li>');
+        processed = processed.replace(/^\s*[-*]\s+([^\r\n]+)/gim, '<li class="ml-4 list-disc">$1</li>');
         // Ordered Lists
-        processed = processed.replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li class="ml-4 list-decimal" value="$1">$2</li>');
+        processed = processed.replace(/^\s*(\d+)\.\s+([^\r\n]+)/gim, '<li class="ml-4 list-decimal" value="$1">$2</li>');
 
         processed = processed.replace(/((?:<li class="ml-4 list-disc">[^\n<]*<\/li>\s*)+)/gi, '<ul class="my-2 space-y-1">$1</ul>');
         processed = processed.replace(/((?:<li class="ml-4 list-decimal"[^>]*>[^\n<]*<\/li>\s*)+)/gi, '<ol class="my-2 space-y-1">$1</ol>');
@@ -248,12 +253,12 @@
 
         // Paragraphs
         const paras = processed.split(/\n{2,}/);
-        return paras.map(p => {
+        return DOMPurify.sanitize(paras.map(p => {
             p = p.trim();
             if (!p) return '';
             if (/^<(h\d|pre|table|ul|ol|blockquote|div|hr)/.test(p)) return p;
-            return `<p class="my-1.5 leading-relaxed">${p.replace(/\n/g, '<br/>')}</p>`;
-        }).join('');
+            return `<p class="my-1.5 leading-relaxed">${p.replaceAll('\n', '<br/>')}</p>`;
+        }).join(''));
     };
 
     const request = async (url, options = {}) => {
@@ -298,7 +303,7 @@
         return '';
     };
 
-    const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replace(/_/g, ' ');
+    const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replaceAll('_', ' ');
 
     const renderChartJsInElement = (rootElement) => {
         if (!rootElement || typeof window.Chart === 'undefined') return;
@@ -511,12 +516,23 @@
         toggleBtn.className = 'chat-provenance-btn cursor-pointer inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 dark:text-zinc-400 dark:hover:text-orange-400 transition';
         toggleBtn.title = 'View local data queries used';
         toggleBtn.setAttribute('aria-expanded', 'false');
-        toggleBtn.innerHTML = `
-            <span>Data used (${countText})</span>
-            <svg class="chat-provenance-chevron w-3 h-3 transition-transform duration-150 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-        `;
+
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = `Data used (${countText})`;
+
+        const chevronSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        chevronSvg.setAttribute('class', 'chat-provenance-chevron w-3 h-3 transition-transform duration-150 flex-shrink-0');
+        chevronSvg.setAttribute('fill', 'none');
+        chevronSvg.setAttribute('stroke', 'currentColor');
+        chevronSvg.setAttribute('viewBox', '0 0 24 24');
+        chevronSvg.setAttribute('aria-hidden', 'true');
+        const chevronPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        chevronPath.setAttribute('stroke-linecap', 'round');
+        chevronPath.setAttribute('stroke-linejoin', 'round');
+        chevronPath.setAttribute('stroke-width', '2');
+        chevronPath.setAttribute('d', 'M19 9l-7 7-7-7');
+        chevronSvg.appendChild(chevronPath);
+        toggleBtn.append(labelSpan, chevronSvg);
 
         records.forEach((rec) => {
             const li = document.createElement('li');
@@ -846,7 +862,7 @@
         textContainer.className = 'chat-text';
         if (role === 'assistant') {
             article._rawMarkdown = content;
-            textContainer.innerHTML = renderMarkdown(content);
+            textContainer.innerHTML = DOMPurify.sanitize(renderMarkdown(content));
             renderChartJsInElement(article);
         } else {
             textContainer.textContent = content;
@@ -1282,8 +1298,11 @@
             defaultModelProvider = '';
         }
 
-        model.value = preferred.id;
-        localStorage.setItem('kinetiqo_chat_model', preferred.id);
+        const safePreferredId = String(preferred?.id || '').replace(/[^a-zA-Z0-9_\-.:/]/g, '').slice(0, 128);
+        model.value = safePreferredId;
+        if (safePreferredId) {
+            localStorage.setItem('kinetiqo_chat_model', safePreferredId);
+        }
         renderModelDropdown();
         updateActiveModelDisplay();
 
@@ -1296,7 +1315,10 @@
     let sessionsCache = [];
 
     model.addEventListener('change', () => {
-        localStorage.setItem('kinetiqo_chat_model', model.value);
+        const safeModelValue = String(model.value || '').replace(/[^a-zA-Z0-9_\-.:/]/g, '').slice(0, 128);
+        if (safeModelValue) {
+            localStorage.setItem('kinetiqo_chat_model', safeModelValue);
+        }
         updateActiveModelDisplay();
         if (sessionId) {
             request(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, {
@@ -1627,7 +1649,14 @@
 
         const openModal = async () => {
             if (!isRendered) {
-                let md = (rawScript?.textContent || '').trim();
+                let md = '';
+                if (rawScript?.textContent) {
+                    try {
+                        md = JSON.parse(rawScript.textContent).trim();
+                    } catch (_) {
+                        md = (rawScript.textContent || '').trim();
+                    }
+                }
                 if (!md) {
                     try {
                         const res = await request('/api/chat/disclaimer');
@@ -1635,7 +1664,7 @@
                     } catch (_) { }
                 }
                 if (md && typeof marked !== 'undefined') {
-                    body.innerHTML = marked.parse(md);
+                    body.innerHTML = DOMPurify.sanitize(marked.parse(md));
                 } else if (md) {
                     body.textContent = md;
                 } else {
@@ -2032,7 +2061,7 @@
                         }
                         rawAssistantMarkdown += payload.text || '';
                         answer._rawMarkdown = rawAssistantMarkdown;
-                        answerText.innerHTML = renderMarkdown(rawAssistantMarkdown);
+                        answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(rawAssistantMarkdown));
                         scrollToBottom();
                     } else if (eventType === 'error') {
                         if (thinkingEl) {
@@ -2057,7 +2086,7 @@
 
             if (rawAssistantMarkdown) {
                 answer._rawMarkdown = rawAssistantMarkdown;
-                answerText.innerHTML = renderMarkdown(rawAssistantMarkdown);
+                answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(rawAssistantMarkdown));
                 renderChartJsInElement(answer);
             }
 

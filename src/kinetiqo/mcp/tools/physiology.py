@@ -516,7 +516,7 @@ def kinetiqo_get_weekly_training_profile(
 
         weeks_map: Dict[str, Dict[str, Any]] = {}
         day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        day_counts = {day: 0 for day in day_names}
+        day_counts = dict.fromkeys(day_names, 0)
 
         for a in activities:
             d = _parse_activity_date(a.get("start_date"))
