@@ -802,5 +802,5 @@ def test_update_statistics():
     assert res["success"] is True
     assert "idx_activities_start_date" in res["indexes"]
     assert conn.committed is True
-    executed_sql = [call[0] for call in cursor.queries]
+    executed_sql = [call[0] for call in cursor.executed]
     assert any("SET STATISTICS INDEX" in sql for sql in executed_sql)

@@ -12,8 +12,17 @@ from kinetiqo.web.auth import users
 
 class TestCSRFMeta(unittest.TestCase):
     def setUp(self):
+        self._orig_testing = app.config.get('TESTING')
+        self._orig_csrf = app.config.get('WTF_CSRF_ENABLED')
         app.config['TESTING'] = True
+        app.config['WTF_CSRF_ENABLED'] = True
         self.client = app.test_client()
+
+    def tearDown(self):
+        if self._orig_testing is not None:
+            app.config['TESTING'] = self._orig_testing
+        if self._orig_csrf is not None:
+            app.config['WTF_CSRF_ENABLED'] = self._orig_csrf
 
     def test_csrf_meta_present_on_login(self):
         rv = self.client.get('/login')
@@ -54,7 +63,10 @@ class TestCSRFMeta(unittest.TestCase):
         self.assertIn('for="selectAllOnPage"', data)
         self.assertIn('Select all activities on this page', data)
         self.assertIn('aria-label="Select activity ${data}"', data)
-        self.assertIn("table.rows({filter: 'applied'}).count() > 0", data)
+        self.assertTrue(
+            "table.rows({ filter: 'applied' }).count() > 0" in data or
+            "table.rows({filter: 'applied'}).count() > 0" in data
+        )
         self.assertIn('setButtonState(', data)
         self.assertIn('updateSelectionButtons();', data)
 

@@ -177,9 +177,9 @@ class TestActivityAnalytics(unittest.TestCase):
 
 @pytest.fixture
 def test_client(monkeypatch):
-    app.config["LOGIN_DISABLED"] = True
-    app.config["TESTING"] = True
-    app.config["WTF_CSRF_ENABLED"] = False
+    monkeypatch.setitem(app.config, "LOGIN_DISABLED", True)
+    monkeypatch.setitem(app.config, "TESTING", True)
+    monkeypatch.setitem(app.config, "WTF_CSRF_ENABLED", False)
     dummy_repo = DummyActivityDetailRepo()
     monkeypatch.setattr("kinetiqo.web.app.get_db", lambda: dummy_repo)
     client = app.test_client()

@@ -86,8 +86,8 @@ def test_poster_page_controls(monkeypatch):
 
 
 def test_sync_start_loading_indicator(monkeypatch):
-    app.config['LOGIN_DISABLED'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
+    monkeypatch.setitem(app.config, 'LOGIN_DISABLED', True)
+    monkeypatch.setitem(app.config, 'WTF_CSRF_ENABLED', False)
     client = app.test_client()
 
     class SyncJobRepo(DummyRepo):

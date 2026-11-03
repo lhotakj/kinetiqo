@@ -850,7 +850,7 @@ def test_update_statistics():
     assert res["engine"] == "mysql"
     assert res["success"] is True
     assert "kinetiqo.activities: status=OK" in res["details"]
-    executed_sql = [call[0] for call in cursor.queries]
+    executed_sql = [call[0] for call in cursor.executed]
     assert any("ANALYZE TABLE" in sql for sql in executed_sql)
 
 
