@@ -4474,12 +4474,16 @@
                     });
                 };
                 nameInput.addEventListener('input', () => {
-                    const normalizedName = nameInput.value
+                    let normalizedName = nameInput.value
                         .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, '-')
-                        .replace(/^-+/, '')
-                        .replace(/-+$/, '')
-                        .slice(0, 64);
+                        .replace(/[^a-z0-9]+/g, '-');
+                    while (normalizedName.startsWith('-')) {
+                        normalizedName = normalizedName.slice(1);
+                    }
+                    while (normalizedName.endsWith('-')) {
+                        normalizedName = normalizedName.slice(0, -1);
+                    }
+                    normalizedName = normalizedName.slice(0, 64);
                     agent.name = normalizedName;
                     updateDraftToken();
                 });

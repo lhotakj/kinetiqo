@@ -21,7 +21,6 @@
     let sessionId = JSON.parse(app.dataset.initialSessionId || 'null');
     const userName = JSON.parse(app.dataset.userName || '""') || '';
 
-    const DOMPurify = window.DOMPurify || { sanitize: (s) => s };
     const PREFERRED_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
     const escapeHtml = (str) => {
@@ -241,9 +240,9 @@
         });
 
         // Unordered Lists
-        processed = processed.replace(/^\s*[-*]\s+([^\r\n]+)/gim, '<li class="ml-4 list-disc">$1</li>');
+        processed = processed.replace(/^[ \t]*[-*][ \t]+([^\r\n]+)/gm, '<li class="ml-4 list-disc">$1</li>');
         // Ordered Lists
-        processed = processed.replace(/^\s*(\d+)\.\s+([^\r\n]+)/gim, '<li class="ml-4 list-decimal" value="$1">$2</li>');
+        processed = processed.replace(/^[ \t]*(\d+)\.[ \t]+([^\r\n]+)/gm, '<li class="ml-4 list-decimal" value="$1">$2</li>');
 
         processed = processed.replace(/((?:<li class="ml-4 list-disc">[^\n<]*<\/li>\s*)+)/gi, '<ul class="my-2 space-y-1">$1</ul>');
         processed = processed.replace(/((?:<li class="ml-4 list-decimal"[^>]*>[^\n<]*<\/li>\s*)+)/gi, '<ol class="my-2 space-y-1">$1</ol>');
@@ -1298,11 +1297,7 @@
             defaultModelProvider = '';
         }
 
-        const safePreferredId = String(preferred?.id || '').replace(/[^a-zA-Z0-9_\-.:/]/g, '').slice(0, 128);
-        model.value = safePreferredId;
-        if (safePreferredId) {
-            localStorage.setItem('kinetiqo_chat_model', safePreferredId);
-        }
+        model.value = preferred.id;
         renderModelDropdown();
         updateActiveModelDisplay();
 
@@ -1315,9 +1310,10 @@
     let sessionsCache = [];
 
     model.addEventListener('change', () => {
-        const safeModelValue = String(model.value || '').replace(/[^a-zA-Z0-9_\-.:/]/g, '').slice(0, 128);
-        if (safeModelValue) {
-            localStorage.setItem('kinetiqo_chat_model', safeModelValue);
+        const selectedId = model.value;
+        const exists = flatModels.some((m) => m.id === selectedId);
+        if (exists) {
+            localStorage.setItem('kinetiqo_chat_model', selectedId);
         }
         updateActiveModelDisplay();
         if (sessionId) {
@@ -1647,22 +1643,25 @@
 
         let isRendered = false;
 
+        const loadDisclaimerText = async () => {
+            if (rawScript?.textContent) {
+                try {
+                    return JSON.parse(rawScript.textContent).trim();
+                } catch (_) {
+                    return (rawScript.textContent || '').trim();
+                }
+            }
+            try {
+                const res = await request('/api/chat/disclaimer');
+                return (res?.disclaimer || '').trim();
+            } catch (_) {
+                return '';
+            }
+        };
+
         const openModal = async () => {
             if (!isRendered) {
-                let md = '';
-                if (rawScript?.textContent) {
-                    try {
-                        md = JSON.parse(rawScript.textContent).trim();
-                    } catch (_) {
-                        md = (rawScript.textContent || '').trim();
-                    }
-                }
-                if (!md) {
-                    try {
-                        const res = await request('/api/chat/disclaimer');
-                        md = (res?.disclaimer || '').trim();
-                    } catch (_) { }
-                }
+                const md = await loadDisclaimerText();
                 if (md && typeof marked !== 'undefined') {
                     body.innerHTML = DOMPurify.sanitize(marked.parse(md));
                 } else if (md) {
