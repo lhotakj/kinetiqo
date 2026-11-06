@@ -279,10 +279,13 @@ class StravaClient:
                 r.raise_for_status()
                 break
             except requests.exceptions.RequestException as e:
-                logger.warning(f"Strava athlete request failed (attempt {attempt}): {e}")
-                if attempt > self.request_retries:
-                    logger.exception(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
+                if isinstance(e, requests.exceptions.HTTPError) and e.response is not None and e.response.status_code == 429:
+                    logger.warning(f"Strava athlete request rate-limited (HTTP 429): {e}")
                     raise
+                if attempt > self.request_retries:
+                    logger.error(f"Failed to fetch athlete profile after {attempt} attempts: {e}")
+                    raise
+                logger.warning(f"Strava athlete request failed (attempt {attempt}): {e}")
                 time.sleep(2 ** attempt)
 
         data = r.json()

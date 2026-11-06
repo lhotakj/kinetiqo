@@ -15,6 +15,7 @@ UPDATE_STRAVA_PLACEMENT = (UPDATE_STRAVA_PLACEMENT_BEGIN, UPDATE_STRAVA_PLACEMEN
 DEFAULT_UPDATE_STRAVA_PLACEMENT = UPDATE_STRAVA_PLACEMENT_END
 UPDATE_STRAVA_MAX_ITEMS = 30
 UPDATE_STRAVA_PREFIX = "✨ Kinetiqo:"
+UPDATE_STRAVA_AI_PREFIX = "✨ Kinetiqo AI:"
 
 
 VALID_DATABASE_TYPES = ("postgresql", "mysql", "firebird")
@@ -94,6 +95,7 @@ class Config:
 
     # Athlete
     athlete_weight: float = 0.0  # kg — set via ATHLETE_WEIGHT env var for VO2max estimation
+    athlete_timezone: str = field(default_factory=lambda: (os.getenv("ATHLETE_TIMEZONE") or "").strip())
 
     # Logging
     log_level: str = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -133,6 +135,12 @@ class Config:
     # {{workout-summary}} placeholder (see docs/UPDATE_STRAVA.md). The
     # effective threshold is the higher of this value and 110% of FTP.
     workout_summary_peak_threshold_w: float = 300.0
+
+    # Model Context Protocol (MCP) server configuration
+    enable_mcp: bool = False
+    mcp_port: int = 8000
+    mcp_host: str = "0.0.0.0"
+    mcp_transport: str = "sse"
 
     def __post_init__(self):
         """Post-initialization to coerce and validate environment values.
@@ -205,7 +213,6 @@ class Config:
         self.update_strava_running_outdoor = os.getenv("UPDATE_STRAVA_RUNNING_OUTDOOR", "") or ""
         self.update_strava_walking = os.getenv("UPDATE_STRAVA_WALKING", "") or ""
         self.update_strava_swimming = os.getenv("UPDATE_STRAVA_SWIMMING", "") or ""
-
         raw_placement = os.getenv("UPDATE_STRAVA_PLACEMENT", DEFAULT_UPDATE_STRAVA_PLACEMENT) or DEFAULT_UPDATE_STRAVA_PLACEMENT
         self.update_strava_placement = raw_placement.strip().lower()
         if self.update_strava_placement not in UPDATE_STRAVA_PLACEMENT:
@@ -241,5 +248,33 @@ class Config:
             except ValueError:
                 logger.warning("Environment variable GPS_SIMPLIFICATION=%r should be an integer (0-10) — defaulting to 0.", gps_simp_env)
                 self.gps_simplification = 0
+
+        self.athlete_timezone = (os.getenv("ATHLETE_TIMEZONE") or "").strip()
+
+        self.enable_mcp = (os.getenv("ENABLE_MCP") or "0").strip().lower() in ("1", "true", "yes")
+        raw_mcp_port = os.getenv("MCP_PORT")
+        if raw_mcp_port:
+            try:
+                self.mcp_port = int(raw_mcp_port)
+            except ValueError:
+                logger.warning("Environment variable MCP_PORT=%r should be an integer — defaulting to 8000.", raw_mcp_port)
+                self.mcp_port = 8000
+        else:
+            self.mcp_port = 8000
+        self.mcp_host = os.getenv("MCP_HOST", "0.0.0.0")
+        self.mcp_transport = os.getenv("MCP_TRANSPORT", "sse")
+
+    def get_athlete_timezone(self, db_timezone: str | None = None) -> str:
+        """Resolves athlete timezone via the 3-tier resolution hierarchy:
+        1. Explicit ATHLETE_TIMEZONE environment variable.
+        2. Database profile.timezone fallback (if provided).
+        3. Default 'UTC' with a logged warning.
+        """
+        if self.athlete_timezone:
+            return self.athlete_timezone
+        if db_timezone and db_timezone.strip():
+            return db_timezone.strip()
+        logger.warning("No athlete timezone configured in ATHLETE_TIMEZONE or database profile. Defaulting to 'UTC'.")
+        return "UTC"
 
     database_connect_verbose: bool = True  # Show verbose output in init

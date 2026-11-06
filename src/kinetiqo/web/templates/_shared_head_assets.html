@@ -34,6 +34,9 @@
             if (m && m.content) {
                 e.detail.headers['X-CSRFToken'] = m.content;
                 e.detail.headers['X-CSRF-Token'] = m.content;
+                if (e.detail.parameters && !e.detail.parameters['csrf_token']) {
+                    e.detail.parameters['csrf_token'] = m.content;
+                }
             }
         } catch (err) { /* noop */ }
     });

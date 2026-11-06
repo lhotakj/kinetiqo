@@ -31,6 +31,7 @@ def configure_logging(log_level: str | None, *, force_basic: bool = False) -> in
 
     logging.getLogger("kinetiqo").setLevel(level)
     logging.getLogger("kinetiqo.web").setLevel(level)
+    logging.getLogger("kinetiqo.mcp").setLevel(level)
 
     # Keep noisy dependencies quiet unless the application specifically raises
     # their level elsewhere.

@@ -791,3 +791,16 @@ def test_connect_resolves_connect_callable(monkeypatch):
     assert conn is fake_conn
     assert "db.fdb" in called["args"][0]
     assert called["args"][1] == "sysdba"
+
+
+def test_update_statistics():
+    cursor = DummyCursor()
+    conn = DummyConn(cursor_obj=cursor)
+    repo = make_repo_with_conn(conn)
+    res = repo.update_statistics()
+    assert res["engine"] == "firebird"
+    assert res["success"] is True
+    assert "idx_activities_start_date" in res["indexes"]
+    assert conn.committed is True
+    executed_sql = [call[0] for call in cursor.executed]
+    assert any("SET STATISTICS INDEX" in sql for sql in executed_sql)
