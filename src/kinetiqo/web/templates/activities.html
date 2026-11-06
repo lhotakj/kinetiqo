@@ -881,6 +881,38 @@
         // Restore preset display
         updateDateFilterDisplay(currentDatePreset);
 
+        function isWeatherEmpty(val) {
+            if (val === null || val === undefined || val === '' || typeof val === 'boolean') return true;
+            if (typeof val === 'object') return true;
+            const num = Number(val);
+            return !Number.isFinite(num);
+        }
+
+        // Register custom sorting for Weather and Temperature columns: orders numerically by temperature
+        // with empty / missing weather data (indoor activities, etc.) always placed at the bottom in both sort directions.
+        DataTable.type('weather-temp', {
+            order: {
+                asc: function (a, b) {
+                    const aEmpty = isWeatherEmpty(a);
+                    const bEmpty = isWeatherEmpty(b);
+                    if (aEmpty) return bEmpty ? 0 : 1;
+                    if (bEmpty) return -1;
+                    const numA = Number(a);
+                    const numB = Number(b);
+                    return numA < numB ? -1 : (numA > numB ? 1 : 0);
+                },
+                desc: function (a, b) {
+                    const aEmpty = isWeatherEmpty(a);
+                    const bEmpty = isWeatherEmpty(b);
+                    if (aEmpty) return bEmpty ? 0 : 1;
+                    if (bEmpty) return -1;
+                    const numA = Number(a);
+                    const numB = Number(b);
+                    return numA < numB ? 1 : (numA > numB ? -1 : 0);
+                }
+            }
+        });
+
         // 4. Initialize DataTable
         table = $('#activitiesTable').DataTable({
             "processing": true,
@@ -1100,18 +1132,29 @@
                 },
                 {
                     "data": "average_temp",
+                    "type": "weather-temp",
                     "className": "text-right",
-                    "render": function (data, type) { return (type === 'display') ? (data !== null && data !== undefined ? Number(data).toFixed(1) : '-') : data; }
+                    "render": function (data, type) {
+                        if (data === null || data === undefined || data === '' || !Number.isFinite(Number(data))) {
+                            return (type === 'sort' || type === 'type') ? null : '-';
+                        }
+                        if (type === 'sort' || type === 'type') {
+                            return Number(data);
+                        }
+                        return (type === 'display') ? Number(data).toFixed(1) : data;
+                    }
                 },
                 {
                     "data": "weather",
+                    "type": "weather-temp",
                     "visible": false,
                     "render": function (data, type, row) {
-                        if (!data || data.temp_avg === null || data.temp_avg === undefined) {
-                            return (type === 'sort') ? -9999 : '<span class="text-gray-400 dark:text-zinc-500">-</span>';
+                        if (!data || data.temp_avg === null || data.temp_avg === undefined || data.temp_avg === '') {
+                            return (type === 'sort' || type === 'type') ? null : '<span class="text-gray-400 dark:text-zinc-500">-</span>';
                         }
-                        if (type === 'sort') {
-                            return data.temp_avg;
+                        if (type === 'sort' || type === 'type') {
+                            const val = Number(data.temp_avg);
+                            return Number.isFinite(val) ? val : null;
                         }
                         if (type === 'filter') {
                             const gustStr = (data.wind_gust_max !== null && data.wind_gust_max !== undefined)
@@ -1880,7 +1923,7 @@
                 if (selectedData.length === 0) return;
 
                 // Columns whose content cannot be meaningfully exported (UI-only)
-                const SKIP_COLS = new Set([0, 26, 27]); // Select checkbox, Poster, Actions/Delete
+                const SKIP_COLS = new Set([0, 27, 28]); // Select checkbox, Poster, Actions/Delete
 
                 // Per-column data extractor: originalColIndex → function(row) → cell value
                 // Mirrors the render logic in the DataTables column definitions above.
@@ -1910,12 +1953,13 @@
                     17: row => row.suffer_score ? Math.round(row.suffer_score) : '',
                     18: row => (row.average_temp !== null && row.average_temp !== undefined)
                         ? Number.parseFloat(Number(row.average_temp).toFixed(1)) : '',
-                    19: row => row.elev_high ? Number.parseFloat(Number(row.elev_high).toFixed(2)) : '',
-                    20: row => row.elev_low ? Number.parseFloat(Number(row.elev_low).toFixed(2)) : '',
-                    21: row => row.gear_id || '',
-                    22: row => row.has_heartrate ? 'Yes' : 'No',
-                    23: row => row.workout_type || '',
-                    24: row => {
+                    19: row => (row.weather && row.weather.temp_display) ? row.weather.temp_display : '',
+                    20: row => row.elev_high ? Number.parseFloat(Number(row.elev_high).toFixed(2)) : '',
+                    21: row => row.elev_low ? Number.parseFloat(Number(row.elev_low).toFixed(2)) : '',
+                    22: row => row.gear_id || '',
+                    23: row => row.has_heartrate ? 'Yes' : 'No',
+                    24: row => row.workout_type || '',
+                    25: row => {
                         if (!row.ai_responses) return '';
                         if (typeof row.ai_responses === 'object') {
                             return Object.values(row.ai_responses)[0] || '';
@@ -1930,7 +1974,7 @@
                             return String(row.ai_responses);
                         }
                     },
-                    25: row => 'https://www.strava.com/activities/' + row.id
+                    26: row => 'https://www.strava.com/activities/' + row.id
                 };
 
                 // Determine which columns to export: current visual order, visible, and exportable
