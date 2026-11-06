@@ -11,28 +11,28 @@ This document explains the architecture of Kinetiqo's database layer, presents d
 Kinetiqo uses a strict **Repository Pattern** with parameterized raw SQL. It explicitly avoids Object-Relational Mappers (ORMs) like SQLAlchemy to eliminate abstraction overhead, maximize query performance, and ensure exact database-level index utilization.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 Kinetiqo Application Layer                  │
-│       (Flask Web UI, DataTables API, Sync Engine, CLI)       │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│          DatabaseRepository (Abstract Base Class)           │
-│                src/kinetiqo/db/repository.py                │
-└──────────────┬───────────────┼───────────────┬──────────────┘
-               │               │               │
-               ▼               ▼               ▼
-      ┌─────────────────┐┌───────────┐┌─────────────────┐
-      │   PostgreSQL    ││   MySQL   ││    Firebird     │
-      │   Repository    ││Repository ││   Repository    │
-      │ (postgresql.py) ││(mysql.py) ││  (firebird.py)  │
-      └────────┬────────┘└─────┬─────┘└────────┬────────┘
-               │               │               │
-               ▼               ▼               ▼
-      ┌─────────────────┐┌───────────┐┌─────────────────┐
-      │  psycopg2 (C)   ││mysqlclient││firebird-driver  │
-      └─────────────────┘└───────────┘└─────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Kinetiqo Application Layer                      │
+│          (Flask Web UI, DataTables API, Sync Engine, CLI)           │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              DatabaseRepository (Abstract Base Class)               │
+│                    src/kinetiqo/db/repository.py                    │
+└──────────────┬───────────────────┼───────────────────┬──────────────┘
+               │                   │                   │
+               ▼                   ▼                   ▼
+      ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+      │   PostgreSQL    │ │      MySQL      │ │    Firebird     │
+      │   Repository    │ │   Repository    │ │   Repository    │
+      │ (postgresql.py) │ │   (mysql.py)    │ │  (firebird.py)  │
+      └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+               │                   │                   │
+               ▼                   ▼                   ▼
+      ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+      │  psycopg2 (C)   │ │ mysql-connector │ │ firebird-driver │
+      └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
 ### Core Architectural Principles:

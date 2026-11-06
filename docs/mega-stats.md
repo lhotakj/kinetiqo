@@ -55,8 +55,8 @@ All visual customizations are automatically preserved across browser sessions:
 ## 4. MCP & AI Integration
 
 The Model Context Protocol server exposes:
-- `kinetiqo_get_yearly_stats`: Fetches aggregated yearly totals, active days, distance, elevation, and suffer score.
-- `kinetiqo_export_infographic`: Triggers automated Playwright rendering of the MEGA Stats infographic directly from an AI prompt.
+- `kinetiqo_get_activity_totals`: Fetches aggregated yearly and period totals, active days, distance, elevation, and suffer score.
+- `kinetiqo_generate_mega_stats_infographic`: Triggers automated Playwright rendering of the MEGA Stats infographic directly from an AI prompt.
 
 ---
 

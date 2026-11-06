@@ -18,7 +18,7 @@ This guide covers running Kinetiqo in production and development across **Docker
 
 Kinetiqo provides official, multi-architecture Docker images on Docker Hub:
 - `kinetiqo/web:latest`: Standalone Web application with built-in cron scheduler.
-- `kinetiqo/mcp:latest`: Integrated Web application, cron scheduler, and FastMCP Server (STDIO & SSE).
+- `kinetiqo/web-mcp:latest`: Integrated Web application, cron scheduler, and FastMCP Server (STDIO & SSE).
 
 ### 2.1 Docker Run (Standalone)
 
@@ -28,6 +28,7 @@ Run Kinetiqo connected to an existing PostgreSQL database:
 docker run -d \
   --name kinetiqo \
   -p 4444:4444 \
+  --restart unless-stopped \
   -e STRAVA_CLIENT_ID="your_client_id" \
   -e STRAVA_CLIENT_SECRET="your_client_secret" \
   -e STRAVA_REFRESH_TOKEN="your_refresh_token" \
@@ -35,15 +36,14 @@ docker run -d \
   -e SECRET_KEY="generate_a_random_32_char_secret_key" \
   -e WEB_PASSWORD="your_secure_web_login_password" \
   -e DATABASE_TYPE="postgresql" \
-  -e DB_HOST="10.0.0.10" \
-  -e DB_PORT="5432" \
-  -e DB_NAME="kinetiqo" \
-  -e DB_USER="kinetiqo_user" \
-  -e DB_PASSWORD="your_db_password" \
-  -e CRON_SYNC_SCHEDULE="0 3 * * *" \
-  -e CRON_FAST_SYNC_SCHEDULE="*/15 * * * *" \
+  -e POSTGRESQL_HOST="10.0.0.10" \
+  -e POSTGRESQL_PORT="5432" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e POSTGRESQL_USER="kinetiqo_user" \
+  -e POSTGRESQL_PASSWORD="your_db_password" \
+  -e FULL_SYNC="0 3 * * *" \
+  -e FAST_SYNC="*/15 * * * *" \
   -e KINETIQO_PRODUCTION=1 \
-  --restart unless-stopped \
   kinetiqo/web:latest
 ```
 
@@ -56,6 +56,7 @@ docker run -d \
   --name kinetiqo-mcp \
   -p 4444:4444 \
   -p 8000:8000 \
+  --restart unless-stopped \
   -e STRAVA_CLIENT_ID="your_client_id" \
   -e STRAVA_CLIENT_SECRET="your_client_secret" \
   -e STRAVA_REFRESH_TOKEN="your_refresh_token" \
@@ -63,17 +64,19 @@ docker run -d \
   -e SECRET_KEY="generate_a_random_32_char_secret_key" \
   -e WEB_PASSWORD="your_secure_web_login_password" \
   -e DATABASE_TYPE="postgresql" \
-  -e DB_HOST="10.0.0.10" \
-  -e DB_PORT="5432" \
-  -e DB_NAME="kinetiqo" \
-  -e DB_USER="kinetiqo_user" \
-  -e DB_PASSWORD="your_db_password" \
-  -e MCP_TRANSPORT="sse" \
-  -e MCP_SSE_HOST="0.0.0.0" \
-  -e MCP_SSE_PORT="8000" \
+  -e POSTGRESQL_HOST="10.0.0.10" \
+  -e POSTGRESQL_PORT="5432" \
+  -e POSTGRESQL_DATABASE="kinetiqo" \
+  -e POSTGRESQL_USER="kinetiqo_user" \
+  -e POSTGRESQL_PASSWORD="your_db_password" \
+  -e FULL_SYNC="0 3 * * *" \
+  -e FAST_SYNC="*/15 * * * *" \
+  -e ENABLE_MCP=1 \
+  -e MCP_PORT=8000 \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_TRANSPORT=sse \
   -e KINETIQO_PRODUCTION=1 \
-  --restart unless-stopped \
-  kinetiqo/mcp:latest
+  kinetiqo/web-mcp:latest
 ```
 
 ---
@@ -245,20 +248,34 @@ python src/kinetiqo.py benchmark --scope 365
 
 | Variable | Default | Options / Notes |
 |---|---|---|
-| `DATABASE_TYPE` | `postgresql` | `postgresql`, `mysql`, `firebird` |
-| `DB_HOST` | `localhost` | Hostname or IP of database server |
-| `DB_PORT` | `5432` | `5432` (PostgreSQL), `3306` (MySQL), `3050` (Firebird) |
-| `DB_NAME` | `kinetiqo` | Database name |
-| `DB_USER` | `kinetiqo` | Database username |
-| `DB_PASSWORD` | `""` | Database password |
-| `FIREBIRD_PATH` | `""` | Local file path for Firebird embedded/server database file (e.g. `/var/lib/firebird/kinetiqo.fdb`) |
+| `DATABASE_TYPE` | `postgresql` | Database engine: `postgresql`, `mysql`, `firebird` (or alias `DATABASE`) |
+| **PostgreSQL** | | |
+| `POSTGRESQL_HOST` | `localhost` | Hostname or IP of PostgreSQL server |
+| `POSTGRESQL_PORT` | `5432` | PostgreSQL port |
+| `POSTGRESQL_DATABASE` | `kinetiqo` | PostgreSQL database name |
+| `POSTGRESQL_USER` | `kinetiqo` | PostgreSQL username |
+| `POSTGRESQL_PASSWORD` | `""` | PostgreSQL password |
+| `POSTGRESQL_SSL_MODE` | `disable` | `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
+| **MySQL / MariaDB** | | |
+| `MYSQL_HOST` | `localhost` | Hostname or IP of MySQL server |
+| `MYSQL_PORT` | `3306` | MySQL port |
+| `MYSQL_DATABASE` | `kinetiqo` | MySQL database name |
+| `MYSQL_USER` | `kinetiqo` | MySQL username |
+| `MYSQL_PASSWORD` | `""` | MySQL password |
+| `MYSQL_SSL_MODE` | `disable` | `disable`, `required`, etc. |
+| **Firebird** | | |
+| `FIREBIRD_HOST` | `localhost` | Hostname or IP of Firebird server (or empty for local embedded) |
+| `FIREBIRD_PORT` | `3050` | Firebird port |
+| `FIREBIRD_DATABASE` | `""` | Filepath or connection string (e.g. `/var/lib/firebird/kinetiqo.fdb` or `host:path`) |
+| `FIREBIRD_USER` | `SYSDBA` | Firebird username |
+| `FIREBIRD_PASSWORD` | `""` | Firebird password |
 
-### 5.4 Automated Cron Synchronization
+### 5.4 Automated Cron Synchronization (Docker)
 
 | Variable | Default | Description |
 |---|---|---|
-| `CRON_FAST_SYNC_SCHEDULE` | `*/15 * * * *` | Cron expression for incremental fast sync (checks newest 30 activities every 15 min) |
-| `CRON_SYNC_SCHEDULE` | `0 3 * * *` | Cron expression for full historical audit sync (runs daily at 03:00 UTC) |
+| `FULL_SYNC` | `0 3 * * *` | Cron expression for full historical audit sync (runs daily at 03:00 UTC) |
+| `FAST_SYNC` | `*/15 * * * *` | Cron expression for incremental fast sync (checks newest activities every 15 min) |
 
 ### 5.5 Basemap API Keys (Optional)
 
@@ -267,6 +284,8 @@ python src/kinetiqo.py benchmark --scope 365
 | `MAPTILER_API_KEY` | [maptiler.com](https://cloud.maptiler.com/) | Unlocks MapTiler Outdoor, Streets, Topo, and Satellite tiles |
 | `THUNDERFOREST_API_KEY` | [thunderforest.com](https://www.thunderforest.com/) | Unlocks OpenCycleMap, Outdoors, and Landscape tiles |
 | `GEOAPIFY_API_KEY` | [geoapify.com](https://www.geoapify.com/) | Unlocks Geoapify OSM Bright, Dark, and Toner tiles |
+| `MAPY_API_KEY` | [mapy.cz](https://en.mapy.cz/) | API key for Mapy.cz Outdoor, Tourist, and Winter map tiles |
+| `CARTO_API_KEY` | [carto.com](https://carto.com/) | Optional API key for CARTO map services |
 
 *OpenStreetMap, Mapy.cz, CARTO Positron/Dark, and Esri World Imagery work out of the box with zero API keys required.*
 
@@ -286,27 +305,34 @@ python src/kinetiqo.py benchmark --scope 365
 
 | Variable | Default | Description |
 |---|---|---|
-| `MCP_TRANSPORT` | `stdio` | `stdio`, `sse`, or `http` |
-| `MCP_SSE_HOST` | `0.0.0.0` | Binding host for FastMCP SSE server |
-| `MCP_SSE_PORT` | `8000` | Port for FastMCP SSE server (`http://<host>:8000/sse`) |
+| `ENABLE_MCP` | `0` | Set to `1` in Docker to run the background FastMCP server concurrently alongside Web UI |
+| `MCP_TRANSPORT` | `stdio` | Transport protocol: `stdio`, `sse`, or `http` (`sse` when containerized) |
+| `MCP_HOST` | `0.0.0.0` | Binding host for FastMCP SSE server |
+| `MCP_PORT` | `8000` | Port for FastMCP SSE server (`http://<host>:8000/sse`) |
 | `KINETIQO_MCP_ALLOW_SYNC` | `0` | Set `1` to allow AI agents to trigger activity synchronization |
 | `KINETIQO_MCP_ALLOW_PROFILE_WRITE` | `0` | Set `1` to allow AI agents to modify athlete FTP and profile metrics |
 | `KINETIQO_MCP_ALLOW_STRAVA_WRITE` | `0` | Set `1` to allow AI agents to publish updated descriptions to Strava |
 
 ### 5.8 In-App AI Chat Multi-Provider Keys
 
+AI Chat supports 6 providers. Provider API keys and endpoints can be configured via environment variables or managed directly in **Settings → AI & API Providers** (where keys are stored in the database encrypted with AES-256-GCM):
+
 | Variable | Description |
 |---|---|
-| `GEMINI_API_KEY` | Google AI Studio API key for Google Gemini models (`gemini-2.5-flash`, `gemini-2.5-pro`) |
-| `OPENROUTER_API_KEY` | OpenRouter API key for OpenAI, Anthropic Claude, Meta Llama, and DeepSeek models |
+| `GEMINI_API_KEY` | Google AI Studio API key for Google Gemini models (`gemini-3.1-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-pro`) |
+| `OPENROUTER_API_KEY` | OpenRouter API key for Claude, OpenAI, Meta Llama, and DeepSeek models |
+
+*Other supported providers (Vercel AI Gateway, Kilo AI Gateway, Poe, and Ollama) can be configured seamlessly in the Web UI Settings.*
 
 ### 5.9 Athlete Telemetry & Display Defaults
 
 | Variable | Default | Description |
 |---|---|---|
-| `ATHLETE_WEIGHT_KG` | `75.0` | Default body weight in kg (used for W/kg calculations) |
-| `ATHLETE_FTP` | `250` | Functional Threshold Power in Watts (used for Coggan zones and NP% FTP) |
-| `GPS_SIMPLIFICATION` | `3` | Track simplification level (1–10). Level 3 achieves ~15× payload reduction with zero visual distortion |
+| `ATHLETE_WEIGHT` | `75.0` | Default body weight in kg (used for W/kg and Townsend VO₂max calculations) |
+| `ATHLETE_FTP` | `250` | Functional Threshold Power in Watts (used for Coggan zones and NP% FTP; can also be set in Settings) |
+| `ATHLETE_TIMEZONE` | `""` | Athlete local timezone name (e.g. `Europe/Prague`, `America/New_York`) |
+| `GPS_SIMPLIFICATION` | `0` | Track simplification level (0=off/raw, 1–10 decimation). Level 3 achieves ~15× payload reduction with zero visual distortion |
+| `DATE_FORMAT` | `%b %d, %Y` | Custom date formatting string (e.g. `%b %d, %Y`) |
 
 ---
 

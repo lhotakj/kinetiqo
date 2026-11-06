@@ -49,7 +49,8 @@ Goals are persisted in the `goals` table across all three database backends (Pos
 ## 4. MCP & AI Integration
 
 The Model Context Protocol server exposes:
-- `kinetiqo_get_goals`: Returns active weekly, monthly, and yearly goals, progress percentages, and current pacing status to AI assistants for training advice and motivational check-ins.
+- `kinetiqo_get_training_goals`: Returns active weekly, monthly, and yearly goals, progress percentages, and current pacing status to AI assistants for training advice and motivational check-ins.
+- `kinetiqo_update_training_goals`: Allows AI assistants to update athlete distance/elevation training targets (gated behind `KINETIQO_MCP_ALLOW_PROFILE_WRITE=1`).
 
 ---
 

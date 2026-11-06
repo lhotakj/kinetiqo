@@ -40,8 +40,10 @@ The `/activities` grid features a dedicated, toggleable **Weather** column:
 |---|---|---|
 | `/activities` | GET | Interactive activities grid featuring the toggleable Weather column |
 | `/api/activities` | GET | JSON activities list including the structured `weather` payload |
-| `/fastsync` | POST | Incremental sync pass honoring the `enable_weather_data` profile preference |
-| `/fullsync` | POST | Full sync audit pass with opt-in weather resync |
+| `/fastsync` | GET | Render the Fast Sync UI page |
+| `/fullsync` | GET | Render the Full Sync UI page |
+| `/sync/start/<type>` | POST | Launch synchronization pass (`fast` or `full`) honoring weather preferences |
+| `/api/sync/stream/<job_id>` | GET | SSE stream transmitting real-time sync progress and normalized weather tags |
 
 ---
 

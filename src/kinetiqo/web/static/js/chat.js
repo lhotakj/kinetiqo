@@ -111,6 +111,18 @@
 
     const buildChartContainerHtml = (codeText) => {
         const rawCode = (codeText || '').trim();
+        let chartTitle = 'Interactive Chart';
+        try {
+            const cleanJson = rawCode
+                .replace(/\/\/[^\r\n]*/g, '')
+                .replace(/,(\s*[\]}])/g, '$1');
+            const previewConfig = JSON.parse(cleanJson);
+            const titleVal = previewConfig?.options?.plugins?.title?.text;
+            if (titleVal) {
+                chartTitle = Array.isArray(titleVal) ? titleVal.join(' ') : String(titleVal);
+            }
+        } catch (_) { }
+
         return `<div class="chat-chart-container my-3 rounded-xl border border-warm-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-900/60 p-3 shadow-xs" data-rendered="false">
             <div class="flex items-center justify-between pb-2 mb-2 border-b border-warm-100 dark:border-zinc-800 text-[11px] text-gray-500 dark:text-zinc-400 select-none">
                 <span class="font-mono font-medium flex items-center gap-1.5 text-gray-700 dark:text-zinc-300 min-w-0">
@@ -119,15 +131,15 @@
                         <line x1="12" y1="20" x2="12" y2="4"/>
                         <line x1="6" y1="20" x2="6" y2="14"/>
                     </svg>
-                    <span class="chat-chart-title truncate max-w-[280px]">Interactive Chart</span>
+                    <span class="chat-chart-title truncate max-w-[280px]">${escapeHtml(chartTitle)}</span>
                 </span>
                 <button type="button" class="chat-chart-toggle cursor-pointer hover:text-orange-600 dark:hover:text-orange-400 transition px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1" title="Toggle between chart and source code">
                     <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                     <span>View code</span>
                 </button>
             </div>
-            <div class="chat-chart-canvas-wrapper relative w-full h-[320px] max-h-[420px] py-1 flex items-center justify-center">
-                <canvas class="chat-chart-canvas w-full h-full"></canvas>
+            <div class="chat-chart-canvas-wrapper relative w-full h-[320px] max-h-[420px] py-1 block">
+                <canvas class="chat-chart-canvas block w-full h-full"></canvas>
             </div>
             <pre class="chat-chart-code hidden overflow-x-auto rounded-lg bg-zinc-900 p-2.5 text-xs text-zinc-100 font-mono dark:bg-black/40 border border-zinc-700/60 mt-1"><code>${escapeHtml(rawCode)}</code></pre>
         </div>`;
@@ -305,7 +317,11 @@
     const formatToolName = (name) => (name || '').replace(/^kinetiqo_/, '').replaceAll('_', ' ');
 
     const renderChartJsInElement = (rootElement) => {
-        if (!rootElement || typeof window.Chart === 'undefined') return;
+        if (!rootElement) return;
+        if (typeof window.Chart === 'undefined') {
+            window.addEventListener('load', () => renderChartJsInElement(rootElement), { once: true });
+            return;
+        }
 
         const containers = rootElement.querySelectorAll('.chat-chart-container');
         if (!containers || containers.length === 0) return;
@@ -326,6 +342,11 @@
             if (!codeEl || !canvas || !wrapper) return;
             const codeText = codeEl.textContent.trim();
             if (!codeText) return;
+
+            if (!container.isConnected || wrapper.clientWidth === 0) {
+                requestAnimationFrame(() => renderChartJsInElement(rootElement));
+                return;
+            }
 
             if (toggleBtn && !toggleBtn._hooked) {
                 toggleBtn._hooked = true;
@@ -389,6 +410,17 @@
                             if (scale.title && !scale.title.color) scale.title.color = defaultTextColor;
                         }
                     });
+                } else if (config.type === 'bar' || config.type === 'line' || config.type === 'scatter') {
+                    config.options.scales = {
+                        x: {
+                            ticks: { color: defaultTextColor },
+                            grid: { color: defaultGridColor }
+                        },
+                        y: {
+                            ticks: { color: defaultTextColor },
+                            grid: { color: defaultGridColor }
+                        }
+                    };
                 }
 
                 if (canvas._chartInstance) {
@@ -649,6 +681,78 @@
                     <path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.564-2.438L1.5 0zm7.031 9.75l-.232-2.718 10.059-.003.23-2.622L5.412 4.41l.698 8.01h9.126l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.158H8.531z"/>
                 </svg>
             `;
+
+            const renderChartToLightDataUrl = (codeText, origCanvas) => {
+                if (!codeText || typeof window.Chart === 'undefined') return '';
+                try {
+                    const cleanJson = codeText
+                        .replace(/\/\/[^\r\n]*/g, '')
+                        .replace(/,(\s*[\]}])/g, '$1');
+                    const config = JSON.parse(cleanJson);
+
+                    const offscreenCanvas = document.createElement('canvas');
+                    const width = (origCanvas && origCanvas.clientWidth > 0) ? Math.min(Math.max(origCanvas.clientWidth, 600), 900) : 750;
+                    const height = (origCanvas && origCanvas.clientHeight > 0) ? Math.min(Math.max(origCanvas.clientHeight, 300), 500) : 380;
+                    offscreenCanvas.width = width;
+                    offscreenCanvas.height = height;
+
+                    if (!config.options) config.options = {};
+                    config.options.responsive = false;
+                    config.options.animation = false;
+                    config.options.maintainAspectRatio = false;
+
+                    const lightTextColor = '#000000';
+                    const lightGridColor = 'rgba(0, 0, 0, 0.12)';
+
+                    if (!config.options.plugins) config.options.plugins = {};
+                    if (!config.options.plugins.legend) config.options.plugins.legend = {};
+                    if (!config.options.plugins.legend.labels) config.options.plugins.legend.labels = {};
+                    config.options.plugins.legend.labels.color = lightTextColor;
+
+                    if (config.options.plugins.title) {
+                        config.options.plugins.title.color = lightTextColor;
+                    }
+
+                    if (config.options.scales) {
+                        Object.keys(config.options.scales).forEach(scaleKey => {
+                            const scale = config.options.scales[scaleKey];
+                            if (scale) {
+                                if (!scale.ticks) scale.ticks = {};
+                                scale.ticks.color = lightTextColor;
+                                scale.ticks.backdropColor = 'transparent';
+                                if (!scale.grid) scale.grid = {};
+                                scale.grid.color = lightGridColor;
+                                if (!scale.angleLines) scale.angleLines = {};
+                                scale.angleLines.color = lightGridColor;
+                                if (!scale.pointLabels) scale.pointLabels = {};
+                                scale.pointLabels.color = lightTextColor;
+                                if (scale.title) scale.title.color = lightTextColor;
+                            }
+                        });
+                    } else if (config.type === 'bar' || config.type === 'line' || config.type === 'scatter') {
+                        config.options.scales = {
+                            x: {
+                                ticks: { color: lightTextColor },
+                                grid: { color: lightGridColor }
+                            },
+                            y: {
+                                ticks: { color: lightTextColor },
+                                grid: { color: lightGridColor }
+                            }
+                        };
+                    }
+
+                    const ctx = offscreenCanvas.getContext('2d');
+                    const offscreenChart = new window.Chart(ctx, config);
+                    const dataUrl = offscreenCanvas.toDataURL('image/png');
+                    offscreenChart.destroy();
+                    return dataUrl;
+                } catch (err) {
+                    console.warn('Failed to render light chart offscreen:', err);
+                    return '';
+                }
+            };
+
             downloadHtmlBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 const textContainer = article.querySelector('.chat-text');
@@ -656,27 +760,41 @@
 
                 const clone = textContainer.cloneNode(true);
 
-                // Preserve rendered charts as embedded base64 images
+                // Preserve rendered charts as embedded base64 images with black text for light export
                 const origChartContainers = article.querySelectorAll('.chat-chart-container');
                 const cloneChartContainers = clone.querySelectorAll('.chat-chart-container');
                 origChartContainers.forEach((origC, idx) => {
                     const cloneC = cloneChartContainers[idx];
                     if (!cloneC) return;
                     const origCanvas = origC.querySelector('canvas');
-                    if (origCanvas) {
+                    const codeEl = origC.querySelector('.chat-chart-code code');
+                    const codeText = codeEl ? codeEl.textContent.trim() : '';
+
+                    let dataUrl = '';
+                    if (codeText) {
+                        dataUrl = renderChartToLightDataUrl(codeText, origCanvas);
+                    }
+                    if (!dataUrl && origCanvas) {
                         try {
-                            const dataUrl = origCanvas.toDataURL('image/png');
-                            const img = document.createElement('img');
-                            img.src = dataUrl;
-                            img.alt = 'Chart';
-                            img.style.maxWidth = '100%';
-                            img.style.height = 'auto';
-                            const wrapper = cloneC.querySelector('.chat-chart-canvas-wrapper');
-                            if (wrapper) wrapper.replaceWith(img);
+                            dataUrl = origCanvas.toDataURL('image/png');
                         } catch (err) {
                             console.warn('Failed to convert chart canvas to data URL:', err);
                         }
                     }
+
+                    if (dataUrl) {
+                        const img = document.createElement('img');
+                        img.src = dataUrl;
+                        img.alt = 'Chart';
+                        img.style.maxWidth = '100%';
+                        img.style.height = 'auto';
+                        img.style.display = 'block';
+                        img.style.margin = '16px 0';
+                        const wrapper = cloneC.querySelector('.chat-chart-canvas-wrapper');
+                        if (wrapper) wrapper.replaceWith(img);
+                        else cloneC.appendChild(img);
+                    }
+
                     const toggleHeader = cloneC.firstElementChild;
                     const codePre = cloneC.querySelector('.chat-chart-code');
                     if (toggleHeader) toggleHeader.remove();
@@ -685,6 +803,7 @@
 
                 clone.querySelectorAll('*').forEach(el => {
                     if (el.closest('svg')) return;
+                    if (el.tagName === 'IMG') return;
                     el.removeAttribute('class');
                     el.removeAttribute('style');
                 });
@@ -710,7 +829,7 @@
                 }
 
                 const cleanBody = clone.innerHTML.trim();
-                const fullHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>Kinetiqo Response</title>\n</head>\n<body>\n${cleanBody}\n</body>\n</html>`;
+                const fullHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>Kinetiqo Response</title>\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111827; background-color: #ffffff; max-width: 860px; margin: 32px auto; padding: 0 20px; }\n    h1, h2, h3, h4 { color: #111827; margin-top: 1.5em; margin-bottom: 0.5em; }\n    table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }\n    th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }\n    th { background-color: #f9fafb; font-weight: 600; }\n    tr:nth-child(even) { background-color: #fcfcfd; }\n    img { max-width: 100%; height: auto; display: block; margin: 16px 0; }\n    code { font-family: monospace; background: #f3f4f6; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; }\n    pre { background: #f3f4f6; padding: 12px; border-radius: 6px; overflow-x: auto; }\n    blockquote { border-left: 4px solid #e5e7eb; padding-left: 16px; margin: 16px 0; color: #4b5563; }\n    hr { border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0; }\n  </style>\n</head>\n<body>\n${cleanBody}\n</body>\n</html>`;
 
                 const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
@@ -862,7 +981,6 @@
         if (role === 'assistant') {
             article._rawMarkdown = content;
             textContainer.innerHTML = DOMPurify.sanitize(renderMarkdown(content));
-            renderChartJsInElement(article);
         } else {
             textContainer.textContent = content;
         }
@@ -881,6 +999,9 @@
             }
         }
         messages.appendChild(article);
+        if (role === 'assistant') {
+            renderChartJsInElement(article);
+        }
         scrollToBottom();
         return article;
     };
@@ -958,6 +1079,7 @@
         currentDraft = '';
         empty.classList.toggle('hidden', (list || []).length > 0);
         status.classList.add('hidden');
+        renderChartJsInElement(messages);
         scrollToBottom();
     };
 
@@ -2120,6 +2242,10 @@
                     scrollToBottom();
                 }
             } else {
+                const lastAssistant = messages.querySelector('.chat-msg-assistant:last-of-type');
+                if (lastAssistant) {
+                    renderChartJsInElement(lastAssistant);
+                }
                 setStatus(error.message, true);
             }
         } finally {

@@ -196,7 +196,7 @@ Kinetiqo Flask Application Server
   - **Interactive Chart.js Engine (Self-Hosted)**:
     - Powered by self-hosted **Chart.js 4.5.1** (`static/vendor/chartjs/chart-4.5.1.umd.min.js`), completely replacing fragile DSL diagram libraries.
     - Features rich interactive canvas rendering: hover tooltips with exact values, responsive auto-scaling, clickable legend series toggling, dark/light theme-adaptive scales and grids, and a `[View code] / [View chart]` toggle.
-    - When exporting responses via **Download HTML**, rendered charts are automatically converted to embedded high-resolution PNG data URLs so saved reports remain 100% visual and offline-ready.
+    - When exporting responses via **Download HTML**, rendered charts are automatically converted to embedded high-resolution PNG data URLs (with crisp white backgrounds and high-contrast dark text/legends for optimal printing and reading) so saved reports remain 100% visual and offline-ready.
   - **Comprehensive Supported Chart Taxonomy**:
     - **Core Chart Types**:
       - **Column Chart (Vertical Bar)**: Compares values across categories using vertical bars (Clustered, Stacked, and 100% Stacked; `type: 'bar'`).
@@ -234,12 +234,13 @@ Kinetiqo Flask Application Server
 ## 6. Configuration in Settings (`/settings`)
 
 1. Navigate to **Settings** (`/settings`) → **AI & API Providers**.
-2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, or **Ollama (Local AI)**.
+2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, or **Ollama (Local AI)**.
 3. Configure the provider:
    - **For Gemini**: Paste your API key; models are automatically discovered.
    - **For OpenRouter**: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
    - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
    - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai)), then use the nested models table to add your preferred models (e.g. `kilo-auto/free`) with real-time validation.
+   - **For Poe**: Enter your Poe API key, then add your bot handles (e.g. `GPT-4o`, `Claude-3.5-Sonnet`) with live handle validation.
    - **For Ollama**: Enter your Ollama server URL (e.g. `http://localhost:11434` or `http://192.168.1.150:11434`). Test the connection to auto-discover all pulled models. An API key is optional.
 4. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
 

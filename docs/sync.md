@@ -105,10 +105,10 @@ When `VISUAL_CROSSING_API_KEY` is unset or empty:
 
 | URL Route / Endpoint | Method | Purpose |
 |---|---|---|
-| `/fastsync` | POST | Trigger an incremental fast sync |
-| `/fullsync` | POST | Trigger a full historical audit sync |
-| `/sync/start/<type>` | GET | Render the interactive SSE progress bar view |
-| `/api/sync/stream/<type>` | GET | Server-Sent Events (SSE) event stream |
+| `/fastsync` | GET | Render the Fast Sync UI page |
+| `/fullsync` | GET | Render the Full Sync UI page |
+| `/sync/start/<type>` | POST | Start sync job (`fast` or `full`) and return HTMX SSE progress container |
+| `/api/sync/stream/<job_id>` | GET | Server-Sent Events (SSE) real-time event stream |
 | `/api/sync/stop` | POST | Cancel active synchronization operation |
 | `/logs` | GET | View sync execution history and audit logs |
 
@@ -126,13 +126,13 @@ python src/kinetiqo.py sync --fast
 python src/kinetiqo.py sync
 
 # Full sync limited to last 30 days
-python src/kinetiqo.py sync --days 30
+python src/kinetiqo.py sync --period 30d
 
 # Sync skipping Strava description updates
-python src/kinetiqo.py sync --no-update-strava
+python src/kinetiqo.py sync --no-update-strava-description
 
 # Sync skipping weather enrichment
-python src/kinetiqo.py sync --no-weather
+python src/kinetiqo.py sync --no-weather-data
 
 # Sync retriggering AI agents
 python src/kinetiqo.py sync --retrigger-ai-agents

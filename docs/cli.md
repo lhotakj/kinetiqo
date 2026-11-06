@@ -49,6 +49,9 @@ python src/kinetiqo.py sync [OPTIONS]
 - `--fast-sync, --fast`: Incremental fast sync checking the 30 newest activities (default for cron).
 - `--full-sync, --full`: Complete historical audit of all activities.
 - `--period, -p TEXT`: Limit synchronization scope (e.g. `30d`, `6m`, `1y`).
+- `--enable-strava-cache`: Enable caching of Strava API responses.
+- `--cache-ttl INTEGER`: Cache TTL in minutes (default: `60`).
+- `--clear-cache`: Clear the cache before syncing.
 - `--update-strava-description / --no-update-strava-description`: Toggle automatic description generation.
 - `--weather-data / --no-weather-data`: Toggle historical weather enrichment via Visual Crossing Timeline API (1,000 free records/day from [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api); see [docs/weather.md](weather.md)).
 - `--resync-weather`: Force weather re-download and recalculation for workouts in scope.
@@ -140,7 +143,8 @@ Populates summary scalar weather columns (`weather_temp_avg`, `weather_condition
 python src/kinetiqo.py backfill-weather [OPTIONS]
 ```
 
-- `--batch-size, -b INTEGER`: Number of records to process per transaction batch (default: `100`).
+- `--batch-size, -b INTEGER`: Number of records to process per transaction batch (default: `500`).
+- `--database, -d [postgresql|mysql|firebird]`: Override database backend.
 
 ---
 

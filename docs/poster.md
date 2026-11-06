@@ -58,7 +58,7 @@ Customizations are preserved per-activity and globally:
 ## 4. MCP & AI Integration
 
 The Model Context Protocol server exposes:
-- `kinetiqo_export_activity_poster`: Allows AI assistants to generate and return a customized activity poster image file directly from a conversational prompt.
+- `kinetiqo_generate_activity_poster`: Allows AI assistants to generate and return a customized high-resolution PNG activity poster directly from a conversational prompt.
 
 ---
 

@@ -157,6 +157,6 @@ def safe_resolve_path(user_input: str | Path, base_dir: Path = _REPO_ROOT) -> Pa
 
 ## 7. AI Implementation & MCP Tools Guidelines
 
-See detailed authoritative documentation in [`.agents/skills/ai-implementation.md`](.agents/skills/ai-implementation.md) for complete contracts, gotchas, repository signatures, multi-provider guidelines (Gemini, OpenAI, Anthropic, Mistral), and testing standards.
+See detailed authoritative documentation in [`.agents/skills/ai-implementation/SKILL.md`](.agents/skills/ai-implementation/SKILL.md) for complete contracts, gotchas, repository signatures, multi-provider guidelines (Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama), and testing standards.
 
 

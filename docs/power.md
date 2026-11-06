@@ -58,9 +58,11 @@ Normalized Power accounts for the non-linear physiological stress of stochastic 
 ## 5. MCP & AI Integration
 
 The Model Context Protocol server exposes:
-- `kinetiqo_get_power_curve`: Returns high-resolution MMP curve points across benchmark intervals.
-- `kinetiqo_get_weekly_power_profile`: Aggregates peak sprint, VO₂max, and threshold wattage across weekly training blocks.
-- `kinetiqo_analyze_workout_efforts`: Detects sustained hard efforts, surge counts (≥1000W), and normalized power metrics.
+- `kinetiqo_calculate_power_curve`: Computes Mean Maximal Power (MMP) curve points across benchmark intervals.
+- `kinetiqo_get_power_skills`: Benchmarks power skills across benchmark durations (5s to 1h) and W/kg.
+- `kinetiqo_get_personal_records`: Retrieves peak power records for benchmark durations.
+- `kinetiqo_get_weekly_training_profile`: Aggregates weekly volume, mechanical energy (kJ), average watts, and day-of-week training habits.
+- `kinetiqo_analyze_workout_structure`: Analyzes Normalized Power (NP), Intensity Factor (IF), TSS, Coggan power zones, sustained hard efforts, and sprint surge counts (≥1000W).
 
 ---
 

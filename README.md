@@ -43,11 +43,11 @@ Every capability in Kinetiqo is documented in detail in the [`docs/`](docs/) dir
 | **Fondo-o-meter** | [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md) | Dynamic concentric radial milestone rings, sport thresholds, verified KOMs, PRs, and export. |
 | **Weather Enrichment** | [docs/weather.md](docs/weather.md) | Historical hourly weather, temperature ranges, wind vectors, gusts, and route headwind calculations. |
 | **Strava Auto-Updates** | [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md) | Custom description template engine with 150+ placeholders, workout summaries, and power zones. |
-| **In-App AI Chat** | [docs/AI.md](docs/AI.md) | Conversational endurance coach supporting Google Gemini and OpenRouter (multi-provider). |
+| **In-App AI Chat** | [docs/AI.md](docs/AI.md) | Conversational endurance coach supporting 6 providers: Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Ollama, and Poe. |
 | **Model Context Protocol** | [docs/MCP.md](docs/MCP.md) | FastMCP server exposing 32+ evidence-based tools to Antigravity, Claude Desktop, Cursor, and OpenClaw. |
 | **Database Architecture** | [docs/DATABASE.md](docs/DATABASE.md) | Multi-DB zero-ORM repository pattern, driver benchmarks, and production tuning for PG, MySQL, and Firebird. |
 | **Sync Engine** | [docs/sync.md](docs/sync.md) | 4-phase ETL pipeline, Fast vs. Full sync, normalized status tags, HTMX + SSE progress, and rate-limit safety. |
-| **CLI Reference** | [docs/cli.md](docs/cli.md) | Command-line interface reference for `web`, `sync`, `mcp`, `benchmark`, `flightcheck`, and `scan-trophies`. |
+| **CLI Reference** | [docs/cli.md](docs/cli.md) | Command-line interface reference for `web`, `sync`, `backfill-weather`, `mcp`, `benchmark`, `flightcheck`, `scan-trophies`, and `version`. |
 | **Usage & Deployment** | [docs/usage.md](docs/usage.md) | Production deployment guide for Docker, Docker Compose, native Python, and complete `.env` configuration. |
 
 ---
@@ -102,10 +102,10 @@ STRAVA_REFRESH_TOKEN=your_refresh_token
 STRAVA_ATHLETE_ID=your_athlete_id
 SECRET_KEY=generate_a_random_32_character_secret_key
 DATABASE_TYPE=postgresql
-DB_HOST=db
-DB_NAME=kinetiqo
-DB_USER=kinetiqo
-DB_PASSWORD=ChangeThisDatabasePassword123!
+POSTGRESQL_HOST=db
+POSTGRESQL_DATABASE=kinetiqo
+POSTGRESQL_USER=kinetiqo
+POSTGRESQL_PASSWORD=ChangeThisDatabasePassword123!
 # Optional: Historical activity weather (1,000 free records/day from visualcrossing.com/weather-api)
 VISUAL_CROSSING_API_KEY=
 ```
@@ -195,7 +195,7 @@ Kinetiqo includes a built-in **FastMCP Server** connecting your local fitness da
 | **Interactive Grid** | DataTables + Buttons + ColReorder | 2.3.7 / 3.2.6 / 2.1.2 | Client-side reactive grid with localStorage state persistence |
 | **Maps** | Leaflet.js | 1.9.4 | Canvas renderer with 16 basemaps and server-side tile proxy |
 | **Visual Exports** | Playwright | ≥1.64.0 | Server-side headless Chromium rendering for pixel-perfect posters/PDFs |
-| **AI Protocol** | FastMCP | 1.30.0 | Model Context Protocol server exposing 35+ fitness telemetry tools |
+| **AI Protocol** | FastMCP | 1.30.0 | Model Context Protocol server exposing 32 read-only tools by default (up to 36 with mutation gates) |
 | **Database Drivers** | psycopg2, mysql-connector, firebird-driver | Latest | Direct parameterized raw SQL — **Zero ORM** overhead |
 
 *For deep architectural design and benchmark analysis, see [docs/DATABASE.md](docs/DATABASE.md) and [docs/sync.md](docs/sync.md).*

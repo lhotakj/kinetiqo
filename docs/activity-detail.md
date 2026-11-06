@@ -68,7 +68,7 @@ All sidebar panels are collapsible via chevron toggles, open by default, and per
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `ATHLETE_FTP` | float | `250.0` | Athlete Functional Threshold Power (Watts) used for Coggan power zone distribution |
-| `ATHLETE_WEIGHT_KG` | float | `75.0` | Athlete body weight in kg used for relative power metrics (W/kg) |
+| `ATHLETE_WEIGHT` | float | `75.0` | Athlete body weight in kg used for relative power metrics (W/kg) |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | string | `""` | Optional explicit path to Chromium executable for headless exports |
 | `GEMINI_API_KEY` | string | `""` | Google AI Studio API key for Gemini-powered coach analysis |
 | `OPENROUTER_API_KEY` | string | `""` | OpenRouter API key for Claude, OpenAI, and Llama coach analysis |
@@ -79,8 +79,7 @@ All sidebar panels are collapsible via chevron toggles, open by default, and per
 
 The Model Context Protocol (MCP) server exposes tools to query activity details and telemetry:
 - `kinetiqo_get_activity_details`: Returns complete metadata, distance, time, elevation, and sensor coverage.
-- `kinetiqo_get_stream_window`: Queries high-resolution sensor streams for granular AI analysis.
-- `kinetiqo_export_activity_detail`: Headless export endpoint callable by AI assistants to generate PNG visual artifacts.
+- `kinetiqo_get_activity_streams`: Queries raw or downsampled telemetry time-series (elevation, heart rate, power, cadence, speed) for granular AI analysis.
 
 ---
 
