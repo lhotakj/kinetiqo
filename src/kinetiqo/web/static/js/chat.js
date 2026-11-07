@@ -303,6 +303,7 @@
     let defaultModelProvider = '';
     let fallbackModelsList = [];
     let modelCatalog = [];
+    let flatModels = [];
 
     const getProviderIconPath = (provider) => {
         const key = String(provider || '').trim().toLowerCase();
@@ -311,6 +312,7 @@
         if (key.includes('ollama')) return '/static/icons/ai_ollama.svg';
         if (key.includes('vercel')) return '/static/icons/ai_vercel.svg';
         if (key.includes('kilo')) return '/static/icons/ai_kilo.svg';
+        if (key.includes('mistral')) return '/static/icons/ai_mistral.svg';
         return '';
     };
 
@@ -1319,7 +1321,12 @@
                 btn.appendChild(starEl);
                 btn.id = `chat-model-item-${item.provider}-${item.id}`.replace(/[^a-zA-Z0-9_-]/g, '-');
                 btn.addEventListener('click', () => {
-                    model.value = item.id;
+                    const targetOpt = Array.from(model.options).find((opt) => opt.value === item.id && opt.dataset.provider === item.provider);
+                    if (targetOpt) {
+                        model.selectedIndex = targetOpt.index;
+                    } else {
+                        model.value = item.id;
+                    }
                     model.dispatchEvent(new Event('change', { bubbles: true }));
                     closeModelDropdown(true);
                 });
@@ -1347,7 +1354,7 @@
         const groups = Array.isArray(payload.providers) ? payload.providers : [];
         const serverDefault = payload.default_model || null;
         fallbackModelsList = Array.isArray(payload.fallback_models) ? payload.fallback_models : [];
-        const flatModels = [];
+        flatModels = [];
         modelNamesMap.clear();
         modelCatalog = [];
         model.replaceChildren();

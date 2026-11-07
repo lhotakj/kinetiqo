@@ -3,7 +3,7 @@
 > **Version:** 3.0  
 > **Status:** Active / Production Ready  
 > **Primary Interfaces:** `/chat`, `/settings`, FastMCP tools layer  
-> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI)
+> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI
 > **Database Compatibility:** PostgreSQL, MySQL, Firebird (100% Parameterized Raw SQL)
 
 ---
@@ -152,12 +152,19 @@ Kinetiqo Flask Application Server
 - **Remote Host Setup**: To connect across machines on your LAN, set `OLLAMA_HOST=0.0.0.0:11434` on the Ollama PC and provide its local IP (e.g. `http://192.168.1.150:11434`).
 - **Provider-specific model details**: Ollama reports the local parameter size when available; pricing, context limits, and rate limits are not inferred.
 
-### 4.7 Unified Provider Model Tables
-- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, and Ollama use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
-- Values such as Gemini context and output-token limits or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
-- Remove actions are available only for providers with user-managed model lists; other providers show `-` in the Actions column.
+### 4.7 Mistral AI
+- **Official Mistral REST API Adapter**: Direct connection to `https://api.mistral.ai/v1` using your Mistral API key from [console.mistral.ai](https://console.mistral.ai).
+- **Automatic Model Discovery**: Queries `GET /v1/models` on save and refresh to discover all available chat generation models (`mistral-small-latest`, `mistral-large-latest`, `codestral-latest`, `ministral-8b-latest`, `pixtral-large-latest`, etc.).
+- **Smart Model Filtering**: Automatically filters out embedding (`mistral-embed`), moderation (`mistral-moderation-latest`), and OCR models to display only operational conversational models.
+- **Model Selection & Multi-Model Cascading**: Easily mark any discovered Mistral model as your Default (`★`) or assign it to Fallback slots (`1`, `2`, `3`).
+- **In-Process FastMCP Tool Calling**: Full streaming SSE multi-turn tool calling with all 32 read-only Kinetiqo telemetry and analytics tools.
 
-### 4.8 Dynamic Mid-Session Provider & Model Switching
+### 4.8 Unified Provider Model Tables
+- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
+- Values such as Gemini context and output-token limits, Mistral context sizes, or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
+- Remove actions are available only for providers with user-managed model lists; discovered-model providers (Gemini, Ollama, Mistral) show `-` in the Actions column.
+
+### 4.9 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
 - If a quota or rate limit is reached on OpenRouter, Vercel, or Kilo, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
@@ -234,9 +241,10 @@ Kinetiqo Flask Application Server
 ## 6. Configuration in Settings (`/settings`)
 
 1. Navigate to **Settings** (`/settings`) → **AI & API Providers**.
-2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, or **Ollama (Local AI)**.
+2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, **Ollama (Local AI)**, or **Mistral AI**.
 3. Configure the provider:
    - **For Gemini**: Paste your API key; models are automatically discovered.
+   - **For Mistral AI**: Enter your Mistral API key; available models are automatically discovered from Mistral's API.
    - **For OpenRouter**: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
    - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
    - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai)), then use the nested models table to add your preferred models (e.g. `kilo-auto/free`) with real-time validation.

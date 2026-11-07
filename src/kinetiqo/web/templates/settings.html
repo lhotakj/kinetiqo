@@ -1436,6 +1436,70 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Mistral AI Provider Card -->
+                        <div id="ai-provider-card-mistral" data-provider="mistral"
+                            class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
+                            <div class="flex flex-wrap items-center justify-between pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3"
+                                style="padding-bottom: 1.25rem;">
+                                <div class="flex items-center gap-3">
+                                    <img src="{{ url_for('static', filename='icons/ai_mistral.svg') }}"
+                                        alt="Mistral AI" class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Mistral AI
+                                        </h3>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-1">Official Mistral AI
+                                            API with auto-discovered generation models</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <form id="mistral-key-form" class="flex flex-wrap items-end gap-3 pt-1">
+                                <div class="flex-1 min-w-72">
+                                    <label for="mistral-api-key"
+                                        class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Mistral
+                                        API key</label>
+                                    <input id="mistral-api-key" type="password" autocomplete="off"
+                                        aria-label="Mistral API key"
+                                        class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition"
+                                        placeholder="Enter Mistral API key">
+                                </div>
+                                <button type="submit"
+                                    class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save
+                                    key</button>
+                                <button id="remove-mistral-key" type="button"
+                                    class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
+                                    key</button>
+                            </form>
+                            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                    Available Models</h4>
+                                <div
+                                    class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs mt-4">
+                                    <table
+                                        class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
+                                        <thead
+                                            class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                            <tr>
+                                                <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                                <th scope="col" class="px-5 py-3.5">Context</th>
+                                                <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                                <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="mistral-models-table-body"
+                                            class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                            <tr>
+                                                <td colspan="6"
+                                                    class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No
+                                                    models available.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -2497,6 +2561,7 @@
             kilo: { name: 'Kilo AI Gateway', endpoint: '/api/settings/ai/kilo' },
             poe: { name: 'Poe', endpoint: '/api/settings/ai/poe' },
             ollama: { name: 'Ollama (Local AI)', endpoint: '/api/settings/ai/ollama' },
+            mistral: { name: 'Mistral AI', endpoint: '/api/settings/ai/mistral' },
         };
 
         const providerListEl = document.getElementById('ai-provider-list');
@@ -2575,7 +2640,14 @@
         const ollamaTableBody = document.getElementById('ollama-models-table-body');
         const ollamaModelsCount = document.getElementById('ollama-models-count');
 
-        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard };
+        const mistralCard = document.getElementById('ai-provider-card-mistral');
+        const mistralForm = document.getElementById('mistral-key-form');
+        const mistralInput = document.getElementById('mistral-api-key');
+        const mistralStatus = document.getElementById('mistral-key-status');
+        const mistralTableBody = document.getElementById('mistral-models-table-body');
+        const removeMistralBtn = document.getElementById('remove-mistral-key');
+
+        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard, mistral: mistralCard };
         const providerData = {
             gemini: { configured: false, models: [] },
             openrouter: { configured: false, models: [] },
@@ -2583,6 +2655,7 @@
             kilo: { configured: false, models: [] },
             poe: { configured: false, models: [] },
             ollama: { configured: false, models: [] },
+            mistral: { configured: false, models: [] },
         };
 
         let currentProvider = null;
@@ -2983,6 +3056,18 @@
             models.forEach((item) => geminiTableBody.appendChild(createModelRow(item, 'gemini')));
         }
 
+        function renderMistralModels(models) {
+            if (!mistralTableBody) return;
+            mistralTableBody.replaceChildren();
+            if (!Array.isArray(models) || models.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>';
+                mistralTableBody.appendChild(tr);
+                return;
+            }
+            models.forEach((item) => mistralTableBody.appendChild(createModelRow(item, 'mistral')));
+        }
+
         function formatModelMetadata(value) {
             if (value === null || value === undefined || value === '') return null;
             if (typeof value === 'object' && Object.keys(value).length === 0) return null;
@@ -3139,12 +3224,13 @@
             renderKiloModels(providerData.kilo.models || []);
             renderPoeModels(providerData.poe.models || []);
             renderOllamaModels(providerData.ollama.models || []);
+            renderMistralModels(providerData.mistral.models || []);
         };
 
         const markAiDirty = () => { aiDirty = true; };
         const clearAiDirty = () => { aiDirty = false; };
 
-        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput].forEach((input) => input?.addEventListener('input', markAiDirty));
+        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput, mistralInput].forEach((input) => input?.addEventListener('input', markAiDirty));
 
         async function loadGeminiStatus() {
             try {
@@ -3208,6 +3294,16 @@
                 setStatusPill(ollamaStatus, 'Status error', false, true);
             }
         }
+        async function loadMistralStatus() {
+            try {
+                const r = await fetch('/api/settings/ai/mistral');
+                const d = await r.json();
+                providerData.mistral = { configured: Boolean(d.configured), models: d.models || [] };
+                setStatusPill(mistralStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+            } catch {
+                setStatusPill(mistralStatus, 'Status error', false, true);
+            }
+        }
 
         async function saveCurrentProvider() {
             if (!currentProvider) return;
@@ -3224,6 +3320,7 @@
                         ...(ollamaKeyInput?.value.trim() ? { api_key: ollamaKeyInput.value.trim() } : { keep_key: true }),
                     },
                 },
+                mistral: { url: '/api/settings/ai/mistral', body: { api_key: mistralInput?.value.trim() || '' } },
             };
             const cfg = payloadByProvider[currentProvider];
             const res = await fetch(cfg.url, { method: 'POST', headers: aiHeaders, body: JSON.stringify(cfg.body) });
@@ -3231,13 +3328,13 @@
             if (!res.ok) throw new Error(data.error?.message || 'Save failed');
             clearAiDirty();
             if (currentProvider !== 'ollama') {
-                const inputByProvider = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput };
+                const inputByProvider = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput };
                 if (inputByProvider[currentProvider]) inputByProvider[currentProvider].value = '';
             } else if (ollamaKeyInput?.value.trim()) {
                 ollamaKeyInput.value = '';
                 ollamaKeyInput.placeholder = '•••••••• (API key saved)';
             }
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         }
 
@@ -3252,7 +3349,7 @@
             try {
                 await saveCurrentProvider();
             } catch (err) {
-                const statusByProvider = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus };
+                const statusByProvider = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus };
                 setStatusPill(statusByProvider[currentProvider], err.message || 'Save failed', false, true);
             } finally {
                 if (submitBtn) {
@@ -3263,7 +3360,7 @@
             }
         }
 
-        [geminiForm, openrouterForm, vercelForm, kiloForm, poeForm, ollamaForm].forEach((form) => form?.addEventListener('submit', (e) => {
+        [geminiForm, openrouterForm, vercelForm, kiloForm, poeForm, ollamaForm, mistralForm].forEach((form) => form?.addEventListener('submit', (e) => {
             e.preventDefault();
             handleProviderFormSubmit(form);
         }));
@@ -3293,7 +3390,7 @@
             if (!res.ok) return;
             closeModal(deleteModal);
             aiDirty = false;
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         });
 
@@ -3357,7 +3454,7 @@
         const removeProviderByKey = async (key) => {
             const res = await fetch(providerMeta[key].endpoint, { method: 'DELETE', headers: aiHeaders });
             if (!res.ok) return;
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         };
         removeGeminiBtn?.addEventListener('click', () => removeProviderByKey('gemini'));
@@ -3366,6 +3463,7 @@
         removeKiloBtn?.addEventListener('click', () => removeProviderByKey('kilo'));
         removePoeBtn?.addEventListener('click', () => removeProviderByKey('poe'));
         ollamaRemoveBtn?.addEventListener('click', () => removeProviderByKey('ollama'));
+        removeMistralBtn?.addEventListener('click', () => removeProviderByKey('mistral'));
 
         openrouterAddModelBtn?.addEventListener('click', async () => {
             const modelId = openrouterNewModelInput?.value.trim();
@@ -3506,7 +3604,7 @@
         });
 
         (async () => {
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadDefaultModel(), loadFallbackModels()]);
+            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels()]);
             renderAllModelTables();
             await refreshProvidersIndex();
         })();

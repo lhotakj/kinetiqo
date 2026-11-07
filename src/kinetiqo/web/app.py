@@ -84,6 +84,7 @@ from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
+from kinetiqo.chat.providers.mistral import MistralChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
 from kinetiqo.chat.providers.poe import PoeChatProvider
@@ -130,6 +131,7 @@ AI_PROVIDER_META = {
     "kilo": "Kilo AI Gateway",
     "poe": "Poe",
     "ollama": "Ollama (Local AI)",
+    "mistral": "Mistral AI",
 }
 
 # CSRF protection: enabled when Flask-WTF is available. In development, a generated secret is acceptable.
@@ -3414,6 +3416,157 @@ def chat_ollama_test_api():
     except Exception as exc:
         logger.exception("Ollama test connection failed: %s", exc)
         return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/mistral', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_mistral_settings_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    if request.method == 'GET':
+        encrypted_key = repository.get_provider_key(athlete_id, 'mistral')
+        has_key = encrypted_key is not None
+        models: list[dict] = []
+        if has_key:
+            try:
+                api_key = decrypt_api_key(encrypted_key, app.secret_key)
+                provider = MistralChatProvider(api_key)
+                models = [
+                    {
+                        'id': model.id,
+                        'name': model.display_name,
+                        'display_name': model.display_name,
+                        'supports_tools': model.supports_tools,
+                        'supports_vision': model.supports_vision,
+                        'context_length': model.context_length,
+                        'max_output_tokens': model.max_output_tokens,
+                        'pricing': model.pricing,
+                        'rate_limits': model.rate_limits,
+                        'request_limits': model.request_limits,
+                        'description': model.description,
+                    }
+                    for model in provider.list_models()
+                ]
+                cfg = repository.get_provider_config(athlete_id, 'mistral')
+                cfg['models'] = models
+                repository.save_provider_config(athlete_id, 'mistral', cfg)
+            except Exception as exc:
+                logger.warning('Mistral model refresh failed for athlete=%s: %s', athlete_id, exc)
+                models = repository.get_provider_config(athlete_id, 'mistral').get('models', [])
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', models)
+        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
+
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, 'mistral')
+        repository.clear_default_model(athlete_id, provider='mistral')
+        repository.clear_fallback_model(athlete_id, provider='mistral')
+        return Response(status=204)
+
+    data = request.get_json(silent=True) or {}
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, 'mistral')
+        clean_key = api_key.strip()
+        repository.save_provider_key(athlete_id, 'mistral', encrypt_api_key(clean_key, app.secret_key))
+        models = []
+        try:
+            provider = MistralChatProvider(clean_key)
+            models = [
+                {
+                    'id': model.id,
+                    'name': model.display_name,
+                    'display_name': model.display_name,
+                    'supports_tools': model.supports_tools,
+                    'supports_vision': model.supports_vision,
+                    'context_length': model.context_length,
+                    'max_output_tokens': model.max_output_tokens,
+                    'pricing': model.pricing,
+                    'rate_limits': model.rate_limits,
+                    'request_limits': model.request_limits,
+                    'description': model.description,
+                }
+                for model in provider.list_models()
+            ]
+            existing_config['models'] = models
+        except Exception as exc:
+            logger.warning('Mistral model discovery on save failed for athlete=%s: %s', athlete_id, exc)
+            models = existing_config.get('models', [])
+
+        repository.save_provider_config(athlete_id, 'mistral', existing_config)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', models)
+        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
+    except ChatEncryptionError as exc:
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/mistral/models/validate', methods=['POST'])
+@login_required
+def chat_mistral_validate_model_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'mistral')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Mistral API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = MistralChatProvider(api_key)
+        model_info = provider.validate_model(model_id.strip())
+        return jsonify({'valid': True, 'model': model_info})
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+    except Exception as exc:
+        logger.exception("Mistral model validation failed: %s", exc)
+        return _chat_error(exc, 500)
+
+
+@app.route('/api/settings/ai/mistral/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_mistral_models_api():
+    athlete_id = _chat_user_id()
+    repository = _chat_service().repository
+    encrypted_key = repository.get_provider_key(athlete_id, 'mistral')
+    if not encrypted_key:
+        return _chat_error(ChatConfigurationError("Configure Mistral API key first."), 422)
+    data = request.get_json(silent=True) or {}
+    model_id = data.get('model_id')
+    if not isinstance(model_id, str) or not model_id.strip():
+        return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
+
+    cfg = repository.get_provider_config(athlete_id, 'mistral')
+    current_models = list(cfg.get('models', []))
+
+    if request.method == 'DELETE':
+        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
+        cfg['models'] = new_models
+        repository.save_provider_config(athlete_id, 'mistral', cfg)
+        repository.clear_default_model(athlete_id, provider='mistral', model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider='mistral', model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', new_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
+        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', current_models)
+        return jsonify({'models': models, 'default_model': default_model})
+
+    try:
+        api_key = decrypt_api_key(encrypted_key, app.secret_key)
+        provider = MistralChatProvider(api_key)
+        model_info = provider.validate_model(clean_id)
+    except (ValueError, LookupError, ChatError) as exc:
+        return _chat_error(exc, 422)
+
+    current_models.append(model_info)
+    cfg['models'] = current_models
+    repository.save_provider_config(athlete_id, 'mistral', cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', current_models)
+    return jsonify({'models': models, 'default_model': default_model}), 201
 
 
 @app.route('/strava/reconnect', methods=['GET'])

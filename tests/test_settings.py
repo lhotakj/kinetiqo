@@ -116,7 +116,7 @@ class TestSettingsApi(unittest.TestCase):
             self.assertIn("flex flex-wrap items-center gap-3", content)
         self.assertNotIn('"token": "{{agent-ai}}"', content)
         for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
-            self.assertEqual(content.count(f">{heading}</th>"), 6, heading)
+            self.assertEqual(content.count(f">{heading}</th>"), 7, heading)
 
     def test_settings_page_contains_section_anchors(self):
         repo = MagicMock()

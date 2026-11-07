@@ -27,8 +27,8 @@ class TestChatChartTemplatesAndSource(unittest.TestCase):
 
         # Chart.js is loaded in head
         self.assertIn("vendor/chartjs/chart-4.5.1.umd.min.js", content)
-        # Cache buster bumped to -chat-v39
-        self.assertIn("-chat-v39", content)
+        # Cache buster bumped to -chat-v40
+        self.assertIn("-chat-v40", content)
 
     def test_chat_js_contains_safe_lifecycle_and_light_export(self):
         with open(self.chat_js_path, "r", encoding="utf-8") as f:

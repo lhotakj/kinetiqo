@@ -1,8 +1,8 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, and Poe adapters implemented with live validation and dynamic tool calling)
+> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI adapters implemented with live validation and dynamic tool calling)
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
-> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI).
+> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI.
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
 > **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
 > **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
@@ -66,6 +66,7 @@ A user can:
 - **OpenRouter AI Provider**: OpenAI-compatible REST completions gateway supporting arbitrary models (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, Nemotron, etc.), user-managed free-text model registration, live model validation (`GET /api/v1/model/{author}/{slug}`), and a responsive management table with `+` and `-` actions in Settings.
 - **Vercel AI Gateway Provider**: OpenAI-compatible edge gateway (`https://ai-gateway.vercel.sh/v1`) providing low-latency routing to leading models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic, OpenAI, etc.), free-text model registration, live model validation (`GET /v1/models/{model_id}` and `/v1/models`), fuzzy suggestion matching, and responsive management table with `+` and `-` actions in Settings.
 - **Poe Provider**: OpenAI-compatible streaming API at `https://api.poe.com/v1`, Bearer-key authentication, configurable Poe bot handles validated via `GET https://api.poe.com/bots/{handle}`, and provider-reported optional metadata only. Poe has no assumed default bot; its model list contains only explicitly configured handles.
+- **Mistral AI Provider**: Direct REST adapter (`https://api.mistral.ai/v1`) with Bearer-key authentication, auto-discovery of chat models (`GET /v1/models`), exclusion of non-chat endpoints (embeddings, moderations, OCR), dynamic model ranking, and OpenAI-compatible streaming tool calling.
 - Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
 - Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
 - `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
@@ -478,11 +479,14 @@ PROVIDER_REGISTRY = {
     "gemini": GeminiChatProvider,
     "openrouter": OpenRouterChatProvider,
     "vercel": VercelChatProvider,
+    "kilo": KiloChatProvider,
+    "poe": PoeChatProvider,
     "ollama": OllamaChatProvider,
+    "mistral": MistralChatProvider,
 }
 ```
 
-The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, and Vercel AI Gateway adapters are first-class citizens in Kinetiqo v3.0.
+The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, and Mistral AI adapters are first-class citizens in Kinetiqo v3.0.
 
 ### 6.3 Error taxonomy
 
@@ -511,7 +515,7 @@ Kinetiqo enables athletes to designate a primary **Default Model** as well as up
    - Persisted in global athlete settings (`chat_provider_keys` with provider `__global__` and setting key `default_model`).
 
 2. **Fallback Sequence (Up to 3 Models)**:
-   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Ollama).
+   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral).
    - Displayed in the UI with a 45° rotated square diamond badge containing the sequence number (`1`, `2`, or `3`).
    - The priority/order of fallback execution is strictly determined by the chronological order in which the athlete clicks them:
      - **Fallback 1**: First alternate attempted.
@@ -947,6 +951,9 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | GET/POST/DELETE | `/api/settings/ai/poe` | Read Poe configuration, save an encrypted API key, or remove the key. |
 | POST | `/api/settings/ai/poe/models/validate` | Validate a Poe bot handle and return available bot metadata. |
 | POST/DELETE | `/api/settings/ai/poe/models` | Add or remove a configured Poe bot handle. |
+| GET/POST/DELETE | `/api/settings/ai/mistral` | Read Mistral AI configuration, discover models (`GET /v1/models`), save key, or remove key. |
+| POST | `/api/settings/ai/mistral/models/validate` | Validate a Mistral model identifier and return model metadata. |
+| POST/DELETE | `/api/settings/ai/mistral/models` | Add or remove a custom configured Mistral model. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 | GET/POST | `/api/settings/ai/default-model` | Get or set the default AI model (`{"provider": "...", "model_id": "..."}`). |
 | GET/POST | `/api/settings/ai/fallback-models` | Get or set the fallback models list (up to 3 models in order: `[{"provider": "...", "model_id": "..."}, ...]`). |
