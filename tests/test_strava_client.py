@@ -221,6 +221,310 @@ class TestGetAthleteKoms(unittest.TestCase):
         self.assertEqual(mock_sleep.call_count, 1)
 
 
+class TestTokenExpiryAndAutoRefresh(unittest.TestCase):
+    """Unit tests for token expiration detection and automatic refresh."""
+
+    @patch("kinetiqo.strava.requests.post")
+    def test_get_access_token_refreshes_when_expired(self, mock_post):
+        import time
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"access_token": "new-token", "expires_at": int(time.time()) + 3600, "refresh_token": "new-ref"}
+        )
+        client = StravaClient(_make_config())
+        client._access_token = "old-token"
+        client._expires_at = int(time.time()) - 100  # already expired
+
+        token = client._get_access_token()
+        self.assertEqual(token, "new-token")
+        mock_post.assert_called_once()
+
+    @patch("kinetiqo.strava.requests.post")
+    def test_get_access_token_refreshes_when_nearing_expiration(self, mock_post):
+        import time
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"access_token": "new-token", "expires_at": int(time.time()) + 3600, "refresh_token": "new-ref"}
+        )
+        client = StravaClient(_make_config())
+        client._access_token = "old-token"
+        client._expires_at = int(time.time()) + 60  # expires in 60s (< 120s buffer)
+
+        token = client._get_access_token()
+        self.assertEqual(token, "new-token")
+        mock_post.assert_called_once()
+
+    @patch("kinetiqo.strava.requests.post")
+    def test_get_access_token_reuses_valid_token(self, mock_post):
+        import time
+        client = StravaClient(_make_config())
+        client._access_token = "valid-token"
+        client._expires_at = int(time.time()) + 3600  # valid for 1h
+
+        token = client._get_access_token()
+        self.assertEqual(token, "valid-token")
+        mock_post.assert_not_called()
+
+
+class Test401AutoRefreshAndFailFast(unittest.TestCase):
+    """Unit tests for automatic 401 recovery via token refresh and fast failure if unrecoverable."""
+
+    def _make_client(self):
+        import time
+        client = StravaClient(_make_config())
+        client._access_token = "token"
+        client._expires_at = int(time.time()) + 3600
+        return client
+
+    @patch("kinetiqo.strava.time.sleep")
+    @patch("kinetiqo.strava.requests.post")
+    @patch("kinetiqo.strava.requests.get")
+    def test_get_activity_detail_recovers_from_401_via_refresh(self, mock_get, mock_post, mock_sleep):
+        """When detail returns 401, client refreshes token and retries successfully once."""
+        import time
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"access_token": "fresh-token", "expires_at": int(time.time()) + 3600, "refresh_token": "ref"}
+        )
+        err_401 = _http_error_response(401)
+        ok_resp = MagicMock(raise_for_status=lambda: None, json=lambda: {"id": 123, "description": "test"})
+        mock_get.side_effect = [err_401, ok_resp]
+
+        client = self._make_client()
+        detail = client.get_activity_detail(123)
+
+        self.assertEqual(detail, {"id": 123, "description": "test"})
+        self.assertEqual(mock_get.call_count, 2)
+        mock_post.assert_called_once()
+        mock_sleep.assert_not_called()  # Did NOT wait 2s, 4s, 8s backoff!
+
+    @patch("kinetiqo.strava.time.sleep")
+    @patch("kinetiqo.strava.requests.post")
+    @patch("kinetiqo.strava.requests.get")
+    def test_get_activity_detail_fails_fast_on_persistent_401(self, mock_get, mock_post, mock_sleep):
+        """If 401 persists after token refresh, raise StravaAuthError without generic backoff retries."""
+        import time
+        from kinetiqo.strava import StravaAuthError
+
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"access_token": "fresh-token", "expires_at": int(time.time()) + 3600, "refresh_token": "ref"}
+        )
+        err_401_first = _http_error_response(401)
+        err_401_second = _http_error_response(401)
+        mock_get.side_effect = [err_401_first, err_401_second]
+
+        client = self._make_client()
+        with self.assertRaises(StravaAuthError):
+            client.get_activity_detail(123)
+
+        # 1 initial GET + 1 retried GET after refresh = 2 GET calls, 0 exponential backoff sleeps
+        self.assertEqual(mock_get.call_count, 2)
+        mock_post.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @patch("kinetiqo.strava.time.sleep")
+    @patch("kinetiqo.strava.requests.post")
+    @patch("kinetiqo.strava.requests.get")
+    def test_get_streams_recovers_from_401(self, mock_get, mock_post, mock_sleep):
+        """Streams endpoint also refreshes token on 401."""
+        import time
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"access_token": "fresh-token", "expires_at": int(time.time()) + 3600, "refresh_token": "ref"}
+        )
+        err_401 = _http_error_response(401)
+        ok_resp = MagicMock(raise_for_status=lambda: None, json=lambda: {"time": {"data": [1, 2]}})
+        mock_get.side_effect = [err_401, ok_resp]
+
+        client = self._make_client()
+        streams = client.get_streams(123)
+
+        self.assertEqual(streams, {"time": {"data": [1, 2]}})
+        self.assertEqual(mock_get.call_count, 2)
+        mock_post.assert_called_once()
+
+    @patch("kinetiqo.strava.time.sleep")
+    @patch("kinetiqo.strava.requests.get")
+    def test_rate_limit_429_raises_strava_rate_limit_error(self, mock_get, mock_sleep):
+        """HTTP 429 raises StravaRateLimitError to prevent hammering the API."""
+        from kinetiqo.strava import StravaRateLimitError
+
+        mock_get.return_value = _http_error_response(429)
+        mock_get.return_value.headers = {}
+
+        client = self._make_client()
+        with self.assertRaises(StravaRateLimitError):
+            client.get_activity_detail(123)
+
+
+class TestStravaRateLimitMonitoring(unittest.TestCase):
+    """Unit tests for Strava API rate limit parsing, 90% warning detection,
+    and callback notifications.
+    """
+
+    def setUp(self):
+        from kinetiqo.strava import reset_rate_limits
+        reset_rate_limits()
+
+    def tearDown(self):
+        from kinetiqo.strava import reset_rate_limits
+        reset_rate_limits()
+
+    def _make_client(self):
+        client = StravaClient(_make_config())
+        client._access_token = "token"
+        return client
+
+    def test_parse_rate_limit_header(self):
+        from kinetiqo.strava import parse_rate_limit_header
+
+        self.assertEqual(parse_rate_limit_header("100,1000"), (100, 1000))
+        self.assertEqual(parse_rate_limit_header(" 200 , 2000 "), (200, 2000))
+        self.assertEqual(parse_rate_limit_header("50"), (50, 50))
+        self.assertIsNone(parse_rate_limit_header(None))
+        self.assertIsNone(parse_rate_limit_header(""))
+        self.assertIsNone(parse_rate_limit_header("invalid,format"))
+
+    def test_tracker_under_90_percent_no_warning(self):
+        from kinetiqo.strava import StravaRateLimitTracker
+        tracker = StravaRateLimitTracker()
+
+        headers = {
+            "X-RateLimit-Limit": "100,1000",
+            "X-RateLimit-Usage": "50,400",
+        }
+        warning = tracker.observe(headers)
+        self.assertIsNone(warning)
+        self.assertIsNone(tracker.get_active_warning())
+
+    def test_tracker_15m_reaches_90_percent(self):
+        from kinetiqo.strava import StravaRateLimitTracker
+        tracker = StravaRateLimitTracker()
+
+        headers = {
+            "X-RateLimit-Limit": "100,1000",
+            "X-RateLimit-Usage": "90,400",
+        }
+        warning = tracker.observe(headers)
+        self.assertIsNotNone(warning)
+        self.assertIn("90% limit has been reached", warning)
+        self.assertIn("15-minute: 90/100 requests used, 10 remaining", warning)
+        self.assertEqual(tracker.get_active_warning(), warning)
+
+    def test_tracker_daily_reaches_90_percent(self):
+        from kinetiqo.strava import StravaRateLimitTracker
+        tracker = StravaRateLimitTracker()
+
+        headers = {
+            "X-RateLimit-Limit": "200,2000",
+            "X-RateLimit-Usage": "50,1850",
+        }
+        warning = tracker.observe(headers)
+        self.assertIsNotNone(warning)
+        self.assertIn("90% limit has been reached", warning)
+        self.assertIn("daily: 1850/2000 requests used, 150 remaining", warning)
+
+    def test_tracker_read_headers_reach_90_percent(self):
+        from kinetiqo.strava import StravaRateLimitTracker
+        tracker = StravaRateLimitTracker()
+
+        headers = {
+            "X-RateLimit-Limit": "200,2000",
+            "X-RateLimit-Usage": "50,400",
+            "X-ReadRateLimit-Limit": "100,1000",
+            "X-ReadRateLimit-Usage": "95,400",
+        }
+        warning = tracker.observe(headers)
+        self.assertIsNotNone(warning)
+        self.assertIn("90% limit has been reached", warning)
+        self.assertIn("15-minute read: 95/100 requests used, 5 remaining", warning)
+
+    def test_tracker_fallback_to_remaining_header(self):
+        from kinetiqo.strava import StravaRateLimitTracker
+        tracker = StravaRateLimitTracker()
+
+        headers = {
+            "X-RateLimit-Limit": "100,1000",
+            "X-RateLimit-Remaining": "8,500",
+        }
+        warning = tracker.observe(headers)
+        self.assertIsNotNone(warning)
+        self.assertIn("90% limit has been reached", warning)
+        self.assertIn("15-minute: 92/100 requests used, 8 remaining", warning)
+
+    def test_tracker_expires_at_reset_window(self):
+        from kinetiqo.strava import StravaRateLimitTracker
+        tracker = StravaRateLimitTracker()
+
+        now_ts = 1731067200.0  # Exactly at a 15m mark
+        headers = {
+            "X-RateLimit-Limit": "100,1000",
+            "X-RateLimit-Usage": "92,400",
+        }
+        tracker.observe(headers, now_ts=now_ts)
+        self.assertIsNotNone(tracker.get_active_warning(now_ts=now_ts + 60))
+
+        # After 15 minutes (900 seconds), 15m window has reset
+        self.assertIsNone(tracker.get_active_warning(now_ts=now_ts + 901))
+
+    @patch("kinetiqo.strava.logger.warning")
+    @patch("kinetiqo.strava.requests.get")
+    def test_client_observes_headers_and_notifies_callback(self, mock_get, mock_log_warn):
+        """StravaClient._request observes rate limit headers, triggers callback, and logs warning."""
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = {"id": 123, "name": "Test Ride"}
+        resp.headers = {
+            "X-RateLimit-Limit": "100,1000",
+            "X-RateLimit-Usage": "94,300",
+        }
+        mock_get.return_value = resp
+
+        client = self._make_client()
+        callback_warnings = []
+        client.set_rate_limit_warning_callback(lambda msg: callback_warnings.append(msg))
+
+        detail = client.get_activity_detail(123)
+        self.assertEqual(detail["id"], 123)
+
+        # Callback was invoked
+        self.assertEqual(len(callback_warnings), 1)
+        self.assertIn("90% limit has been reached", callback_warnings[0])
+        self.assertIn("15-minute: 94/100", callback_warnings[0])
+
+        # Queued on client
+        queued = client.pop_rate_limit_warnings()
+        self.assertEqual(len(queued), 1)
+        self.assertEqual(client.pop_rate_limit_warnings(), [])
+
+        # Logged via logger.warning
+        mock_log_warn.assert_called_once()
+        self.assertIn("90% limit has been reached", mock_log_warn.call_args[0][0])
+
+    @patch("kinetiqo.strava.requests.get")
+    def test_client_observes_rate_limits_on_429(self, mock_get):
+        """Even on HTTP 429, headers are parsed and rate limit warning is recorded."""
+        from kinetiqo.strava import StravaRateLimitError
+
+        resp = _http_error_response(429)
+        resp.headers = {
+            "X-RateLimit-Limit": "100,1000",
+            "X-RateLimit-Usage": "100,300",
+        }
+        mock_get.return_value = resp
+
+        client = self._make_client()
+        with self.assertRaises(StravaRateLimitError):
+            client.get_activity_detail(123)
+
+        active = client.get_active_rate_limit_warning()
+        self.assertIsNotNone(active)
+        self.assertIn("90% limit has been reached", active)
+        self.assertIn("15-minute: 100/100", active)
+
+
 if __name__ == "__main__":
     unittest.main()
 

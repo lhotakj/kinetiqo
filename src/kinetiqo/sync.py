@@ -12,11 +12,13 @@ import requests
 
 from kinetiqo.config import Config, UPDATE_STRAVA_MAX_ITEMS
 from kinetiqo.db.factory import create_repository
-from kinetiqo.strava import StravaClient, StravaFetchError
+from kinetiqo.strava import StravaClient, StravaFetchError, StravaAuthError, StravaRateLimitError
 from kinetiqo.profile_sync import (
     sync_update_strava_from_env,
     sync_gps_simplification_from_env,
     sync_athlete_weight_from_env,
+    wire_refresh_token_persistence,
+    resolve_refresh_token_from_db,
 )
 from kinetiqo.strava_description import (
     AI_AGENT_TOKEN_PREFIX,
@@ -109,6 +111,22 @@ class SyncService:
         # description-update attempts entirely instead of retrying/failing on
         # every single remaining activity (see _update_strava_description()).
         self._update_strava_unauthorized = False
+        self._rate_limit_warnings_queue: list[str] = []
+        if hasattr(self.strava, "set_rate_limit_warning_callback"):
+            try:
+                self.strava.set_rate_limit_warning_callback(self._on_rate_limit_warning)
+            except Exception:
+                pass
+        if getattr(self.config, "on_refresh_token_changed", None) is None:
+            wire_refresh_token_persistence(self.config)
+        try:
+            resolve_refresh_token_from_db(self.config, self.db.get_profile())
+        except Exception as ref_err:
+            logger.debug(f"Could not resolve refresh token from DB: {ref_err}")
+
+    def _on_rate_limit_warning(self, msg: str) -> None:
+        if msg not in self._rate_limit_warnings_queue:
+            self._rate_limit_warnings_queue.append(msg)
 
     def _check_stop_signal(self):
         """Check for an external stop signal.
@@ -323,6 +341,8 @@ class SyncService:
         removed_count = 0
         ai_changed_count = 0
         weather_count = 0
+        trophies_modified = False
+        trophies_cache = {}
         success = True
         stopped = False
         lease_token = secrets.token_urlsafe(32)
@@ -396,6 +416,22 @@ class SyncService:
             else:
                 live_html = f'<div class="mb-4">{log_content}</div>{status_html}'
                 return f"data: {live_html.replace(chr(10), '')}\n\n"
+
+        def drain_rate_limit_warnings():
+            to_drain = list(getattr(self, "_rate_limit_warnings_queue", []))
+            if hasattr(self, "_rate_limit_warnings_queue"):
+                self._rate_limit_warnings_queue.clear()
+            if hasattr(self.strava, "pop_rate_limit_warnings"):
+                try:
+                    for w in self.strava.pop_rate_limit_warnings():
+                        if w not in to_drain:
+                            to_drain.append(w)
+                except Exception:
+                    pass
+            for w in to_drain:
+                if w not in sync_warnings:
+                    sync_warnings.append(w)
+                    yield yield_log(f"Warning: {w}")
 
         try:
             self.db.initialize_schema()
@@ -634,6 +670,7 @@ class SyncService:
                 sync_warnings.append(msg)
                 yield yield_log(msg)
 
+            yield from drain_rate_limit_warnings()
             yield yield_log(f"Found {len(activities)} activities from Strava.")
 
             new_activities = [a for a in activities if str(a["id"]) not in synced_ids]
@@ -686,6 +723,9 @@ class SyncService:
             # --- Phase 1: Sync all activities (existing + new) in one pass ---
             total_activities = len(activities)
             trophies_cache = load_verified_trophies()
+            trophies_modified = False
+            new_trophy_fetches = 0
+            MAX_NEW_TROPHY_FETCHES = 10
             hourly_weather_cache: dict[tuple[str, str], dict[int, dict[str, Any]]] = {}
             if weather_enabled:
                 if resync_weather:
@@ -853,43 +893,98 @@ class SyncService:
                 already_scanned = bool(cached_tr.get("scanned")) or any(
                     int(cached_tr.get(str(r), 0)) > 0 for r in range(2, 11)
                 )
-                needs_trophies = (ach_count > 0) and not already_scanned
 
-                if needs_trophies:
+                if already_scanned:
+                    podium = [f"#{r}: {cached_tr.get(str(r), 0)}" for r in range(1, 11) if int(cached_tr.get(str(r), 0)) > 0]
+                    if podium:
+                        trophies_suffix = f" [{', '.join(podium)}]"
+
+                needs_desc = (description_context is not None) and (act_id_str in description_update_ids)
+                needs_new_trophies = (not is_existing) and (ach_count > 0) and (not already_scanned) and (new_trophy_fetches < MAX_NEW_TROPHY_FETCHES)
+
+                if needs_desc or needs_new_trophies:
                     try:
                         detail = self.strava.get_activity_detail(activity_id)
+                        if needs_new_trophies:
+                            new_trophy_fetches += 1
+                    except (StravaAuthError, requests.exceptions.HTTPError) as det_err:
+                        status_code = getattr(getattr(det_err, "response", None), "status_code", None)
+                        if isinstance(det_err, StravaAuthError) or status_code == 401:
+                            auth_msg = (
+                                f"Strava authentication failed (401 Unauthorized) while fetching activity detail for {activity_id}. "
+                                "Please reauthorize your Strava account in Settings."
+                            )
+                            logger.error(auth_msg)
+                            sync_warnings.append(auth_msg)
+                            yield yield_log(f"Error: {auth_msg}")
+                            stopped = True
+                            break
+                        if isinstance(det_err, StravaRateLimitError) or status_code == 429:
+                            rate_msg = (
+                                f"Strava rate limit exceeded (HTTP 429) while fetching activity detail for {activity_id}. "
+                                "Stopping sync to respect Strava API limits."
+                            )
+                            logger.warning(rate_msg)
+                            sync_warnings.append(rate_msg)
+                            yield yield_log(f"Warning: {rate_msg}")
+                            stopped = True
+                            break
+                        logger.warning(f"Failed to fetch activity detail for {activity_id}: {det_err}")
                     except Exception as det_err:
                         logger.warning(f"Failed to fetch activity detail for {activity_id}: {det_err}")
 
-                if detail and needs_trophies:
+                if detail and (needs_new_trophies or (ach_count > 0 and not already_scanned)):
                     efforts = detail.get("segment_efforts", [])
                     t_dict = extract_trophies_from_segment_efforts(efforts) if efforts else {r: 0 for r in range(1, 11)}
                     record_activity_trophies(activity_id, t_dict)
                     activity["trophies"] = t_dict
                     trophies_cache[act_id_str] = {str(r): t_dict[r] for r in range(1, 11)}
                     trophies_cache[act_id_str]["scanned"] = 1
+                    trophies_modified = True
                     podium = [f"#{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
                     if podium:
                         trophies_suffix = f" [{', '.join(podium)}]"
-                elif already_scanned:
-                    podium = [f"#{r}: {cached_tr.get(str(r), 0)}" for r in range(1, 11) if int(cached_tr.get(str(r), 0)) > 0]
-                    if podium:
-                        trophies_suffix = f" [{', '.join(podium)}]"
+                    if new_trophy_fetches % 5 == 0:
+                        save_verified_trophies(trophies_cache)
 
                 try:
                     self.db.write_activity(activity)
                     if is_existing:
                         updated_count += 1
                     else:
-                        streams = self.strava.get_streams(activity_id)
-                        point_count = len(streams.get('time', {}).get('data', []))
-                        if point_count > 0:
-                            self.db.write_activity_streams(activity, streams)
-                            added_count += 1
-                        else:
-                            msg = f"Activity {activity_id} has no stream data."
-                            logger.warning(msg)
-                            sync_warnings.append(msg)
+                        try:
+                            streams = self.strava.get_streams(activity_id)
+                            point_count = len(streams.get('time', {}).get('data', []))
+                            if point_count > 0:
+                                self.db.write_activity_streams(activity, streams)
+                                added_count += 1
+                            else:
+                                msg = f"Activity {activity_id} has no stream data."
+                                logger.warning(msg)
+                                sync_warnings.append(msg)
+                        except (StravaAuthError, requests.exceptions.HTTPError) as stream_err:
+                            status_code = getattr(getattr(stream_err, "response", None), "status_code", None)
+                            if isinstance(stream_err, StravaAuthError) or status_code == 401:
+                                auth_msg = (
+                                    f"Strava authentication failed (401 Unauthorized) while fetching streams for activity {activity_id}. "
+                                    "Please reauthorize your Strava account in Settings."
+                                )
+                                logger.error(auth_msg)
+                                sync_warnings.append(auth_msg)
+                                yield yield_log(f"Error: {auth_msg}")
+                                stopped = True
+                                break
+                            if isinstance(stream_err, StravaRateLimitError) or status_code == 429:
+                                rate_msg = (
+                                    f"Strava rate limit exceeded (HTTP 429) while fetching streams for activity {activity_id}. "
+                                    "Stopping sync to respect Strava API limits."
+                                )
+                                logger.warning(rate_msg)
+                                sync_warnings.append(rate_msg)
+                                yield yield_log(f"Warning: {rate_msg}")
+                                stopped = True
+                                break
+                            raise
                     weather_res = enrich_activity_weather(activity)
                     weather_tag = weather_res[0]
                     weather_warning = weather_res[1]
@@ -975,11 +1070,13 @@ class SyncService:
                     logger.exception(msg)
                     yield yield_log(f"[{i}/{total_activities}] ({percent:.0f}%) {name} ({sport}) — failed: {e}")
                 time.sleep(0.1)
+                yield from drain_rate_limit_warnings()
 
-            save_verified_trophies(trophies_cache)
+            if trophies_modified:
+                save_verified_trophies(trophies_cache)
 
             # --- Phase 2: Delete stale activities ---
-            if ids_to_delete:
+            if ids_to_delete and not stopped:
                 try:
                     self.db.delete_activities(list(ids_to_delete))
                     removed_count = len(ids_to_delete)
@@ -990,96 +1087,127 @@ class SyncService:
                     yield yield_log(msg)
 
             # --- Phase 3: Sync athlete KOMs and backfill any legacy database activities ---
-            try:
-                yield yield_log("Syncing King of the Mountains (KOMs) and trophies from Strava...")
-                athlete = self.strava.get_athlete()
-                if athlete and athlete.get("id"):
-                    koms_list = self.strava.get_athlete_koms(athlete["id"])
-                    koms_by_activity: dict[str, int] = {}
-                    for effort in koms_list:
-                        act_ref = effort.get("activity") or {}
-                        act_id = act_ref.get("id")
-                        if act_id:
-                            act_id_str = str(act_id)
-                            koms_by_activity[act_id_str] = koms_by_activity.get(act_id_str, 0) + 1
+            if not stopped:
+                try:
+                    yield yield_log("Syncing King of the Mountains (KOMs) and trophies from Strava...")
+                    athlete = self.strava.get_athlete()
+                    if athlete and athlete.get("id"):
+                        koms_list = self.strava.get_athlete_koms(athlete["id"])
+                        koms_by_activity: dict[str, int] = {}
+                        for effort in koms_list:
+                            act_ref = effort.get("activity") or {}
+                            act_id = act_ref.get("id")
+                            if act_id:
+                                act_id_str = str(act_id)
+                                koms_by_activity[act_id_str] = koms_by_activity.get(act_id_str, 0) + 1
 
-                    save_verified_koms(koms_by_activity)
-                    trophies_cache = load_verified_trophies()
-                    for act_id_str, count in koms_by_activity.items():
-                        if act_id_str not in trophies_cache:
-                            trophies_cache[act_id_str] = {str(r): 0 for r in range(1, 11)}
-                        trophies_cache[act_id_str]["1"] = max(trophies_cache[act_id_str].get("1", 0), count)
-                        try:
-                            self.db.update_activity_trophies(act_id_str, trophies_cache[act_id_str])
-                        except Exception:
-                            pass
-                    save_verified_trophies(trophies_cache)
-                    yield yield_log(f"Synced {len(koms_list)} verified KOMs across {len(koms_by_activity)} activities.")
-
-                    # Only scan historical activities from DB if any legacy backlog remains unscanned
-                    unscanned_db = []
-                    try:
-                        max_db = 40 if full_sync else 15
-                        unscanned_db = self.db.get_activities_needing_trophies(limit=max_db)
-                    except Exception as db_err:
-                        logger.debug(f"Could not query database for unscanned trophy activities: {db_err}")
-
-                    if unscanned_db:
-                        yield yield_log(f"Backfilling segment trophies for {len(unscanned_db)} historical activities...")
-                        for idx, act in enumerate(unscanned_db, start=1):
-                            if should_stop():
-                                stopped = True
-                                yield yield_log("Stop signal received during trophy scan. Aborting...", final=True, is_stopped=True)
-                                return
-
-                            act_id = act.get("id") or act.get("activity_id")
-                            act_id_str = str(act_id)
-                            name = act.get("name") or f"Activity {act_id_str}"
-                            disp_name = (name[:28] + "...") if len(name) > 31 else name
-
+                        save_verified_koms(koms_by_activity)
+                        trophies_cache = load_verified_trophies()
+                        for act_id_str, count in koms_by_activity.items():
+                            if act_id_str not in trophies_cache:
+                                trophies_cache[act_id_str] = {str(r): 0 for r in range(1, 11)}
+                            trophies_cache[act_id_str]["1"] = max(trophies_cache[act_id_str].get("1", 0), count)
                             try:
-                                detail = self.strava.get_activity_detail(act_id_str)
-                                efforts = (detail or {}).get("segment_efforts", [])
-                                if efforts:
-                                    t_dict = extract_trophies_from_segment_efforts(efforts)
-                                    if act_id_str in koms_by_activity:
-                                        t_dict[1] = max(t_dict[1], koms_by_activity[act_id_str])
-                                    record_activity_trophies(act_id_str, t_dict)
-                                    try:
-                                        self.db.update_activity_trophies(act_id_str, t_dict)
-                                    except Exception:
-                                        pass
-                                    trophies_cache[act_id_str] = {str(r): t_dict[r] for r in range(1, 11)}
-                                    trophies_cache[act_id_str]["scanned"] = 1
-                                    podium = [f"#{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
-                                    if podium:
-                                        yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> {', '.join(podium)}")
-                                    else:
-                                        yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> no top-10 trophies")
-                                else:
-                                    empty_dict = {r: 0 for r in range(1, 11)}
-                                    if act_id_str in koms_by_activity:
-                                        empty_dict[1] = koms_by_activity[act_id_str]
-                                    record_activity_trophies(act_id_str, empty_dict)
-                                    try:
-                                        self.db.update_activity_trophies(act_id_str, empty_dict)
-                                    except Exception:
-                                        pass
-                                    trophies_cache[act_id_str] = {str(r): empty_dict[r] for r in range(1, 11)}
-                                    trophies_cache[act_id_str]["scanned"] = 1
-                                    yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> no segment efforts")
-                            except Exception as det_err:
-                                logger.warning(f"Historical trophy backfill skipped for {act_id_str}: {det_err}")
-
-                            if idx % 5 == 0:
-                                save_verified_trophies(trophies_cache)
-                            time.sleep(0.05)
-
+                                self.db.update_activity_trophies(act_id_str, trophies_cache[act_id_str])
+                            except Exception:
+                                pass
                         save_verified_trophies(trophies_cache)
-            except Exception as e:
-                logger.warning(f"Failed to sync athlete KOMs/trophies: {e}")
-                sync_warnings.append(f"Failed to sync athlete KOMs/trophies: {e}")
-                yield yield_log(f"Warning: Failed to sync athlete KOMs/trophies: {e}")
+                        yield from drain_rate_limit_warnings()
+                        yield yield_log(f"Synced {len(koms_list)} verified KOMs across {len(koms_by_activity)} activities.")
+
+                        # Only scan historical activities from DB if any legacy backlog remains unscanned
+                        unscanned_db = []
+                        try:
+                            max_db = 40 if full_sync else 15
+                            unscanned_db = self.db.get_activities_needing_trophies(limit=max_db)
+                        except Exception as db_err:
+                            logger.debug(f"Could not query database for unscanned trophy activities: {db_err}")
+
+                        if unscanned_db:
+                            yield yield_log(f"Backfilling segment trophies for {len(unscanned_db)} historical activities...")
+                            for idx, act in enumerate(unscanned_db, start=1):
+                                if should_stop():
+                                    stopped = True
+                                    yield yield_log("Stop signal received during trophy scan. Aborting...", final=True, is_stopped=True)
+                                    return
+
+                                act_id = act.get("id") or act.get("activity_id")
+                                act_id_str = str(act_id)
+                                name = act.get("name") or f"Activity {act_id_str}"
+                                disp_name = (name[:28] + "...") if len(name) > 31 else name
+
+                                try:
+                                    detail = self.strava.get_activity_detail(act_id_str)
+                                    efforts = (detail or {}).get("segment_efforts", [])
+                                    if efforts:
+                                        t_dict = extract_trophies_from_segment_efforts(efforts)
+                                        if act_id_str in koms_by_activity:
+                                            t_dict[1] = max(t_dict[1], koms_by_activity[act_id_str])
+                                        record_activity_trophies(act_id_str, t_dict)
+                                        try:
+                                            self.db.update_activity_trophies(act_id_str, t_dict)
+                                        except Exception:
+                                            pass
+                                        trophies_cache[act_id_str] = {str(r): t_dict[r] for r in range(1, 11)}
+                                        trophies_cache[act_id_str]["scanned"] = 1
+                                        trophies_modified = True
+                                        podium = [f"#{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
+                                        if podium:
+                                            yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> {', '.join(podium)}")
+                                        else:
+                                            yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> no top-10 trophies")
+                                    else:
+                                        empty_dict = {r: 0 for r in range(1, 11)}
+                                        if act_id_str in koms_by_activity:
+                                            empty_dict[1] = koms_by_activity[act_id_str]
+                                        record_activity_trophies(act_id_str, empty_dict)
+                                        try:
+                                            self.db.update_activity_trophies(act_id_str, empty_dict)
+                                        except Exception:
+                                            pass
+                                        trophies_cache[act_id_str] = {str(r): empty_dict[r] for r in range(1, 11)}
+                                        trophies_cache[act_id_str]["scanned"] = 1
+                                        trophies_modified = True
+                                        yield yield_log(f"[{idx}/{len(unscanned_db)}] {disp_name} -> no segment efforts")
+                                except (StravaAuthError, requests.exceptions.HTTPError) as det_err:
+                                    status_code = getattr(getattr(det_err, "response", None), "status_code", None)
+                                    if isinstance(det_err, StravaAuthError) or status_code == 401:
+                                        auth_msg = "Strava authentication failed (401 Unauthorized) during trophy backfill."
+                                        logger.error(auth_msg)
+                                        sync_warnings.append(auth_msg)
+                                        yield yield_log(f"Error: {auth_msg}")
+                                        break
+                                    if isinstance(det_err, StravaRateLimitError) or status_code == 429:
+                                        rate_msg = "Strava rate limit exceeded (HTTP 429) during trophy backfill."
+                                        logger.warning(rate_msg)
+                                        sync_warnings.append(rate_msg)
+                                        yield yield_log(f"Warning: {rate_msg}")
+                                        break
+                                    logger.warning(f"Historical trophy backfill skipped for {act_id_str}: {det_err}")
+                                except Exception as det_err:
+                                    logger.warning(f"Historical trophy backfill skipped for {act_id_str}: {det_err}")
+
+                                if idx % 5 == 0:
+                                    save_verified_trophies(trophies_cache)
+                                yield from drain_rate_limit_warnings()
+                                time.sleep(0.05)
+
+                            save_verified_trophies(trophies_cache)
+                except (StravaAuthError, requests.exceptions.HTTPError) as e:
+                    status_code = getattr(getattr(e, "response", None), "status_code", None)
+                    if isinstance(e, StravaAuthError) or status_code == 401:
+                        msg = "Strava authentication failed (401 Unauthorized) during KOM sync."
+                    elif isinstance(e, StravaRateLimitError) or status_code == 429:
+                        msg = "Strava rate limit exceeded (HTTP 429) during KOM sync."
+                    else:
+                        msg = f"Failed to sync athlete KOMs/trophies: {e}"
+                    logger.warning(msg)
+                    sync_warnings.append(msg)
+                    yield yield_log(f"Warning: {msg}")
+                except Exception as e:
+                    logger.warning(f"Failed to sync athlete KOMs/trophies: {e}")
+                    sync_warnings.append(f"Failed to sync athlete KOMs/trophies: {e}")
+                    yield yield_log(f"Warning: Failed to sync athlete KOMs/trophies: {e}")
 
             if full_sync and success and not stopped:
                 try:
@@ -1089,6 +1217,8 @@ class SyncService:
                     yield yield_log(stats_msg)
                 except Exception as opt_err:
                     logger.warning(f"Failed to update database statistics: {opt_err}")
+
+            yield from drain_rate_limit_warnings()
 
             summary_lines = [
                 f"Sync complete. Added: {added_count}, updated: {updated_count}, removed: {removed_count}."
@@ -1108,6 +1238,11 @@ class SyncService:
             yield yield_log(f"Sync failed: {e}", final=True)
             raise
         finally:
+            if trophies_modified:
+                try:
+                    save_verified_trophies(trophies_cache)
+                except Exception:
+                    pass
             lease_stop.set()
             if lease_thread is not None and lease_thread is not threading.current_thread():
                 lease_thread.join(timeout=5)

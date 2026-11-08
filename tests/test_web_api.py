@@ -404,3 +404,49 @@ def test_license_page_contains_visual_crossing(monkeypatch):
     assert "PyYAML" in html
     assert "2.2.4 (local copy)" in html
 
+
+def test_strava_rate_limit_banner_in_web_ui(monkeypatch):
+    """When a 90% rate limit warning is active, Web UI pages render the Strava rate limit warning banner."""
+    from kinetiqo.strava import reset_rate_limits, GLOBAL_RATE_LIMIT_TRACKER
+    reset_rate_limits()
+
+    app.config['LOGIN_DISABLED'] = True
+    client = app.test_client()
+    monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
+
+    # 1. Without rate limit warning: banner should not appear
+    resp = client.get('/license')
+    assert resp.status_code == 200
+    assert "stravaRateLimitBanner" not in resp.get_data(as_text=True)
+
+    # 2. Trigger 90% rate limit warning
+    GLOBAL_RATE_LIMIT_TRACKER.observe({
+        "X-RateLimit-Limit": "100,1000",
+        "X-RateLimit-Usage": "92,450",
+    })
+
+    # Dummy repo for pages extending base.html like /activities
+    class DummyActivitiesRepo:
+        def get_all_activities(self):
+            return []
+        def get_profile(self):
+            return {}
+        def close(self):
+            pass
+
+    monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: DummyActivitiesRepo())
+    monkeypatch.setattr('kinetiqo.web.app.get_db', lambda: DummyActivitiesRepo())
+
+    resp = client.get('/activities')
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "stravaRateLimitBanner" in html
+    assert "90% limit has been reached" in html
+    assert "15-minute: 92/100 requests used, 8 remaining" in html
+
+    # Reset cleans up
+    reset_rate_limits()
+    resp = client.get('/activities')
+    assert "stravaRateLimitBanner" not in resp.get_data(as_text=True)
+
+

@@ -415,7 +415,8 @@ def scan_trophies(ctx, limit, database):
     config = ctx.obj.config
     repo = create_repository(config)
     try:
-        from kinetiqo.strava import StravaClient
+        from kinetiqo.strava import StravaClient, StravaAuthError, StravaRateLimitError
+        import requests
         from kinetiqo.koms import (
             extract_trophies_from_segment_efforts,
             record_activity_trophies,
@@ -431,26 +432,41 @@ def scan_trophies(ctx, limit, database):
         logger.info(f"Found {len(unscanned)} activities to scan.")
         trophies_cache = load_verified_trophies()
         scanned_count = 0
-        for act in unscanned:
-            act_id = str(act.get("id") or act.get("activity_id"))
-            name = act.get("name", "Activity")
-            try:
-                detail = strava.get_activity_detail(act_id)
-                efforts = (detail or {}).get("segment_efforts", [])
-                t_dict = extract_trophies_from_segment_efforts(efforts) if efforts else {r: 0 for r in range(1, 11)}
-                record_activity_trophies(act_id, t_dict)
-                repo.update_activity_trophies(act_id, t_dict)
-                trophies_cache[act_id] = {str(r): t_dict[r] for r in range(1, 11)}
-                trophies_cache[act_id]["scanned"] = 1
-                scanned_count += 1
-                podium = [f"{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
-                ranks_str = ", ".join(podium) if podium else "none"
-                logger.info(f"[{scanned_count}/{len(unscanned)}] {name} ({act_id}) -> trophies: {ranks_str}")
-                time.sleep(0.05)
-            except Exception as e:
-                logger.warning(f"Failed to scan trophies for {act_id}: {e}")
-        save_verified_trophies(trophies_cache)
+        try:
+            for act in unscanned:
+                act_id = str(act.get("id") or act.get("activity_id"))
+                name = act.get("name", "Activity")
+                try:
+                    detail = strava.get_activity_detail(act_id)
+                    efforts = (detail or {}).get("segment_efforts", [])
+                    t_dict = extract_trophies_from_segment_efforts(efforts) if efforts else {r: 0 for r in range(1, 11)}
+                    record_activity_trophies(act_id, t_dict)
+                    repo.update_activity_trophies(act_id, t_dict)
+                    trophies_cache[act_id] = {str(r): t_dict[r] for r in range(1, 11)}
+                    trophies_cache[act_id]["scanned"] = 1
+                    scanned_count += 1
+                    podium = [f"{r}: {t_dict[r]}" for r in range(1, 11) if t_dict[r] > 0]
+                    ranks_str = ", ".join(podium) if podium else "none"
+                    logger.info(f"[{scanned_count}/{len(unscanned)}] {name} ({act_id}) -> trophies: {ranks_str}")
+                    time.sleep(0.05)
+                except (StravaAuthError, requests.exceptions.HTTPError) as auth_err:
+                    status_code = getattr(getattr(auth_err, "response", None), "status_code", None)
+                    if isinstance(auth_err, StravaAuthError) or status_code == 401:
+                        logger.error(f"Stopping scan-trophies due to Strava authentication failure (401): {auth_err}")
+                        break
+                    if isinstance(auth_err, StravaRateLimitError) or status_code == 429:
+                        logger.warning(f"Stopping scan-trophies due to Strava rate limit (429): {auth_err}")
+                        break
+                    logger.warning(f"Failed to scan trophies for {act_id}: {auth_err}")
+                except Exception as e:
+                    logger.warning(f"Failed to scan trophies for {act_id}: {e}")
+        finally:
+            save_verified_trophies(trophies_cache)
         logger.info(f"Successfully scanned trophies for {scanned_count} activities.")
+        if hasattr(strava, "get_active_rate_limit_warning"):
+            active_warn = strava.get_active_rate_limit_warning()
+            if active_warn:
+                logger.warning(active_warn)
     finally:
         repo.close()
 

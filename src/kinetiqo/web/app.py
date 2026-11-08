@@ -6550,6 +6550,12 @@ def inject_version():
     }
 
 
+@app.context_processor
+def inject_strava_rate_limit():
+    from kinetiqo.strava import get_active_rate_limit_warning
+    return {'strava_rate_limit_warning': get_active_rate_limit_warning()}
+
+
 def run_app():
     """Run the Flask development server (for local testing only)."""
     app.run(debug=True, port=4444, host='0.0.0.0')

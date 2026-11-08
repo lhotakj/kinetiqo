@@ -25,6 +25,7 @@ def make_service():
     svc.strava = types.SimpleNamespace()
     svc.db = types.SimpleNamespace()
     svc._update_strava_unauthorized = False
+    svc._rate_limit_warnings_queue = []
     return svc
 
 
@@ -149,3 +150,100 @@ def test_retrigger_ai_agents_replaces_successes_and_retains_failed_cache(monkeyp
         'agent-ai-unused': 'Unused response',
     }
     svc.db.update_activity_ai_responses.assert_called_once_with(42, activity['ai_responses'])
+
+
+def test_sync_skips_activity_detail_for_existing_activities(monkeypatch):
+    from collections import deque
+    svc = make_service()
+    mock_db = MagicMock()
+    mock_db.acquire_sync_lease.return_value = True
+    mock_db.get_synced_activity_ids.return_value = {'1001', '1002'}
+    mock_db.get_profile.return_value = {}
+    svc.db = mock_db
+
+    mock_strava = MagicMock()
+    # 2 existing activities, both having achievements
+    activities = [
+        {'id': 1001, 'name': 'Ride 1', 'sport_type': 'Ride', 'achievement_count': 5, 'start_date': '2024-01-01T00:00:00Z'},
+        {'id': 1002, 'name': 'Ride 2', 'sport_type': 'Ride', 'achievement_count': 3, 'start_date': '2024-01-02T00:00:00Z'},
+    ]
+    mock_strava.get_activities.side_effect = lambda container, after=None: (container.extend(activities), iter([]))[1]
+    svc.strava = mock_strava
+
+    # Disallow description updates so needs_desc is False
+    monkeypatch.setattr('kinetiqo.sync.any_update_strava_template_configured', lambda cfg: False)
+    monkeypatch.setattr('kinetiqo.sync.load_verified_trophies', lambda: {})
+    monkeypatch.setattr('kinetiqo.sync.save_verified_trophies', MagicMock())
+
+    deque(svc.sync(full_sync=True, trigger='test'), maxlen=0)
+
+    # Both activities should be written to DB, but get_activity_detail should NOT be called in Phase 1!
+    assert mock_db.write_activity.call_count == 2
+    mock_strava.get_activity_detail.assert_not_called()
+
+
+def test_sync_halts_immediately_on_strava_auth_error(monkeypatch):
+    from collections import deque
+    from kinetiqo.strava import StravaAuthError
+
+    svc = make_service()
+    mock_db = MagicMock()
+    mock_db.acquire_sync_lease.return_value = True
+    mock_db.get_synced_activity_ids.return_value = set()  # new activities
+    mock_db.get_profile.return_value = {}
+    svc.db = mock_db
+
+    mock_strava = MagicMock()
+    activities = [
+        {'id': 1001, 'name': 'Ride 1', 'sport_type': 'Ride', 'achievement_count': 1, 'start_date': '2024-01-01T00:00:00Z'},
+        {'id': 1002, 'name': 'Ride 2', 'sport_type': 'Ride', 'achievement_count': 1, 'start_date': '2024-01-02T00:00:00Z'},
+        {'id': 1003, 'name': 'Ride 3', 'sport_type': 'Ride', 'achievement_count': 1, 'start_date': '2024-01-03T00:00:00Z'},
+    ]
+    mock_strava.get_activities.side_effect = lambda container, after=None: (container.extend(activities), iter([]))[1]
+    mock_resp = MagicMock(status_code=401)
+    mock_strava.get_activity_detail.side_effect = StravaAuthError("401 Client Error: Unauthorized", response=mock_resp)
+    svc.strava = mock_strava
+
+    monkeypatch.setattr('kinetiqo.sync.any_update_strava_template_configured', lambda cfg: False)
+    monkeypatch.setattr('kinetiqo.sync.load_verified_trophies', lambda: {})
+    monkeypatch.setattr('kinetiqo.sync.save_verified_trophies', MagicMock())
+
+    deque(svc.sync(full_sync=True, trigger='test'), maxlen=0)
+
+    # Crucial assertion: get_activity_detail was called ONLY ONCE and the loop immediately stopped
+    assert mock_strava.get_activity_detail.call_count == 1
+    mock_strava.get_athlete.assert_not_called()
+
+
+def test_sync_yields_and_records_rate_limit_warning(monkeypatch):
+    """When a 90% rate limit warning is detected, sync yields it and includes in final warnings."""
+    svc = make_service()
+    svc._rate_limit_warnings_queue = []
+    mock_db = MagicMock()
+    mock_db.acquire_sync_lease.return_value = True
+    mock_db.get_synced_activity_ids.return_value = set()
+    mock_db.get_profile.return_value = {}
+    svc.db = mock_db
+
+    mock_strava = MagicMock()
+    activities = [
+        {'id': 1001, 'name': 'Ride 1', 'sport_type': 'Ride', 'achievement_count': 0, 'start_date': '2024-01-01T00:00:00Z'},
+    ]
+    mock_strava.get_activities.side_effect = lambda container, after=None: (container.extend(activities), iter([]))[1]
+    mock_strava.get_athlete.return_value = {'id': 99}
+    mock_strava.get_athlete_koms.return_value = []
+    # Simulate a rate limit warning queued by the client
+    rate_warning = "Strava API rate limit warning: 90% limit has been reached (15-minute: 92/100 requests used, 8 remaining)."
+    mock_strava.pop_rate_limit_warnings.return_value = [rate_warning]
+    svc.strava = mock_strava
+
+    monkeypatch.setattr('kinetiqo.sync.any_update_strava_template_configured', lambda cfg: False)
+    monkeypatch.setattr('kinetiqo.sync.load_verified_trophies', lambda: {})
+    monkeypatch.setattr('kinetiqo.sync.save_verified_trophies', MagicMock())
+
+    events = list(svc.sync(full_sync=True, trigger='test'))
+    event_texts = "".join(events)
+
+    # Must be yielded during sync and rendered in final warnings card
+    assert "90% limit has been reached" in event_texts
+    assert "15-minute: 92/100" in event_texts
