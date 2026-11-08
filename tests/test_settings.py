@@ -33,6 +33,18 @@ class TestDescribeCron(unittest.TestCase):
         self.assertEqual(describe_cron("0 3 1 * *"), "Monthly on the 1st at 03:00")
         self.assertEqual(describe_cron("0 3 31 12 *"), "Yearly on December 31st at 03:00")
 
+    def test_hour_range_schedule(self):
+        self.assertEqual(describe_cron("0 8-22 * * *"), "At minute 0 past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("15 8-22 * * *"), "At minute 15 past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("0 8-22 * * 1-5"), "At minute 0 past every hour from 8 through 22, Monday through Friday.")
+        self.assertEqual(describe_cron("*/10 8-22 * * *"), "Every 10 minutes past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("* 8-22 * * *"), "Every minute past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("0 8-22/2 * * *"), "At minute 0 past every 2 hours from 8 through 22.")
+
+    def test_hourly_schedule(self):
+        self.assertEqual(describe_cron("0 * * * *"), "At minute 0 past every hour.")
+        self.assertEqual(describe_cron("45 * * * *"), "At minute 45 past every hour.")
+
     def test_unknown_or_invalid_schedule_is_returned_unchanged(self):
         self.assertEqual(describe_cron("0 0 * *"), "0 0 * *")
         self.assertEqual(describe_cron("0 24 * * *"), "0 24 * * *")

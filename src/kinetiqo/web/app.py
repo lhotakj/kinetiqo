@@ -546,6 +546,12 @@ def describe_cron(expression):
         return f"{number}{suffix}"
 
     def describe_weekdays(value):
+        if "-" in value and "," not in value:
+            w_range = value.split("-", 1)
+            start_name = day_names.get(w_range[0].strip().lower())
+            end_name = day_names.get(w_range[1].strip().lower())
+            if start_name and end_name:
+                return f"{start_name} through {end_name}"
         days = []
         for part in value.split(","):
             name = day_names.get(part.strip().lower())
@@ -556,11 +562,55 @@ def describe_cron(expression):
             return days[0]
         return f"{', '.join(days[:-1])} and {days[-1]}"
 
+    def parse_range(val, min_bound, max_bound):
+        step = None
+        if "/" in val:
+            val, step_str = val.split("/", 1)
+            if not is_int(step_str) or int(step_str) < 1:
+                return None
+            step = int(step_str)
+        if "-" not in val:
+            return None
+        r_parts = val.split("-", 1)
+        if len(r_parts) != 2 or not is_int(r_parts[0]) or not is_int(r_parts[1]):
+            return None
+        start, end = int(r_parts[0]), int(r_parts[1])
+        if min_bound <= start <= end <= max_bound:
+            return start, end, step
+        return None
+
     if minute.startswith("*/") and hour == "*" and day == "*" and month == "*" and dow == "*":
         interval = minute.split("/", 1)[1]
         if is_int(interval) and int(interval) > 0:
             unit = "minute" if int(interval) == 1 else "minutes"
             return f"Every {interval} {unit}"
+
+    # Hour range: e.g. "0 8-22 * * *" or "0 8-22 * * 1-5"
+    hr_range = parse_range(hour, 0, 23)
+    if hr_range and day == "*" and month == "*":
+        h_start, h_end, h_step = hr_range
+        step_phrase = f"every {h_step} hours" if h_step else "every hour"
+        dow_phrase = ""
+        if dow != "*":
+            wks = describe_weekdays(dow)
+            if wks:
+                dow_phrase = f", {wks}"
+            else:
+                return expression
+
+        if is_int(minute) and 0 <= int(minute) <= 59:
+            return f"At minute {int(minute)} past {step_phrase} from {h_start} through {h_end}{dow_phrase}."
+        if minute.startswith("*/"):
+            m_step = minute.split("/", 1)[1]
+            if is_int(m_step) and int(m_step) > 0:
+                unit = "minute" if int(m_step) == 1 else "minutes"
+                return f"Every {m_step} {unit} past {step_phrase} from {h_start} through {h_end}{dow_phrase}."
+        if minute == "*":
+            return f"Every minute past {step_phrase} from {h_start} through {h_end}{dow_phrase}."
+
+    # Hourly at minute X: e.g. "0 * * * *" or "15 * * * *"
+    if is_int(minute) and 0 <= int(minute) <= 59 and hour == "*" and day == "*" and month == "*" and dow == "*":
+        return f"At minute {int(minute)} past every hour."
 
     time_description = describe_time(hour, minute)
     if time_description is None:
@@ -4195,6 +4245,13 @@ def _has_strava_description_templates() -> bool:
 def _is_weather_configured() -> bool:
     """Check if the Visual Crossing API key is configured."""
     return bool((getattr(config, "visual_crossing_api_key", None) or os.getenv("VISUAL_CROSSING_API_KEY", "")).strip())
+
+
+@app.route('/sync', methods=['GET'])
+@login_required
+def sync_page():
+    """Redirect /sync to /fastsync."""
+    return redirect(url_for('fastsync'))
 
 
 @app.route('/fullsync', methods=['GET'])

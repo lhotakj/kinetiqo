@@ -10,7 +10,11 @@ cd "$REPO_ROOT"
 # Ensure pytest and pytest-cov are available; install if missing (convenience for local runs)
 if ! python -c "import pytest, pytest_cov" >/dev/null 2>&1; then
   echo "pytest/pytest-cov not found; installing via pip"
-  python -m pip install pytest pytest-cov
+  if [ -f "$REPO_ROOT/requirements-dev.txt" ]; then
+    python -m pip install --only-binary :all: -r "$REPO_ROOT/requirements-dev.txt"
+  else
+    python -m pip install --only-binary :all: pytest pytest-cov
+  fi
 fi
 
 echo "Running pytest with coverage (pythonpath=src)"

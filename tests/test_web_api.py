@@ -406,7 +406,7 @@ def test_license_page_contains_visual_crossing(monkeypatch):
 
 
 def test_strava_rate_limit_banner_in_web_ui(monkeypatch):
-    """When a 90% rate limit warning is active, Web UI pages render the Strava rate limit warning banner."""
+    """When a 90% rate limit warning is active, Web UI sync pages render the Strava rate limit warning banner."""
     from kinetiqo.strava import reset_rate_limits, GLOBAL_RATE_LIMIT_TRACKER
     reset_rate_limits()
 
@@ -414,18 +414,7 @@ def test_strava_rate_limit_banner_in_web_ui(monkeypatch):
     client = app.test_client()
     monkeypatch.setattr('kinetiqo.web.app.ensure_startup_profile_sync', lambda: None)
 
-    # 1. Without rate limit warning: banner should not appear
-    resp = client.get('/license')
-    assert resp.status_code == 200
-    assert "stravaRateLimitBanner" not in resp.get_data(as_text=True)
-
-    # 2. Trigger 90% rate limit warning
-    GLOBAL_RATE_LIMIT_TRACKER.observe({
-        "X-RateLimit-Limit": "100,1000",
-        "X-RateLimit-Usage": "92,450",
-    })
-
-    # Dummy repo for pages extending base.html like /activities
+    # Dummy repo for pages calling get_db()
     class DummyActivitiesRepo:
         def get_all_activities(self):
             return []
@@ -437,16 +426,48 @@ def test_strava_rate_limit_banner_in_web_ui(monkeypatch):
     monkeypatch.setattr('kinetiqo.web.app.create_repository', lambda cfg: DummyActivitiesRepo())
     monkeypatch.setattr('kinetiqo.web.app.get_db', lambda: DummyActivitiesRepo())
 
-    resp = client.get('/activities')
+    # 1. Without rate limit warning: banner should not appear
+    resp = client.get('/license')
+    assert resp.status_code == 200
+    assert "stravaRateLimitBanner" not in resp.get_data(as_text=True)
+    resp_sync_clean = client.get('/fastsync')
+    assert resp_sync_clean.status_code == 200
+    assert "stravaRateLimitBanner" not in resp_sync_clean.get_data(as_text=True)
+
+    # 2. Trigger 90% rate limit warning
+    GLOBAL_RATE_LIMIT_TRACKER.observe({
+        "X-RateLimit-Limit": "100,1000",
+        "X-RateLimit-Usage": "92,450",
+    })
+
+    # Banner MUST appear on sync pages (/fastsync and /fullsync)
+    resp = client.get('/fastsync')
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert "stravaRateLimitBanner" in html
     assert "90% limit has been reached" in html
     assert "15-minute: 92/100 requests used, 8 remaining" in html
 
+    resp_full = client.get('/fullsync')
+    assert resp_full.status_code == 200
+    assert "stravaRateLimitBanner" in resp_full.get_data(as_text=True)
+
+    # /sync route redirects to /fastsync
+    resp_sync_redir = client.get('/sync')
+    assert resp_sync_redir.status_code in (301, 302)
+
+    # Banner MUST NOT appear on /settings or /activities
+    resp_settings = client.get('/settings')
+    assert resp_settings.status_code == 200
+    assert "stravaRateLimitBanner" not in resp_settings.get_data(as_text=True)
+
+    resp_acts = client.get('/activities')
+    assert resp_acts.status_code == 200
+    assert "stravaRateLimitBanner" not in resp_acts.get_data(as_text=True)
+
     # Reset cleans up
     reset_rate_limits()
-    resp = client.get('/activities')
+    resp = client.get('/fastsync')
     assert "stravaRateLimitBanner" not in resp.get_data(as_text=True)
 
 
