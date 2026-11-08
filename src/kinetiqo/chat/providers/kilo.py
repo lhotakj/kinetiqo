@@ -76,9 +76,22 @@ DEFAULT_KILO_MODELS = (
 
 class KiloChatProvider(BaseChatProvider):
     provider_name = "kilo"
+    display_name = "Kilo AI Gateway"
+    description = "High-performance AI Gateway with auto-routing and free tier models"
     base_url = _BASE_URL
     default_model = "kilo-auto/free"
     preferred_models = tuple(m["id"] for m in DEFAULT_KILO_MODELS)
+    auth_type = "api_key"
+    api_key_placeholder = "Enter Kilo AI API key"
+    model_mode = "curated"
+    validate_on_refresh = True
+    suggested_models = (
+        {"id": "kilo-auto/free", "label": "kilo-auto/free (Free)"},
+        {"id": "meta-llama/llama-3.3-70b-instruct", "label": "meta-llama/llama-3.3-70b-instruct"},
+        {"id": "deepseek/deepseek-r1", "label": "deepseek/deepseek-r1"},
+        {"id": "google/gemini-2.5-flash", "label": "google/gemini-2.5-flash"},
+    )
+    docs_url = "https://kilo.ai/docs"
 
     def __init__(
         self,

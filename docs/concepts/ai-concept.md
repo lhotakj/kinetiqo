@@ -649,9 +649,30 @@ Each agent row also exposes a non-persistent **Try this prompt with your activit
         | **DeepSeek V3**<br>`deepseek/deepseek-chat` | 64k tokens | Text, Tools | Provider metadata where available | `+` `–` |
         | **Nemotron 3.5 1B (Free)**<br>`nvidia/nemotron-3.5-embed-1b:free` | 131k tokens | Text | Provider metadata where available | `+` `–` |
      - **Action Controls**: Explicitly uses `+` (add another model) and `–` (remove/disable model) action buttons. **No trash bin icon is used**, keeping the table clean and unobtrusive.
-   - All four provider tables (Gemini, OpenRouter, Vercel AI Gateway, and Ollama) use the same columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
-   - Gemini displays the input context limit, output-token limit, and description from its model catalog. Ollama displays its reported parameter size. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
+   - All provider tables (Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI) use the identical shared columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
+   - Gemini and Mistral display their discovered model catalogs directly from their respective APIs. Ollama displays its reported parameter size from its local daemon. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
    - The Actions column shows `-` for providers whose models are discovered rather than user-managed.
+
+#### Generic Parameterized REST Endpoints & Declarative Manifests
+
+To support rapid, boilerplate-free addition of new AI providers (e.g. Anthropic Claude, OpenAI ChatGPT) without duplicating Flask routes or client-side JavaScript controllers:
+
+1. **Declarative Provider Manifest (`BaseChatProvider`)**:
+   - Each provider subclass in `kinetiqo.chat.providers` declares class metadata: `provider_name`, `display_name`, `description`, `auth_type` (`"api_key"` or `"url_and_key"`), `api_key_placeholder`, `model_mode` (`"discovered"` or `"curated"`), `suggested_models`, `docs_url`, and `validate_on_refresh`.
+   - `PROVIDER_REGISTRY` in `kinetiqo.chat.providers.__init__` serves as the single source of truth for all available backends, with `list_all_provider_manifests()` providing discovery metadata.
+
+2. **Unified REST API Endpoints**:
+   - `GET /api/settings/ai/providers/<provider_id>`: Discovers status, models (refreshing discovered catalogs or curated entries when appropriate), default model designation, and manifest metadata.
+   - `POST /api/settings/ai/providers/<provider_id>`: Saves credentials (and optional base URLs) and triggers auto-discovery if `model_mode == "discovered"`.
+   - `DELETE /api/settings/ai/providers/<provider_id>`: Removes credentials and clears default/fallback model assignments.
+   - `POST /api/settings/ai/providers/<provider_id>/models/validate`: Validates model identifier against the provider's catalog.
+   - `POST /api/settings/ai/providers/<provider_id>/models`: Appends a validated model to the user's curated models list.
+   - `DELETE /api/settings/ai/providers/<provider_id>/models`: Removes a model and clears any active default/fallback links.
+   - `POST /api/settings/ai/providers/<provider_id>/test`: Validates server connectivity (e.g. for self-hosted Ollama).
+   - Legacy routes (e.g. `/api/settings/ai/openrouter`) remain backward-compatible delegates to these generic handlers.
+
+3. **Unified Frontend Controller**:
+   - Replaces duplicate per-provider model renderers, status fetchers, and submit handlers in `settings.html` with polymorphic `renderProviderModels(provider, models)`, `loadProviderStatus(provider)`, `saveCurrentProvider()`, and `handleAddModel(provider)`.
 
 ### 8.4 Database Schema & Persistence Contract
 To support per-provider custom configurations (such as OpenRouter's enabled models list) while maintaining 100% database portability across **PostgreSQL**, **MySQL**, and **Firebird**:

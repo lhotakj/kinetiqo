@@ -43,9 +43,16 @@ PREFERRED_MODELS = (
 
 class GeminiChatProvider(BaseChatProvider):
     provider_name = "gemini"
+    display_name = "Google Gemini"
+    description = "Official Gemini API with auto-discovered generation models"
     default_model = "gemini-3.1-flash-lite"
     deprecated_models = DEPRECATED_MODELS
     preferred_models = PREFERRED_MODELS
+    auth_type = "api_key"
+    api_key_placeholder = "Enter Gemini API key"
+    model_mode = "discovered"
+    suggested_models = ()
+    docs_url = "https://ai.google.dev/"
 
     def __init__(self, api_key: str, client_factory=httpx.Client):
         super().__init__(api_key, client_factory or httpx.Client)

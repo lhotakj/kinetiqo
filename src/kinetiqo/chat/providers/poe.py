@@ -24,9 +24,20 @@ class PoeChatProvider(KiloChatProvider):
     """OpenAI-compatible Poe gateway for configured Poe bot handles."""
 
     provider_name = "poe"
+    display_name = "Poe"
+    description = "Direct access to Poe bots and custom AI assistants via api.poe.com"
     base_url = _BASE_URL
     default_model = ""
     preferred_models: tuple[str, ...] = ()
+    auth_type = "api_key"
+    api_key_placeholder = "Enter Poe API key"
+    model_mode = "curated"
+    suggested_models = (
+        {"id": "Claude-3.5-Sonnet", "label": "Claude-3.5-Sonnet"},
+        {"id": "GPT-4o", "label": "GPT-4o"},
+        {"id": "Gemini-1.5-Pro", "label": "Gemini-1.5-Pro"},
+    )
+    docs_url = "https://developer.poe.com/"
 
     def _headers(self) -> dict[str, str]:
         return {

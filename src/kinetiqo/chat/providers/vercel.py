@@ -77,8 +77,21 @@ DEFAULT_VERCEL_MODELS = (
 
 class VercelChatProvider(BaseChatProvider):
     provider_name = "vercel"
+    display_name = "Vercel AI Gateway"
+    description = "Fast unified gateway to 100+ open & frontier models via Vercel AI Gateway"
     default_model = "moonshotai/kimi-k2.6"
     preferred_models = tuple(m["id"] for m in DEFAULT_VERCEL_MODELS)
+    auth_type = "api_key"
+    api_key_placeholder = "Enter Vercel AI Gateway key"
+    model_mode = "curated"
+    validate_on_refresh = True
+    suggested_models = (
+        {"id": "nvidia/nemotron-3.5-lightning-free", "label": "nvidia/nemotron-3.5-lightning-free (Free)"},
+        {"id": "moonshotai/kimi-k2.6", "label": "moonshotai/kimi-k2.6"},
+        {"id": "meta/llama-3.3-70b", "label": "meta/llama-3.3-70b"},
+        {"id": "deepseek/deepseek-r1", "label": "deepseek/deepseek-r1"},
+    )
+    docs_url = "https://vercel.com/docs/ai-gateway"
 
     def __init__(
         self,

@@ -163,6 +163,7 @@ Kinetiqo Flask Application Server
 - Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
 - Values such as Gemini context and output-token limits, Mistral context sizes, or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
 - Remove actions are available only for providers with user-managed model lists; discovered-model providers (Gemini, Ollama, Mistral) show `-` in the Actions column.
+- Settings communicates with unified parameterized REST endpoints (`/api/settings/ai/providers/<provider_id>`), enabling seamless addition of future backends (such as Anthropic Claude or OpenAI ChatGPT) with minimal adapter code and zero UI duplication.
 
 ### 4.9 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.

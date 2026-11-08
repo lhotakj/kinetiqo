@@ -69,8 +69,21 @@ DEFAULT_OPENROUTER_MODELS = (
 
 class OpenRouterChatProvider(BaseChatProvider):
     provider_name = "openrouter"
+    display_name = "OpenRouter AI"
+    description = "Access hundreds of open & commercial models via openrouter.ai"
     default_model = "meta-llama/llama-3.3-70b-instruct"
     preferred_models = tuple(m["id"] for m in DEFAULT_OPENROUTER_MODELS)
+    auth_type = "api_key"
+    api_key_placeholder = "sk-or-v1-..."
+    model_mode = "curated"
+    validate_on_refresh = True
+    suggested_models = (
+        {"id": "meta-llama/llama-3.3-70b-instruct", "label": "meta-llama/llama-3.3-70b-instruct"},
+        {"id": "deepseek/deepseek-chat", "label": "deepseek/deepseek-chat"},
+        {"id": "google/gemma-4-26b-a4b-it:free", "label": "google/gemma-4-26b-a4b-it:free"},
+        {"id": "nvidia/nemotron-3.5-lightning:free", "label": "nvidia/nemotron-3.5-lightning:free"},
+    )
+    docs_url = "https://openrouter.ai/docs"
 
     def __init__(
         self,

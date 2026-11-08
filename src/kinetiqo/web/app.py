@@ -82,6 +82,12 @@ from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncry
 from kinetiqo.chat.errors import ChatError, ChatConfigurationError
 from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
+from kinetiqo.chat.providers import (
+    PROVIDER_REGISTRY,
+    get_provider_class,
+    get_provider_manifest,
+    list_all_provider_manifests,
+)
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
 from kinetiqo.chat.providers.mistral import MistralChatProvider
@@ -124,15 +130,12 @@ STRAVA_RECONNECT_TITLE = "Reconnect with Strava"
 STRAVA_RECONNECT_TEMPLATE = "strava_reconnect.html"
 PNG_MIMETYPE = "image/png"
 UTC_OFFSET_SUFFIX = "+00:00"
-AI_PROVIDER_META = {
-    "gemini": "Google Gemini",
-    "openrouter": "OpenRouter AI",
-    "vercel": "Vercel AI Gateway",
-    "kilo": "Kilo AI Gateway",
-    "poe": "Poe",
-    "ollama": "Ollama (Local AI)",
-    "mistral": "Mistral AI",
-}
+def _get_ai_provider_meta() -> dict[str, str]:
+    manifests = list_all_provider_manifests()
+    return {m["provider"]: m["display_name"] for m in manifests}
+
+
+AI_PROVIDER_META = _get_ai_provider_meta()
 
 # CSRF protection: enabled when Flask-WTF is available. In development, a generated secret is acceptable.
 app = Flask(__name__, template_folder='./templates', static_folder='./static', static_url_path='/static')
@@ -2459,7 +2462,8 @@ def _chat_error(error: Exception, status: int = 400):
 
 
 def _is_supported_ai_provider(provider: str) -> bool:
-    return provider in AI_PROVIDER_META
+    clean = (provider or '').strip().lower()
+    return clean in AI_PROVIDER_META or get_provider_class(clean) is not None
 
 
 def _normalize_default_model(value: object) -> dict[str, str] | None:
@@ -2769,20 +2773,187 @@ def chat_fallback_models_settings_api():
     return jsonify({'fallback_models': saved})
 
 
-@app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
-@login_required
-def chat_gemini_settings_api():
+def _resolve_provider_class(provider_id: str):
+    """Resolve provider class, checking globals first to respect unittest.mock.patch."""
+    mapping = {
+        "gemini": "GeminiChatProvider",
+        "openrouter": "OpenRouterChatProvider",
+        "vercel": "VercelChatProvider",
+        "kilo": "KiloChatProvider",
+        "poe": "PoeChatProvider",
+        "ollama": "OllamaChatProvider",
+        "mistral": "MistralChatProvider",
+    }
+    class_name = mapping.get(provider_id)
+    if class_name and class_name in globals():
+        return globals()[class_name]
+    return get_provider_class(provider_id)
+
+
+def handle_provider_settings_api(provider_id: str):
+    """Unified handler for AI provider settings (GET, POST, DELETE)."""
+    provider_id = (provider_id or "").strip().lower()
+    if not _is_supported_ai_provider(provider_id):
+        return _chat_error(ValueError('Unsupported AI provider.'), 404)
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
+    manifest = get_provider_manifest(provider_id) or {}
+    auth_type = manifest.get('auth_type', 'api_key')
+    provider_cls = _resolve_provider_class(provider_id)
+
     if request.method == 'GET':
-        encrypted_key = repository.get_provider_key(athlete_id, 'gemini')
+        if auth_type == 'url_and_key':
+            is_configured = repository.has_provider(athlete_id, provider_id)
+            config_data = repository.get_provider_config(athlete_id, provider_id)
+            has_key = repository.get_provider_key(athlete_id, provider_id) is not None
+            models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, config_data.get('models', []))
+            return jsonify({
+                'configured': is_configured,
+                'base_url': config_data.get('base_url', 'http://localhost:11434'),
+                'has_api_key': has_key,
+                'models': models,
+                'default_model': default_model,
+                'manifest': manifest,
+            })
+
+        encrypted_key = repository.get_provider_key(athlete_id, provider_id)
         has_key = encrypted_key is not None
-        models: list[dict] = []
-        if has_key:
+        config_data = repository.get_provider_config(athlete_id, provider_id)
+        current_models = list(config_data.get('models', []))
+        model_mode = manifest.get('model_mode', 'curated')
+        validate_on_refresh = manifest.get('validate_on_refresh', False)
+
+        if has_key and provider_cls:
             try:
-                api_key = decrypt_api_key(encrypted_key, app.secret_key)
-                provider = GeminiChatProvider(api_key)
-                models = [
+                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
+                if model_mode == 'discovered':
+                    provider = provider_cls(api_key)
+                    models = [
+                        {
+                            'id': model.id,
+                            'name': model.display_name,
+                            'display_name': model.display_name,
+                            'supports_tools': model.supports_tools,
+                            'supports_vision': model.supports_vision,
+                            'context_length': model.context_length,
+                            'max_output_tokens': model.max_output_tokens,
+                            'pricing': model.pricing,
+                            'rate_limits': model.rate_limits,
+                            'request_limits': model.request_limits,
+                            'description': model.description,
+                        }
+                        for model in provider.list_models()
+                    ]
+                    config_data['models'] = models
+                    repository.save_provider_config(athlete_id, provider_id, config_data)
+                    current_models = models
+                elif validate_on_refresh and current_models:
+                    try:
+                        provider = provider_cls(api_key, configured_models=current_models)
+                    except TypeError:
+                        provider = provider_cls(api_key)
+                    refreshed_models = []
+                    for model_item in current_models:
+                        m_id = str((model_item or {}).get('id') or '').strip()
+                        if not m_id:
+                            continue
+                        try:
+                            refreshed = provider.validate_model(m_id)
+                            refreshed_models.append(refreshed)
+                        except Exception:
+                            continue
+                    if refreshed_models != current_models:
+                        config_data['models'] = refreshed_models
+                        repository.save_provider_config(athlete_id, provider_id, config_data)
+                        current_models = refreshed_models
+            except Exception as exc:
+                logger.warning('%s model refresh failed for athlete=%s: %s', provider_id, athlete_id, exc)
+                current_models = repository.get_provider_config(athlete_id, provider_id).get('models', [])
+
+        models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, current_models)
+        return jsonify({
+            'configured': has_key,
+            'models': models,
+            'default_model': default_model,
+            'manifest': manifest,
+        })
+
+    if request.method == 'DELETE':
+        repository.remove_provider_key(athlete_id, provider_id)
+        repository.clear_default_model(athlete_id, provider=provider_id)
+        repository.clear_fallback_model(athlete_id, provider=provider_id)
+        return Response(status=204)
+
+    # POST
+    data = request.get_json(silent=True) or {}
+    if auth_type == 'url_and_key':
+        raw_url = str(data.get('base_url') or '').strip() or 'http://localhost:11434'
+        if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+            return _chat_error(ValueError('Base URL must begin with http:// or https://'), 422)
+        base_url = raw_url.rstrip('/')
+
+        api_key = data.get('api_key')
+        enc_key = ""
+        if isinstance(api_key, str) and api_key.strip():
+            if len(api_key.strip()) > 1024:
+                return _chat_error(ValueError('API key is too long.'), 422)
+            try:
+                enc_key = encrypt_api_key(api_key.strip(), app.secret_key)
+            except ChatEncryptionError as exc:
+                return _chat_error(exc, 500)
+        else:
+            existing_key = repository.get_provider_key(athlete_id, provider_id)
+            if data.get('keep_key') and existing_key:
+                enc_key = existing_key
+
+        discovered_models = []
+        plain_key = api_key.strip() if (isinstance(api_key, str) and api_key.strip()) else (decrypt_api_key(enc_key, app.secret_key) if enc_key else "")
+        if hasattr(provider_cls, 'test_connection'):
+            try:
+                connection_result = provider_cls.test_connection(base_url, plain_key)
+                discovered_models = connection_result.get('models', [])
+            except Exception as exc:
+                logger.info("%s discovery on save skipped: %s", provider_id, exc)
+
+        cfg = {'base_url': base_url}
+        if discovered_models:
+            cfg['models'] = discovered_models
+        else:
+            existing_cfg = repository.get_provider_config(athlete_id, provider_id)
+            if existing_cfg.get('models'):
+                cfg['models'] = existing_cfg['models']
+
+        repository.save_provider_key(
+            athlete_id,
+            provider_id,
+            enc_key,
+            enabled=True,
+            config=cfg,
+        )
+        return jsonify({
+            'configured': True,
+            'base_url': base_url,
+            'has_api_key': bool(enc_key),
+            'models': _decorate_models_with_default(repository, athlete_id, provider_id, cfg.get('models', []))[0],
+            'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
+        })
+
+    api_key = data.get('api_key')
+    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
+        return _chat_error(ValueError('Enter a valid API key.'), 422)
+    try:
+        existing_config = repository.get_provider_config(athlete_id, provider_id)
+        repository.save_provider_key(
+            athlete_id,
+            provider_id,
+            encrypt_api_key(api_key.strip(), app.secret_key),
+            config=existing_config,
+        )
+        models = list(existing_config.get('models', []))
+        if manifest.get('model_mode') == 'discovered' and provider_cls:
+            try:
+                provider = provider_cls(api_key.strip())
+                discovered = [
                     {
                         'id': model.id,
                         'name': model.display_name,
@@ -2798,590 +2969,100 @@ def chat_gemini_settings_api():
                     }
                     for model in provider.list_models()
                 ]
-                cfg = repository.get_provider_config(athlete_id, 'gemini')
-                cfg['models'] = models
-                repository.save_provider_config(athlete_id, 'gemini', cfg)
+                existing_config['models'] = discovered
+                models = discovered
             except Exception as exc:
-                logger.warning('Gemini model refresh failed for athlete=%s: %s', athlete_id, exc)
-                models = repository.get_provider_config(athlete_id, 'gemini').get('models', [])
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'gemini', models)
-        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'gemini')
-        repository.clear_default_model(athlete_id, provider='gemini')
-        repository.clear_fallback_model(athlete_id, provider='gemini')
-        return Response(status=204)
-    data = request.get_json(silent=True) or {}
-    api_key = data.get('api_key')
-    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
-        return _chat_error(ValueError('Enter a valid API key.'), 422)
-    try:
-        existing_config = repository.get_provider_config(athlete_id, 'gemini')
-        repository.save_provider_key(athlete_id, 'gemini', encrypt_api_key(api_key.strip(), app.secret_key))
-        repository.save_provider_config(athlete_id, 'gemini', existing_config)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'gemini', existing_config.get('models', []))
+                logger.warning('%s discovery on key save failed: %s', provider_id, exc)
+            repository.save_provider_config(athlete_id, provider_id, existing_config)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, models)
         return jsonify({'configured': True, 'models': models, 'default_model': default_model})
     except ChatEncryptionError as exc:
         return _chat_error(exc, 500)
 
 
-@app.route('/api/settings/ai/openrouter', methods=['GET', 'POST', 'DELETE'])
-@login_required
-def chat_openrouter_settings_api():
+def handle_provider_validate_model_api(provider_id: str):
+    """Unified handler for AI model validation."""
+    provider_id = (provider_id or "").strip().lower()
+    if not _is_supported_ai_provider(provider_id):
+        return _chat_error(ValueError('Unsupported AI provider.'), 404)
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
-    if request.method == 'GET':
-        has_key = repository.get_provider_key(athlete_id, 'openrouter') is not None
-        config_data = repository.get_provider_config(athlete_id, 'openrouter')
-        current_models = list(config_data.get('models', []))
-        if has_key and current_models:
-            try:
-                encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
-                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
-                provider = OpenRouterChatProvider(api_key, configured_models=current_models)
-                refreshed_models = []
-                for model_item in current_models:
-                    model_id = str((model_item or {}).get('id') or '').strip()
-                    if not model_id:
-                        continue
-                    try:
-                        refreshed = provider.validate_model(model_id)
-                        refreshed_models.append(refreshed)
-                    except Exception:
-                        # Hide unavailable/deprecated models from settings and chat dropdowns.
-                        continue
-                if refreshed_models != current_models:
-                    config_data['models'] = refreshed_models
-                    repository.save_provider_config(athlete_id, 'openrouter', config_data)
-            except Exception as exc:
-                logger.warning('OpenRouter model refresh failed for athlete=%s: %s', athlete_id, exc)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', config_data.get('models', []))
-        return jsonify({
-            'configured': has_key,
-            'models': models,
-            'default_model': default_model,
-        })
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'openrouter')
-        repository.clear_default_model(athlete_id, provider='openrouter')
-        repository.clear_fallback_model(athlete_id, provider='openrouter')
-        return Response(status=204)
-    data = request.get_json(silent=True) or {}
-    api_key = data.get('api_key')
-    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
-        return _chat_error(ValueError('Enter a valid API key.'), 422)
-    try:
-        existing_config = repository.get_provider_config(athlete_id, 'openrouter')
-        repository.save_provider_key(
-            athlete_id,
-            'openrouter',
-            encrypt_api_key(api_key.strip(), app.secret_key),
-            config=existing_config
-        )
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', existing_config.get('models', []))
-        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
-    except ChatEncryptionError as exc:
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/openrouter/models/validate', methods=['POST'])
-@login_required
-def chat_openrouter_validate_model_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+    encrypted_key = repository.get_provider_key(athlete_id, provider_id)
     if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure OpenRouter API key first."), 422)
+        name = AI_PROVIDER_META.get(provider_id, provider_id.title())
+        return _chat_error(ChatConfigurationError(f"Configure {name} API key first."), 422)
     data = request.get_json(silent=True) or {}
     model_id = data.get('model_id')
     if not isinstance(model_id, str) or not model_id.strip():
         return _chat_error(ValueError("Model ID is required."), 422)
+    clean_id = model_id.strip()
     try:
         api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = OpenRouterChatProvider(api_key)
-        model_info = provider.validate_model(model_id.strip())
+        provider_cls = _resolve_provider_class(provider_id)
+        provider = provider_cls(api_key)
+        model_info = provider.validate_model(clean_id)
         return jsonify({'valid': True, 'model': model_info})
     except (ValueError, LookupError, ChatError) as exc:
         return _chat_error(exc, 422)
     except Exception as exc:
-        logger.exception("OpenRouter model validation failed: %s", exc)
+        logger.exception("%s model validation failed: %s", provider_id, exc)
         return _chat_error(exc, 500)
 
 
-@app.route('/api/settings/ai/openrouter/models', methods=['POST', 'DELETE'])
-@login_required
-def chat_openrouter_models_api():
+def handle_provider_models_api(provider_id: str):
+    """Unified handler for adding and removing curated AI models."""
+    provider_id = (provider_id or "").strip().lower()
+    if not _is_supported_ai_provider(provider_id):
+        return _chat_error(ValueError('Unsupported AI provider.'), 404)
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'openrouter')
+    encrypted_key = repository.get_provider_key(athlete_id, provider_id)
     if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure OpenRouter API key first."), 422)
+        name = AI_PROVIDER_META.get(provider_id, provider_id.title())
+        return _chat_error(ChatConfigurationError(f"Configure {name} API key first."), 422)
     data = request.get_json(silent=True) or {}
     model_id = data.get('model_id')
     if not isinstance(model_id, str) or not model_id.strip():
         return _chat_error(ValueError("Model ID is required."), 422)
     clean_id = model_id.strip()
 
-    cfg = repository.get_provider_config(athlete_id, 'openrouter')
+    cfg = repository.get_provider_config(athlete_id, provider_id)
     current_models = list(cfg.get('models', []))
 
     if request.method == 'DELETE':
         new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
         cfg['models'] = new_models
-        repository.save_provider_config(athlete_id, 'openrouter', cfg)
-        repository.clear_default_model(athlete_id, provider='openrouter', model_id=clean_id)
-        repository.clear_fallback_model(athlete_id, provider='openrouter', model_id=clean_id)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', new_models)
+        repository.save_provider_config(athlete_id, provider_id, cfg)
+        repository.clear_default_model(athlete_id, provider=provider_id, model_id=clean_id)
+        repository.clear_fallback_model(athlete_id, provider=provider_id, model_id=clean_id)
+        models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, new_models)
         return jsonify({'models': models, 'default_model': default_model})
 
     # POST - add model
-    # If model is already present, return current list
     if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
-        return jsonify({'models': current_models})
+        models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, current_models)
+        return jsonify({'models': models, 'default_model': default_model})
 
-    # Validate against OpenRouter to get accurate metadata
     try:
         api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = OpenRouterChatProvider(api_key)
+        provider_cls = _resolve_provider_class(provider_id)
+        provider = provider_cls(api_key)
         model_info = provider.validate_model(clean_id)
     except (ValueError, LookupError, ChatError) as exc:
         return _chat_error(exc, 422)
 
     current_models.append(model_info)
     cfg['models'] = current_models
-    repository.save_provider_config(athlete_id, 'openrouter', cfg)
-    models, default_model = _decorate_models_with_default(repository, athlete_id, 'openrouter', current_models)
+    repository.save_provider_config(athlete_id, provider_id, cfg)
+    models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, current_models)
     return jsonify({'models': models, 'default_model': default_model}), 201
 
 
-@app.route('/api/settings/ai/vercel', methods=['GET', 'POST', 'DELETE'])
-@login_required
-def chat_vercel_settings_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    if request.method == 'GET':
-        has_key = repository.get_provider_key(athlete_id, 'vercel') is not None
-        config_data = repository.get_provider_config(athlete_id, 'vercel')
-        current_models = list(config_data.get('models', []))
-        if has_key and current_models:
-            try:
-                encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
-                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
-                provider = VercelChatProvider(api_key, configured_models=current_models)
-                refreshed_models = []
-                for model_item in current_models:
-                    model_id = str((model_item or {}).get('id') or '').strip()
-                    if not model_id:
-                        continue
-                    try:
-                        refreshed = provider.validate_model(model_id)
-                        refreshed_models.append(refreshed)
-                    except Exception:
-                        # Hide unavailable/deprecated models from settings and chat dropdowns.
-                        continue
-                if refreshed_models != current_models:
-                    config_data['models'] = refreshed_models
-                    repository.save_provider_config(athlete_id, 'vercel', config_data)
-            except Exception as exc:
-                logger.warning('Vercel model refresh failed for athlete=%s: %s', athlete_id, exc)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', config_data.get('models', []))
-        return jsonify({
-            'configured': has_key,
-            'models': models,
-            'default_model': default_model,
-        })
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'vercel')
-        repository.clear_default_model(athlete_id, provider='vercel')
-        repository.clear_fallback_model(athlete_id, provider='vercel')
-        return Response(status=204)
-    data = request.get_json(silent=True) or {}
-    api_key = data.get('api_key')
-    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
-        return _chat_error(ValueError('Enter a valid API key.'), 422)
-    try:
-        existing_config = repository.get_provider_config(athlete_id, 'vercel')
-        repository.save_provider_key(
-            athlete_id,
-            'vercel',
-            encrypt_api_key(api_key.strip(), app.secret_key),
-            config=existing_config
-        )
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', existing_config.get('models', []))
-        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
-    except ChatEncryptionError as exc:
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/vercel/models/validate', methods=['POST'])
-@login_required
-def chat_vercel_validate_model_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure Vercel AI Gateway API key first."), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError("Model ID is required."), 422)
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = VercelChatProvider(api_key)
-        model_info = provider.validate_model(model_id.strip())
-        return jsonify({'valid': True, 'model': model_info})
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-    except Exception as exc:
-        logger.exception("Vercel AI Gateway model validation failed: %s", exc)
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/vercel/models', methods=['POST', 'DELETE'])
-@login_required
-def chat_vercel_models_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'vercel')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure Vercel AI Gateway API key first."), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError("Model ID is required."), 422)
-    clean_id = model_id.strip()
-
-    cfg = repository.get_provider_config(athlete_id, 'vercel')
-    current_models = list(cfg.get('models', []))
-
-    if request.method == 'DELETE':
-        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
-        cfg['models'] = new_models
-        repository.save_provider_config(athlete_id, 'vercel', cfg)
-        repository.clear_default_model(athlete_id, provider='vercel', model_id=clean_id)
-        repository.clear_fallback_model(athlete_id, provider='vercel', model_id=clean_id)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', new_models)
-        return jsonify({'models': models, 'default_model': default_model})
-
-    # POST - add model
-    # If model is already present, return current list
-    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
-        return jsonify({'models': current_models})
-
-    # Validate against Vercel to get accurate metadata
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = VercelChatProvider(api_key)
-        model_info = provider.validate_model(clean_id)
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-
-    current_models.append(model_info)
-    cfg['models'] = current_models
-    repository.save_provider_config(athlete_id, 'vercel', cfg)
-    models, default_model = _decorate_models_with_default(repository, athlete_id, 'vercel', current_models)
-    return jsonify({'models': models, 'default_model': default_model}), 201
-
-
-@app.route('/api/settings/ai/kilo', methods=['GET', 'POST', 'DELETE'])
-@login_required
-def chat_kilo_settings_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    if request.method == 'GET':
-        has_key = repository.get_provider_key(athlete_id, 'kilo') is not None
-        config_data = repository.get_provider_config(athlete_id, 'kilo')
-        current_models = list(config_data.get('models', []))
-        if has_key and current_models:
-            try:
-                encrypted_key = repository.get_provider_key(athlete_id, 'kilo')
-                api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
-                provider = KiloChatProvider(api_key, configured_models=current_models)
-                refreshed_models = []
-                for model_item in current_models:
-                    model_id = str((model_item or {}).get('id') or '').strip()
-                    if not model_id:
-                        continue
-                    try:
-                        refreshed = provider.validate_model(model_id)
-                        refreshed_models.append(refreshed)
-                    except Exception:
-                        # Hide unavailable/deprecated models from settings and chat dropdowns.
-                        continue
-                if refreshed_models != current_models:
-                    config_data['models'] = refreshed_models
-                    repository.save_provider_config(athlete_id, 'kilo', config_data)
-            except Exception as exc:
-                logger.warning('Kilo model refresh failed for athlete=%s: %s', athlete_id, exc)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', config_data.get('models', []))
-        return jsonify({
-            'configured': has_key,
-            'models': models,
-            'default_model': default_model,
-        })
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'kilo')
-        repository.clear_default_model(athlete_id, provider='kilo')
-        repository.clear_fallback_model(athlete_id, provider='kilo')
-        return Response(status=204)
-    data = request.get_json(silent=True) or {}
-    api_key = data.get('api_key')
-    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
-        return _chat_error(ValueError('Enter a valid API key.'), 422)
-    try:
-        existing_config = repository.get_provider_config(athlete_id, 'kilo')
-        repository.save_provider_key(
-            athlete_id,
-            'kilo',
-            encrypt_api_key(api_key.strip(), app.secret_key),
-            config=existing_config
-        )
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', existing_config.get('models', []))
-        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
-    except ChatEncryptionError as exc:
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/kilo/models/validate', methods=['POST'])
-@login_required
-def chat_kilo_validate_model_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'kilo')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure Kilo AI Gateway API key first."), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError("Model ID is required."), 422)
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = KiloChatProvider(api_key)
-        model_info = provider.validate_model(model_id.strip())
-        return jsonify({'valid': True, 'model': model_info})
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-    except Exception as exc:
-        logger.exception("Kilo AI Gateway model validation failed: %s", exc)
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/kilo/models', methods=['POST', 'DELETE'])
-@login_required
-def chat_kilo_models_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'kilo')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure Kilo AI Gateway API key first."), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError("Model ID is required."), 422)
-    clean_id = model_id.strip()
-
-    cfg = repository.get_provider_config(athlete_id, 'kilo')
-    current_models = list(cfg.get('models', []))
-
-    if request.method == 'DELETE':
-        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
-        cfg['models'] = new_models
-        repository.save_provider_config(athlete_id, 'kilo', cfg)
-        repository.clear_default_model(athlete_id, provider='kilo', model_id=clean_id)
-        repository.clear_fallback_model(athlete_id, provider='kilo', model_id=clean_id)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', new_models)
-        return jsonify({'models': models, 'default_model': default_model})
-
-    # POST - add model
-    # If model is already present, return current list
-    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
-        return jsonify({'models': current_models})
-
-    # Validate against Kilo Gateway to get accurate metadata
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = KiloChatProvider(api_key)
-        model_info = provider.validate_model(clean_id)
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-
-    current_models.append(model_info)
-    cfg['models'] = current_models
-    repository.save_provider_config(athlete_id, 'kilo', cfg)
-    models, default_model = _decorate_models_with_default(repository, athlete_id, 'kilo', current_models)
-    return jsonify({'models': models, 'default_model': default_model}), 201
-
-
-@app.route('/api/settings/ai/poe', methods=['GET', 'POST', 'DELETE'])
-@login_required
-def chat_poe_settings_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    if request.method == 'GET':
-        has_key = repository.get_provider_key(athlete_id, 'poe') is not None
-        cfg = repository.get_provider_config(athlete_id, 'poe')
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', cfg.get('models', []))
-        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'poe')
-        repository.clear_default_model(athlete_id, provider='poe')
-        repository.clear_fallback_model(athlete_id, provider='poe')
-        return Response(status=204)
-
-    data = request.get_json(silent=True) or {}
-    api_key = data.get('api_key')
-    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
-        return _chat_error(ValueError('Enter a valid Poe API key.'), 422)
-    try:
-        cfg = repository.get_provider_config(athlete_id, 'poe')
-        repository.save_provider_key(athlete_id, 'poe', encrypt_api_key(api_key.strip(), app.secret_key), config=cfg)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', cfg.get('models', []))
-        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
-    except ChatEncryptionError as exc:
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/poe/models/validate', methods=['POST'])
-@login_required
-def chat_poe_validate_model_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'poe')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError('Configure Poe API key first.'), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError('Poe bot handle is required.'), 422)
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        model_info = PoeChatProvider(api_key).validate_model(model_id.strip())
-        return jsonify({'valid': True, 'model': model_info})
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-    except Exception as exc:
-        logger.exception('Poe bot validation failed: %s', exc)
-        return _chat_error(exc, 500)
-
-
-@app.route('/api/settings/ai/poe/models', methods=['POST', 'DELETE'])
-@login_required
-def chat_poe_models_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'poe')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError('Configure Poe API key first.'), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError('Poe bot handle is required.'), 422)
-    clean_id = model_id.strip()
-    cfg = repository.get_provider_config(athlete_id, 'poe')
-    current_models = list(cfg.get('models', []))
-
-    if request.method == 'DELETE':
-        updated_models = [item for item in current_models if item.get('id', '').lower() != clean_id.lower()]
-        cfg['models'] = updated_models
-        repository.save_provider_config(athlete_id, 'poe', cfg)
-        repository.clear_default_model(athlete_id, provider='poe', model_id=clean_id)
-        repository.clear_fallback_model(athlete_id, provider='poe', model_id=clean_id)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', updated_models)
-        return jsonify({'models': models, 'default_model': default_model})
-
-    if any(item.get('id', '').lower() == clean_id.lower() for item in current_models):
-        return jsonify({'models': current_models})
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        model_info = PoeChatProvider(api_key).validate_model(clean_id)
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-    current_models.append(model_info)
-    cfg['models'] = current_models
-    repository.save_provider_config(athlete_id, 'poe', cfg)
-    models, default_model = _decorate_models_with_default(repository, athlete_id, 'poe', current_models)
-    return jsonify({'models': models, 'default_model': default_model}), 201
-
-
-@app.route('/api/settings/ai/ollama', methods=['GET', 'POST', 'DELETE'])
-@login_required
-def chat_ollama_settings_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    if request.method == 'GET':
-        is_configured = repository.has_provider(athlete_id, 'ollama')
-        config_data = repository.get_provider_config(athlete_id, 'ollama')
-        has_key = repository.get_provider_key(athlete_id, 'ollama') is not None
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'ollama', config_data.get('models', []))
-        return jsonify({
-            'configured': is_configured,
-            'base_url': config_data.get('base_url', 'http://localhost:11434'),
-            'has_api_key': has_key,
-            'models': models,
-            'default_model': default_model,
-        })
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'ollama')
-        repository.clear_default_model(athlete_id, provider='ollama')
-        repository.clear_fallback_model(athlete_id, provider='ollama')
-        return Response(status=204)
-
-    data = request.get_json(silent=True) or {}
-    raw_url = str(data.get('base_url') or '').strip() or 'http://localhost:11434'
-    if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
-        return _chat_error(ValueError('Base URL must begin with http:// or https://'), 422)
-    base_url = raw_url.rstrip('/')
-
-    api_key = data.get('api_key')
-    enc_key = ""
-    if isinstance(api_key, str) and api_key.strip():
-        if len(api_key.strip()) > 1024:
-            return _chat_error(ValueError('API key is too long.'), 422)
-        try:
-            enc_key = encrypt_api_key(api_key.strip(), app.secret_key)
-        except ChatEncryptionError as exc:
-            return _chat_error(exc, 500)
-    else:
-        existing_key = repository.get_provider_key(athlete_id, 'ollama')
-        if data.get('keep_key') and existing_key:
-            enc_key = existing_key
-
-    # Auto-discover models from Ollama instance if reachable
-    discovered_models = []
-    plain_key = api_key.strip() if (isinstance(api_key, str) and api_key.strip()) else (decrypt_api_key(enc_key, app.secret_key) if enc_key else "")
-    try:
-        connection_result = OllamaChatProvider.test_connection(base_url, plain_key)
-        discovered_models = connection_result.get('models', [])
-    except Exception as exc:
-        logger.info("Ollama discovery on save skipped: %s", exc)
-
-    cfg = {'base_url': base_url}
-    if discovered_models:
-        cfg['models'] = discovered_models
-    else:
-        existing_cfg = repository.get_provider_config(athlete_id, 'ollama')
-        if existing_cfg.get('models'):
-            cfg['models'] = existing_cfg['models']
-
-    repository.save_provider_key(
-        athlete_id,
-        'ollama',
-        enc_key,
-        enabled=True,
-        config=cfg,
-    )
-    return jsonify({
-        'configured': True,
-        'base_url': base_url,
-        'has_api_key': bool(enc_key),
-        'models': _decorate_models_with_default(repository, athlete_id, 'ollama', cfg.get('models', []))[0],
-        'default_model': _normalize_default_model(repository.get_default_model(athlete_id)),
-    })
-
-
-@app.route('/api/settings/ai/ollama/test', methods=['POST'])
-@login_required
-def chat_ollama_test_api():
+def handle_provider_test_api(provider_id: str):
+    """Unified handler for testing provider connection."""
+    provider_id = (provider_id or "").strip().lower()
+    if not _is_supported_ai_provider(provider_id):
+        return _chat_error(ValueError('Unsupported AI provider.'), 404)
     athlete_id = _chat_user_id()
     repository = _chat_service().repository
     data = request.get_json(silent=True) or {}
@@ -3392,7 +3073,7 @@ def chat_ollama_test_api():
 
     api_key = data.get('api_key')
     if not api_key:
-        encrypted_key = repository.get_provider_key(athlete_id, 'ollama')
+        encrypted_key = repository.get_provider_key(athlete_id, provider_id)
         if encrypted_key:
             try:
                 api_key = decrypt_api_key(encrypted_key, app.secret_key)
@@ -3401,172 +3082,159 @@ def chat_ollama_test_api():
         else:
             api_key = ""
 
+    provider_cls = _resolve_provider_class(provider_id)
+    if not hasattr(provider_cls, 'test_connection'):
+        return _chat_error(ValueError(f"Provider '{provider_id}' does not support connection testing."), 422)
+
     try:
-        result = OllamaChatProvider.test_connection(base_url, api_key.strip() if isinstance(api_key, str) else "")
-        cfg = repository.get_provider_config(athlete_id, 'ollama')
+        result = provider_cls.test_connection(base_url, api_key.strip() if isinstance(api_key, str) else "")
+        cfg = repository.get_provider_config(athlete_id, provider_id)
         if result.get('models'):
             cfg['base_url'] = base_url
             cfg['models'] = result['models']
-            repository.save_provider_config(athlete_id, 'ollama', cfg)
-        result['models'] = _decorate_models_with_default(repository, athlete_id, 'ollama', result.get('models', []))[0]
+            repository.save_provider_config(athlete_id, provider_id, cfg)
+        result['models'] = _decorate_models_with_default(repository, athlete_id, provider_id, result.get('models', []))[0]
         result['default_model'] = _normalize_default_model(repository.get_default_model(athlete_id))
         return jsonify(result)
     except (ConnectionError, TimeoutError, ValueError) as exc:
         return _chat_error(exc, 422)
     except Exception as exc:
-        logger.exception("Ollama test connection failed: %s", exc)
+        logger.exception("%s test connection failed: %s", provider_id, exc)
         return _chat_error(exc, 500)
+
+
+# Generic Parameterized REST endpoints for all AI providers
+@app.route('/api/settings/ai/providers/<provider_id>', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_generic_provider_settings_api(provider_id: str):
+    return handle_provider_settings_api(provider_id)
+
+
+@app.route('/api/settings/ai/providers/<provider_id>/models/validate', methods=['POST'])
+@login_required
+def chat_generic_provider_validate_model_api(provider_id: str):
+    return handle_provider_validate_model_api(provider_id)
+
+
+@app.route('/api/settings/ai/providers/<provider_id>/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_generic_provider_models_api(provider_id: str):
+    return handle_provider_models_api(provider_id)
+
+
+@app.route('/api/settings/ai/providers/<provider_id>/test', methods=['POST'])
+@login_required
+def chat_generic_provider_test_api(provider_id: str):
+    return handle_provider_test_api(provider_id)
+
+
+# Backward-compatible legacy routes (delegating to unified generic handlers)
+@app.route('/api/settings/ai/gemini', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_gemini_settings_api():
+    return handle_provider_settings_api('gemini')
+
+
+@app.route('/api/settings/ai/openrouter', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_openrouter_settings_api():
+    return handle_provider_settings_api('openrouter')
+
+
+@app.route('/api/settings/ai/openrouter/models/validate', methods=['POST'])
+@login_required
+def chat_openrouter_validate_model_api():
+    return handle_provider_validate_model_api('openrouter')
+
+
+@app.route('/api/settings/ai/openrouter/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_openrouter_models_api():
+    return handle_provider_models_api('openrouter')
+
+
+@app.route('/api/settings/ai/vercel', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_vercel_settings_api():
+    return handle_provider_settings_api('vercel')
+
+
+@app.route('/api/settings/ai/vercel/models/validate', methods=['POST'])
+@login_required
+def chat_vercel_validate_model_api():
+    return handle_provider_validate_model_api('vercel')
+
+
+@app.route('/api/settings/ai/vercel/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_vercel_models_api():
+    return handle_provider_models_api('vercel')
+
+
+@app.route('/api/settings/ai/kilo', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_kilo_settings_api():
+    return handle_provider_settings_api('kilo')
+
+
+@app.route('/api/settings/ai/kilo/models/validate', methods=['POST'])
+@login_required
+def chat_kilo_validate_model_api():
+    return handle_provider_validate_model_api('kilo')
+
+
+@app.route('/api/settings/ai/kilo/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_kilo_models_api():
+    return handle_provider_models_api('kilo')
+
+
+@app.route('/api/settings/ai/poe', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_poe_settings_api():
+    return handle_provider_settings_api('poe')
+
+
+@app.route('/api/settings/ai/poe/models/validate', methods=['POST'])
+@login_required
+def chat_poe_validate_model_api():
+    return handle_provider_validate_model_api('poe')
+
+
+@app.route('/api/settings/ai/poe/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_poe_models_api():
+    return handle_provider_models_api('poe')
+
+
+@app.route('/api/settings/ai/ollama', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_ollama_settings_api():
+    return handle_provider_settings_api('ollama')
+
+
+@app.route('/api/settings/ai/ollama/test', methods=['POST'])
+@login_required
+def chat_ollama_test_api():
+    return handle_provider_test_api('ollama')
 
 
 @app.route('/api/settings/ai/mistral', methods=['GET', 'POST', 'DELETE'])
 @login_required
 def chat_mistral_settings_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    if request.method == 'GET':
-        encrypted_key = repository.get_provider_key(athlete_id, 'mistral')
-        has_key = encrypted_key is not None
-        models: list[dict] = []
-        if has_key:
-            try:
-                api_key = decrypt_api_key(encrypted_key, app.secret_key)
-                provider = MistralChatProvider(api_key)
-                models = [
-                    {
-                        'id': model.id,
-                        'name': model.display_name,
-                        'display_name': model.display_name,
-                        'supports_tools': model.supports_tools,
-                        'supports_vision': model.supports_vision,
-                        'context_length': model.context_length,
-                        'max_output_tokens': model.max_output_tokens,
-                        'pricing': model.pricing,
-                        'rate_limits': model.rate_limits,
-                        'request_limits': model.request_limits,
-                        'description': model.description,
-                    }
-                    for model in provider.list_models()
-                ]
-                cfg = repository.get_provider_config(athlete_id, 'mistral')
-                cfg['models'] = models
-                repository.save_provider_config(athlete_id, 'mistral', cfg)
-            except Exception as exc:
-                logger.warning('Mistral model refresh failed for athlete=%s: %s', athlete_id, exc)
-                models = repository.get_provider_config(athlete_id, 'mistral').get('models', [])
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', models)
-        return jsonify({'configured': has_key, 'models': models, 'default_model': default_model})
-
-    if request.method == 'DELETE':
-        repository.remove_provider_key(athlete_id, 'mistral')
-        repository.clear_default_model(athlete_id, provider='mistral')
-        repository.clear_fallback_model(athlete_id, provider='mistral')
-        return Response(status=204)
-
-    data = request.get_json(silent=True) or {}
-    api_key = data.get('api_key')
-    if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
-        return _chat_error(ValueError('Enter a valid API key.'), 422)
-    try:
-        existing_config = repository.get_provider_config(athlete_id, 'mistral')
-        clean_key = api_key.strip()
-        repository.save_provider_key(athlete_id, 'mistral', encrypt_api_key(clean_key, app.secret_key))
-        models = []
-        try:
-            provider = MistralChatProvider(clean_key)
-            models = [
-                {
-                    'id': model.id,
-                    'name': model.display_name,
-                    'display_name': model.display_name,
-                    'supports_tools': model.supports_tools,
-                    'supports_vision': model.supports_vision,
-                    'context_length': model.context_length,
-                    'max_output_tokens': model.max_output_tokens,
-                    'pricing': model.pricing,
-                    'rate_limits': model.rate_limits,
-                    'request_limits': model.request_limits,
-                    'description': model.description,
-                }
-                for model in provider.list_models()
-            ]
-            existing_config['models'] = models
-        except Exception as exc:
-            logger.warning('Mistral model discovery on save failed for athlete=%s: %s', athlete_id, exc)
-            models = existing_config.get('models', [])
-
-        repository.save_provider_config(athlete_id, 'mistral', existing_config)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', models)
-        return jsonify({'configured': True, 'models': models, 'default_model': default_model})
-    except ChatEncryptionError as exc:
-        return _chat_error(exc, 500)
+    return handle_provider_settings_api('mistral')
 
 
 @app.route('/api/settings/ai/mistral/models/validate', methods=['POST'])
 @login_required
 def chat_mistral_validate_model_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'mistral')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure Mistral API key first."), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError("Model ID is required."), 422)
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = MistralChatProvider(api_key)
-        model_info = provider.validate_model(model_id.strip())
-        return jsonify({'valid': True, 'model': model_info})
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-    except Exception as exc:
-        logger.exception("Mistral model validation failed: %s", exc)
-        return _chat_error(exc, 500)
+    return handle_provider_validate_model_api('mistral')
 
 
 @app.route('/api/settings/ai/mistral/models', methods=['POST', 'DELETE'])
 @login_required
 def chat_mistral_models_api():
-    athlete_id = _chat_user_id()
-    repository = _chat_service().repository
-    encrypted_key = repository.get_provider_key(athlete_id, 'mistral')
-    if not encrypted_key:
-        return _chat_error(ChatConfigurationError("Configure Mistral API key first."), 422)
-    data = request.get_json(silent=True) or {}
-    model_id = data.get('model_id')
-    if not isinstance(model_id, str) or not model_id.strip():
-        return _chat_error(ValueError("Model ID is required."), 422)
-    clean_id = model_id.strip()
-
-    cfg = repository.get_provider_config(athlete_id, 'mistral')
-    current_models = list(cfg.get('models', []))
-
-    if request.method == 'DELETE':
-        new_models = [m for m in current_models if m.get('id', '').lower() != clean_id.lower()]
-        cfg['models'] = new_models
-        repository.save_provider_config(athlete_id, 'mistral', cfg)
-        repository.clear_default_model(athlete_id, provider='mistral', model_id=clean_id)
-        repository.clear_fallback_model(athlete_id, provider='mistral', model_id=clean_id)
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', new_models)
-        return jsonify({'models': models, 'default_model': default_model})
-
-    if any(m.get('id', '').lower() == clean_id.lower() for m in current_models):
-        models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', current_models)
-        return jsonify({'models': models, 'default_model': default_model})
-
-    try:
-        api_key = decrypt_api_key(encrypted_key, app.secret_key)
-        provider = MistralChatProvider(api_key)
-        model_info = provider.validate_model(clean_id)
-    except (ValueError, LookupError, ChatError) as exc:
-        return _chat_error(exc, 422)
-
-    current_models.append(model_info)
-    cfg['models'] = current_models
-    repository.save_provider_config(athlete_id, 'mistral', cfg)
-    models, default_model = _decorate_models_with_default(repository, athlete_id, 'mistral', current_models)
-    return jsonify({'models': models, 'default_model': default_model}), 201
+    return handle_provider_models_api('mistral')
 
 
 @app.route('/strava/reconnect', methods=['GET'])

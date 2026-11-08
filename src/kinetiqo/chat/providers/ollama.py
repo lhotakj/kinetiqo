@@ -26,7 +26,14 @@ DEFAULT_OLLAMA_MODEL = "qwen2.5:7b-instruct"
 
 class OllamaChatProvider(BaseChatProvider):
     provider_name = "ollama"
+    display_name = "Ollama (Local AI)"
+    description = "Self-hosted local AI runtime via Ollama REST API"
     default_model = DEFAULT_OLLAMA_MODEL
+    auth_type = "url_and_key"
+    api_key_placeholder = "Optional API key (if reverse proxy / auth enabled)"
+    model_mode = "discovered"
+    suggested_models = ()
+    docs_url = "https://ollama.com/"
 
     def __init__(
         self,

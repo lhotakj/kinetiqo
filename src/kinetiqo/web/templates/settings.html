@@ -2648,6 +2648,11 @@
         const removeMistralBtn = document.getElementById('remove-mistral-key');
 
         const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard, mistral: mistralCard };
+        const providerStatusEls = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus };
+        const providerTableBodies = { gemini: geminiTableBody, openrouter: openrouterTableBody, vercel: vercelTableBody, kilo: kiloTableBody, poe: poeTableBody, ollama: ollamaTableBody, mistral: mistralTableBody };
+        const providerInputs = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput };
+        const providerForms = { gemini: geminiForm, openrouter: openrouterForm, vercel: vercelForm, kilo: kiloForm, poe: poeForm, ollama: ollamaForm, mistral: mistralForm };
+        const providerRemoveBtns = { gemini: removeGeminiBtn, openrouter: removeOpenrouterBtn, vercel: removeVercelBtn, kilo: removeKiloBtn, poe: removePoeBtn, ollama: ollamaRemoveBtn, mistral: removeMistralBtn };
         const providerData = {
             gemini: { configured: false, models: [] },
             openrouter: { configured: false, models: [] },
@@ -3044,30 +3049,6 @@
             return btn;
         }
 
-        function renderGeminiModels(models) {
-            if (!geminiTableBody) return;
-            geminiTableBody.replaceChildren();
-            if (!Array.isArray(models) || models.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>';
-                geminiTableBody.appendChild(tr);
-                return;
-            }
-            models.forEach((item) => geminiTableBody.appendChild(createModelRow(item, 'gemini')));
-        }
-
-        function renderMistralModels(models) {
-            if (!mistralTableBody) return;
-            mistralTableBody.replaceChildren();
-            if (!Array.isArray(models) || models.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No models available.</td>';
-                mistralTableBody.appendChild(tr);
-                return;
-            }
-            models.forEach((item) => mistralTableBody.appendChild(createModelRow(item, 'mistral')));
-        }
-
         function formatModelMetadata(value) {
             if (value === null || value === undefined || value === '') return null;
             if (typeof value === 'object' && Object.keys(value).length === 0) return null;
@@ -3124,24 +3105,22 @@
             defaultCell.appendChild(groupWrap);
             const actionsCell = document.createElement('td');
             actionsCell.className = 'px-4 py-3 align-middle text-right whitespace-nowrap';
-            if (provider === 'openrouter' || provider === 'vercel' || provider === 'kilo' || provider === 'poe') {
+            const isCurated = ['openrouter', 'vercel', 'kilo', 'poe'].includes(provider);
+            if (isCurated) {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-600 dark:text-gray-300 dark:hover:border-red-500 dark:hover:text-red-400 transition-colors';
                 removeBtn.setAttribute('aria-label', `Remove model ${item.id}`);
                 removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m-9 0 1 13h10l1-13" /></svg><span>Delete model</span>';
                 removeBtn.addEventListener('click', async () => {
-                    const res = await fetch(`/api/settings/ai/${provider}/models`, { method: 'DELETE', headers: aiHeaders, body: JSON.stringify({ model_id: item.id }) });
+                    const res = await fetch(`/api/settings/ai/providers/${provider}/models`, { method: 'DELETE', headers: aiHeaders, body: JSON.stringify({ model_id: item.id }) });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok) throw new Error(data.error?.message || 'Failed to remove model.');
                     providerData[provider].models = data.models || [];
                     defaultModel = data.default_model || defaultModel;
                     updateDefaultModelLabel();
                     updateAgentBoxState();
-                    if (provider === 'openrouter') renderOpenRouterModels(providerData.openrouter.models);
-                    else if (provider === 'vercel') renderVercelModels(providerData.vercel.models);
-                    else if (provider === 'kilo') renderKiloModels(providerData.kilo.models);
-                    else renderPoeModels(providerData.poe.models);
+                    renderProviderModels(provider, providerData[provider].models);
                 });
                 actionsCell.appendChild(removeBtn);
             } else {
@@ -3151,80 +3130,42 @@
             return tr;
         }
 
-        function renderOpenRouterModels(models) {
-            if (!openrouterTableBody) return;
-            openrouterTableBody.replaceChildren();
-            if (!Array.isArray(models) || models.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No OpenRouter models configured yet. Add your first model above.</td>';
-                openrouterTableBody.appendChild(tr);
-                return;
-            }
-            models.forEach((item) => openrouterTableBody.appendChild(createModelRow(item, 'openrouter')));
-        }
-
-        function renderVercelModels(models) {
-            if (!vercelTableBody) return;
-            vercelTableBody.replaceChildren();
-            if (!Array.isArray(models) || models.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No Vercel AI Gateway models configured yet. Add your first model above.</td>';
-                vercelTableBody.appendChild(tr);
-                return;
-            }
-            models.forEach((item) => vercelTableBody.appendChild(createModelRow(item, 'vercel')));
-        }
-
-        function renderKiloModels(models) {
-            if (!kiloTableBody) return;
-            kiloTableBody.replaceChildren();
-            if (!Array.isArray(models) || models.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No Kilo AI Gateway models configured yet. Add your first model above.</td>';
-                kiloTableBody.appendChild(tr);
-                return;
-            }
-            models.forEach((item) => kiloTableBody.appendChild(createModelRow(item, 'kilo')));
-        }
-
-        function renderPoeModels(models) {
-            if (!poeTableBody) return;
-            poeTableBody.replaceChildren();
-            if (!Array.isArray(models) || !models.length) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">Add Poe bot handles to configure models.</td>';
-                poeTableBody.appendChild(tr);
-                return;
-            }
-            models.forEach((item) => poeTableBody.appendChild(createModelRow(item, 'poe')));
-        }
-
-        function renderOllamaModels(models) {
-            if (!ollamaTableBody) return;
-            ollamaTableBody.replaceChildren();
+        function renderProviderModels(provider, models) {
+            const tableBody = providerTableBodies[provider] || document.getElementById(`${provider}-models-table-body`);
+            if (!tableBody) return;
+            tableBody.replaceChildren();
             const count = Array.isArray(models) ? models.length : 0;
-            if (ollamaModelsCount) ollamaModelsCount.textContent = `${count} model${count === 1 ? '' : 's'}`;
+            if (provider === 'ollama' && ollamaModelsCount) {
+                ollamaModelsCount.textContent = `${count} model${count === 1 ? '' : 's'}`;
+            }
             if (!count) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="6" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No models detected on server. Pull a model via `ollama run <model>` first.</td>';
-                ollamaTableBody.appendChild(tr);
+                let emptyMsg = `No ${providerMeta[provider]?.name || provider} models configured yet. Add your first model above.`;
+                if (provider === 'gemini' || provider === 'mistral') emptyMsg = 'No models available.';
+                else if (provider === 'poe') emptyMsg = 'Add Poe bot handles to configure models.';
+                else if (provider === 'ollama') emptyMsg = 'No models detected on server. Pull a model via `ollama run <model>` first.';
+                tr.innerHTML = `<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">${emptyMsg}</td>`;
+                tableBody.appendChild(tr);
                 return;
             }
-            models.forEach((item) => ollamaTableBody.appendChild(createModelRow({
-                ...item,
-                display_name: item.name || item.id,
-                supports_tools: true,
-            }, 'ollama')));
+            models.forEach((item) => {
+                const rowItem = provider === 'ollama' ? { ...item, display_name: item.name || item.id, supports_tools: true } : item;
+                tableBody.appendChild(createModelRow(rowItem, provider));
+            });
         }
 
+        const renderGeminiModels = (models) => renderProviderModels('gemini', models);
+        const renderMistralModels = (models) => renderProviderModels('mistral', models);
+        const renderOpenRouterModels = (models) => renderProviderModels('openrouter', models);
+        const renderVercelModels = (models) => renderProviderModels('vercel', models);
+        const renderKiloModels = (models) => renderProviderModels('kilo', models);
+        const renderPoeModels = (models) => renderProviderModels('poe', models);
+        const renderOllamaModels = (models) => renderProviderModels('ollama', models);
+
         const renderAllModelTables = () => {
-            renderGeminiModels(providerData.gemini.models || []);
-            renderOpenRouterModels(providerData.openrouter.models || []);
-            renderVercelModels(providerData.vercel.models || []);
-            renderKiloModels(providerData.kilo.models || []);
-            renderPoeModels(providerData.poe.models || []);
-            renderOllamaModels(providerData.ollama.models || []);
-            renderMistralModels(providerData.mistral.models || []);
+            Object.keys(providerData).forEach((provider) => {
+                renderProviderModels(provider, providerData[provider]?.models || []);
+            });
         };
 
         const markAiDirty = () => { aiDirty = true; };
@@ -3232,109 +3173,58 @@
 
         [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput, mistralInput].forEach((input) => input?.addEventListener('input', markAiDirty));
 
-        async function loadGeminiStatus() {
+        async function loadProviderStatus(provider) {
+            const statusEl = providerStatusEls[provider] || document.getElementById(`${provider}-key-status`);
             try {
-                const r = await fetch('/api/settings/ai/gemini');
+                const r = await fetch(`/api/settings/ai/providers/${provider}`);
                 const d = await r.json();
-                providerData.gemini = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(geminiStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+                providerData[provider] = { configured: Boolean(d.configured), models: d.models || [] };
+                setStatusPill(statusEl, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+                if (provider === 'ollama') {
+                    if (ollamaUrlInput && d.base_url) ollamaUrlInput.value = d.base_url;
+                    if (ollamaKeyInput && d.has_api_key) ollamaKeyInput.placeholder = '•••••••• (API key saved)';
+                }
             } catch {
-                setStatusPill(geminiStatus, 'Status error', false, true);
-            }
-        }
-        async function loadOpenRouterStatus() {
-            try {
-                const r = await fetch('/api/settings/ai/openrouter');
-                const d = await r.json();
-                providerData.openrouter = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(openrouterStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-            } catch {
-                setStatusPill(openrouterStatus, 'Status error', false, true);
-            }
-        }
-        async function loadVercelStatus() {
-            try {
-                const r = await fetch('/api/settings/ai/vercel');
-                const d = await r.json();
-                providerData.vercel = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(vercelStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-            } catch {
-                setStatusPill(vercelStatus, 'Status error', false, true);
-            }
-        }
-        async function loadKiloStatus() {
-            try {
-                const r = await fetch('/api/settings/ai/kilo');
-                const d = await r.json();
-                providerData.kilo = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(kiloStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-            } catch {
-                setStatusPill(kiloStatus, 'Status error', false, true);
-            }
-        }
-        async function loadPoeStatus() {
-            try {
-                const r = await fetch('/api/settings/ai/poe');
-                const d = await r.json();
-                providerData.poe = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(poeStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-            } catch {
-                setStatusPill(poeStatus, 'Status error', false, true);
-            }
-        }
-        async function loadOllamaStatus() {
-            try {
-                const r = await fetch('/api/settings/ai/ollama');
-                const d = await r.json();
-                providerData.ollama = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(ollamaStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-                if (ollamaUrlInput && d.base_url) ollamaUrlInput.value = d.base_url;
-                if (ollamaKeyInput && d.has_api_key) ollamaKeyInput.placeholder = '•••••••• (API key saved)';
-            } catch {
-                setStatusPill(ollamaStatus, 'Status error', false, true);
-            }
-        }
-        async function loadMistralStatus() {
-            try {
-                const r = await fetch('/api/settings/ai/mistral');
-                const d = await r.json();
-                providerData.mistral = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(mistralStatus, d.configured ? 'Configured' : 'Not configured', d.configured, false);
-            } catch {
-                setStatusPill(mistralStatus, 'Status error', false, true);
+                setStatusPill(statusEl, 'Status error', false, true);
             }
         }
 
+        async function refreshAllProvidersStatus() {
+            await Promise.all(Object.keys(providerData).map((p) => loadProviderStatus(p)));
+        }
+
+        const loadGeminiStatus = () => loadProviderStatus('gemini');
+        const loadOpenRouterStatus = () => loadProviderStatus('openrouter');
+        const loadVercelStatus = () => loadProviderStatus('vercel');
+        const loadKiloStatus = () => loadProviderStatus('kilo');
+        const loadPoeStatus = () => loadProviderStatus('poe');
+        const loadOllamaStatus = () => loadProviderStatus('ollama');
+        const loadMistralStatus = () => loadProviderStatus('mistral');
+
         async function saveCurrentProvider() {
             if (!currentProvider) return;
-            const payloadByProvider = {
-                gemini: { url: '/api/settings/ai/gemini', body: { api_key: geminiInput?.value.trim() || '' } },
-                openrouter: { url: '/api/settings/ai/openrouter', body: { api_key: openrouterInput?.value.trim() || '' } },
-                vercel: { url: '/api/settings/ai/vercel', body: { api_key: vercelInput?.value.trim() || '' } },
-                kilo: { url: '/api/settings/ai/kilo', body: { api_key: kiloInput?.value.trim() || '' } },
-                poe: { url: '/api/settings/ai/poe', body: { api_key: poeInput?.value.trim() || '' } },
-                ollama: {
-                    url: '/api/settings/ai/ollama',
-                    body: {
-                        base_url: ollamaUrlInput?.value.trim() || 'http://localhost:11434',
-                        ...(ollamaKeyInput?.value.trim() ? { api_key: ollamaKeyInput.value.trim() } : { keep_key: true }),
-                    },
-                },
-                mistral: { url: '/api/settings/ai/mistral', body: { api_key: mistralInput?.value.trim() || '' } },
-            };
-            const cfg = payloadByProvider[currentProvider];
-            const res = await fetch(cfg.url, { method: 'POST', headers: aiHeaders, body: JSON.stringify(cfg.body) });
+            let body = {};
+            if (currentProvider === 'ollama') {
+                body = {
+                    base_url: ollamaUrlInput?.value.trim() || 'http://localhost:11434',
+                    ...(ollamaKeyInput?.value.trim() ? { api_key: ollamaKeyInput.value.trim() } : { keep_key: true }),
+                };
+            } else {
+                const input = providerInputs[currentProvider] || document.getElementById(`${currentProvider}-api-key`);
+                body = { api_key: input?.value.trim() || '' };
+            }
+            const res = await fetch(`/api/settings/ai/providers/${currentProvider}`, { method: 'POST', headers: aiHeaders, body: JSON.stringify(body) });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error?.message || 'Save failed');
             clearAiDirty();
             if (currentProvider !== 'ollama') {
-                const inputByProvider = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput };
-                if (inputByProvider[currentProvider]) inputByProvider[currentProvider].value = '';
+                const input = providerInputs[currentProvider] || document.getElementById(`${currentProvider}-api-key`);
+                if (input) input.value = '';
             } else if (ollamaKeyInput?.value.trim()) {
                 ollamaKeyInput.value = '';
                 ollamaKeyInput.placeholder = '•••••••• (API key saved)';
             }
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([refreshAllProvidersStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         }
 
@@ -3349,8 +3239,8 @@
             try {
                 await saveCurrentProvider();
             } catch (err) {
-                const statusByProvider = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus };
-                setStatusPill(statusByProvider[currentProvider], err.message || 'Save failed', false, true);
+                const statusEl = providerStatusEls[currentProvider] || document.getElementById(`${currentProvider}-key-status`);
+                setStatusPill(statusEl, err.message || 'Save failed', false, true);
             } finally {
                 if (submitBtn) {
                     submitBtn.innerHTML = origHtml;
@@ -3360,7 +3250,7 @@
             }
         }
 
-        [geminiForm, openrouterForm, vercelForm, kiloForm, poeForm, ollamaForm, mistralForm].forEach((form) => form?.addEventListener('submit', (e) => {
+        Object.values(providerForms).forEach((form) => form?.addEventListener('submit', (e) => {
             e.preventDefault();
             handleProviderFormSubmit(form);
         }));
@@ -3386,11 +3276,11 @@
         deleteNoBtn?.addEventListener('click', () => closeModal(deleteModal));
         deleteYesBtn?.addEventListener('click', async () => {
             if (!currentProvider) return;
-            const res = await fetch(providerMeta[currentProvider].endpoint, { method: 'DELETE', headers: aiHeaders });
+            const res = await fetch(`/api/settings/ai/providers/${currentProvider}`, { method: 'DELETE', headers: aiHeaders });
             if (!res.ok) return;
             closeModal(deleteModal);
             aiDirty = false;
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([refreshAllProvidersStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         });
 
@@ -3452,131 +3342,55 @@
         });
 
         const removeProviderByKey = async (key) => {
-            const res = await fetch(providerMeta[key].endpoint, { method: 'DELETE', headers: aiHeaders });
+            const res = await fetch(`/api/settings/ai/providers/${key}`, { method: 'DELETE', headers: aiHeaders });
             if (!res.ok) return;
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
+            await Promise.all([refreshAllProvidersStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         };
-        removeGeminiBtn?.addEventListener('click', () => removeProviderByKey('gemini'));
-        removeOpenrouterBtn?.addEventListener('click', () => removeProviderByKey('openrouter'));
-        removeVercelBtn?.addEventListener('click', () => removeProviderByKey('vercel'));
-        removeKiloBtn?.addEventListener('click', () => removeProviderByKey('kilo'));
-        removePoeBtn?.addEventListener('click', () => removeProviderByKey('poe'));
-        ollamaRemoveBtn?.addEventListener('click', () => removeProviderByKey('ollama'));
-        removeMistralBtn?.addEventListener('click', () => removeProviderByKey('mistral'));
-
-        openrouterAddModelBtn?.addEventListener('click', async () => {
-            const modelId = openrouterNewModelInput?.value.trim();
-            if (!modelId) return;
-            const origBtnHtml = openrouterAddModelBtn.innerHTML;
-            openrouterAddModelBtn.disabled = true;
-            openrouterAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
-            try {
-                const res = await fetch('/api/settings/ai/openrouter/models', { method: 'POST', headers: aiHeaders, body: JSON.stringify({ model_id: modelId }) });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error?.message || 'Failed to add model.');
-                openrouterNewModelInput.value = '';
-                providerData.openrouter.models = data.models || [];
-                renderOpenRouterModels(providerData.openrouter.models);
-                if (openrouterModelFeedback) {
-                    openrouterModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
-                    openrouterModelFeedback.textContent = `Model '${modelId}' added successfully.`;
-                    setTimeout(() => openrouterModelFeedback.classList.add('hidden'), 3500);
-                }
-            } catch (err) {
-                if (openrouterModelFeedback) {
-                    openrouterModelFeedback.classList.remove('hidden');
-                    openrouterModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
-                    openrouterModelFeedback.textContent = err.message;
-                }
-            } finally {
-                openrouterAddModelBtn.disabled = false;
-                openrouterAddModelBtn.innerHTML = origBtnHtml;
-            }
+        Object.entries(providerRemoveBtns).forEach(([key, btn]) => {
+            btn?.addEventListener('click', () => removeProviderByKey(key));
         });
 
-        vercelAddModelBtn?.addEventListener('click', async () => {
-            const modelId = vercelNewModelInput?.value.trim();
-            if (!modelId) return;
-            const origBtnHtml = vercelAddModelBtn.innerHTML;
-            vercelAddModelBtn.disabled = true;
-            vercelAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
+        async function handleAddModel(provider) {
+            const inputEl = document.getElementById(`${provider}-new-model-id`);
+            const btnEl = document.getElementById(`${provider}-add-model-btn`);
+            const feedbackEl = document.getElementById(`${provider}-model-feedback`);
+            const modelId = inputEl?.value.trim();
+            if (!modelId || !btnEl) return;
+            const origBtnHtml = btnEl.innerHTML;
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
             try {
-                const res = await fetch('/api/settings/ai/vercel/models', { method: 'POST', headers: aiHeaders, body: JSON.stringify({ model_id: modelId }) });
+                const res = await fetch(`/api/settings/ai/providers/${provider}/models`, {
+                    method: 'POST',
+                    headers: aiHeaders,
+                    body: JSON.stringify({ model_id: modelId }),
+                });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error?.message || 'Failed to add model.');
-                vercelNewModelInput.value = '';
-                providerData.vercel.models = data.models || [];
-                renderVercelModels(providerData.vercel.models);
-                if (vercelModelFeedback) {
-                    vercelModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
-                    vercelModelFeedback.textContent = `Model '${modelId}' added successfully.`;
-                    setTimeout(() => vercelModelFeedback.classList.add('hidden'), 3500);
+                if (inputEl) inputEl.value = '';
+                providerData[provider].models = data.models || [];
+                renderProviderModels(provider, providerData[provider].models);
+                if (feedbackEl) {
+                    feedbackEl.classList.remove('hidden');
+                    feedbackEl.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
+                    feedbackEl.textContent = `Model '${modelId}' added successfully.`;
+                    setTimeout(() => feedbackEl.classList.add('hidden'), 3500);
                 }
             } catch (err) {
-                if (vercelModelFeedback) {
-                    vercelModelFeedback.classList.remove('hidden');
-                    vercelModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
-                    vercelModelFeedback.textContent = err.message;
+                if (feedbackEl) {
+                    feedbackEl.classList.remove('hidden');
+                    feedbackEl.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
+                    feedbackEl.textContent = err.message;
                 }
             } finally {
-                vercelAddModelBtn.disabled = false;
-                vercelAddModelBtn.innerHTML = origBtnHtml;
+                btnEl.disabled = false;
+                btnEl.innerHTML = origBtnHtml;
             }
-        });
+        }
 
-        kiloAddModelBtn?.addEventListener('click', async () => {
-            const modelId = kiloNewModelInput?.value.trim();
-            if (!modelId) return;
-            const origBtnHtml = kiloAddModelBtn.innerHTML;
-            kiloAddModelBtn.disabled = true;
-            kiloAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
-            try {
-                const res = await fetch('/api/settings/ai/kilo/models', { method: 'POST', headers: aiHeaders, body: JSON.stringify({ model_id: modelId }) });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error?.message || 'Failed to add model.');
-                kiloNewModelInput.value = '';
-                providerData.kilo.models = data.models || [];
-                renderKiloModels(providerData.kilo.models);
-                if (kiloModelFeedback) {
-                    kiloModelFeedback.className = 'text-xs mb-3 text-emerald-600 dark:text-emerald-400 font-medium';
-                    kiloModelFeedback.textContent = `Model '${modelId}' added successfully.`;
-                    setTimeout(() => kiloModelFeedback.classList.add('hidden'), 3500);
-                }
-            } catch (err) {
-                if (kiloModelFeedback) {
-                    kiloModelFeedback.classList.remove('hidden');
-                    kiloModelFeedback.className = 'text-xs mb-3 text-red-600 dark:text-red-400 font-medium';
-                    kiloModelFeedback.textContent = err.message;
-                }
-            } finally {
-                kiloAddModelBtn.disabled = false;
-                kiloAddModelBtn.innerHTML = origBtnHtml;
-            }
-        });
-
-        poeAddModelBtn?.addEventListener('click', async () => {
-            const modelId = poeNewModelInput?.value.trim();
-            if (!modelId) return;
-            const origBtnHtml = poeAddModelBtn.innerHTML;
-            poeAddModelBtn.disabled = true;
-            poeAddModelBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="14" height="14" class="inline-block">';
-            try {
-                const res = await fetch('/api/settings/ai/poe/models', { method: 'POST', headers: aiHeaders, body: JSON.stringify({ model_id: modelId }) });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error?.message || 'Failed to add Poe bot.');
-                poeNewModelInput.value = '';
-                providerData.poe.models = data.models || [];
-                renderPoeModels(providerData.poe.models);
-                poeModelFeedback.className = 'text-xs mt-2 text-emerald-600 dark:text-emerald-400';
-                poeModelFeedback.textContent = `Poe bot '${modelId}' added.`;
-            } catch (err) {
-                poeModelFeedback.className = 'text-xs mt-2 text-red-600 dark:text-red-400';
-                poeModelFeedback.textContent = err.message;
-            } finally {
-                poeAddModelBtn.disabled = false;
-                poeAddModelBtn.innerHTML = origBtnHtml;
-            }
+        ['openrouter', 'vercel', 'kilo', 'poe'].forEach((p) => {
+            document.getElementById(`${p}-add-model-btn`)?.addEventListener('click', () => handleAddModel(p));
         });
 
         ollamaTestBtn?.addEventListener('click', async () => {
@@ -3604,7 +3418,7 @@
         });
 
         (async () => {
-            await Promise.all([loadGeminiStatus(), loadOpenRouterStatus(), loadVercelStatus(), loadKiloStatus(), loadPoeStatus(), loadOllamaStatus(), loadMistralStatus(), loadDefaultModel(), loadFallbackModels()]);
+            await Promise.all([refreshAllProvidersStatus(), loadDefaultModel(), loadFallbackModels()]);
             renderAllModelTables();
             await refreshProvidersIndex();
         })();

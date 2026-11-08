@@ -86,10 +86,17 @@ DEFAULT_MISTRAL_MODELS = (
 
 class MistralChatProvider(BaseChatProvider):
     provider_name = "mistral"
+    display_name = "Mistral AI"
+    description = "Official Mistral AI API with frontier European models"
     base_url = _BASE_URL
     default_model = "mistral-small-latest"
     deprecated_models = DEPRECATED_MODELS
     preferred_models = PREFERRED_MODELS
+    auth_type = "api_key"
+    api_key_placeholder = "Enter Mistral API key"
+    model_mode = "discovered"
+    suggested_models = ()
+    docs_url = "https://docs.mistral.ai/"
 
     def __init__(
         self,
