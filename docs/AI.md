@@ -3,7 +3,7 @@
 > **Version:** 3.0  
 > **Status:** Active / Production Ready  
 > **Primary Interfaces:** `/chat`, `/settings`, FastMCP tools layer  
-> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI
+> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI, Anthropic Claude, PayPerQ
 > **Database Compatibility:** PostgreSQL, MySQL, Firebird (100% Parameterized Raw SQL)
 
 ---
@@ -105,6 +105,10 @@ Kinetiqo Flask Application Server
        │     ├── OpenRouter AI Adapter (Claude 3.5 Sonnet, Llama 3.3 70B, DeepSeek, etc.)
        │     ├── Vercel AI Gateway Adapter (Kimi K2.6, Llama 3.3 70B, DeepSeek R1, Claude Haiku 4.5, GPT-4o)
        │     ├── Kilo AI Gateway Adapter (Kilo Auto Free, Llama 3.3 70B, DeepSeek R1, Gemini 2.5 Flash, Qwen 2.5)
+       │     ├── Poe Adapter (GPT-4o, Claude-3.5-Sonnet bot handles)
+       │     ├── Mistral AI Adapter (Mistral Small, Mistral Large, Codestral)
+       │     ├── Anthropic Claude Adapter (Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus)
+       │     ├── PayPerQ Adapter (Auto Router, AutoClaw Eco, Claude Sonnet 4.6, DeepSeek R1, GPT-4o, Gemini 2.5 Flash)
        │     └── Ollama / Local AI Adapter (Qwen, Llama, Mistral on your own hardware)
        │
        └── In-Process FastMCP Tool Layer
@@ -159,17 +163,31 @@ Kinetiqo Flask Application Server
 - **Model Selection & Multi-Model Cascading**: Easily mark any discovered Mistral model as your Default (`★`) or assign it to Fallback slots (`1`, `2`, `3`).
 - **In-Process FastMCP Tool Calling**: Full streaming SSE multi-turn tool calling with all 32 read-only Kinetiqo telemetry and analytics tools.
 
-### 4.8 Unified Provider Model Tables
-- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
-- Values such as Gemini context and output-token limits, Mistral context sizes, or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
-- Remove actions are available only for providers with user-managed model lists; discovered-model providers (Gemini, Ollama, Mistral) show `-` in the Actions column.
-- Settings communicates with unified parameterized REST endpoints (`/api/settings/ai/providers/<provider_id>`), enabling seamless addition of future backends (such as Anthropic Claude or OpenAI ChatGPT) with minimal adapter code and zero UI duplication.
+### 4.8 Anthropic Claude
+- **Official Anthropic Claude REST API Adapter**: Direct connection to `https://api.anthropic.com/v1` using your Anthropic API key (`sk-ant-...`) from [console.anthropic.com](https://console.anthropic.com).
+- **Automatic Model Discovery**: Automatically queries `GET /v1/models` on key save and page load to list all available Claude generation models (`claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`, `claude-3-opus-20240229`, etc.).
+- **Smart Model Filtering**: Automatically excludes legacy deprecated models (Claude 1 and Claude 2 series) and prioritizes modern frontier reasoning models.
+- **Model Selection & Cascading**: Mark any discovered Claude model as your Default (`★`) or assign it to Fallback slots (`1`, `2`, `3`).
+- **In-Process FastMCP Tool Calling**: Full streaming SSE multi-turn tool calling via Anthropic Messages API with structured JSON Schema tools.
 
-### 4.9 Dynamic Mid-Session Provider & Model Switching
+### 4.9 PayPerQ
+- **PayPerQ AI Router & Chat API Adapter**: Connects to `https://api.ppq.ai/v1` via your PayPerQ API key from [ppq.ai/chat](https://ppq.ai/chat).
+- **Automatic Model Discovery**: Automatically queries `GET /v1/models` on key save and page load to list all available PayPerQ router and generation models (`auto`, `autoclaw/eco`, `claude-sonnet-4.6`, `deepseek/deepseek-r1`, `openai/gpt-4o`, `google/gemini-2.5-flash`, etc.).
+- **Smart Model Ranking**: Automatically organizes models with PayPerQ's smart auto-router (`auto`) and eco tier (`autoclaw/eco`) prioritized first, followed by frontier models.
+- **Model Selection & Cascading**: Mark any discovered PayPerQ model as your Default (`★`) or assign it to Fallback slots (`1`, `2`, `3`).
+- **In-Process FastMCP Tool Calling**: Full OpenAI-compatible streaming SSE multi-turn tool calling across all 32 read-only Kinetiqo telemetry and analytics tools.
+
+### 4.10 Unified Provider Model Tables
+- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, and PayPerQ use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
+- Values such as Gemini context and output-token limits, Mistral context sizes, Claude 200K context limits, or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
+- Remove actions are available only for providers with user-managed model lists (OpenRouter, Vercel, Kilo, Poe); discovered-model providers (Gemini, Ollama, Mistral, Anthropic, PayPerQ) show `-` in the Actions column.
+- Settings communicates with unified parameterized REST endpoints (`/api/settings/ai/providers/<provider_id>`), enabling seamless addition of future backends with minimal adapter code and zero UI duplication.
+
+### 4.11 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
-- If a quota or rate limit is reached on OpenRouter, Vercel, or Kilo, simply switch the selector to Google Gemini or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
+- If a quota or rate limit is reached on OpenRouter, Vercel, Kilo, or PayPerQ, simply switch the selector to Google Gemini, Anthropic Claude, or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
-### 4.9 Default Model & Multi-Model Automated Fallbacks
+### 4.12 Default Model & Multi-Model Automated Fallbacks
 - **Default Model Designation (`★`)**:
   - Click the star icon in any provider's model table under **Settings → AI & API Providers** to designate your preferred default model.
   - New chat sessions automatically select this model. The active default model is highlighted with a gold star badge in the AI Settings header and on the right side of the `/chat` model dropdown.
@@ -242,16 +260,22 @@ Kinetiqo Flask Application Server
 ## 6. Configuration in Settings (`/settings`)
 
 1. Navigate to **Settings** (`/settings`) → **AI & API Providers**.
-2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, **Ollama (Local AI)**, or **Mistral AI**.
+2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, **Ollama (Local AI)**, **Mistral AI**, **Anthropic Claude**, or **PayPerQ**.
 3. Configure the provider:
-   - **For Gemini**: Paste your API key; models are automatically discovered.
-   - **For Mistral AI**: Enter your Mistral API key; available models are automatically discovered from Mistral's API.
-   - **For OpenRouter**: Enter your API key, then use the nested models table to add your preferred models with real-time validation.
-   - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
-   - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai)), then use the nested models table to add your preferred models (e.g. `kilo-auto/free`) with real-time validation.
-   - **For Poe**: Enter your Poe API key, then add your bot handles (e.g. `GPT-4o`, `Claude-3.5-Sonnet`) with live handle validation.
-   - **For Ollama**: Enter your Ollama server URL (e.g. `http://localhost:11434` or `http://192.168.1.150:11434`). Test the connection to auto-discover all pulled models. An API key is optional.
-4. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
+   - **For Gemini**: Paste your API key; credentials are validated and models are automatically discovered.
+   - **For Mistral AI**: Enter your Mistral API key; credentials are validated and available models are automatically discovered from Mistral's API.
+   - **For Anthropic Claude**: Enter your Anthropic API key (`sk-ant-...`); credentials are authenticated against `api.anthropic.com/v1/models` and operational Claude models are discovered.
+   - **For PayPerQ**: Enter your PayPerQ API key (from [ppq.ai/chat](https://ppq.ai/chat)); credentials are authenticated against `api.ppq.ai/v1/models` and operational generation models are automatically discovered.
+   - **For OpenRouter**: Enter your API key (validated against OpenRouter's auth endpoint), then use the nested models table to add your preferred models with real-time validation.
+   - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token, validated against Vercel models catalog), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
+   - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai), validated against Kilo catalog), then use the nested models table to add your preferred models (e.g. `kilo-auto/free`) with real-time validation.
+   - **For Poe**: Enter your Poe API key (validated against Poe bot API), then add your bot handles (e.g. `GPT-4o`, `Claude-3.5-Sonnet`) with live handle validation.
+   - **For Ollama**: Enter your Ollama server URL (e.g. `http://localhost:11434` or `http://192.168.1.150:11434`). Test the connection to auto-discover all pulled models. An API key is optional and validated if provided.
+4. **Instant Authorization Verification & Error Feedback**:
+   - On saving, credentials are authenticated with the upstream provider before being persisted. If authorization fails (e.g. invalid key, expired token, insufficient credits), the key is rejected without saving, the input field is highlighted in light red (`bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-600`) and focused, and the exact upstream error message is displayed on the status pill.
+   - Typing into the input field automatically clears the error highlighting.
+   - If a stored key expires or is rejected on refresh, the card header and form status pills display the error in red and a warning dot appears next to the provider in the provider navigation list.
+5. Return to **AI Chat** (`/chat`), select your desired model from the dropdown, and begin asking training questions.
 
 ---
 

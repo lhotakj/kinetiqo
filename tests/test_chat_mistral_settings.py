@@ -129,6 +129,19 @@ class TestMistralSettingsMetadata(unittest.TestCase):
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")
+    @patch("kinetiqo.web.app.MistralChatProvider")
+    def test_post_mistral_invalid_key_returns_401(self, provider_cls, service_factory, _user_id):
+        from kinetiqo.chat.errors import ChatAuthenticationError
+        repository = MagicMock()
+        service_factory.return_value = MagicMock(repository=repository)
+        provider_cls.return_value.list_models.side_effect = ChatAuthenticationError("Mistral AI access rejected (HTTP 401): Unauthorized")
+
+        response = self.client.post("/api/settings/ai/mistral", json={"api_key": "invalid-mistral-key"})
+        self.assertEqual(response.status_code, 401)
+        repository.save_provider_key.assert_not_called()
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
     def test_delete_mistral_removes_key_and_clears_defaults(self, service_factory, _user_id):
         repository = MagicMock()
         service_factory.return_value = MagicMock(repository=repository)

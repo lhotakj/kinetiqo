@@ -66,6 +66,19 @@ class TestGeminiSettingsMetadata(unittest.TestCase):
         self.assertTrue(model["supports_vision"])
         repository.save_provider_config.assert_called_once()
 
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    @patch("kinetiqo.web.app.GeminiChatProvider")
+    def test_post_gemini_invalid_key_returns_401(self, provider_cls, service_factory, _user_id):
+        from kinetiqo.chat.errors import ChatAuthenticationError
+        repository = MagicMock()
+        service_factory.return_value = MagicMock(repository=repository)
+        provider_cls.return_value.list_models.side_effect = ChatAuthenticationError("Gemini API access rejected (HTTP 400): API key not valid")
+
+        response = self.client.post("/api/settings/ai/gemini", json={"api_key": "invalid-gemini-key"})
+        self.assertEqual(response.status_code, 401)
+        repository.save_provider_key.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

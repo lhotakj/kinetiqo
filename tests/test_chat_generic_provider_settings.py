@@ -56,10 +56,12 @@ class TestGenericProviderSettingsEndpoints(unittest.TestCase):
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")
-    def test_save_and_delete_generic_provider_key(self, mock_service_fn, mock_user_id):
+    @patch("kinetiqo.web.app.OpenRouterChatProvider")
+    def test_save_and_delete_generic_provider_key(self, mock_provider_cls, mock_service_fn, mock_user_id):
         mock_repo = MagicMock()
         mock_repo.get_provider_config.return_value = {"models": [{"id": "m1"}]}
         mock_service_fn.return_value = MagicMock(repository=mock_repo)
+        mock_provider_cls.return_value.validate_credentials.return_value = None
 
         # POST save key
         resp = self.client.post(

@@ -132,8 +132,12 @@ class OllamaChatProvider(BaseChatProvider):
         with client_factory(timeout=httpx.Timeout(6.0, connect=3.0)) as client:
             try:
                 resp = client.get(f"{url}/api/tags", headers=headers)
+                if resp.status_code in (401, 403):
+                    raise ChatAuthenticationError(f"Ollama server rejected authentication (HTTP {resp.status_code}). Check your API key.")
                 if not resp.is_success:
                     resp = client.get(f"{url}/v1/models", headers=headers)
+                    if resp.status_code in (401, 403):
+                        raise ChatAuthenticationError(f"Ollama server rejected authentication (HTTP {resp.status_code}). Check your API key.")
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 raise ConnectionError(
                     f"Could not connect to Ollama at {url}. "

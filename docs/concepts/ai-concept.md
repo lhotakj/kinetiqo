@@ -1,8 +1,8 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI adapters implemented with live validation and dynamic tool calling)
+> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, and PayPerQ adapters implemented with live validation and dynamic tool calling)
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
-> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI.
+> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI, Anthropic Claude, PayPerQ.
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
 > **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
 > **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
@@ -67,6 +67,9 @@ A user can:
 - **Vercel AI Gateway Provider**: OpenAI-compatible edge gateway (`https://ai-gateway.vercel.sh/v1`) providing low-latency routing to leading models (Moonshot AI Kimi, Meta Llama, DeepSeek, Anthropic, OpenAI, etc.), free-text model registration, live model validation (`GET /v1/models/{model_id}` and `/v1/models`), fuzzy suggestion matching, and responsive management table with `+` and `-` actions in Settings.
 - **Poe Provider**: OpenAI-compatible streaming API at `https://api.poe.com/v1`, Bearer-key authentication, configurable Poe bot handles validated via `GET https://api.poe.com/bots/{handle}`, and provider-reported optional metadata only. Poe has no assumed default bot; its model list contains only explicitly configured handles.
 - **Mistral AI Provider**: Direct REST adapter (`https://api.mistral.ai/v1`) with Bearer-key authentication, auto-discovery of chat models (`GET /v1/models`), exclusion of non-chat endpoints (embeddings, moderations, OCR), dynamic model ranking, and OpenAI-compatible streaming tool calling.
+- **Anthropic Claude Provider**: Official Anthropic REST adapter (`https://api.anthropic.com/v1`) with `x-api-key` and `anthropic-version: 2023-06-01` authentication, auto-discovery of chat models (`GET /v1/models`), exclusion of deprecated models, dynamic ranking for Claude 3.5 and 3.7 models, and Messages streaming tool calling with `input_schema`.
+- **PayPerQ Provider**: OpenAI-compatible REST completions gateway (`https://api.ppq.ai/v1`) with Bearer token authentication, automatic model discovery via `GET /v1/models`, dynamic auto-router prioritization (`auto`, `autoclaw/eco`), exclusion of non-chat embedding models, and responsive management table in Settings.
+- **Unified Credential Authorization Verification**: Pre-save verification across all providers; invalid API keys or expired tokens are rejected before saving, with theme-aware red input highlighting and immediate inline GUI error feedback.
 - Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
 - Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
 - `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
@@ -483,10 +486,14 @@ PROVIDER_REGISTRY = {
     "poe": PoeChatProvider,
     "ollama": OllamaChatProvider,
     "mistral": MistralChatProvider,
+    "anthropic": AnthropicChatProvider,
+    "claude": AnthropicChatProvider,
+    "payperq": PayPerQChatProvider,
+    "ppq": PayPerQChatProvider,
 }
 ```
 
-The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, and Mistral AI adapters are first-class citizens in Kinetiqo v3.0.
+The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral, Anthropic Claude, and PayPerQ AI adapters are first-class citizens in Kinetiqo v3.0.
 
 ### 6.3 Error taxonomy
 
@@ -515,7 +522,7 @@ Kinetiqo enables athletes to designate a primary **Default Model** as well as up
    - Persisted in global athlete settings (`chat_provider_keys` with provider `__global__` and setting key `default_model`).
 
 2. **Fallback Sequence (Up to 3 Models)**:
-   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral).
+   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral, Anthropic Claude, PayPerQ).
    - Displayed in the UI with a 45° rotated square diamond badge containing the sequence number (`1`, `2`, or `3`).
    - The priority/order of fallback execution is strictly determined by the chronological order in which the athlete clicks them:
      - **Fallback 1**: First alternate attempted.
@@ -649,8 +656,8 @@ Each agent row also exposes a non-persistent **Try this prompt with your activit
         | **DeepSeek V3**<br>`deepseek/deepseek-chat` | 64k tokens | Text, Tools | Provider metadata where available | `+` `–` |
         | **Nemotron 3.5 1B (Free)**<br>`nvidia/nemotron-3.5-embed-1b:free` | 131k tokens | Text | Provider metadata where available | `+` `–` |
      - **Action Controls**: Explicitly uses `+` (add another model) and `–` (remove/disable model) action buttons. **No trash bin icon is used**, keeping the table clean and unobtrusive.
-   - All provider tables (Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, and Mistral AI) use the identical shared columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
-   - Gemini and Mistral display their discovered model catalogs directly from their respective APIs. Ollama displays its reported parameter size from its local daemon. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
+   - All provider tables (Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, and PayPerQ) use the identical shared columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
+   - Gemini, Mistral, Anthropic, and PayPerQ display their discovered model catalogs directly from their respective APIs. Ollama displays its reported parameter size from its local daemon. OpenRouter, Vercel, Kilo, and Poe provide user-managed model tables. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
    - The Actions column shows `-` for providers whose models are discovered rather than user-managed.
 
 #### Generic Parameterized REST Endpoints & Declarative Manifests
@@ -775,6 +782,44 @@ Poe uses its OpenAI-compatible Chat Completions endpoint at `https://api.poe.com
 - `GET/POST/DELETE /api/settings/ai/poe`: Read Poe configuration, save an encrypted API key, or remove the key.
 - `POST /api/settings/ai/poe/models/validate`: Validate a Poe bot handle and return available bot metadata.
 - `POST/DELETE /api/settings/ai/poe/models`: Add or remove a configured Poe bot handle.
+
+### 8.9 Mistral AI Provider
+Mistral AI uses its official REST API at `https://api.mistral.ai/v1`. API keys are encrypted and sent as Bearer credentials. Kinetiqo discovers conversational chat models via `GET https://api.mistral.ai/v1/models`, automatically excluding embedding, moderation, and OCR models.
+- `GET/POST/DELETE /api/settings/ai/mistral`: Read Mistral configuration, discover models, save encrypted API key, or remove key.
+- `POST /api/settings/ai/mistral/models/validate`: Validate a Mistral model identifier and return model metadata.
+- `POST/DELETE /api/settings/ai/mistral/models`: Add or remove a custom configured Mistral model.
+
+### 8.10 Anthropic Claude Provider
+Anthropic Claude connects directly to Anthropic's Messages REST API at `https://api.anthropic.com/v1`. Authentication uses `x-api-key: <KEY>` and `anthropic-version: 2023-06-01`. Models are auto-discovered from `GET https://api.anthropic.com/v1/models` on save and refresh, filtering out legacy Claude 1/2 models and dynamically prioritizing Claude 3.5 and 3.7 models. Multi-turn FastMCP tools are declared using Anthropic's `tools: [{"name": "...", "input_schema": ...}]` format.
+- `GET/POST/DELETE /api/settings/ai/anthropic`: Read Anthropic configuration, discover Claude models, save key, or remove key.
+- `POST /api/settings/ai/anthropic/models/validate`: Validate an Anthropic model identifier and return model metadata.
+- `POST/DELETE /api/settings/ai/anthropic/models`: Add or remove a custom configured Anthropic model.
+
+### 8.11 PayPerQ Provider Implementation
+PayPerQ (`https://api.ppq.ai/v1`) is an OpenAI-compatible gateway and dynamic AI router providing access to smart auto-routing (`auto`, `autoclaw/eco`) and leading frontier models (`claude-sonnet-4.6`, `deepseek/deepseek-r1`, `openai/gpt-4o`, `google/gemini-2.5-flash`).
+
+1. **Protocol & Authentication**:
+   - Endpoint: `https://api.ppq.ai/v1/chat/completions` (OpenAI-compatible REST format).
+   - Authentication: `Authorization: Bearer <PPQ_API_KEY>`.
+   - Headers: `Content-Type: application/json`, `User-Agent: Kinetiqo-Fitness-AI`.
+   - Streaming: SSE (`stream: true`), parsing standard OpenAI chunk deltas with multi-turn FastMCP tool calling.
+2. **Auto-Routing Tiers & Model Selection**:
+   - `auto`: Dynamic auto-router selecting the optimal model for query complexity.
+   - `autoclaw/eco`: Cost-efficient lightweight router for high-throughput queries.
+   - Curated frontier options: `claude-sonnet-4.6`, `deepseek/deepseek-r1`, `openai/gpt-4o`, `google/gemini-2.5-flash`.
+3. **Automatic Model Discovery & Catalog Lookup**:
+   - Dynamic model discovery: `GET https://api.ppq.ai/v1/models`.
+   - Auto-discovers and caches all operational models (`auto`, `autoclaw/eco`, frontier models) upon saving API key and refreshing settings.
+   - Extracts context length, tool-calling support, vision capabilities, pricing, description, and request limits.
+   - Rejects non-generative embedding models.
+   - Direct lookup: `GET https://api.ppq.ai/v1/models/{model_id}` for individual model queries.
+4. **Web API Endpoints**:
+   - `GET /api/settings/ai/payperq`: Returns configured status and list of enabled models.
+   - `POST /api/settings/ai/payperq`: Encrypts and saves API key.
+   - `DELETE /api/settings/ai/payperq`: Removes key and associated models.
+   - `POST /api/settings/ai/payperq/models/validate`: Real-time validation returning model parameters.
+   - `POST /api/settings/ai/payperq/models`: Validates and appends model to athlete configuration.
+   - `DELETE /api/settings/ai/payperq/models`: Removes model from configuration.
 
 ---
 
@@ -975,6 +1020,12 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | GET/POST/DELETE | `/api/settings/ai/mistral` | Read Mistral AI configuration, discover models (`GET /v1/models`), save key, or remove key. |
 | POST | `/api/settings/ai/mistral/models/validate` | Validate a Mistral model identifier and return model metadata. |
 | POST/DELETE | `/api/settings/ai/mistral/models` | Add or remove a custom configured Mistral model. |
+| GET/POST/DELETE | `/api/settings/ai/anthropic` | Read Anthropic Claude configuration, discover models (`GET /v1/models`), save key, or remove key. |
+| POST | `/api/settings/ai/anthropic/models/validate` | Validate an Anthropic model identifier and return model metadata. |
+| POST/DELETE | `/api/settings/ai/anthropic/models` | Add or remove a custom configured Anthropic model. |
+| GET/POST/DELETE | `/api/settings/ai/payperq` | Read PayPerQ configuration, discover/list models (`GET /v1/models`), save key, or remove key. |
+| POST | `/api/settings/ai/payperq/models/validate` | Validate a PayPerQ model identifier and return model metadata. |
+| POST/DELETE | `/api/settings/ai/payperq/models` | Add or remove a custom configured PayPerQ model. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 | GET/POST | `/api/settings/ai/default-model` | Get or set the default AI model (`{"provider": "...", "model_id": "..."}`). |
 | GET/POST | `/api/settings/ai/fallback-models` | Get or set the fallback models list (up to 3 models in order: `[{"provider": "...", "model_id": "..."}, ...]`). |

@@ -108,6 +108,14 @@ class TestChatTools(unittest.TestCase):
         self.assertGreater(len(kilo_tools), 20)
         self.assertEqual(kilo_tools[0]["type"], "function")
 
+        anthropic_tools = get_chat_tools(provider="anthropic", force_refresh=True)
+        self.assertGreater(len(anthropic_tools), 20)
+        first_ant = anthropic_tools[0]
+        self.assertIn("name", first_ant)
+        self.assertIn("description", first_ant)
+        self.assertIn("input_schema", first_ant)
+        self.assertEqual(first_ant["input_schema"]["type"], "object")
+
     def test_execute_chat_tool_blocks_mutating_tools(self):
         repo = MagicMock()
         payload, elapsed = execute_chat_tool(repo, "kinetiqo_trigger_sync", {"sync_type": "full"})

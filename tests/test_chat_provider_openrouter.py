@@ -73,6 +73,24 @@ class TestOpenRouterChatProvider(unittest.TestCase):
         with self.assertRaises(ChatProviderResponseError):
             provider._raise_for_status(resp_400)
 
+    def test_validate_credentials_success_and_failure(self):
+        client = MagicMock()
+        client.__enter__.return_value = client
+        resp_ok = MagicMock(status_code=200, is_success=True)
+        client.get.return_value = resp_ok
+        provider = OpenRouterChatProvider("key", client_factory=lambda timeout=None: client)
+        provider.validate_credentials()
+        client.get.assert_called_once_with(
+            "https://openrouter.ai/api/v1/auth/key",
+            headers=provider._headers(),
+        )
+
+        resp_bad = MagicMock(status_code=401, is_success=False, read=lambda: b'{"error":{"message":"Invalid API key"}}')
+        client.get.return_value = resp_bad
+        with self.assertRaises(ChatAuthenticationError) as ctx:
+            provider.validate_credentials()
+        self.assertIn("Invalid API key", str(ctx.exception))
+
     def test_validate_model_catalog_success(self):
         client = MagicMock()
         mock_resp = MagicMock(status_code=200, is_success=True)

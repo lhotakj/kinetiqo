@@ -325,6 +325,10 @@ class ChatService:
             "kilo": "Kilo AI Gateway",
             "poe": "Poe",
             "mistral": "Mistral AI",
+            "anthropic": "Anthropic Claude",
+            "claude": "Anthropic Claude",
+            "payperq": "PayPerQ",
+            "ppq": "PayPerQ",
         }
         if provider == "all":
             groups: list[dict[str, Any]] = []
@@ -671,7 +675,7 @@ class ChatService:
         if not encrypted_key:
             raise ChatConfigurationError()
         api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
-        if provider in ("openrouter", "vercel", "kilo", "poe", "mistral"):
+        if provider in ("openrouter", "vercel", "kilo", "poe", "mistral", "anthropic", "claude", "payperq", "ppq"):
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)
 

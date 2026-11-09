@@ -57,6 +57,16 @@ class PoeChatProvider(KiloChatProvider):
             raise ChatProviderUnavailableError("Poe is temporarily unavailable.")
         raise ChatProviderResponseError(f"Poe chat completion failed (HTTP {response.status_code}).")
 
+    def validate_credentials(self) -> None:
+        """Validate Poe API key against bot lookup endpoint."""
+        url = f"{_API_URL}/bots/Claude-3.5-Sonnet"
+        with self.client_factory(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            resp = client.get(url, headers=self._headers())
+            if resp.status_code in (401, 403):
+                raise ChatAuthenticationError("Poe rejected the API key (HTTP 401/403). Check your key at poe.com/api_keys.")
+            if resp.status_code in (402, 429):
+                raise ChatRateLimitError("Poe account balance or request limit was reached.")
+
     def validate_model(self, model_id: str) -> dict[str, Any]:
         """Resolve a Poe bot handle and retain only metadata supplied by Poe."""
         handle = model_id.strip()

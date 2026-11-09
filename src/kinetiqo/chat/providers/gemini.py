@@ -314,8 +314,18 @@ class GeminiChatProvider(BaseChatProvider):
         )
         if provider_message:
             logger.info("Gemini API rejected detail: status=%s message=%s", provider_status, provider_message[:512])
-        if response.status_code in (401, 403):
-            raise ChatAuthenticationError("The Gemini API key was rejected or has expired. Please verify your API key in Settings.")
+        msg_lower = provider_message.lower()
+        stat_lower = provider_status.lower()
+        if response.status_code in (401, 403) or (
+            response.status_code == 400 and (
+                "api_key" in msg_lower
+                or "api key" in msg_lower
+                or "key not valid" in msg_lower
+                or "api_key_invalid" in stat_lower
+            )
+        ):
+            detail = f": {provider_message}" if provider_message else ". Check your Gemini API key in Google AI Studio."
+            raise ChatAuthenticationError(f"Gemini API access rejected (HTTP {response.status_code}){detail}")
         if response.status_code == 429:
             if "quota" in provider_message.lower() or "resource_exhausted" in provider_status.lower():
                 raise ChatRateLimitError("Gemini API quota exceeded. You have reached your account or model limit in Google AI Studio. Please check your quota or billing.")

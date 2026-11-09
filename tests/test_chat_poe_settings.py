@@ -28,10 +28,12 @@ class TestPoeSettingsEndpoints(unittest.TestCase):
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")
-    def test_save_and_read_poe_key_and_configured_bot(self, service_factory, user_id):
+    @patch("kinetiqo.web.app.PoeChatProvider")
+    def test_save_and_read_poe_key_and_configured_bot(self, provider_factory, service_factory, user_id):
         repository = MagicMock()
         repository.get_provider_config.return_value = {"models": [{"id": "AssistantBot"}]}
         service_factory.return_value = MagicMock(repository=repository)
+        provider_factory.return_value.validate_credentials.return_value = None
 
         response = self.client.post("/api/settings/ai/poe", json={"api_key": "poe-key"})
 
@@ -43,6 +45,19 @@ class TestPoeSettingsEndpoints(unittest.TestCase):
         response = self.client.get("/api/settings/ai/poe")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["models"][0]["id"], "AssistantBot")
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    @patch("kinetiqo.web.app.PoeChatProvider")
+    def test_post_poe_invalid_key_returns_401(self, provider_factory, service_factory, user_id):
+        from kinetiqo.chat.errors import ChatAuthenticationError
+        repository = MagicMock()
+        service_factory.return_value = MagicMock(repository=repository)
+        provider_factory.return_value.validate_credentials.side_effect = ChatAuthenticationError("Poe rejected the API key.")
+
+        response = self.client.post("/api/settings/ai/poe", json={"api_key": "invalid-poe-key"})
+        self.assertEqual(response.status_code, 401)
+        repository.save_provider_key.assert_not_called()
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")

@@ -43,11 +43,13 @@ class TestVercelSettingsEndpoints(unittest.TestCase):
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")
-    def test_save_and_remove_vercel_key(self, mock_service_fn, mock_user_id):
+    @patch("kinetiqo.web.app.VercelChatProvider")
+    def test_save_and_remove_vercel_key(self, mock_provider_cls, mock_service_fn, mock_user_id):
         mock_repo = MagicMock()
         mock_repo.get_provider_config.return_value = {"models": [{"id": "m1"}]}
         mock_service = MagicMock(repository=mock_repo)
         mock_service_fn.return_value = mock_service
+        mock_provider_cls.return_value.validate_credentials.return_value = None
 
         # Save key
         save_resp = self.client.post(
@@ -63,6 +65,22 @@ class TestVercelSettingsEndpoints(unittest.TestCase):
         del_resp = self.client.delete("/api/settings/ai/vercel")
         self.assertEqual(del_resp.status_code, 204)
         mock_repo.remove_provider_key.assert_called_once_with("12345", "vercel")
+
+    @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
+    @patch("kinetiqo.web.app._chat_service")
+    @patch("kinetiqo.web.app.VercelChatProvider")
+    def test_post_vercel_invalid_key_returns_401(self, mock_provider_cls, mock_service_fn, mock_user_id):
+        from kinetiqo.chat.errors import ChatAuthenticationError
+        mock_repo = MagicMock()
+        mock_service_fn.return_value = MagicMock(repository=mock_repo)
+        mock_provider_cls.return_value.validate_credentials.side_effect = ChatAuthenticationError("Vercel AI Gateway access rejected (HTTP 401): invalid key")
+
+        save_resp = self.client.post(
+            "/api/settings/ai/vercel",
+            json={"api_key": "vcl_invalid"},
+        )
+        self.assertEqual(save_resp.status_code, 401)
+        mock_repo.save_provider_key.assert_not_called()
 
     @patch("kinetiqo.web.app._chat_user_id", return_value="12345")
     @patch("kinetiqo.web.app._chat_service")

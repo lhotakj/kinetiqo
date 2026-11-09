@@ -816,6 +816,7 @@
                                             with auto-discovered generation models</p>
                                     </div>
                                 </div>
+                                <span id="gemini-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
                             <form id="gemini-key-form" class="flex flex-wrap items-end gap-3 pt-1">
                                 <div class="flex-1 min-w-72">
@@ -833,6 +834,7 @@
                                 <button id="remove-gemini-key" type="button"
                                     class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
                                     key</button>
+                                <span id="gemini-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
                             </form>
                             <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
                                 <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
@@ -880,6 +882,7 @@
                                             open &amp; commercial models via openrouter.ai</p>
                                     </div>
                                 </div>
+                                <span id="openrouter-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
                             <!-- OpenRouter Key Form -->
                             <form id="openrouter-key-form" class="flex flex-wrap items-end gap-3 mb-8 pt-1">
@@ -898,6 +901,7 @@
                                 <button id="remove-openrouter-key" type="button"
                                     class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
                                     key</button>
+                                <span id="openrouter-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
                             </form>
 
                             <!-- Nested Configured Models Section -->
@@ -998,6 +1002,7 @@
                                             open &amp; frontier models via Vercel AI Gateway (ai-gateway.vercel.sh)</p>
                                     </div>
                                 </div>
+                                <span id="vercel-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
                             <!-- Vercel Key Form -->
                             <form id="vercel-key-form" class="mb-8 pt-1">
@@ -1014,6 +1019,7 @@
                                             class="min-h-11 shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
                                         <button id="remove-vercel-key" type="button"
                                             class="min-h-11 shrink-0 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
+                                        <span id="vercel-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
                                     </div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Generate your key at <a
                                             href="https://vercel.com/~/ai-gateway/api-keys" target="_blank"
@@ -1122,6 +1128,7 @@
                                             open &amp; frontier models via Kilo AI Gateway (api.kilo.ai)</p>
                                     </div>
                                 </div>
+                                <span id="kilo-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
                             <!-- Kilo Key Form -->
                             <form id="kilo-key-form" class="mb-8 pt-1">
@@ -1138,6 +1145,7 @@
                                             class="min-h-11 shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
                                         <button id="remove-kilo-key" type="button"
                                             class="min-h-11 shrink-0 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
+                                        <span id="kilo-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
                                     </div>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Generate your key at <a
                                             href="https://kilo.ai" target="_blank" rel="noopener noreferrer"
@@ -1234,13 +1242,17 @@
                         <!-- Poe Provider Card -->
                         <div id="ai-provider-card-poe" data-provider="poe"
                             class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
-                            <div class="flex items-center gap-3 pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6">
-                                <img src="{{ url_for('static', filename='icons/ai_poe.svg') }}" alt="Poe"
-                                    class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
-                                <div>
-                                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Poe</h3>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Use Poe bots through its OpenAI-compatible API.</p>
+                            <div class="flex flex-wrap items-center justify-between pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3"
+                                style="padding-bottom: 1.25rem;">
+                                <div class="flex items-center gap-3">
+                                    <img src="{{ url_for('static', filename='icons/ai_poe.svg') }}" alt="Poe"
+                                        class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Poe</h3>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Use Poe bots through its OpenAI-compatible API.</p>
+                                    </div>
                                 </div>
+                                <span id="poe-header-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
                             <form id="poe-key-form" class="flex flex-wrap items-end gap-3 mb-8">
                                 <div class="flex-1 min-w-72">
@@ -1252,7 +1264,7 @@
                                 </div>
                                 <button type="submit" class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600">Save key</button>
                                 <button id="remove-poe-key" type="button" class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 dark:border-red-800 dark:text-red-300">Remove key</button>
-                                <span id="poe-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+                                <span id="poe-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
                             </form>
                             <div class="mb-6">
                                 <label for="poe-new-model-id" class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Poe bot handle</label>
@@ -1301,6 +1313,7 @@
                                             open-weights models on your own hardware or local network</p>
                                     </div>
                                 </div>
+                                <span id="ollama-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
 
                             <!-- Setup & Configuration Guide (Brief explanation in settings GUI) -->
@@ -1452,6 +1465,7 @@
                                             API with auto-discovered generation models</p>
                                     </div>
                                 </div>
+                                <span id="mistral-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
                             </div>
                             <form id="mistral-key-form" class="flex flex-wrap items-end gap-3 pt-1">
                                 <div class="flex-1 min-w-72">
@@ -1469,6 +1483,7 @@
                                 <button id="remove-mistral-key" type="button"
                                     class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
                                     key</button>
+                                <span id="mistral-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
                             </form>
                             <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
                                 <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
@@ -1494,6 +1509,143 @@
                                                 <td colspan="6"
                                                     class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No
                                                     models available.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Anthropic Claude Provider Card -->
+                        <div id="ai-provider-card-anthropic" data-provider="anthropic"
+                            class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
+                            <div class="flex flex-wrap items-center justify-between pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3"
+                                style="padding-bottom: 1.25rem;">
+                                <div class="flex items-center gap-3">
+                                    <img src="{{ url_for('static', filename='icons/ai_anthropic.svg') }}"
+                                        alt="Anthropic Claude" class="w-8 h-8 rounded-lg shrink-0" width="32" height="32">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">Anthropic Claude
+                                        </h3>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-1">Official Anthropic
+                                            API with auto-discovered generation models</p>
+                                    </div>
+                                </div>
+                                <span id="anthropic-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+                            </div>
+                            <form id="anthropic-key-form" class="flex flex-wrap items-end gap-3 pt-1">
+                                <div class="flex-1 min-w-72">
+                                    <label for="anthropic-api-key"
+                                        class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">Anthropic
+                                        API key</label>
+                                    <input id="anthropic-api-key" type="password" autocomplete="off"
+                                        aria-label="Anthropic API key"
+                                        class="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition"
+                                        placeholder="Enter Anthropic API key (sk-ant-...)">
+                                </div>
+                                <button type="submit"
+                                    class="min-h-11 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save
+                                    key</button>
+                                <button id="remove-anthropic-key" type="button"
+                                    class="min-h-11 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove
+                                    key</button>
+                                <span id="anthropic-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
+                            </form>
+                            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                    Available Models</h4>
+                                <div
+                                    class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs mt-4">
+                                    <table
+                                        class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
+                                        <thead
+                                            class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                            <tr>
+                                                <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                                <th scope="col" class="px-5 py-3.5">Context</th>
+                                                <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                                <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="anthropic-models-table-body"
+                                            class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                            <tr>
+                                                <td colspan="6"
+                                                    class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No
+                                                    models available.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PayPerQ Provider Card -->
+                        <div id="ai-provider-card-payperq" data-provider="payperq"
+                            class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
+                            <div class="flex flex-wrap items-center justify-between pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3"
+                                style="padding-bottom: 1.25rem;">
+                                <div class="flex items-center gap-3">
+                                    <img src="{{ url_for('static', filename='icons/ai_payperq.svg') }}"
+                                        alt="PayPerQ" class="w-8 h-8 rounded-lg shrink-0" width="32"
+                                        height="32">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">PayPerQ</h3>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-1">Official PayPerQ API with auto-discovered generation models (ppq.ai)</p>
+                                    </div>
+                                </div>
+                                <span id="payperq-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+                            </div>
+                            <!-- PayPerQ Key Form -->
+                            <form id="payperq-key-form" class="mb-8 pt-1">
+                                <div class="w-full">
+                                    <label for="payperq-api-key"
+                                        class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">PayPerQ API key</label>
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <input id="payperq-api-key" type="password" autocomplete="off"
+                                            aria-label="PayPerQ API key"
+                                            class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition"
+                                            placeholder="ppq_... or API key (from ppq.ai/chat)">
+                                        <button type="submit"
+                                            class="min-h-11 shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
+                                        <button id="remove-payperq-key" type="button"
+                                            class="min-h-11 shrink-0 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
+                                        <span id="payperq-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Generate your API key at <a
+                                            href="https://ppq.ai/chat" target="_blank" rel="noopener noreferrer"
+                                            class="underline hover:text-orange-500">ppq.ai/chat</a>. Pay per query with no subscription.</p>
+                                </div>
+                            </form>
+
+                            <!-- Available Models Section -->
+                            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                    Available Models</h4>
+                                <div
+                                    class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs mt-4">
+                                    <table
+                                        class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
+                                        <thead
+                                            class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                            <tr>
+                                                <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                                <th scope="col" class="px-5 py-3.5">Context</th>
+                                                <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                                <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="payperq-models-table-body"
+                                            class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                            <tr>
+                                                <td colspan="6"
+                                                    class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No
+                                                    models available.
+                                                </td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -2562,6 +2714,8 @@
             poe: { name: 'Poe', endpoint: '/api/settings/ai/poe' },
             ollama: { name: 'Ollama (Local AI)', endpoint: '/api/settings/ai/ollama' },
             mistral: { name: 'Mistral AI', endpoint: '/api/settings/ai/mistral' },
+            anthropic: { name: 'Anthropic Claude', endpoint: '/api/settings/ai/anthropic' },
+            payperq: { name: 'PayPerQ', endpoint: '/api/settings/ai/payperq' },
         };
 
         const providerListEl = document.getElementById('ai-provider-list');
@@ -2647,12 +2801,26 @@
         const mistralTableBody = document.getElementById('mistral-models-table-body');
         const removeMistralBtn = document.getElementById('remove-mistral-key');
 
-        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard, mistral: mistralCard };
-        const providerStatusEls = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus };
-        const providerTableBodies = { gemini: geminiTableBody, openrouter: openrouterTableBody, vercel: vercelTableBody, kilo: kiloTableBody, poe: poeTableBody, ollama: ollamaTableBody, mistral: mistralTableBody };
-        const providerInputs = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput };
-        const providerForms = { gemini: geminiForm, openrouter: openrouterForm, vercel: vercelForm, kilo: kiloForm, poe: poeForm, ollama: ollamaForm, mistral: mistralForm };
-        const providerRemoveBtns = { gemini: removeGeminiBtn, openrouter: removeOpenrouterBtn, vercel: removeVercelBtn, kilo: removeKiloBtn, poe: removePoeBtn, ollama: ollamaRemoveBtn, mistral: removeMistralBtn };
+        const anthropicCard = document.getElementById('ai-provider-card-anthropic');
+        const anthropicForm = document.getElementById('anthropic-key-form');
+        const anthropicInput = document.getElementById('anthropic-api-key');
+        const anthropicStatus = document.getElementById('anthropic-key-status');
+        const anthropicTableBody = document.getElementById('anthropic-models-table-body');
+        const removeAnthropicBtn = document.getElementById('remove-anthropic-key');
+
+        const payperqCard = document.getElementById('ai-provider-card-payperq');
+        const payperqForm = document.getElementById('payperq-key-form');
+        const payperqInput = document.getElementById('payperq-api-key');
+        const payperqStatus = document.getElementById('payperq-key-status');
+        const removePayperqBtn = document.getElementById('remove-payperq-key');
+        const payperqTableBody = document.getElementById('payperq-models-table-body');
+
+        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard, mistral: mistralCard, anthropic: anthropicCard, payperq: payperqCard };
+        const providerStatusEls = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus, anthropic: anthropicStatus, payperq: payperqStatus };
+        const providerTableBodies = { gemini: geminiTableBody, openrouter: openrouterTableBody, vercel: vercelTableBody, kilo: kiloTableBody, poe: poeTableBody, ollama: ollamaTableBody, mistral: mistralTableBody, anthropic: anthropicTableBody, payperq: payperqTableBody };
+        const providerInputs = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput, anthropic: anthropicInput, payperq: payperqInput };
+        const providerForms = { gemini: geminiForm, openrouter: openrouterForm, vercel: vercelForm, kilo: kiloForm, poe: poeForm, ollama: ollamaForm, mistral: mistralForm, anthropic: anthropicForm, payperq: payperqForm };
+        const providerRemoveBtns = { gemini: removeGeminiBtn, openrouter: removeOpenrouterBtn, vercel: removeVercelBtn, kilo: removeKiloBtn, poe: removePoeBtn, ollama: ollamaRemoveBtn, mistral: removeMistralBtn, anthropic: removeAnthropicBtn, payperq: removePayperqBtn };
         const providerData = {
             gemini: { configured: false, models: [] },
             openrouter: { configured: false, models: [] },
@@ -2661,6 +2829,8 @@
             poe: { configured: false, models: [] },
             ollama: { configured: false, models: [] },
             mistral: { configured: false, models: [] },
+            anthropic: { configured: false, models: [] },
+            payperq: { configured: false, models: [] },
         };
 
         let currentProvider = null;
@@ -2675,12 +2845,45 @@
         const iconPath = (provider) => `/static/icons/ai_${provider}.svg`;
         const providerIconHtml = (provider, sizeClass = 'w-4 h-4') => `<img src="${iconPath(provider)}" alt="${providerMeta[provider]?.name || provider}" class="${sizeClass} shrink-0" width="16" height="16" onerror="this.onerror=null;this.src='/static/icons/ai_generic.svg';">`;
 
-        function setStatusPill(el, text, isConfigured, isError) {
-            if (!el) return;
-            el.textContent = text;
-            if (isError) el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300';
-            else if (isConfigured) el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
-            else el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400';
+        function setStatusPill(target, text, isConfigured, isError) {
+            const els = new Set();
+            if (typeof target === 'string') {
+                const h = document.getElementById(`${target}-key-status`) || document.getElementById(`${target}-header-status`);
+                const f = document.getElementById(`${target}-form-status`);
+                if (h) els.add(h);
+                if (f) els.add(f);
+            } else if (target && target.nodeType) {
+                els.add(target);
+                const id = target.id || '';
+                const match = id.match(/^([a-z0-9_-]+)-(key|form|header)-status$/);
+                if (match) {
+                    const p = match[1];
+                    const other1 = document.getElementById(`${p}-key-status`);
+                    const other2 = document.getElementById(`${p}-form-status`);
+                    const other3 = document.getElementById(`${p}-header-status`);
+                    if (other1) els.add(other1);
+                    if (other2) els.add(other2);
+                    if (other3) els.add(other3);
+                }
+            }
+            els.forEach((el) => {
+                el.textContent = text;
+                el.title = text;
+                if (isError) el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 break-words';
+                else if (isConfigured) el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
+                else el.className = 'text-xs px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400';
+            });
+        }
+
+        function setInputError(provider, isError) {
+            const input = providerInputs[provider] || document.getElementById(`${provider}-api-key`);
+            if (!input) return;
+            if (isError) {
+                input.classList.add('border-red-500', 'bg-red-50', 'dark:bg-red-950/40', 'dark:border-red-600');
+                input.focus();
+            } else {
+                input.classList.remove('border-red-500', 'bg-red-50', 'dark:bg-red-950/40', 'dark:border-red-600');
+            }
         }
 
         function formatNumber(num) {
@@ -3141,7 +3344,7 @@
             if (!count) {
                 const tr = document.createElement('tr');
                 let emptyMsg = `No ${providerMeta[provider]?.name || provider} models configured yet. Add your first model above.`;
-                if (provider === 'gemini' || provider === 'mistral') emptyMsg = 'No models available.';
+                if (provider === 'gemini' || provider === 'mistral' || provider === 'anthropic' || provider === 'payperq') emptyMsg = 'No models available.';
                 else if (provider === 'poe') emptyMsg = 'Add Poe bot handles to configure models.';
                 else if (provider === 'ollama') emptyMsg = 'No models detected on server. Pull a model via `ollama run <model>` first.';
                 tr.innerHTML = `<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">${emptyMsg}</td>`;
@@ -3156,11 +3359,13 @@
 
         const renderGeminiModels = (models) => renderProviderModels('gemini', models);
         const renderMistralModels = (models) => renderProviderModels('mistral', models);
+        const renderAnthropicModels = (models) => renderProviderModels('anthropic', models);
         const renderOpenRouterModels = (models) => renderProviderModels('openrouter', models);
         const renderVercelModels = (models) => renderProviderModels('vercel', models);
         const renderKiloModels = (models) => renderProviderModels('kilo', models);
         const renderPoeModels = (models) => renderProviderModels('poe', models);
         const renderOllamaModels = (models) => renderProviderModels('ollama', models);
+        const renderPayPerQModels = (models) => renderProviderModels('payperq', models);
 
         const renderAllModelTables = () => {
             Object.keys(providerData).forEach((provider) => {
@@ -3168,18 +3373,33 @@
             });
         };
 
-        const markAiDirty = () => { aiDirty = true; };
+        const markAiDirty = (e) => {
+            aiDirty = true;
+            if (e?.target) {
+                e.target.classList.remove('border-red-500', 'bg-red-50', 'dark:bg-red-950/40', 'dark:border-red-600');
+            }
+        };
         const clearAiDirty = () => { aiDirty = false; };
 
-        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput, mistralInput].forEach((input) => input?.addEventListener('input', markAiDirty));
+        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput, mistralInput, anthropicInput, payperqInput].forEach((input) => input?.addEventListener('input', markAiDirty));
 
         async function loadProviderStatus(provider) {
             const statusEl = providerStatusEls[provider] || document.getElementById(`${provider}-key-status`);
             try {
                 const r = await fetch(`/api/settings/ai/providers/${provider}`);
                 const d = await r.json();
-                providerData[provider] = { configured: Boolean(d.configured), models: d.models || [] };
-                setStatusPill(statusEl, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+                providerData[provider] = {
+                    configured: Boolean(d.configured),
+                    models: d.models || [],
+                    authError: Boolean(d.auth_error),
+                };
+                if (d.auth_error) {
+                    setStatusPill(statusEl, d.auth_error, false, true);
+                    setInputError(provider, true);
+                } else {
+                    setStatusPill(statusEl, d.configured ? 'Configured' : 'Not configured', d.configured, false);
+                    setInputError(provider, false);
+                }
                 if (provider === 'ollama') {
                     if (ollamaUrlInput && d.base_url) ollamaUrlInput.value = d.base_url;
                     if (ollamaKeyInput && d.has_api_key) ollamaKeyInput.placeholder = '•••••••• (API key saved)';
@@ -3200,6 +3420,8 @@
         const loadPoeStatus = () => loadProviderStatus('poe');
         const loadOllamaStatus = () => loadProviderStatus('ollama');
         const loadMistralStatus = () => loadProviderStatus('mistral');
+        const loadAnthropicStatus = () => loadProviderStatus('anthropic');
+        const loadPayPerQStatus = () => loadProviderStatus('payperq');
 
         async function saveCurrentProvider() {
             if (!currentProvider) return;
@@ -3238,9 +3460,11 @@
             }
             try {
                 await saveCurrentProvider();
+                setInputError(currentProvider, false);
             } catch (err) {
                 const statusEl = providerStatusEls[currentProvider] || document.getElementById(`${currentProvider}-key-status`);
                 setStatusPill(statusEl, err.message || 'Save failed', false, true);
+                setInputError(currentProvider, true);
             } finally {
                 if (submitBtn) {
                     submitBtn.innerHTML = origHtml;
@@ -3344,6 +3568,7 @@
         const removeProviderByKey = async (key) => {
             const res = await fetch(`/api/settings/ai/providers/${key}`, { method: 'DELETE', headers: aiHeaders });
             if (!res.ok) return;
+            setInputError(key, false);
             await Promise.all([refreshAllProvidersStatus(), loadDefaultModel(), loadFallbackModels(), refreshProvidersIndex()]);
             renderAllModelTables();
         };

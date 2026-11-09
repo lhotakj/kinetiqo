@@ -2,12 +2,14 @@
 
 from typing import Any
 
+from kinetiqo.chat.providers.anthropic import AnthropicChatProvider
 from kinetiqo.chat.providers.base import BaseChatProvider
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
 from kinetiqo.chat.providers.mistral import MistralChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
+from kinetiqo.chat.providers.payperq import PayPerQChatProvider
 from kinetiqo.chat.providers.poe import PoeChatProvider
 from kinetiqo.chat.providers.vercel import VercelChatProvider
 
@@ -19,6 +21,10 @@ PROVIDER_REGISTRY: dict[str, type[BaseChatProvider]] = {
     "poe": PoeChatProvider,
     "ollama": OllamaChatProvider,
     "mistral": MistralChatProvider,
+    "anthropic": AnthropicChatProvider,
+    "claude": AnthropicChatProvider,
+    "payperq": PayPerQChatProvider,
+    "ppq": PayPerQChatProvider,
 }
 
 
@@ -44,13 +50,15 @@ def list_all_provider_manifests() -> list[dict[str, Any]]:
 
 
 __all__ = [
+    "AnthropicChatProvider",
     "BaseChatProvider",
     "GeminiChatProvider",
     "KiloChatProvider",
     "MistralChatProvider",
     "OllamaChatProvider",
-    "PoeChatProvider",
     "OpenRouterChatProvider",
+    "PayPerQChatProvider",
+    "PoeChatProvider",
     "VercelChatProvider",
     "PROVIDER_REGISTRY",
     "register_provider",

@@ -55,6 +55,16 @@ class BaseChatProvider(ABC):
         """Return discovered, operational chat completion models for this provider."""
         raise NotImplementedError
 
+    def validate_credentials(self) -> None:
+        """Validate credentials against upstream provider.
+
+        Default implementation calls list_models() for auto-discovered providers.
+        Curated providers override this to check upstream auth endpoints.
+        Raises ChatAuthenticationError when rejected.
+        """
+        if self.model_mode == "discovered":
+            self.list_models()
+
     def validate_model(self, model_id: str) -> dict[str, Any]:
         """Validate or normalize a model identifier. Override in providers supporting model validation."""
         clean_id = model_id.strip()

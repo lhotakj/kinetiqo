@@ -68,7 +68,11 @@ Before finishing any task touching AI components, complete the following verific
 | **OpenRouter AI** | `https://openrouter.ai/api/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against OpenRouter catalog |
 | **Vercel AI Gateway** | `https://ai-gateway.vercel.sh/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against Vercel catalog |
 | **Kilo AI Gateway** | `https://api.kilo.ai/api/gateway` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Model ID validated against Kilo catalog |
+| **Poe** | `https://api.poe.com/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Bot handle validated via `GET /bots/{handle}` |
 | **Ollama** | Configurable local URL | Optional Bearer key | OpenAI-compatible functions | Dynamic model discovery from local server |
+| **Mistral AI** | `https://api.mistral.ai/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Dynamic model discovery via `GET /v1/models` |
+| **Anthropic Claude** | `https://api.anthropic.com/v1` | `x-api-key: <KEY>` | Anthropic `input_schema` tools | Dynamic model discovery via `GET /v1/models` |
+| **PayPerQ** | `https://api.ppq.ai/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Dynamic model discovery via `GET /v1/models` |
 
 ---
 

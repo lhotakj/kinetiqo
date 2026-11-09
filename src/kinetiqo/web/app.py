@@ -79,7 +79,12 @@ from kinetiqo.web.stats import (
 )
 from kinetiqo.web.fondo_o_meter import compute_fondo_o_meter, compute_achievements
 from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncryptionError
-from kinetiqo.chat.errors import ChatError, ChatConfigurationError
+from kinetiqo.chat.errors import (
+    ChatError,
+    ChatConfigurationError,
+    ChatAuthenticationError,
+    ChatRateLimitError,
+)
 from kinetiqo.chat.repository import ChatRepository
 from kinetiqo.chat.service import ChatService
 from kinetiqo.chat.providers import (
@@ -88,11 +93,13 @@ from kinetiqo.chat.providers import (
     get_provider_manifest,
     list_all_provider_manifests,
 )
+from kinetiqo.chat.providers.anthropic import AnthropicChatProvider
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
 from kinetiqo.chat.providers.mistral import MistralChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
+from kinetiqo.chat.providers.payperq import PayPerQChatProvider
 from kinetiqo.chat.providers.poe import PoeChatProvider
 from kinetiqo.chat.providers.vercel import VercelChatProvider
 
@@ -2833,6 +2840,10 @@ def _resolve_provider_class(provider_id: str):
         "poe": "PoeChatProvider",
         "ollama": "OllamaChatProvider",
         "mistral": "MistralChatProvider",
+        "anthropic": "AnthropicChatProvider",
+        "claude": "AnthropicChatProvider",
+        "payperq": "PayPerQChatProvider",
+        "ppq": "PayPerQChatProvider",
     }
     class_name = mapping.get(provider_id)
     if class_name and class_name in globals():
@@ -2873,6 +2884,7 @@ def handle_provider_settings_api(provider_id: str):
         model_mode = manifest.get('model_mode', 'curated')
         validate_on_refresh = manifest.get('validate_on_refresh', False)
 
+        auth_error_message = None
         if has_key and provider_cls:
             try:
                 api_key = decrypt_api_key(encrypted_key, app.secret_key) if encrypted_key else ""
@@ -2916,17 +2928,24 @@ def handle_provider_settings_api(provider_id: str):
                         config_data['models'] = refreshed_models
                         repository.save_provider_config(athlete_id, provider_id, config_data)
                         current_models = refreshed_models
+            except ChatAuthenticationError as exc:
+                logger.warning('%s authentication check failed for athlete=%s: %s', provider_id, athlete_id, exc)
+                auth_error_message = str(exc)
+                current_models = repository.get_provider_config(athlete_id, provider_id).get('models', [])
             except Exception as exc:
                 logger.warning('%s model refresh failed for athlete=%s: %s', provider_id, athlete_id, exc)
                 current_models = repository.get_provider_config(athlete_id, provider_id).get('models', [])
 
         models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, current_models)
-        return jsonify({
-            'configured': has_key,
+        payload = {
+            'configured': has_key and not auth_error_message,
             'models': models,
             'default_model': default_model,
             'manifest': manifest,
-        })
+        }
+        if auth_error_message:
+            payload['auth_error'] = auth_error_message
+        return jsonify(payload)
 
     if request.method == 'DELETE':
         repository.remove_provider_key(athlete_id, provider_id)
@@ -2962,6 +2981,9 @@ def handle_provider_settings_api(provider_id: str):
             try:
                 connection_result = provider_cls.test_connection(base_url, plain_key)
                 discovered_models = connection_result.get('models', [])
+            except ChatAuthenticationError as exc:
+                logger.warning("%s authorization failed on save for athlete=%s: %s", provider_id, athlete_id, exc)
+                return _chat_error(exc, 401)
             except Exception as exc:
                 logger.info("%s discovery on save skipped: %s", provider_id, exc)
 
@@ -2991,39 +3013,53 @@ def handle_provider_settings_api(provider_id: str):
     api_key = data.get('api_key')
     if not isinstance(api_key, str) or not api_key.strip() or len(api_key) > 1024:
         return _chat_error(ValueError('Enter a valid API key.'), 422)
+    clean_key = api_key.strip()
     try:
+        discovered_models = None
+        if provider_cls:
+            try:
+                provider = provider_cls(clean_key)
+                if manifest.get('model_mode') == 'discovered':
+                    discovered_models = [
+                        {
+                            'id': model.id,
+                            'name': model.display_name,
+                            'display_name': model.display_name,
+                            'supports_tools': model.supports_tools,
+                            'supports_vision': model.supports_vision,
+                            'context_length': model.context_length,
+                            'max_output_tokens': model.max_output_tokens,
+                            'pricing': model.pricing,
+                            'rate_limits': model.rate_limits,
+                            'request_limits': model.request_limits,
+                            'description': model.description,
+                        }
+                        for model in provider.list_models()
+                    ]
+                elif hasattr(provider, 'validate_credentials'):
+                    provider.validate_credentials()
+            except ChatAuthenticationError as exc:
+                logger.warning('%s credentials rejected on save for athlete=%s: %s', provider_id, athlete_id, exc)
+                return _chat_error(exc, 401)
+            except ChatRateLimitError as exc:
+                logger.warning('%s rate limit/balance error on save for athlete=%s: %s', provider_id, athlete_id, exc)
+                return _chat_error(exc, 402)
+            except Exception as exc:
+                logger.warning('%s model validation/discovery on key save failed: %s', provider_id, exc)
+
         existing_config = repository.get_provider_config(athlete_id, provider_id)
         repository.save_provider_key(
             athlete_id,
             provider_id,
-            encrypt_api_key(api_key.strip(), app.secret_key),
+            encrypt_api_key(clean_key, app.secret_key),
             config=existing_config,
         )
-        models = list(existing_config.get('models', []))
-        if manifest.get('model_mode') == 'discovered' and provider_cls:
-            try:
-                provider = provider_cls(api_key.strip())
-                discovered = [
-                    {
-                        'id': model.id,
-                        'name': model.display_name,
-                        'display_name': model.display_name,
-                        'supports_tools': model.supports_tools,
-                        'supports_vision': model.supports_vision,
-                        'context_length': model.context_length,
-                        'max_output_tokens': model.max_output_tokens,
-                        'pricing': model.pricing,
-                        'rate_limits': model.rate_limits,
-                        'request_limits': model.request_limits,
-                        'description': model.description,
-                    }
-                    for model in provider.list_models()
-                ]
-                existing_config['models'] = discovered
-                models = discovered
-            except Exception as exc:
-                logger.warning('%s discovery on key save failed: %s', provider_id, exc)
+        if discovered_models is not None:
+            existing_config['models'] = discovered_models
             repository.save_provider_config(athlete_id, provider_id, existing_config)
+            models = discovered_models
+        else:
+            models = list(existing_config.get('models', []))
         models, default_model = _decorate_models_with_default(repository, athlete_id, provider_id, models)
         return jsonify({'configured': True, 'models': models, 'default_model': default_model})
     except ChatEncryptionError as exc:
@@ -3285,6 +3321,42 @@ def chat_mistral_validate_model_api():
 @login_required
 def chat_mistral_models_api():
     return handle_provider_models_api('mistral')
+
+
+@app.route('/api/settings/ai/anthropic', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_anthropic_settings_api():
+    return handle_provider_settings_api('anthropic')
+
+
+@app.route('/api/settings/ai/anthropic/models/validate', methods=['POST'])
+@login_required
+def chat_anthropic_validate_model_api():
+    return handle_provider_validate_model_api('anthropic')
+
+
+@app.route('/api/settings/ai/anthropic/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_anthropic_models_api():
+    return handle_provider_models_api('anthropic')
+
+
+@app.route('/api/settings/ai/payperq', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_payperq_settings_api():
+    return handle_provider_settings_api('payperq')
+
+
+@app.route('/api/settings/ai/payperq/models/validate', methods=['POST'])
+@login_required
+def chat_payperq_validate_model_api():
+    return handle_provider_validate_model_api('payperq')
+
+
+@app.route('/api/settings/ai/payperq/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_payperq_models_api():
+    return handle_provider_models_api('payperq')
 
 
 @app.route('/strava/reconnect', methods=['GET'])

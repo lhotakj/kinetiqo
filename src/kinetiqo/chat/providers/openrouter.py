@@ -104,29 +104,58 @@ class OpenRouterChatProvider(BaseChatProvider):
         }
 
     def _raise_for_status(self, response: httpx.Response) -> None:
-        if response.status_code == 401 or response.status_code == 403:
-            logger.warning("OpenRouter API rejected key: http_status=%d", response.status_code)
-            raise ChatAuthenticationError()
+        if response.is_success:
+            return
+
+        err_body = ""
+        try:
+            if hasattr(response, "read"):
+                raw = response.read()
+                err_body = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
+            elif hasattr(response, "text"):
+                err_body = response.text
+        except Exception:
+            pass
+
+        err_msg = ""
+        if err_body:
+            try:
+                payload = json.loads(err_body)
+                if isinstance(payload, dict):
+                    err_obj = payload.get("error")
+                    if isinstance(err_obj, dict):
+                        err_msg = str(err_obj.get("message") or "")
+                    elif isinstance(err_obj, str):
+                        err_msg = err_obj
+                    elif payload.get("message"):
+                        err_msg = str(payload["message"])
+            except Exception:
+                pass
+
+        if response.status_code in (401, 403):
+            logger.warning("OpenRouter API rejected key: http_status=%d body=%s", response.status_code, err_body[:500])
+            detail = f": {err_msg}" if err_msg else ". Check your API key at openrouter.ai."
+            raise ChatAuthenticationError(f"OpenRouter access rejected (HTTP {response.status_code}){detail}")
         if response.status_code == 402:
-            logger.warning("OpenRouter API returned 402 (Payment Required / Credit limit)")
-            raise ChatRateLimitError("OpenRouter account has insufficient credits.")
+            logger.warning("OpenRouter API returned 402 (Payment Required / Credit limit): %s", err_body[:500])
+            detail = f": {err_msg}" if err_msg else "."
+            raise ChatRateLimitError(f"OpenRouter account has insufficient credits{detail}")
         if response.status_code == 429:
-            logger.warning("OpenRouter API rate limit hit: http_status=429")
-            raise ChatRateLimitError("OpenRouter rate limit or quota exceeded.")
+            logger.warning("OpenRouter API rate limit hit: http_status=429 %s", err_body[:500])
+            detail = f": {err_msg}" if err_msg else "."
+            raise ChatRateLimitError(f"OpenRouter rate limit or quota exceeded{detail}")
         if 500 <= response.status_code < 600:
             logger.warning("OpenRouter upstream error: http_status=%d", response.status_code)
             raise ChatProviderUnavailableError()
-        if not response.is_success:
-            err_body = ""
-            try:
-                if hasattr(response, "read"):
-                    err_body = response.read().decode("utf-8", errors="replace")
-                elif hasattr(response, "text"):
-                    err_body = response.text
-            except Exception:
-                pass
-            logger.warning("OpenRouter error response: http_status=%d body=%s", response.status_code, err_body[:500])
-            raise ChatProviderResponseError()
+        logger.warning("OpenRouter error response: http_status=%d body=%s", response.status_code, err_body[:500])
+        detail = f": {err_msg}" if err_msg else "."
+        raise ChatProviderResponseError(f"OpenRouter returned an error (HTTP {response.status_code}){detail}")
+
+    def validate_credentials(self) -> None:
+        """Validate OpenRouter API key against its auth endpoint."""
+        with self.client_factory(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            resp = client.get(f"{_BASE_URL}/auth/key", headers=self._headers())
+            self._raise_for_status(resp)
 
     def validate_model(self, model_id: str) -> dict[str, Any]:
         """Validate an OpenRouter model ID by fetching its metadata from OpenRouter."""

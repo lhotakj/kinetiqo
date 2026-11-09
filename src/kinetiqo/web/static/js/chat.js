@@ -313,6 +313,8 @@
         if (key.includes('vercel')) return '/static/icons/ai_vercel.svg';
         if (key.includes('kilo')) return '/static/icons/ai_kilo.svg';
         if (key.includes('mistral')) return '/static/icons/ai_mistral.svg';
+        if (key.includes('anthropic') || key.includes('claude')) return '/static/icons/ai_anthropic.svg';
+        if (key.includes('payperq') || key.includes('ppq')) return '/static/icons/ai_payperq.svg';
         return '';
     };
 

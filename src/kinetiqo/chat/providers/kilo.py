@@ -171,6 +171,12 @@ class KiloChatProvider(BaseChatProvider):
         detail = f": {summary_detail}" if summary_detail else "."
         raise ChatProviderResponseError(f"Kilo AI Gateway returned an error (HTTP {response.status_code}){detail}")
 
+    def validate_credentials(self) -> None:
+        """Validate Kilo AI Gateway credentials against catalog endpoint."""
+        with self.client_factory(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            resp = client.get(f"{self.base_url}/models", headers=self._headers())
+            self._raise_for_status(resp)
+
     def validate_model(self, model_id: str) -> dict[str, Any]:
         """Validate a Kilo AI Gateway model ID by fetching its metadata from Kilo Gateway."""
         clean_id = model_id.strip()
