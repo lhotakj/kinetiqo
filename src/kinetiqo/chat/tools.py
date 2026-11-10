@@ -129,6 +129,8 @@ def to_openai_schema(prop: Any) -> dict[str, Any]:
         out["description"] = prop["description"]
     if "enum" in prop and isinstance(prop["enum"], list):
         out["enum"] = prop["enum"]
+    if "default" in prop:
+        out["default"] = prop["default"]
 
     if out.get("type") == "array":
         items = prop.get("items", {"type": "string"})
@@ -137,8 +139,8 @@ def to_openai_schema(prop: Any) -> dict[str, Any]:
         out["type"] = "object"
         props = prop.get("properties", {})
         out["properties"] = {k: to_openai_schema(v) for k, v in props.items()}
-        if "required" in prop and isinstance(prop["required"], list):
-            out["required"] = prop["required"]
+        req = prop.get("required")
+        out["required"] = req if isinstance(req, list) else []
 
     return out
 
@@ -165,7 +167,7 @@ def get_chat_tools(provider: str = "gemini", config: Any = None, repo_factory: C
         description = getattr(tool, "description", "") or ""
         raw_schema = getattr(tool, "inputSchema", {})
 
-        if norm_provider in ("openai", "mistral", "openrouter", "ollama", "vercel", "kilo", "payperq", "ppq"):
+        if norm_provider in ("openai", "mistral", "openrouter", "ollama", "vercel", "kilo", "payperq", "ppq", "poe", "magnetapi", "magnet"):
             declarations.append({
                 "type": "function",
                 "function": {
@@ -207,6 +209,59 @@ def normalize_tool_call_arguments(arguments: dict[str, Any] | None) -> dict[str,
             norm_args["activity_ids"] = [str(x).strip() for x in val if x is not None]
         elif isinstance(val, (str, int)):
             norm_args["activity_ids"] = [str(val).strip()]
+
+    # Strip empty string arguments (e.g. start_date='', end_date='', query='', cursor='')
+    for k, v in list(norm_args.items()):
+        if isinstance(v, str) and not v.strip():
+            del norm_args[k]
+
+    # Defensively prune dummy zero-defaults emitted by models when all schema parameters are populated
+    # 1. Strictly positive bounds that would make queries return empty sets if passed as 0
+    zero_bound_keys = (
+        "max_distance_km", "max_elevation_m", "max_moving_time_min",
+        "max_watts", "max_max_watts", "max_heartrate", "max_speed_kmh", "max_suffer_score",
+        "min_distance_km", "min_elevation_m", "min_moving_time_min",
+        "min_watts", "min_max_watts", "min_heartrate", "min_speed_kmh",
+        "min_suffer_score", "min_pr_count",
+    )
+    for k in zero_bound_keys:
+        if k in norm_args and norm_args[k] is not None:
+            try:
+                if float(norm_args[k]) <= 0:
+                    del norm_args[k]
+            except (ValueError, TypeError):
+                pass
+
+    # 2. Workout type: 0 is dummy default / unclassified; real Strava workout types are > 0 (10, 11, 12, etc.)
+    if "workout_type" in norm_args and norm_args["workout_type"] == 0:
+        del norm_args["workout_type"]
+
+    # 3. Paired zero weather ranges (min == 0 and max == 0)
+    for min_k, max_k in (
+        ("min_temp_c", "max_temp_c"),
+        ("min_wind_speed_kmh", "max_wind_speed_kmh"),
+        ("min_wind_speed_ms", "max_wind_speed_ms"),
+        ("min_wind_gust_kmh", "max_wind_gust_kmh"),
+        ("min_wind_gust_ms", "max_wind_gust_ms"),
+    ):
+        if min_k in norm_args and max_k in norm_args:
+            try:
+                if float(norm_args[min_k]) == 0 and float(norm_args[max_k]) == 0:
+                    del norm_args[min_k]
+                    del norm_args[max_k]
+            except (ValueError, TypeError):
+                pass
+
+    # 4. Dummy boolean flags emitted when model sets all booleans to false
+    # If a model emits has_weather=False alongside has_trophies=False and koms_only=False,
+    # it is a dummy false that would otherwise exclude all activities with weather!
+    if norm_args.get("has_weather") is False and norm_args.get("has_trophies") is False:
+        del norm_args["has_weather"]
+    if norm_args.get("has_trophies") is False:
+        del norm_args["has_trophies"]
+    if norm_args.get("koms_only") is False:
+        del norm_args["koms_only"]
+
     return norm_args
 
 

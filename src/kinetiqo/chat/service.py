@@ -675,7 +675,7 @@ class ChatService:
         if not encrypted_key:
             raise ChatConfigurationError()
         api_key = decrypt_api_key(encrypted_key, self.encryption_secret)
-        if provider in ("openrouter", "vercel", "kilo", "poe", "mistral", "anthropic", "claude", "payperq", "ppq"):
+        if provider in ("openrouter", "vercel", "kilo", "poe", "mistral", "anthropic", "claude", "payperq", "ppq", "magnetapi", "magnet"):
             return provider_cls(api_key, configured_models=config.get("models") or [])
         return provider_cls(api_key)
 

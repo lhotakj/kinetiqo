@@ -73,6 +73,7 @@ Before finishing any task touching AI components, complete the following verific
 | **Mistral AI** | `https://api.mistral.ai/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Dynamic model discovery via `GET /v1/models` |
 | **Anthropic Claude** | `https://api.anthropic.com/v1` | `x-api-key: <KEY>` | Anthropic `input_schema` tools | Dynamic model discovery via `GET /v1/models` |
 | **PayPerQ** | `https://api.ppq.ai/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Dynamic model discovery via `GET /v1/models` |
+| **MagnetAPI** | `https://api.magnetapi.org/v1` | `Authorization: Bearer <KEY>` | Standard OpenAI functions (`tools`) | Dynamic model discovery via `GET /v1/models` |
 
 ---
 

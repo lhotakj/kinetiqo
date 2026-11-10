@@ -96,6 +96,7 @@ from kinetiqo.chat.providers import (
 from kinetiqo.chat.providers.anthropic import AnthropicChatProvider
 from kinetiqo.chat.providers.gemini import GeminiChatProvider
 from kinetiqo.chat.providers.kilo import KiloChatProvider
+from kinetiqo.chat.providers.magnetapi import MagnetAPIChatProvider
 from kinetiqo.chat.providers.mistral import MistralChatProvider
 from kinetiqo.chat.providers.ollama import OllamaChatProvider
 from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
@@ -2844,6 +2845,8 @@ def _resolve_provider_class(provider_id: str):
         "claude": "AnthropicChatProvider",
         "payperq": "PayPerQChatProvider",
         "ppq": "PayPerQChatProvider",
+        "magnetapi": "MagnetAPIChatProvider",
+        "magnet": "MagnetAPIChatProvider",
     }
     class_name = mapping.get(provider_id)
     if class_name and class_name in globals():
@@ -3357,6 +3360,24 @@ def chat_payperq_validate_model_api():
 @login_required
 def chat_payperq_models_api():
     return handle_provider_models_api('payperq')
+
+
+@app.route('/api/settings/ai/magnetapi', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def chat_magnetapi_settings_api():
+    return handle_provider_settings_api('magnetapi')
+
+
+@app.route('/api/settings/ai/magnetapi/models/validate', methods=['POST'])
+@login_required
+def chat_magnetapi_validate_model_api():
+    return handle_provider_validate_model_api('magnetapi')
+
+
+@app.route('/api/settings/ai/magnetapi/models', methods=['POST', 'DELETE'])
+@login_required
+def chat_magnetapi_models_api():
+    return handle_provider_models_api('magnetapi')
 
 
 @app.route('/strava/reconnect', methods=['GET'])

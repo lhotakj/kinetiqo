@@ -1652,6 +1652,78 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- MagnetAPI Provider Card -->
+                        <div id="ai-provider-card-magnetapi" data-provider="magnetapi"
+                            class="ai-provider-card rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50/70 dark:bg-zinc-900/50 p-6 md:p-7 shadow-sm transition-all hidden">
+                            <div class="flex flex-wrap items-center justify-between pb-6 border-b border-gray-200 dark:border-zinc-700 mb-6 gap-3"
+                                style="padding-bottom: 1.25rem;">
+                                <div class="flex items-center gap-3">
+                                    <img src="{{ url_for('static', filename='icons/ai_magnetapi.svg') }}"
+                                        alt="MagnetAPI" class="w-8 h-8 rounded-lg shrink-0" width="32"
+                                        height="32">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white">MagnetAPI</h3>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-1">Official MagnetAPI API with auto-discovered generation models (magnetapi.org)</p>
+                                    </div>
+                                </div>
+                                <span id="magnetapi-key-status" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+                            </div>
+                            <!-- MagnetAPI Key Form -->
+                            <form id="magnetapi-key-form" class="mb-8 pt-1">
+                                <div class="w-full">
+                                    <label for="magnetapi-api-key"
+                                        class="block text-xs font-semibold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-2">MagnetAPI API key</label>
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <input id="magnetapi-api-key" type="password" autocomplete="off"
+                                            aria-label="MagnetAPI API key"
+                                            class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:ring-2 focus:ring-black/20 focus:border-zinc-500 outline-none transition"
+                                            placeholder="Enter MagnetAPI key (from magnetapi.org)">
+                                        <button type="submit"
+                                            class="min-h-11 shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-orange-600 transition shadow-xs cursor-pointer">Save key</button>
+                                        <button id="remove-magnetapi-key" type="button"
+                                            class="min-h-11 shrink-0 rounded-lg border border-red-300 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30 transition cursor-pointer">Remove key</button>
+                                        <span id="magnetapi-form-status" class="text-xs px-2.5 py-1 rounded-full font-medium self-center"></span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">Generate your key at <a
+                                            href="https://magnetapi.org/docs" target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="underline hover:text-orange-500">magnetapi.org/docs</a>. Access models using usage-based API coding credits.</p>
+                                </div>
+                            </form>
+
+                            <!-- Available Models Section -->
+                            <div class="mt-6 pt-6 border-t border-gray-200 dark:border-zinc-700">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                    Available Models</h4>
+                                <div
+                                    class="overflow-x-auto rounded-xl border border-gray-200 dark:border-zinc-700 shadow-2xs mt-4">
+                                    <table
+                                        class="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-left text-xs">
+                                        <thead
+                                            class="bg-gray-100/80 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 uppercase font-semibold text-[11px] tracking-wider">
+                                            <tr>
+                                                <th scope="col" class="px-5 py-3.5">Model Name &amp; ID</th>
+                                                <th scope="col" class="px-5 py-3.5">Context</th>
+                                                <th scope="col" class="px-5 py-3.5">Capabilities</th>
+                                                <th scope="col" class="px-5 py-3.5">Pricing &amp; Limits</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Default</th>
+                                                <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="magnetapi-models-table-body"
+                                            class="divide-y divide-gray-200 dark:divide-zinc-700 bg-white dark:bg-zinc-900 text-gray-800 dark:text-gray-200">
+                                            <tr>
+                                                <td colspan="6"
+                                                    class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">No
+                                                    models available.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -2716,6 +2788,7 @@
             mistral: { name: 'Mistral AI', endpoint: '/api/settings/ai/mistral' },
             anthropic: { name: 'Anthropic Claude', endpoint: '/api/settings/ai/anthropic' },
             payperq: { name: 'PayPerQ', endpoint: '/api/settings/ai/payperq' },
+            magnetapi: { name: 'MagnetAPI', endpoint: '/api/settings/ai/magnetapi' },
         };
 
         const providerListEl = document.getElementById('ai-provider-list');
@@ -2815,12 +2888,19 @@
         const removePayperqBtn = document.getElementById('remove-payperq-key');
         const payperqTableBody = document.getElementById('payperq-models-table-body');
 
-        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard, mistral: mistralCard, anthropic: anthropicCard, payperq: payperqCard };
-        const providerStatusEls = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus, anthropic: anthropicStatus, payperq: payperqStatus };
-        const providerTableBodies = { gemini: geminiTableBody, openrouter: openrouterTableBody, vercel: vercelTableBody, kilo: kiloTableBody, poe: poeTableBody, ollama: ollamaTableBody, mistral: mistralTableBody, anthropic: anthropicTableBody, payperq: payperqTableBody };
-        const providerInputs = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput, anthropic: anthropicInput, payperq: payperqInput };
-        const providerForms = { gemini: geminiForm, openrouter: openrouterForm, vercel: vercelForm, kilo: kiloForm, poe: poeForm, ollama: ollamaForm, mistral: mistralForm, anthropic: anthropicForm, payperq: payperqForm };
-        const providerRemoveBtns = { gemini: removeGeminiBtn, openrouter: removeOpenrouterBtn, vercel: removeVercelBtn, kilo: removeKiloBtn, poe: removePoeBtn, ollama: ollamaRemoveBtn, mistral: removeMistralBtn, anthropic: removeAnthropicBtn, payperq: removePayperqBtn };
+        const magnetapiCard = document.getElementById('ai-provider-card-magnetapi');
+        const magnetapiForm = document.getElementById('magnetapi-key-form');
+        const magnetapiInput = document.getElementById('magnetapi-api-key');
+        const magnetapiStatus = document.getElementById('magnetapi-key-status');
+        const removeMagnetapiBtn = document.getElementById('remove-magnetapi-key');
+        const magnetapiTableBody = document.getElementById('magnetapi-models-table-body');
+
+        const providerCards = { gemini: geminiCard, openrouter: openrouterCard, vercel: vercelCard, kilo: kiloCard, poe: poeCard, ollama: ollamaCard, mistral: mistralCard, anthropic: anthropicCard, payperq: payperqCard, magnetapi: magnetapiCard };
+        const providerStatusEls = { gemini: geminiStatus, openrouter: openrouterStatus, vercel: vercelStatus, kilo: kiloStatus, poe: poeStatus, ollama: ollamaStatus, mistral: mistralStatus, anthropic: anthropicStatus, payperq: payperqStatus, magnetapi: magnetapiStatus };
+        const providerTableBodies = { gemini: geminiTableBody, openrouter: openrouterTableBody, vercel: vercelTableBody, kilo: kiloTableBody, poe: poeTableBody, ollama: ollamaTableBody, mistral: mistralTableBody, anthropic: anthropicTableBody, payperq: payperqTableBody, magnetapi: magnetapiTableBody };
+        const providerInputs = { gemini: geminiInput, openrouter: openrouterInput, vercel: vercelInput, kilo: kiloInput, poe: poeInput, mistral: mistralInput, anthropic: anthropicInput, payperq: payperqInput, magnetapi: magnetapiInput };
+        const providerForms = { gemini: geminiForm, openrouter: openrouterForm, vercel: vercelForm, kilo: kiloForm, poe: poeForm, ollama: ollamaForm, mistral: mistralForm, anthropic: anthropicForm, payperq: payperqForm, magnetapi: magnetapiForm };
+        const providerRemoveBtns = { gemini: removeGeminiBtn, openrouter: removeOpenrouterBtn, vercel: removeVercelBtn, kilo: removeKiloBtn, poe: removePoeBtn, ollama: ollamaRemoveBtn, mistral: removeMistralBtn, anthropic: removeAnthropicBtn, payperq: removePayperqBtn, magnetapi: removeMagnetapiBtn };
         const providerData = {
             gemini: { configured: false, models: [] },
             openrouter: { configured: false, models: [] },
@@ -2831,6 +2911,7 @@
             mistral: { configured: false, models: [] },
             anthropic: { configured: false, models: [] },
             payperq: { configured: false, models: [] },
+            magnetapi: { configured: false, models: [] },
         };
 
         let currentProvider = null;
@@ -3344,7 +3425,7 @@
             if (!count) {
                 const tr = document.createElement('tr');
                 let emptyMsg = `No ${providerMeta[provider]?.name || provider} models configured yet. Add your first model above.`;
-                if (provider === 'gemini' || provider === 'mistral' || provider === 'anthropic' || provider === 'payperq') emptyMsg = 'No models available.';
+                if (provider === 'gemini' || provider === 'mistral' || provider === 'anthropic' || provider === 'payperq' || provider === 'magnetapi') emptyMsg = 'No models available.';
                 else if (provider === 'poe') emptyMsg = 'Add Poe bot handles to configure models.';
                 else if (provider === 'ollama') emptyMsg = 'No models detected on server. Pull a model via `ollama run <model>` first.';
                 tr.innerHTML = `<td colspan="6" class="px-5 py-6 text-center text-gray-500 dark:text-gray-400">${emptyMsg}</td>`;
@@ -3366,6 +3447,7 @@
         const renderPoeModels = (models) => renderProviderModels('poe', models);
         const renderOllamaModels = (models) => renderProviderModels('ollama', models);
         const renderPayPerQModels = (models) => renderProviderModels('payperq', models);
+        const renderMagnetAPIModels = (models) => renderProviderModels('magnetapi', models);
 
         const renderAllModelTables = () => {
             Object.keys(providerData).forEach((provider) => {
@@ -3381,7 +3463,7 @@
         };
         const clearAiDirty = () => { aiDirty = false; };
 
-        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput, mistralInput, anthropicInput, payperqInput].forEach((input) => input?.addEventListener('input', markAiDirty));
+        [geminiInput, openrouterInput, vercelInput, kiloInput, poeInput, ollamaUrlInput, ollamaKeyInput, mistralInput, anthropicInput, payperqInput, magnetapiInput].forEach((input) => input?.addEventListener('input', markAiDirty));
 
         async function loadProviderStatus(provider) {
             const statusEl = providerStatusEls[provider] || document.getElementById(`${provider}-key-status`);
@@ -3422,6 +3504,7 @@
         const loadMistralStatus = () => loadProviderStatus('mistral');
         const loadAnthropicStatus = () => loadProviderStatus('anthropic');
         const loadPayPerQStatus = () => loadProviderStatus('payperq');
+        const loadMagnetAPIStatus = () => loadProviderStatus('magnetapi');
 
         async function saveCurrentProvider() {
             if (!currentProvider) return;

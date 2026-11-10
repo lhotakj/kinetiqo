@@ -79,52 +79,52 @@ def kinetiqo_search_activities(
     if resolved_end:
         filters["end_date"] = resolved_end
 
-    if min_distance_km is not None:
+    if min_distance_km is not None and min_distance_km > 0:
         filters["min_distance_km"] = min_distance_km
         filters["min_distance"] = min_distance_km * 1000.0
-    if max_distance_km is not None:
+    if max_distance_km is not None and max_distance_km > 0:
         filters["max_distance_km"] = max_distance_km
         filters["max_distance"] = max_distance_km * 1000.0
-    if min_elevation_m is not None:
+    if min_elevation_m is not None and min_elevation_m > 0:
         filters["min_elevation_m"] = min_elevation_m
         filters["min_elevation"] = min_elevation_m
-    if max_elevation_m is not None:
+    if max_elevation_m is not None and max_elevation_m > 0:
         filters["max_elevation_m"] = max_elevation_m
         filters["max_elevation"] = max_elevation_m
 
-    if min_moving_time_min is not None:
+    if min_moving_time_min is not None and min_moving_time_min > 0:
         filters["min_moving_time_min"] = min_moving_time_min
-    if max_moving_time_min is not None:
+    if max_moving_time_min is not None and max_moving_time_min > 0:
         filters["max_moving_time_min"] = max_moving_time_min
-    if min_watts is not None:
+    if min_watts is not None and min_watts > 0:
         filters["min_watts"] = min_watts
-    if max_watts is not None:
+    if max_watts is not None and max_watts > 0:
         filters["max_watts"] = max_watts
-    if min_max_watts is not None:
+    if min_max_watts is not None and min_max_watts > 0:
         filters["min_max_watts"] = min_max_watts
-    if max_max_watts is not None:
+    if max_max_watts is not None and max_max_watts > 0:
         filters["max_max_watts"] = max_max_watts
-    if min_heartrate is not None:
+    if min_heartrate is not None and min_heartrate > 0:
         filters["min_heartrate"] = min_heartrate
-    if max_heartrate is not None:
+    if max_heartrate is not None and max_heartrate > 0:
         filters["max_heartrate"] = max_heartrate
     if has_heartrate is not None:
         filters["has_heartrate"] = has_heartrate
     if has_power is not None:
         filters["has_power"] = has_power
-    if min_speed_kmh is not None:
+    if min_speed_kmh is not None and min_speed_kmh > 0:
         filters["min_speed_kmh"] = min_speed_kmh
-    if max_speed_kmh is not None:
+    if max_speed_kmh is not None and max_speed_kmh > 0:
         filters["max_speed_kmh"] = max_speed_kmh
-    if min_suffer_score is not None:
+    if min_suffer_score is not None and min_suffer_score > 0:
         filters["min_suffer_score"] = min_suffer_score
-    if max_suffer_score is not None:
+    if max_suffer_score is not None and max_suffer_score > 0:
         filters["max_suffer_score"] = max_suffer_score
-    if min_pr_count is not None:
+    if min_pr_count is not None and min_pr_count > 0:
         filters["min_pr_count"] = min_pr_count
-    if gear_id:
-        filters["gear_id"] = gear_id
-    if workout_type is not None:
+    if gear_id and str(gear_id).strip():
+        filters["gear_id"] = str(gear_id).strip()
+    if workout_type is not None and workout_type > 0:
         filters["workout_type"] = workout_type
     if has_trophies is not None:
         filters["has_trophies"] = has_trophies

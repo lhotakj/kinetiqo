@@ -108,6 +108,12 @@ class TestChatTools(unittest.TestCase):
         self.assertGreater(len(kilo_tools), 20)
         self.assertEqual(kilo_tools[0]["type"], "function")
 
+        magnetapi_tools = get_chat_tools(provider="magnetapi", force_refresh=True)
+        self.assertGreater(len(magnetapi_tools), 20)
+        self.assertEqual(magnetapi_tools[0]["type"], "function")
+        self.assertIn("name", magnetapi_tools[0]["function"])
+        self.assertEqual(magnetapi_tools[0]["function"]["parameters"]["type"], "object")
+
         anthropic_tools = get_chat_tools(provider="anthropic", force_refresh=True)
         self.assertGreater(len(anthropic_tools), 20)
         first_ant = anthropic_tools[0]
@@ -183,6 +189,74 @@ class TestChatTools(unittest.TestCase):
         # Accidental single int for activity_ids wrapped in list of string
         norm_single = normalize_tool_call_arguments({"activity_ids": 20749829518})
         self.assertEqual(norm_single["activity_ids"], ["20749829518"])
+
+        # Prune empty string parameters
+        norm_empty = normalize_tool_call_arguments({"query": "  ", "start_date": "", "valid": "hello"})
+        self.assertEqual(norm_empty, {"valid": "hello"})
+
+        # Prune dummy zero bounds emitted when models populate all schema arguments
+        full_dummy_args = {
+            "query": "#vo2max",
+            "sport_types": ["Ride"],
+            "start_date": "",
+            "end_date": "",
+            "date_preset": "this_year",
+            "min_distance_km": 0,
+            "max_distance_km": 0,
+            "min_elevation_m": 0,
+            "max_elevation_m": 0,
+            "min_moving_time_min": 0,
+            "max_moving_time_min": 0,
+            "min_watts": 0,
+            "max_watts": 0,
+            "min_max_watts": 0,
+            "max_max_watts": 0,
+            "min_heartrate": 0,
+            "max_heartrate": 0,
+            "has_heartrate": True,
+            "has_power": True,
+            "min_speed_kmh": 0,
+            "max_speed_kmh": 0,
+            "min_suffer_score": 0,
+            "max_suffer_score": 0,
+            "min_pr_count": 0,
+            "gear_id": "",
+            "workout_type": 0,
+            "has_trophies": False,
+            "koms_only": False,
+            "weather_condition": "",
+            "min_temp_c": 0,
+            "max_temp_c": 0,
+            "min_wind_speed_kmh": 0,
+            "max_wind_speed_kmh": 0,
+            "min_wind_speed_ms": 0,
+            "max_wind_speed_ms": 0,
+            "min_wind_gust_kmh": 0,
+            "max_wind_gust_kmh": 0,
+            "min_wind_gust_ms": 0,
+            "max_wind_gust_ms": 0,
+            "has_weather": False,
+            "cursor": "",
+            "limit": 100,
+            "sort_by": "start_date",
+            "sort_order": "asc",
+        }
+        cleaned = normalize_tool_call_arguments(full_dummy_args)
+        self.assertEqual(cleaned["query"], "#vo2max")
+        self.assertEqual(cleaned["sport_types"], ["Ride"])
+        self.assertEqual(cleaned["date_preset"], "this_year")
+        self.assertTrue(cleaned["has_heartrate"])
+        self.assertTrue(cleaned["has_power"])
+        self.assertEqual(cleaned["limit"], 100)
+        self.assertEqual(cleaned["sort_by"], "start_date")
+        self.assertEqual(cleaned["sort_order"], "asc")
+        # Ensure dummy zero bounds that would zero out queries are stripped
+        for poisoned in (
+            "max_distance_km", "max_watts", "max_heartrate", "max_moving_time_min",
+            "max_elevation_m", "min_distance_km", "min_watts", "workout_type",
+            "start_date", "end_date", "has_weather", "has_trophies", "koms_only",
+        ):
+            self.assertNotIn(poisoned, cleaned)
 
     def test_to_gemini_and_openai_schema_prefers_string_for_unions(self):
         union_prop = {

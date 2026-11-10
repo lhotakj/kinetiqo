@@ -315,6 +315,8 @@
         if (key.includes('mistral')) return '/static/icons/ai_mistral.svg';
         if (key.includes('anthropic') || key.includes('claude')) return '/static/icons/ai_anthropic.svg';
         if (key.includes('payperq') || key.includes('ppq')) return '/static/icons/ai_payperq.svg';
+        if (key.includes('poe')) return '/static/icons/ai_poe.svg';
+        if (key.includes('magnet')) return '/static/icons/ai_magnetapi.svg';
         return '';
     };
 

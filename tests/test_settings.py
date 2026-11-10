@@ -121,14 +121,14 @@ class TestSettingsApi(unittest.TestCase):
         self.assertIn('enhanceSettingsButtons()', content)
         self.assertIn('stravaAgents.push', content)
         self.assertIn('border-t border-gray-200 dark:border-zinc-700', content)
-        for provider in ("vercel", "kilo", "payperq"):
+        for provider in ("vercel", "kilo", "payperq", "magnetapi"):
             self.assertIn(f'id="{provider}-key-form" class="mb-8 pt-1"', content)
             self.assertIn(f'id="{provider}-api-key"', content)
             self.assertIn(f'id="remove-{provider}-key"', content)
             self.assertIn("flex flex-wrap items-center gap-3", content)
         self.assertNotIn('"token": "{{agent-ai}}"', content)
         for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
-            self.assertEqual(content.count(f">{heading}</th>"), 9, heading)
+            self.assertEqual(content.count(f">{heading}</th>"), 10, heading)
 
     def test_settings_page_contains_section_anchors(self):
         repo = MagicMock()

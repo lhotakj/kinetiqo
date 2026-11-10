@@ -43,7 +43,7 @@ Every capability in Kinetiqo is documented in detail in the [`docs/`](docs/) dir
 | **Fondo-o-meter** | [docs/FONDO_O_METER.md](docs/FONDO_O_METER.md) | Dynamic concentric radial milestone rings, sport thresholds, verified KOMs, PRs, and export. |
 | **Weather Enrichment** | [docs/weather.md](docs/weather.md) | Historical hourly weather, temperature ranges, wind vectors, gusts, and route headwind calculations. |
 | **Strava Auto-Updates** | [docs/UPDATE_STRAVA.md](docs/UPDATE_STRAVA.md) | Custom description template engine with 150+ placeholders, workout summaries, and power zones. |
-| **In-App AI Chat** | [docs/AI.md](docs/AI.md) | Conversational endurance coach supporting 6 providers: Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Ollama, and Poe. |
+| **In-App AI Chat** | [docs/AI.md](docs/AI.md) | Conversational endurance coach supporting 10 providers: Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, PayPerQ, and MagnetAPI. |
 | **Model Context Protocol** | [docs/MCP.md](docs/MCP.md) | FastMCP server exposing 32+ evidence-based tools to Antigravity, Claude Desktop, Cursor, and OpenClaw. |
 | **Database Architecture** | [docs/DATABASE.md](docs/DATABASE.md) | Multi-DB zero-ORM repository pattern, driver benchmarks, and production tuning for PG, MySQL, and Firebird. |
 | **Sync Engine** | [docs/sync.md](docs/sync.md) | 4-phase ETL pipeline, Fast vs. Full sync, normalized status tags, HTMX + SSE progress, and rate-limit safety. |

@@ -1,8 +1,8 @@
 # Kinetiqo AI Chat — Implementation Specification
 
-> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, and PayPerQ adapters implemented with live validation and dynamic tool calling)
+> **Status:** Active v3.0 (Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, PayPerQ, and MagnetAPI adapters implemented with live validation and dynamic tool calling)
 > **Scope:** Authenticated, persistent, multimodal, data-grounded AI chat integrated directly into Kinetiqo.  
-> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI, Anthropic Claude, PayPerQ.
+> **Supported providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI, Anthropic Claude, PayPerQ, MagnetAPI.
 > **Architecture:** Provider-neutral core with dedicated streaming adapters and dynamic read-only FastMCP tool binding.  
 > **Database support:** PostgreSQL, MySQL/MariaDB, and Firebird (100% Parameterized Raw SQL, zero ORM).  
 > **User Documentation:** See [docs/AI.md](file:///H:/WORKING/kinetiqo/docs/AI.md) for the user-facing feature guide.  
@@ -69,6 +69,7 @@ A user can:
 - **Mistral AI Provider**: Direct REST adapter (`https://api.mistral.ai/v1`) with Bearer-key authentication, auto-discovery of chat models (`GET /v1/models`), exclusion of non-chat endpoints (embeddings, moderations, OCR), dynamic model ranking, and OpenAI-compatible streaming tool calling.
 - **Anthropic Claude Provider**: Official Anthropic REST adapter (`https://api.anthropic.com/v1`) with `x-api-key` and `anthropic-version: 2023-06-01` authentication, auto-discovery of chat models (`GET /v1/models`), exclusion of deprecated models, dynamic ranking for Claude 3.5 and 3.7 models, and Messages streaming tool calling with `input_schema`.
 - **PayPerQ Provider**: OpenAI-compatible REST completions gateway (`https://api.ppq.ai/v1`) with Bearer token authentication, automatic model discovery via `GET /v1/models`, dynamic auto-router prioritization (`auto`, `autoclaw/eco`), exclusion of non-chat embedding models, and responsive management table in Settings.
+- **MagnetAPI Provider**: OpenAI-compatible AI gateway and coding router (`https://api.magnetapi.org/v1`) unifying access to leading frontier, reasoner, and coding models (Power AI, ChatGPT 6.1 SOL, ChatGPT 6 Astra, Claude Opus 5.5, Claude Sonnet 5.5, Claude Fable 5.1, DeepSeek Flash) with Bearer token authentication, automatic model discovery via `GET /v1/models`, exclusion of non-chat embedding models, and responsive management table in Settings.
 - **Unified Credential Authorization Verification**: Pre-save verification across all providers; invalid API keys or expired tokens are rejected before saving, with theme-aware red input highlighting and immediate inline GUI error feedback.
 - Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
 - Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
@@ -490,10 +491,12 @@ PROVIDER_REGISTRY = {
     "claude": AnthropicChatProvider,
     "payperq": PayPerQChatProvider,
     "ppq": PayPerQChatProvider,
+    "magnetapi": MagnetAPIChatProvider,
+    "magnet": MagnetAPIChatProvider,
 }
 ```
 
-The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral, Anthropic Claude, and PayPerQ AI adapters are first-class citizens in Kinetiqo v3.0.
+The provider key comes from validated server-side configuration/database records. Unknown providers return a controlled unsupported-provider error. Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral, Anthropic Claude, PayPerQ, and MagnetAPI AI adapters are first-class citizens in Kinetiqo v3.0.
 
 ### 6.3 Error taxonomy
 
@@ -522,7 +525,7 @@ Kinetiqo enables athletes to designate a primary **Default Model** as well as up
    - Persisted in global athlete settings (`chat_provider_keys` with provider `__global__` and setting key `default_model`).
 
 2. **Fallback Sequence (Up to 3 Models)**:
-   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral, Anthropic Claude, PayPerQ).
+   - Athletes can mark up to 3 models as fallbacks across any configured provider (Gemini, OpenRouter, Vercel, Kilo, Poe, Ollama, Mistral, Anthropic Claude, PayPerQ, MagnetAPI).
    - Displayed in the UI with a 45° rotated square diamond badge containing the sequence number (`1`, `2`, or `3`).
    - The priority/order of fallback execution is strictly determined by the chronological order in which the athlete clicks them:
      - **Fallback 1**: First alternate attempted.
@@ -656,8 +659,8 @@ Each agent row also exposes a non-persistent **Try this prompt with your activit
         | **DeepSeek V3**<br>`deepseek/deepseek-chat` | 64k tokens | Text, Tools | Provider metadata where available | `+` `–` |
         | **Nemotron 3.5 1B (Free)**<br>`nvidia/nemotron-3.5-embed-1b:free` | 131k tokens | Text | Provider metadata where available | `+` `–` |
      - **Action Controls**: Explicitly uses `+` (add another model) and `–` (remove/disable model) action buttons. **No trash bin icon is used**, keeping the table clean and unobtrusive.
-   - All provider tables (Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, and PayPerQ) use the identical shared columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
-   - Gemini, Mistral, Anthropic, and PayPerQ display their discovered model catalogs directly from their respective APIs. Ollama displays its reported parameter size from its local daemon. OpenRouter, Vercel, Kilo, and Poe provide user-managed model tables. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
+   - All provider tables (Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, PayPerQ, and MagnetAPI) use the identical shared columns: Model Name & ID, Context, Capabilities, Pricing & Limits, Default, and Actions.
+   - Gemini, Mistral, Anthropic, PayPerQ, and MagnetAPI display their discovered model catalogs directly from their respective APIs. Ollama displays its reported parameter size from its local daemon. OpenRouter, Vercel, Kilo, and Poe provide user-managed model tables. Unsupported or unpublished values use `-`; do not infer costs, quotas, context windows, or request limits.
    - The Actions column shows `-` for providers whose models are discovered rather than user-managed.
 
 #### Generic Parameterized REST Endpoints & Declarative Manifests
@@ -820,6 +823,32 @@ PayPerQ (`https://api.ppq.ai/v1`) is an OpenAI-compatible gateway and dynamic AI
    - `POST /api/settings/ai/payperq/models/validate`: Real-time validation returning model parameters.
    - `POST /api/settings/ai/payperq/models`: Validates and appends model to athlete configuration.
    - `DELETE /api/settings/ai/payperq/models`: Removes model from configuration.
+
+### 8.12 MagnetAPI Provider Implementation
+MagnetAPI (`https://api.magnetapi.org/v1`) is an OpenAI-compatible unified coding workspace and AI gateway providing access to managed destinations (`power-ai`), reasoner models (`gpt-6.1-sol` with Extra High effort, `claude-opus-5-5`), frontier models (`claude-sonnet-5-5`, `claude-fable-5-1`, `gpt-6-astra`), and efficient coding models (`deepseek-flash`).
+
+1. **Protocol & Authentication**:
+   - Endpoint: `https://api.magnetapi.org/v1/chat/completions` (OpenAI-compatible REST format).
+   - Authentication: `Authorization: Bearer <MAGNETAPI_KEY>`.
+   - Headers: `Content-Type: application/json`, `User-Agent: Kinetiqo-Fitness-AI`.
+   - Streaming: SSE (`stream: true`), parsing standard OpenAI chunk deltas with multi-turn FastMCP tool calling.
+2. **Curated Model Selection**:
+   - `power-ai`: Managed destination with auto-routing to current top coding & reasoning model.
+   - `gpt-6.1-sol`: Flagship coding and reasoning model supporting Extra High reasoning effort (`reasoning_effort: xhigh`).
+   - `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`: Next-generation Anthropic Claude models.
+   - `deepseek-flash`: Fast and cost-effective coding model.
+3. **Automatic Model Discovery & Catalog Lookup**:
+   - Dynamic discovery: `GET https://api.magnetapi.org/v1/models` automatically discovers all available models on key save and refresh.
+   - Extracts context length (up to 200k+ tokens), tool-calling support, vision capabilities, pricing, description, and request limits.
+   - Rejects non-generative embedding models (`type == "embedding"` or `"embed"` in model ID).
+   - Priority sorting: `power-ai` auto-destination first, followed by reasoners (`gpt-6.1-sol`, `gpt-6-astra`), Claude series (`claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`), and coding models (`deepseek-flash`).
+4. **Web API Endpoints**:
+   - `GET /api/settings/ai/magnetapi`: Returns configured status and list of discovered models.
+   - `POST /api/settings/ai/magnetapi`: Encrypts and saves API key, dynamically discovering available models.
+   - `DELETE /api/settings/ai/magnetapi`: Removes key and associated models.
+   - `POST /api/settings/ai/magnetapi/models/validate`: Real-time validation returning model parameters.
+   - `POST /api/settings/ai/magnetapi/models`: Validates and appends model to athlete configuration.
+   - `DELETE /api/settings/ai/magnetapi/models`: Removes model from configuration.
 
 ---
 
@@ -1026,6 +1055,9 @@ All endpoints are authenticated (`flask-login`), CSRF-protected on all non-GET m
 | GET/POST/DELETE | `/api/settings/ai/payperq` | Read PayPerQ configuration, discover/list models (`GET /v1/models`), save key, or remove key. |
 | POST | `/api/settings/ai/payperq/models/validate` | Validate a PayPerQ model identifier and return model metadata. |
 | POST/DELETE | `/api/settings/ai/payperq/models` | Add or remove a custom configured PayPerQ model. |
+| GET/POST/DELETE | `/api/settings/ai/magnetapi` | Read MagnetAPI configuration, discover/list models (`GET /v1/models`), save key, or remove key. |
+| POST | `/api/settings/ai/magnetapi/models/validate` | Validate a MagnetAPI model identifier via `GET /v1/models/...` before adding. |
+| POST/DELETE | `/api/settings/ai/magnetapi/models` | Add (`+`) or remove (`–`) models from athlete's MagnetAPI configuration. |
 | POST/DELETE | `/api/settings/ai/<provider>` | Validate/save/remove provider API key. |
 | GET/POST | `/api/settings/ai/default-model` | Get or set the default AI model (`{"provider": "...", "model_id": "..."}`). |
 | GET/POST | `/api/settings/ai/fallback-models` | Get or set the fallback models list (up to 3 models in order: `[{"provider": "...", "model_id": "..."}, ...]`). |

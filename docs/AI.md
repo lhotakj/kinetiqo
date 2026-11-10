@@ -3,7 +3,7 @@
 > **Version:** 3.0  
 > **Status:** Active / Production Ready  
 > **Primary Interfaces:** `/chat`, `/settings`, FastMCP tools layer  
-> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI, Anthropic Claude, PayPerQ
+> **Supported Providers:** Google Gemini, OpenRouter AI, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama (Local AI), Mistral AI, Anthropic Claude, PayPerQ, MagnetAPI
 > **Database Compatibility:** PostgreSQL, MySQL, Firebird (100% Parameterized Raw SQL)
 
 ---
@@ -109,6 +109,7 @@ Kinetiqo Flask Application Server
        │     ├── Mistral AI Adapter (Mistral Small, Mistral Large, Codestral)
        │     ├── Anthropic Claude Adapter (Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus)
        │     ├── PayPerQ Adapter (Auto Router, AutoClaw Eco, Claude Sonnet 4.6, DeepSeek R1, GPT-4o, Gemini 2.5 Flash)
+       │     ├── MagnetAPI Adapter (Power AI, ChatGPT 6.1 SOL, Claude Opus 5.5, DeepSeek Flash)
        │     └── Ollama / Local AI Adapter (Qwen, Llama, Mistral on your own hardware)
        │
        └── In-Process FastMCP Tool Layer
@@ -177,17 +178,24 @@ Kinetiqo Flask Application Server
 - **Model Selection & Cascading**: Mark any discovered PayPerQ model as your Default (`★`) or assign it to Fallback slots (`1`, `2`, `3`).
 - **In-Process FastMCP Tool Calling**: Full OpenAI-compatible streaming SSE multi-turn tool calling across all 32 read-only Kinetiqo telemetry and analytics tools.
 
-### 4.10 Unified Provider Model Tables
-- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, and PayPerQ use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
+### 4.10 MagnetAPI
+- Unified OpenAI-compatible AI model gateway (`https://api.magnetapi.org/v1`) providing high-performance routing to leading frontier and open-weight models (Power AI auto-destination, ChatGPT 6.1 SOL, Claude Opus 5.5, Claude Sonnet 5.5, DeepSeek Flash, GPT-daybreak-blue-latest, etc.).
+- **Automatic Model Discovery**: Queries `GET /v1/models` on key save and page load to automatically discover and list all available MagnetAPI generation models (`power-ai`, `gpt-6.1-sol`, `gpt-6-astra`, `claude-opus-5-5`, `claude-sonnet-5-5`, `deepseek-flash`, etc.).
+- **Smart Model Ranking**: Prioritizes `power-ai` (auto-managed destination) first, followed by advanced reasoners (`gpt-6.1-sol`), frontier Claude models, and efficient coding models.
+- **Model Selection & Cascading**: Mark any discovered MagnetAPI model as your Default (`★`) or assign it to Fallback slots (`1`, `2`, `3`).
+- **In-Process FastMCP Tool Calling**: Full OpenAI-compatible streaming SSE multi-turn tool calling across all 32 read-only Kinetiqo telemetry and analytics tools.
+
+### 4.11 Unified Provider Model Tables
+- Gemini, OpenRouter, Vercel AI Gateway, Kilo AI Gateway, Poe, Ollama, Mistral AI, Anthropic Claude, PayPerQ, and MagnetAPI use the same columns in Settings: **Model Name & ID**, **Context**, **Capabilities**, **Pricing & Limits**, **Default**, and **Actions**.
 - Values such as Gemini context and output-token limits, Mistral context sizes, Claude 200K context limits, or Ollama parameter size are shown when their provider reports them. Unavailable metadata is displayed as `-`; pricing and rate limits are never guessed.
-- Remove actions are available only for providers with user-managed model lists (OpenRouter, Vercel, Kilo, Poe); discovered-model providers (Gemini, Ollama, Mistral, Anthropic, PayPerQ) show `-` in the Actions column.
+- Remove actions are available only for providers with user-managed model lists (OpenRouter, Vercel, Kilo, Poe); discovered-model providers (Gemini, Ollama, Mistral, Anthropic, PayPerQ, MagnetAPI) show `-` in the Actions column.
 - Settings communicates with unified parameterized REST endpoints (`/api/settings/ai/providers/<provider_id>`), enabling seamless addition of future backends with minimal adapter code and zero UI duplication.
 
-### 4.11 Dynamic Mid-Session Provider & Model Switching
+### 4.12 Dynamic Mid-Session Provider & Model Switching
 - Seamlessly change models or AI providers mid-conversation at any turn from the composer model selector.
-- If a quota or rate limit is reached on OpenRouter, Vercel, Kilo, or PayPerQ, simply switch the selector to Google Gemini, Anthropic Claude, or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
+- If a quota or rate limit is reached on OpenRouter, Vercel, Kilo, PayPerQ, or MagnetAPI, simply switch the selector to Google Gemini, Anthropic Claude, or your local Ollama model; Kinetiqo immediately routes the next query to the newly chosen provider and persists the updated configuration to the session.
 
-### 4.12 Default Model & Multi-Model Automated Fallbacks
+### 4.13 Default Model & Multi-Model Automated Fallbacks
 - **Default Model Designation (`★`)**:
   - Click the star icon in any provider's model table under **Settings → AI & API Providers** to designate your preferred default model.
   - New chat sessions automatically select this model. The active default model is highlighted with a gold star badge in the AI Settings header and on the right side of the `/chat` model dropdown.
@@ -260,12 +268,13 @@ Kinetiqo Flask Application Server
 ## 6. Configuration in Settings (`/settings`)
 
 1. Navigate to **Settings** (`/settings`) → **AI & API Providers**.
-2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, **Ollama (Local AI)**, **Mistral AI**, **Anthropic Claude**, or **PayPerQ**.
+2. Click **"+ Add AI Provider"** and select **Google Gemini**, **OpenRouter AI**, **Vercel AI Gateway**, **Kilo AI Gateway**, **Poe**, **Ollama (Local AI)**, **Mistral AI**, **Anthropic Claude**, **PayPerQ**, or **MagnetAPI**.
 3. Configure the provider:
    - **For Gemini**: Paste your API key; credentials are validated and models are automatically discovered.
    - **For Mistral AI**: Enter your Mistral API key; credentials are validated and available models are automatically discovered from Mistral's API.
    - **For Anthropic Claude**: Enter your Anthropic API key (`sk-ant-...`); credentials are authenticated against `api.anthropic.com/v1/models` and operational Claude models are discovered.
    - **For PayPerQ**: Enter your PayPerQ API key (from [ppq.ai/chat](https://ppq.ai/chat)); credentials are authenticated against `api.ppq.ai/v1/models` and operational generation models are automatically discovered.
+   - **For MagnetAPI**: Enter your MagnetAPI key (from [magnetapi.org](https://magnetapi.org)); credentials are authenticated against `api.magnetapi.org/v1/models` and operational generation models are automatically discovered.
    - **For OpenRouter**: Enter your API key (validated against OpenRouter's auth endpoint), then use the nested models table to add your preferred models with real-time validation.
    - **For Vercel AI Gateway**: Enter your Vercel gateway API key (Bearer token, validated against Vercel models catalog), then use the nested models table to add your preferred models (e.g. `moonshotai/kimi-k2.6`) with real-time validation.
    - **For Kilo AI Gateway**: Enter your Kilo gateway API key (from [kilo.ai](https://kilo.ai), validated against Kilo catalog), then use the nested models table to add your preferred models (e.g. `kilo-auto/free`) with real-time validation.

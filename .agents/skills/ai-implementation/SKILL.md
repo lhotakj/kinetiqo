@@ -5,7 +5,7 @@ description: Architecture, contracts, gotchas, repository signatures, and multi-
 
 # Kinetiqo AI Chat & MCP Tools Implementation Guide
 
-This skill documents the complete forensic architecture, contracts, database repository quirks, gotchas, and implementation patterns for the Kinetiqo AI Chat system and FastMCP tools layer. It serves as the authoritative technical reference for current and future AI provider adapters (Gemini, OpenAI, Anthropic, Mistral, Ollama/Local).
+This skill documents the complete forensic architecture, contracts, database repository quirks, gotchas, and implementation patterns for the Kinetiqo AI Chat system and FastMCP tools layer. It serves as the authoritative technical reference for current and future AI provider adapters (Gemini, OpenRouter, Vercel, Kilo, Poe, Mistral, Anthropic, PayPerQ, MagnetAPI, Ollama/Local).
 
 ---
 
@@ -287,7 +287,7 @@ When implementing or extending AI provider adapters:
 - Formatted via `to_gemini_schema(prop)` in `src/kinetiqo/chat/tools.py`.
 - **Function Response Role Mandate**: In multi-turn chat turns, Gemini API strictly requires `"role": "user"` for content objects containing `functionResponse`. Passing `"role": "function"` or `"role": "tool"` causes an immediate HTTP 400 `INVALID_ARGUMENT`. Model turns preceding the response must cleanly contain only the `functionCall` parts without empty text or thought tokens.
 
-### 4.2 OpenAI / OpenRouter / Vercel / Kilo / Mistral Function Declarations
+### 4.2 OpenAI / OpenRouter / Vercel / Kilo / Mistral / PayPerQ / MagnetAPI Function Declarations
 - Uses standard JSON Schema with lowercase types: `string`, `integer`, `number`, `boolean`, `array`, `object`.
 - Wrapped in `{ "type": "function", "function": { "name": ..., "description": ..., "parameters": ... } }`.
 - Formatted via `to_openai_schema(prop)` in `src/kinetiqo/chat/tools.py`.
@@ -295,6 +295,8 @@ When implementing or extending AI provider adapters:
 - Vercel AI Gateway uses base URL `https://ai-gateway.vercel.sh/v1/chat/completions`.
 - Kilo AI Gateway uses base URL `https://api.kilo.ai/api/gateway/chat/completions` with headers `HTTP-Referer: https://github.com/lhotakj/kinetiqo` and `X-Title: Kinetiqo`.
 - Kilo models are validated and detailed via `GET https://api.kilo.ai/api/gateway/models/{model_id}` with catalog fallback to `/models`.
+- MagnetAPI uses base URL `https://api.magnetapi.org/v1/chat/completions`.
+- MagnetAPI models are dynamically discovered via `GET https://api.magnetapi.org/v1/models` with single-model validation via `/v1/models/{model_id}`.
 
 ### 4.3 Anthropic Claude Tool Declarations
 - Direct `{ "name": name, "description": description, "input_schema": parameters }` structure.
