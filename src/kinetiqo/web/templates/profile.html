@@ -9,9 +9,18 @@
 
     <!-- Athlete Profile -->
     <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-warm-200 dark:border-zinc-700 overflow-hidden mb-6">
-        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900">
-            <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Athlete</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava or updated manually. Changes are saved automatically on blur.</p>
+        <div class="p-6 border-b border-warm-200 dark:border-zinc-700 bg-warm-50 dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-lg font-medium text-warm-900 dark:text-gray-100">Athlete</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile data synced from Strava or updated manually. Changes are saved automatically on blur.</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="status-strava-sync" class="text-xs font-medium opacity-0 transition-opacity duration-300"></span>
+                <button id="btn-sync-strava-profile" type="button"
+                        class="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-600 text-gray-700 dark:text-gray-200 text-xs font-medium border border-gray-300 dark:border-zinc-600 shadow-sm transition whitespace-nowrap min-w-[120px] h-[32px]">
+                    <span>Sync from Strava</span>
+                </button>
+            </div>
         </div>
         <div class="p-6 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -237,6 +246,69 @@
             .catch(() => {
                 showFieldStatus('first_name', 'Failed to load profile.', true);
             });
+
+        const btnSyncStrava = document.getElementById('btn-sync-strava-profile');
+        const statusStravaSync = document.getElementById('status-strava-sync');
+        if (btnSyncStrava) {
+            btnSyncStrava.addEventListener('click', function () {
+                const origHtml = btnSyncStrava.innerHTML;
+                btnSyncStrava.disabled = true;
+                btnSyncStrava.classList.add('opacity-60', 'cursor-wait');
+                btnSyncStrava.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading..." class="h-4 w-4 inline-block" width="16" height="16">';
+
+                if (statusStravaSync) {
+                    statusStravaSync.textContent = '';
+                    statusStravaSync.className = 'text-xs font-medium opacity-0 transition-opacity duration-300';
+                }
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+                fetch('/api/profile/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(async (response) => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to sync profile');
+                    }
+                    return data;
+                })
+                .then((data) => {
+                    const prof = data.profile || {};
+                    if (prof.first_name !== undefined) firstNameInput.value = prof.first_name || '';
+                    if (prof.last_name !== undefined) lastNameInput.value = prof.last_name || '';
+                    if (prof.weight !== undefined) weightInput.value = (prof.weight && Number(prof.weight) > 0) ? prof.weight : '';
+                    savedProfile.first_name = firstNameInput.value;
+                    savedProfile.last_name = lastNameInput.value;
+                    savedProfile.weight = weightInput.value;
+
+                    if (statusStravaSync) {
+                        statusStravaSync.textContent = 'Synced ✓';
+                        statusStravaSync.className = 'text-xs text-green-600 dark:text-green-400 font-medium opacity-100 transition-opacity duration-300';
+                        setTimeout(() => {
+                            statusStravaSync.classList.remove('opacity-100');
+                            statusStravaSync.classList.add('opacity-0');
+                        }, 3000);
+                    }
+                })
+                .catch((err) => {
+                    console.error('Strava profile sync error:', err);
+                    if (statusStravaSync) {
+                        statusStravaSync.textContent = err.message || 'Sync failed';
+                        statusStravaSync.className = 'text-xs text-red-500 font-medium opacity-100 transition-opacity duration-300';
+                    }
+                })
+                .finally(() => {
+                    btnSyncStrava.innerHTML = origHtml;
+                    btnSyncStrava.disabled = false;
+                    btnSyncStrava.classList.remove('opacity-60', 'cursor-wait');
+                });
+            });
+        }
 
         function prepareFieldUpdate(changedInput, targetInput, savedVal) {
             if (changedInput && changedInput !== targetInput) return { changed: false };

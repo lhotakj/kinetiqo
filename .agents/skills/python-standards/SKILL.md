@@ -64,3 +64,54 @@ else:
 # Or:
 user_id = getattr(current_user, "id", None)
 ```
+
+---
+
+## 5. Prohibition of Bare `assert` in Production Code (SonarQube python:S5905 / python:S5960)
+
+Never use `assert` statements in non-test production code, CLI commands, utility modules, or database repositories.
+
+### 5.1 Rationale
+In Python, `assert` statements are purely diagnostic and are stripped out completely by the Python bytecode compiler when optimizations are enabled (`python -O` or `PYTHONOPTIMIZE=1`). Depending on `assert` for control flow, invariants, or parameter validation leads to critical security vulnerabilities and unintended fallthrough.
+
+### 5.2 Compliant Replacements
+- For argument validation: Raise `ValueError`, `TypeError`, or return explicit error payloads (HTTP 400/422).
+- For internal sanity checks: Use explicit `if` conditionals with fallbacks or raise `RuntimeError`.
+
+```python
+# ❌ Non-compliant (production code assertion):
+if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
+    return rendered + desc
+assert placement == UPDATE_STRAVA_PLACEMENT_END
+return desc + rendered
+
+# ✅ Compliant:
+if placement == UPDATE_STRAVA_PLACEMENT_BEGIN:
+    return rendered + desc
+return desc + rendered
+```
+
+---
+
+## 6. Test Class & Assertion Method Standards (SonarQube python:S5905 in tests)
+
+All unit tests in Kinetiqo must be structured within `unittest.TestCase` test classes and use official assertion methods rather than bare `assert` statements.
+
+### 6.1 Requirements
+1. **TestCase Subclass**: Group related unit tests inside `class TestFeatureName(unittest.TestCase):`.
+2. **Standard Assertion Methods**: Use `self.assertEqual(...)`, `self.assertGreater(...)`, `self.assertIn(...)`, `self.assertTrue(...)` instead of bare `assert`. Bare `assert` statements inside standalone functions or functions that catch `AssertionError` trigger SonarQube rule `python:S5905`.
+3. **No Integration Fixtures by Default**: Follow Kinetiqo's mocked unit test philosophy (`AGENTS.md` Section 2) using `unittest.mock.patch`.
+
+```python
+# ❌ Non-compliant (bare assert in standalone function):
+def test_calculate_zones():
+    zones = calculate_coggan_zones([200], 250)
+    assert len(zones) == 7
+
+# ✅ Compliant (unittest.TestCase with assertion methods):
+class TestCalculateZones(unittest.TestCase):
+    def test_calculate_zones(self):
+        zones = calculate_coggan_zones([200], 250)
+        self.assertEqual(len(zones), 7)
+```
+

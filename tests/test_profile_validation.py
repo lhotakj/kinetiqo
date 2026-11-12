@@ -16,6 +16,8 @@ class TestProfileAPIValidation(unittest.TestCase):
     """Unit tests for /profile page and /api/profile endpoint validation."""
 
     def setUp(self):
+        self._orig_testing = app.config.get('TESTING')
+        self._orig_csrf = app.config.get('WTF_CSRF_ENABLED')
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False
         self.client = app.test_client()
@@ -23,6 +25,12 @@ class TestProfileAPIValidation(unittest.TestCase):
         with self.client.session_transaction() as session:
             session["_user_id"] = username
             session["_fresh"] = True
+
+    def tearDown(self):
+        if self._orig_testing is not None:
+            app.config['TESTING'] = self._orig_testing
+        if self._orig_csrf is not None:
+            app.config['WTF_CSRF_ENABLED'] = self._orig_csrf
 
     def test_profile_page_renders_200(self):
         response = self.client.get('/profile')

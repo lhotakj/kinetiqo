@@ -33,6 +33,18 @@ class TestDescribeCron(unittest.TestCase):
         self.assertEqual(describe_cron("0 3 1 * *"), "Monthly on the 1st at 03:00")
         self.assertEqual(describe_cron("0 3 31 12 *"), "Yearly on December 31st at 03:00")
 
+    def test_hour_range_schedule(self):
+        self.assertEqual(describe_cron("0 8-22 * * *"), "At minute 0 past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("15 8-22 * * *"), "At minute 15 past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("0 8-22 * * 1-5"), "At minute 0 past every hour from 8 through 22, Monday through Friday.")
+        self.assertEqual(describe_cron("*/10 8-22 * * *"), "Every 10 minutes past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("* 8-22 * * *"), "Every minute past every hour from 8 through 22.")
+        self.assertEqual(describe_cron("0 8-22/2 * * *"), "At minute 0 past every 2 hours from 8 through 22.")
+
+    def test_hourly_schedule(self):
+        self.assertEqual(describe_cron("0 * * * *"), "At minute 0 past every hour.")
+        self.assertEqual(describe_cron("45 * * * *"), "At minute 45 past every hour.")
+
     def test_unknown_or_invalid_schedule_is_returned_unchanged(self):
         self.assertEqual(describe_cron("0 0 * *"), "0 0 * *")
         self.assertEqual(describe_cron("0 24 * * *"), "0 24 * * *")
@@ -78,8 +90,97 @@ class TestSettingsApi(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.get_data(as_text=True)
+        self.assertIn('id="btn-sync-profile"', content)
+        self.assertIn('bg-white/20', content)
+        self.assertIn('Reconnect with Strava', content)
+        self.assertIn('id="athlete-profile-summary"', content)
+        self.assertIn('Edit profile and FTP', content)
+        self.assertIn('Kinetiqo Agents', content)
+        self.assertIn('Delete model', content)
         self.assertIn("Supported Template Variables", content)
         self.assertIn("strava-var-dropdown", content)
+        self.assertIn("bg-orange-500 hover:bg-orange-600", content)
+        self.assertIn("Add Agent", content)
+        self.assertIn('id="strava-agent-try-modal"', content)
+        self.assertIn('id="strava-agent-try-search"', content)
+        self.assertIn('id="strava-agent-try-submit"', content)
+        self.assertIn('Start typing name of the activity or Strava ID', content)
+        self.assertIn('Preparing your activity context', content)
+        self.assertIn('max-w-3xl', content)
+        self.assertIn('background-color: rgba(0, 0, 0, 0.65);', content)
+        self.assertIn('/api/profile/strava-agents/activities', content)
+        self.assertIn('/api/profile/strava-agents/try', content)
+        self.assertIn('kinetiqo-loading-32x32.webp', content)
+        self.assertIn('Try this prompt with your activity', content)
+        self.assertIn('Delete agent', content)
+        self.assertIn('Are you sure to delete this agent?', content)
+        self.assertIn('promptInput.rows = 6', content)
+        self.assertIn("promptInput.className = 'w-full px-3 py-2 text-sm", content)
+        self.assertNotIn("promptInput.className = 'w-full px-3 py-2 text-base", content)
+        self.assertIn('settings-action-icon', content)
+        self.assertIn('enhanceSettingsButtons()', content)
+        self.assertIn('stravaAgents.push', content)
+        self.assertIn('border-t border-gray-200 dark:border-zinc-700', content)
+        for provider in ("vercel", "kilo", "payperq", "magnetapi"):
+            self.assertIn(f'id="{provider}-key-form" class="mb-8 pt-1"', content)
+            self.assertIn(f'id="{provider}-api-key"', content)
+            self.assertIn(f'id="remove-{provider}-key"', content)
+            self.assertIn("flex flex-wrap items-center gap-3", content)
+        self.assertNotIn('"token": "{{agent-ai}}"', content)
+        for heading in ("Model Name &amp; ID", "Context", "Capabilities", "Pricing &amp; Limits", "Default", "Actions"):
+            self.assertEqual(content.count(f">{heading}</th>"), 10, heading)
+
+    def test_settings_page_contains_section_anchors(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/settings")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        for anchor_id in ('id="templates"', 'id="profile"', 'id="gps"', 'id="ai"', 'id="sync"'):
+            self.assertIn(anchor_id, content)
+
+    def test_chat_page_contains_ai_settings_link_and_suggestions(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        repo.list_recent_prompts.return_value = []
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/chat")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        self.assertIn('/settings#ai', content)
+        self.assertIn('AI Settings', content)
+        self.assertIn('id="chat-suggestions-grid"', content)
+        self.assertNotIn('chat-hero-icon', content)
+
+    def test_chat_page_and_api_contains_disclaimer_modal(self):
+        repo = MagicMock()
+        repo.get_profile.return_value = None
+        repo.list_recent_prompts.return_value = []
+        with patch("kinetiqo.web.app.get_db", return_value=repo):
+            response = self.client.get("/chat")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.get_data(as_text=True)
+        self.assertIn('id="open-disclaimer-btn"', content)
+        self.assertIn('id="ai-disclaimer-modal"', content)
+        self.assertIn('id="disclaimer-acknowledge-btn"', content)
+        self.assertIn('I acknowledge', content)
+        self.assertIn('background-color: rgba(0, 0, 0, 0.65);', content)
+        self.assertIn('w-[80vw]', content)
+        self.assertIn('h-[80vh]', content)
+        self.assertIn('chat-disclaimer-modal-body', content)
+        self.assertIn('Training advice is informational.', content)
+
+        # Test GET /api/chat/disclaimer endpoint
+        api_response = self.client.get("/api/chat/disclaimer")
+        self.assertEqual(api_response.status_code, 200)
+        api_data = api_response.get_json()
+        self.assertIn('disclaimer', api_data)
+        self.assertIn('Kinetiqo AI Disclaimer', api_data['disclaimer'])
+
 
 
 class TestDatabaseEnvConfig(unittest.TestCase):

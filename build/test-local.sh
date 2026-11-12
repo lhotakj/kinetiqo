@@ -19,5 +19,5 @@ docker run -it \
   -e FAST_SYNC="*/15 * * * *" \
   -e FULL_SYNC="0 3 * * *" \
   -p 4444:4444 \
-  docker.io/lhotakj/kinetiqo:latest
+  docker.io/kinetiqo/web:latest
 

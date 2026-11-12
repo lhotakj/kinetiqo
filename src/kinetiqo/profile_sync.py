@@ -7,7 +7,7 @@ from kinetiqo.db.repository import UPDATE_STRAVA_FIELDS
 logger = logging.getLogger("kinetiqo")
 
 
-def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
+def seed_profile_from_strava(config: Config, repo, force: bool = False) -> Optional[Dict[str, Any]]:
     """Fetch the athlete profile from Strava and persist it in *repo*.
 
     The helper keeps the existing database weight when Strava returns no weight
@@ -15,16 +15,15 @@ def seed_profile_from_strava(config: Config, repo) -> Optional[Dict[str, Any]]:
     not return a valid athlete id.
 
     NOTE: When running under Flask testing mode (app.config['TESTING'] == True)
-    this function will skip the external Strava call and return None to avoid
-    seeding production-like data during unit tests. Tests that require a
-    seeded profile should explicitly mock this function or provide a fake repo.
+    this function will skip the external Strava call and return None unless force=True
+    is explicitly supplied (e.g. for user-initiated manual sync).
     """
     # Avoid seeding during Flask tests — current_app may not exist outside a
     # request context, so guard access with try/except.
     try:
         from flask import current_app
 
-        if getattr(current_app, "config", {}).get("TESTING", False):
+        if getattr(current_app, "config", {}).get("TESTING", False) and not force:
             logger.info("Skipping profile seeding from Strava in TESTING mode.")
             return None
     except Exception:
@@ -146,9 +145,9 @@ def sync_update_strava_from_env(config: Config, repo) -> None:
 
     Precedence Rules:
     1. If an env var for a template field IS explicitly set in the environment:
-       - Uses the env var template.
-       - If DB has no stored value yet, or if DB value differs from env var, updates DB to match env var.
-       - Sets `config.<field> = env_value`.
+       - Seeds the env var template only when the DB field is empty.
+       - If the DB already has a value, preserves the Settings-managed value.
+       - Sets `config.<field>` to the persisted DB value.
     2. If an env var is NOT set in the environment:
        - If DB has a stored template, uses the stored DB template (`config.<field> = db_value`).
        - If DB has no stored template yet, leaves it empty.
@@ -167,14 +166,11 @@ def sync_update_strava_from_env(config: Config, repo) -> None:
         env_raw = os.getenv(env_var_name)
         db_val = existing.get(field) or ""
 
-        if env_raw is not None and env_raw.strip() != "":
+        if env_raw is not None and env_raw.strip() != "" and not db_val:
             env_val = env_raw.strip()
-            if db_val != env_val:
-                new_values[field] = env_val
-                updated_fields.append(field)
-            else:
-                new_values[field] = db_val
-            setattr(config, field, new_values[field])
+            new_values[field] = env_val
+            updated_fields.append(field)
+            setattr(config, field, env_val)
         else:
             new_values[field] = db_val
             setattr(config, field, db_val)

@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
 from kinetiqo.config import Config
+from kinetiqo.db.pagination import encode_cursor, decode_cursor
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 
@@ -28,6 +29,8 @@ class FirebirdRepository(DatabaseRepository):
     and includes connection verification, schema initialization and data
     access methods optimized for the Firebird engine.
     """
+
+    db_type = "firebird"
 
     # Minimum seconds between active connection probes.  Within this window
     # only a cheap ``is_closed()`` check is performed.  The web layer creates
@@ -297,19 +300,6 @@ class FirebirdRepository(DatabaseRepository):
                 except Exception:
                     pass
 
-            try:
-                cur.execute("""
-                    CREATE GLOBAL TEMPORARY TABLE "gtt_activity_ids" (
-                        "activity_id" BIGINT NOT NULL PRIMARY KEY
-                    ) ON COMMIT DELETE ROWS
-                """)
-                self.conn.commit()
-            except Exception:
-                try:
-                    self.conn.rollback()
-                except Exception:
-                    pass
-
         schema_manager.ensure_schema()
 
         # --- Migration: BLOB → VARCHAR for the name column ----------------
@@ -462,7 +452,8 @@ class FirebirdRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from Firebird"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts',
+                           'weather_temp_avg', 'weather_wind_speed']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -525,7 +516,17 @@ class FirebirdRepository(DatabaseRepository):
                 "has_heartrate",
                 "workout_type",
                 "max_speed",
-                "trophies"
+                "trophies",
+                "ai_responses",
+                "weather_temp_min",
+                "weather_temp_max",
+                "weather_temp_avg",
+                "weather_condition",
+                "weather_condition_icon",
+                "weather_wind_deg",
+                "weather_wind_speed",
+                "weather_precipitation",
+                "weather_wind_gust_max"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -542,6 +543,13 @@ class FirebirdRepository(DatabaseRepository):
                         trophies_parsed = json.loads(row[26]) if isinstance(row[26], str) else row[26]
                     except Exception:
                         trophies_parsed = None
+                ai_parsed = None
+                if len(row) > 27 and row[27]:
+                    val = row[27].read() if hasattr(row[27], 'read') else row[27]
+                    try:
+                        ai_parsed = json.loads(val) if isinstance(val, str) else val
+                    except Exception:
+                        ai_parsed = val
                 activity = {
                     'id': row[0],
                     'name': row[1],
@@ -569,7 +577,17 @@ class FirebirdRepository(DatabaseRepository):
                     'has_heartrate': row[23],
                     'workout_type': row[24],
                     'max_speed': row[25],
-                    'trophies': trophies_parsed
+                    'trophies': trophies_parsed,
+                    'ai_responses': ai_parsed,
+                    'weather_temp_min': row[28] if len(row) > 28 else None,
+                    'weather_temp_max': row[29] if len(row) > 29 else None,
+                    'weather_temp_avg': row[30] if len(row) > 30 else None,
+                    'weather_condition': row[31] if len(row) > 31 else None,
+                    'weather_condition_icon': row[32] if len(row) > 32 else None,
+                    'weather_wind_deg': row[33] if len(row) > 33 else None,
+                    'weather_wind_speed': row[34] if len(row) > 34 else None,
+                    'weather_precipitation': row[35] if len(row) > 35 else None,
+                    'weather_wind_gust_max': row[36] if len(row) > 36 else None
                 }
                 activities.append(activity)
             return activities
@@ -655,6 +673,121 @@ class FirebirdRepository(DatabaseRepository):
                 }
                 activities.append(activity)
             return activities
+
+    def get_activity_detail(self, activity_id: int | str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive activity details for a single activity ID (Firebird)."""
+        if not activity_id:
+            return None
+
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    "activity_id" as id,
+                    CAST("name" AS VARCHAR(500)) as "name",
+                    "sport" as type,
+                    "athlete_id",
+                    "distance",
+                    "moving_time",
+                    "elapsed_time",
+                    "total_elevation_gain",
+                    "start_date",
+                    "average_speed",
+                    "max_speed",
+                    "average_heartrate",
+                    "max_heartrate",
+                    "average_cadence",
+                    "average_watts",
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type",
+                    "trophies",
+                    "ai_responses",
+                    "weather_temp_min",
+                    "weather_temp_max",
+                    "weather_temp_avg",
+                    "weather_condition",
+                    "weather_condition_icon",
+                    "weather_wind_deg",
+                    "weather_wind_speed",
+                    "weather_wind_gust_max",
+                    "weather_precipitation"
+                FROM "activities"
+                WHERE "activity_id" = ?
+            """, (int(activity_id),))
+            row = cur.fetchone()
+
+        if not row:
+            return None
+
+        trophies_parsed = None
+        if row[29]:
+            try:
+                trophies_parsed = json.loads(row[29]) if isinstance(row[29], str) else row[29]
+            except Exception:
+                trophies_parsed = None
+
+        ai_parsed = None
+        if row[30]:
+            try:
+                val = row[30].read() if hasattr(row[30], 'read') else row[30]
+                ai_parsed = json.loads(val) if isinstance(val, str) else val
+            except Exception:
+                ai_parsed = None
+
+        return {
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'athlete_id': row[3],
+            'distance': row[4],
+            'moving_time': row[5],
+            'elapsed_time': row[6],
+            'total_elevation_gain': row[7],
+            'start_date': row[8].isoformat() if isinstance(row[8], datetime) else row[8],
+            'average_speed': row[9],
+            'max_speed': row[10],
+            'average_heartrate': row[11],
+            'max_heartrate': row[12],
+            'average_cadence': row[13],
+            'average_watts': row[14],
+            'max_watts': row[15],
+            'weighted_average_watts': row[16],
+            'device_watts': row[17],
+            'calories': row[18],
+            'kilojoules': row[19],
+            'achievement_count': row[20],
+            'pr_count': row[21],
+            'suffer_score': row[22],
+            'average_temp': row[23],
+            'elev_high': row[24],
+            'elev_low': row[25],
+            'gear_id': row[26],
+            'has_heartrate': row[27],
+            'workout_type': row[28],
+            'trophies': trophies_parsed,
+            'ai_responses': ai_parsed,
+            'weather_temp_min': row[31],
+            'weather_temp_max': row[32],
+            'weather_temp_avg': row[33],
+            'weather_condition': row[34],
+            'weather_condition_icon': row[35],
+            'weather_wind_deg': row[36],
+            'weather_wind_speed': row[37],
+            'weather_wind_gust_max': row[38],
+            'weather_precipitation': row[39],
+        }
 
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
@@ -784,6 +917,10 @@ class FirebirdRepository(DatabaseRepository):
             if trophies_val is not None:
                 trophies_str = json.dumps(trophies_val) if isinstance(trophies_val, dict) else str(trophies_val)
                 cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (trophies_str, int(activity["id"])))
+            ai_responses_val = activity.get("ai_responses")
+            if ai_responses_val is not None:
+                ai_responses_str = json.dumps(ai_responses_val) if isinstance(ai_responses_val, dict) else str(ai_responses_val)
+                cur.execute('UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?', (ai_responses_str, int(activity["id"])))
             self.conn.commit()
 
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
@@ -793,6 +930,99 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
         self.conn.commit()
+
+    def update_activity_weather_summary(self, activity_id: Any, summary: Dict[str, Any]):
+        """Update precomputed weather summary columns for an activity."""
+        self._ensure_connected()
+        if not summary:
+            return
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "activities" SET
+                    "weather_temp_min" = ?,
+                    "weather_temp_max" = ?,
+                    "weather_temp_avg" = ?,
+                    "weather_condition" = ?,
+                    "weather_condition_icon" = ?,
+                    "weather_wind_deg" = ?,
+                    "weather_wind_speed" = ?,
+                    "weather_wind_gust_max" = ?,
+                    "weather_precipitation" = ?
+                WHERE "activity_id" = ?
+                """,
+                (
+                    summary.get("weather_temp_min"),
+                    summary.get("weather_temp_max"),
+                    summary.get("weather_temp_avg"),
+                    summary.get("weather_condition"),
+                    summary.get("weather_condition_icon"),
+                    summary.get("weather_wind_deg"),
+                    summary.get("weather_wind_speed"),
+                    summary.get("weather_wind_gust_max"),
+                    summary.get("weather_precipitation"),
+                    int(activity_id),
+                ),
+            )
+        self.conn.commit()
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
+        self.conn.commit()
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "ai_responses" FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                raw = row[0]
+                val = raw.read() if hasattr(raw, 'read') else raw
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        placeholders = ', '.join(['?'] * len(activity_ids))
+        with self.conn.cursor() as cur:
+            cur.execute(f'UPDATE "activities" SET "ai_responses" = NULL WHERE "activity_id" IN ({placeholders})', [int(aid) for aid in activity_ids])
+        self.conn.commit()
+
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        self._ensure_connected()
+        tokens = {f"agent-ai-{agent_name}"}
+        affected = 0
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "activity_id", "ai_responses" FROM "activities" WHERE "ai_responses" IS NOT NULL')
+            for activity_id, raw in cur.fetchall():
+                try:
+                    value = raw.read() if hasattr(raw, "read") else raw
+                    responses = value if isinstance(value, dict) else json.loads(value)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(responses, dict) and tokens.intersection(responses):
+                    for token in tokens:
+                        responses.pop(token, None)
+                    cur.execute(
+                        'UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?',
+                        (json.dumps(responses) if responses else None, activity_id),
+                    )
+                    affected += 1
+        self.conn.commit()
+        return affected
 
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
@@ -1244,12 +1474,18 @@ class FirebirdRepository(DatabaseRepository):
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token", '
-                '"gps_simplification" '
+                '"gps_simplification", "strava_agents_config", "enable_weather_data" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
             if not row:
                 return None
+            strava_agents_config_raw = row[13] if len(row) > 13 else None
+            strava_agents_config_val = (
+                strava_agents_config_raw.read()
+                if hasattr(strava_agents_config_raw, 'read')
+                else strava_agents_config_raw
+            )
             return {
                 'athlete_id': row[0],
                 'first_name': row[1],
@@ -1264,6 +1500,8 @@ class FirebirdRepository(DatabaseRepository):
                 'update_strava_swimming': row[10],
                 'refresh_token': row[11],
                 'gps_simplification': row[12],
+                'strava_agents_config': strava_agents_config_val or '',
+                'enable_weather_data': bool(row[14]) if len(row) > 14 else False,
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
@@ -1271,7 +1509,9 @@ class FirebirdRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       strava_agents_config: Optional[str] = None,
+                       enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
@@ -1283,20 +1523,23 @@ class FirebirdRepository(DatabaseRepository):
         effective_walking = update_strava_walking
         effective_swimming = update_strava_swimming
         effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
+        effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config', '') if existing else '')
+        effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
                 '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "strava_agents_config", "enable_weather_data") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight, effective_ftp,
                  effective_cycling_indoor, effective_cycling_outdoor,
                  effective_running_indoor, effective_running_outdoor,
                  effective_walking, effective_swimming, effective_refresh_token,
-                 effective_gps_simplification)
+                 effective_gps_simplification, effective_strava_agents_config or '',
+                 int(effective_enable_weather_data))
             )
         self.conn.commit()
 
@@ -1434,6 +1677,434 @@ class FirebirdRepository(DatabaseRepository):
             'suffer_count': suffer_count,
             'count_ms': count_ms,
             'activity_count': activity_count,
+        }
+
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination."""
+        self._ensure_connected()
+        filters = filters or {}
+        limit = max(1, min(int(limit), 200))
+
+        sort_field_map = {
+            "date": "start_date",
+            "start_date": "start_date",
+            "distance": "distance",
+            "elevation": "total_elevation_gain",
+            "total_elevation_gain": "total_elevation_gain",
+            "moving_time": "moving_time",
+            "average_watts": "average_watts",
+            "watts": "average_watts",
+            "max_watts": "max_watts",
+            "speed": "average_speed",
+            "average_speed": "average_speed",
+            "max_speed": "max_speed",
+            "heartrate": "average_heartrate",
+            "average_heartrate": "average_heartrate",
+            "max_heartrate": "max_heartrate",
+            "suffer_score": "suffer_score",
+            "calories": "calories",
+            "wind_gust": "weather_wind_gust_max",
+            "weather_wind_gust": "weather_wind_gust_max",
+            "weather_wind_gust_max": "weather_wind_gust_max",
+            "wind_speed": "weather_wind_speed",
+            "weather_wind_speed": "weather_wind_speed",
+            "wind": "weather_wind_speed",
+            "temp": "weather_temp_avg",
+            "weather_temp": "weather_temp_avg",
+            "weather_temp_avg": "weather_temp_avg",
+        }
+        sort_by = filters.get("sort_by", "date")
+        sort_col = sort_field_map.get(sort_by, "start_date")
+        sort_order = "ASC" if str(filters.get("sort_order", "desc")).lower() == "asc" else "DESC"
+        op = ">" if sort_order == "ASC" else "<"
+
+        where_clauses = []
+        params: List[Any] = []
+
+        if athlete_id:
+            where_clauses.append('"athlete_id" = ?')
+            params.append(athlete_id)
+
+        sport_types = filters.get("sport_types")
+        if sport_types:
+            placeholders = ", ".join(["?"] * len(sport_types))
+            where_clauses.append(f'"sport" IN ({placeholders})')
+            params.extend(sport_types)
+
+        if filters.get("start_date"):
+            where_clauses.append('"start_date" >= ?')
+            params.append(filters["start_date"])
+
+        if filters.get("end_date"):
+            where_clauses.append('"start_date" <= ?')
+            params.append(filters["end_date"])
+
+        min_dist_km = filters.get("min_distance_km")
+        if min_dist_km is None and filters.get("min_distance") is not None:
+            min_dist_km = float(filters["min_distance"]) / 1000.0
+        if min_dist_km is not None:
+            where_clauses.append('"distance" >= ?')
+            params.append(float(min_dist_km) * 1000.0)
+
+        max_dist_km = filters.get("max_distance_km")
+        if max_dist_km is None and filters.get("max_distance") is not None:
+            max_dist_km = float(filters["max_distance"]) / 1000.0
+        if max_dist_km is not None:
+            where_clauses.append('"distance" <= ?')
+            params.append(float(max_dist_km) * 1000.0)
+
+        min_elev = filters.get("min_elevation_m") if filters.get("min_elevation_m") is not None else filters.get("min_elevation")
+        if min_elev is not None:
+            where_clauses.append('"total_elevation_gain" >= ?')
+            params.append(float(min_elev))
+
+        max_elev = filters.get("max_elevation_m") if filters.get("max_elevation_m") is not None else filters.get("max_elevation")
+        if max_elev is not None:
+            where_clauses.append('"total_elevation_gain" <= ?')
+            params.append(float(max_elev))
+
+        min_mov_s = filters.get("min_moving_time_s")
+        if min_mov_s is None and filters.get("min_moving_time") is not None:
+            min_mov_s = int(filters["min_moving_time"])
+        if min_mov_s is None and filters.get("min_moving_time_min") is not None:
+            min_mov_s = int(float(filters["min_moving_time_min"]) * 60)
+        if min_mov_s is not None:
+            where_clauses.append('"moving_time" >= ?')
+            params.append(int(min_mov_s))
+
+        max_mov_s = filters.get("max_moving_time_s")
+        if max_mov_s is None and filters.get("max_moving_time") is not None:
+            max_mov_s = int(filters["max_moving_time"])
+        if max_mov_s is None and filters.get("max_moving_time_min") is not None:
+            max_mov_s = int(float(filters["max_moving_time_min"]) * 60)
+        if max_mov_s is not None:
+            where_clauses.append('"moving_time" <= ?')
+            params.append(int(max_mov_s))
+
+        if filters.get("min_watts") is not None:
+            where_clauses.append('"average_watts" >= ?')
+            params.append(float(filters["min_watts"]))
+
+        if filters.get("max_watts") is not None:
+            where_clauses.append('"average_watts" <= ?')
+            params.append(float(filters["max_watts"]))
+
+        if filters.get("min_max_watts") is not None:
+            where_clauses.append('"max_watts" >= ?')
+            params.append(float(filters["min_max_watts"]))
+
+        if filters.get("max_max_watts") is not None:
+            where_clauses.append('"max_watts" <= ?')
+            params.append(float(filters["max_max_watts"]))
+
+        if filters.get("has_power") is not None:
+            if bool(filters["has_power"]):
+                where_clauses.append('("device_watts" = TRUE OR "average_watts" > 0)')
+            else:
+                where_clauses.append('("device_watts" = FALSE OR "device_watts" IS NULL)')
+
+        if filters.get("min_heartrate") is not None:
+            where_clauses.append('"average_heartrate" >= ?')
+            params.append(float(filters["min_heartrate"]))
+
+        if filters.get("max_heartrate") is not None:
+            where_clauses.append('"average_heartrate" <= ?')
+            params.append(float(filters["max_heartrate"]))
+
+        if filters.get("has_heartrate") is not None:
+            if bool(filters["has_heartrate"]):
+                where_clauses.append('("has_heartrate" = TRUE OR "average_heartrate" > 0)')
+            else:
+                where_clauses.append('("has_heartrate" = FALSE OR "has_heartrate" IS NULL)')
+
+        if filters.get("min_speed_kmh") is not None:
+            where_clauses.append('"average_speed" >= ?')
+            params.append(float(filters["min_speed_kmh"]) / 3.6)
+
+        if filters.get("max_speed_kmh") is not None:
+            where_clauses.append('"average_speed" <= ?')
+            params.append(float(filters["max_speed_kmh"]) / 3.6)
+
+        if filters.get("min_suffer_score") is not None:
+            where_clauses.append('"suffer_score" >= ?')
+            params.append(int(float(filters["min_suffer_score"])))
+
+        if filters.get("max_suffer_score") is not None:
+            where_clauses.append('"suffer_score" <= ?')
+            params.append(int(float(filters["max_suffer_score"])))
+
+        if filters.get("min_pr_count") is not None:
+            where_clauses.append('"pr_count" >= ?')
+            params.append(int(filters["min_pr_count"]))
+
+        if filters.get("gear_id"):
+            where_clauses.append('"gear_id" = ?')
+            params.append(str(filters["gear_id"]).strip())
+
+        if filters.get("workout_type") is not None:
+            where_clauses.append('"workout_type" = ?')
+            params.append(int(filters["workout_type"]))
+
+        if filters.get("has_trophies"):
+            where_clauses.append('("trophies" IS NOT NULL AND "trophies" != \'\' AND "trophies" != \'{}\')')
+
+        if filters.get("koms_only"):
+            where_clauses.append('"trophies" LIKE ?')
+            params.append('%"1":%')
+
+        cond = filters.get("weather_condition")
+        if cond:
+            where_clauses.append('(LOWER("weather_condition") LIKE LOWER(?) OR LOWER("weather_precipitation") LIKE LOWER(?))')
+            params.extend([f"%{cond}%", f"%{cond}%"])
+
+        if filters.get("min_temp_c") is not None:
+            where_clauses.append('"weather_temp_avg" >= ?')
+            params.append(float(filters["min_temp_c"]))
+
+        if filters.get("max_temp_c") is not None:
+            where_clauses.append('"weather_temp_avg" <= ?')
+            params.append(float(filters["max_temp_c"]))
+
+        min_wind_spd = filters.get("min_wind_speed_ms")
+        if min_wind_spd is None and filters.get("min_wind_speed_kmh") is not None:
+            min_wind_spd = float(filters["min_wind_speed_kmh"]) / 3.6
+        if min_wind_spd is not None:
+            where_clauses.append('"weather_wind_speed" >= ?')
+            params.append(float(min_wind_spd))
+
+        max_wind_spd = filters.get("max_wind_speed_ms")
+        if max_wind_spd is None and filters.get("max_wind_speed_kmh") is not None:
+            max_wind_spd = float(filters["max_wind_speed_kmh"]) / 3.6
+        if max_wind_spd is not None:
+            where_clauses.append('"weather_wind_speed" <= ?')
+            params.append(float(max_wind_spd))
+
+        min_gust = filters.get("min_wind_gust_ms")
+        if min_gust is None and filters.get("min_wind_gust_kmh") is not None:
+            min_gust = float(filters["min_wind_gust_kmh"]) / 3.6
+        if min_gust is not None:
+            where_clauses.append('"weather_wind_gust_max" >= ?')
+            params.append(float(min_gust))
+
+        max_gust = filters.get("max_wind_gust_ms")
+        if max_gust is None and filters.get("max_wind_gust_kmh") is not None:
+            max_gust = float(filters["max_wind_gust_kmh"]) / 3.6
+        if max_gust is not None:
+            where_clauses.append('"weather_wind_gust_max" <= ?')
+            params.append(float(max_gust))
+
+        if filters.get("has_weather") is not None:
+            if bool(filters["has_weather"]):
+                where_clauses.append('"weather_temp_avg" IS NOT NULL')
+            else:
+                where_clauses.append('"weather_temp_avg" IS NULL')
+
+        keyword = filters.get("keyword") or filters.get("query")
+        if keyword:
+            where_clauses.append('(LOWER("name") LIKE LOWER(?) OR CAST("activity_id" AS VARCHAR(20)) LIKE ? OR LOWER("weather_condition") LIKE LOWER(?) OR LOWER("weather_precipitation") LIKE LOWER(?))')
+            params.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+
+        if cursor:
+            decoded = decode_cursor(cursor)
+            if decoded:
+                c_val, c_date, c_id = decoded
+                if sort_col == "start_date":
+                    where_clauses.append(f'("start_date" {op} ? OR ("start_date" = ? AND "activity_id" {op} ?))')
+                    params.extend([c_date, c_date, c_id])
+                else:
+                    where_clauses.append(f'("{sort_col}" {op} ? OR ("{sort_col}" = ? AND ("start_date" {op} ? OR ("start_date" = ? AND "activity_id" {op} ?))))')
+                    params.extend([c_val, c_val, c_date, c_date, c_id])
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        if sort_col == "start_date":
+            order_sql = f'ORDER BY "start_date" {sort_order}, "activity_id" {sort_order}'
+        else:
+            order_sql = f'ORDER BY "{sort_col}" {sort_order} NULLS LAST, "start_date" {sort_order}, "activity_id" {sort_order}'
+
+        fetch_limit = limit + 1
+        query = f"""
+            SELECT FIRST {fetch_limit}
+                "activity_id", "name", "sport", "athlete_id", "distance", "moving_time", "elapsed_time",
+                "total_elevation_gain", "start_date", "average_speed", "max_speed",
+                "average_heartrate", "max_heartrate", "average_cadence", "average_watts",
+                "max_watts", "weighted_average_watts", "device_watts", "calories",
+                "kilojoules", "achievement_count", "pr_count", "suffer_score", "average_temp",
+                "gear_id", "has_heartrate", "workout_type", "trophies",
+                "weather_temp_min", "weather_temp_max", "weather_temp_avg",
+                "weather_condition", "weather_condition_icon",
+                "weather_wind_deg", "weather_wind_speed", "weather_wind_gust_max",
+                "weather_precipitation"
+            FROM "activities"
+            {where_sql}
+            {order_sql}
+        """
+
+        with self.conn.cursor() as cur:
+            cur.execute(query, tuple(params))
+            col_names = [d[0].lower() for d in cur.description]
+            raw_rows = cur.fetchall()
+
+        rows = []
+        for r in raw_rows:
+            act = dict(zip(col_names, r))
+            if isinstance(act.get("start_date"), datetime):
+                dt = act["start_date"]
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                act["start_date"] = dt.isoformat()
+            if act.get("trophies") and isinstance(act["trophies"], str):
+                try:
+                    act["trophies"] = json.loads(act["trophies"])
+                except Exception:
+                    pass
+            rows.append(act)
+
+        has_more = len(rows) > limit
+        if has_more:
+            activities = rows[:limit]
+            last = activities[-1]
+            next_cursor = encode_cursor(last.get(sort_col), last["start_date"], last["activity_id"])
+        else:
+            activities = rows
+            next_cursor = None
+
+        return activities, next_cursor, has_more
+
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*),
+                    MIN("ts"),
+                    MAX("ts"),
+                    COUNT("watts"),
+                    COUNT("heartrate"),
+                    COUNT("cadence"),
+                    COUNT("altitude"),
+                    COUNT("lat"),
+                    COUNT("speed"),
+                    COUNT("temp")
+                FROM "streams"
+                WHERE "activity_id" = ?
+            """, (activity_id,))
+            row = cur.fetchone() or (0, None, None, 0, 0, 0, 0, 0, 0, 0)
+
+        first_ts = row[1]
+        last_ts = row[2]
+        if isinstance(first_ts, datetime) and first_ts.tzinfo is None:
+            first_ts = first_ts.replace(tzinfo=timezone.utc)
+        if isinstance(last_ts, datetime) and last_ts.tzinfo is None:
+            last_ts = last_ts.replace(tzinfo=timezone.utc)
+        first_iso = first_ts.isoformat() if isinstance(first_ts, datetime) else str(first_ts) if first_ts else None
+        last_iso = last_ts.isoformat() if isinstance(last_ts, datetime) else str(last_ts) if last_ts else None
+
+        channels = {
+            "watts": {"present": (row[3] or 0) > 0, "count": int(row[3] or 0)},
+            "heartrate": {"present": (row[4] or 0) > 0, "count": int(row[4] or 0)},
+            "cadence": {"present": (row[5] or 0) > 0, "count": int(row[5] or 0)},
+            "altitude": {"present": (row[6] or 0) > 0, "count": int(row[6] or 0)},
+            "latlng": {"present": (row[7] or 0) > 0, "count": int(row[7] or 0)},
+            "speed": {"present": (row[8] or 0) > 0, "count": int(row[8] or 0)},
+            "temp": {"present": (row[9] or 0) > 0, "count": int(row[9] or 0)},
+        }
+
+        return {
+            "activity_id": activity_id,
+            "total_points": int(row[0] or 0),
+            "first_ts": first_iso,
+            "last_ts": last_iso,
+            "channels": channels,
+        }
+
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        self._ensure_connected()
+        allowed = {"ts", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance", "watts", "temp", "grade_smooth", "moving"}
+        cols = [c for c in columns if c in allowed]
+        if "ts" not in cols:
+            cols.insert(0, "ts")
+        if len(cols) == 1 and cols[0] == "ts":
+            cols.extend(["watts", "heartrate", "cadence", "altitude"])
+
+        col_str = ", ".join([f'"{c}"' for c in cols])
+        where_clauses = ['"activity_id" = ?']
+        params: List[Any] = [activity_id]
+
+        if start_ts is not None:
+            where_clauses.append('"ts" >= ?')
+            params.append(datetime.fromtimestamp(start_ts, tz=timezone.utc))
+
+        if end_ts is not None:
+            where_clauses.append('"ts" <= ?')
+            params.append(datetime.fromtimestamp(end_ts, tz=timezone.utc))
+
+        where_sql = " AND ".join(where_clauses)
+        limit = max(1, min(int(max_rows), 20000))
+
+        query = f'SELECT FIRST {limit} {col_str} FROM "streams" WHERE {where_sql} ORDER BY "ts" ASC'
+        with self.conn.cursor() as cur:
+            cur.execute(query, tuple(params))
+            col_names = [d[0].lower() for d in cur.description]
+            raw_rows = cur.fetchall()
+
+        result = []
+        for r in raw_rows:
+            d = dict(zip(col_names, r))
+            if isinstance(d.get("ts"), datetime):
+                dt = d["ts"]
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                d["ts"] = dt.isoformat()
+            result.append(d)
+        return result
+
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update index selectivity statistics in Firebird via SET STATISTICS INDEX.
+
+        This is a lightweight, non-destructive operation that recalculates
+        index selectivity values for Firebird query optimizer.
+        """
+        self._ensure_connected()
+        t0 = time.perf_counter()
+        target_indexes = ["idx_activities_start_date"]
+        updated = []
+        with self.conn.cursor() as cur:
+            for idx in target_indexes:
+                try:
+                    cur.execute(f"SET STATISTICS INDEX {idx};")
+                    updated.append(idx)
+                except Exception:
+                    try:
+                        cur.execute(f'SET STATISTICS INDEX "{idx}";')
+                        updated.append(idx)
+                    except Exception as err:
+                        logger.warning(f"Could not update Firebird statistics for index {idx}: {err}")
+            self.conn.commit()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        details = ", ".join(updated) if updated else "None"
+        logger.info(
+            f"Firebird index statistics updated for [{details}] (non-destructive) in {elapsed_ms} ms"
+        )
+        return {
+            "engine": "firebird",
+            "success": True,
+            "indexes": updated,
+            "elapsed_ms": elapsed_ms,
         }
 
     def __del__(self):

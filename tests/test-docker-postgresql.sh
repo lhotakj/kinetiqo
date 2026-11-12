@@ -29,4 +29,4 @@ docker run --rm \
    -e POSTGRESQL_PASSWORD="${POSTGRESQL_PASSWORD}" \
    -e POSTGRESQL_DATABASE="${POSTGRESQL_DATABASE}" \
    -p "8180:4444" \
-   kinetiqo:latest
+   kinetiqo/web:latest

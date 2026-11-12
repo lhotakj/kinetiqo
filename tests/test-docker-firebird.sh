@@ -33,4 +33,4 @@ docker run --rm \
    -e WEB_LOGIN="${WEB_LOGIN}" \
    -e WEB_PASSWORD="${WEB_PASSWORD}" \
    -p "4444:4444" \
-   kinetiqo:latest
+   kinetiqo/web:latest
