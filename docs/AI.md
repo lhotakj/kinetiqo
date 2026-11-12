@@ -214,6 +214,11 @@ Kinetiqo Flask Application Server
 
 ## 5. Web UI Features & Ergonomics (`/chat`)
 
+- **Collapsible Model Selector with Provider Sections**:
+  - The model selection dropdown in `/chat` groups models cleanly under their respective AI provider (Google Gemini, OpenRouter, Vercel, Kilo, Mistral, Anthropic, etc.) with provider brand icons.
+  - **Expand/Collapse Chevron Toggle**: A small expand/collapse icon at the far right of each provider header allows toggling provider visibility on demand.
+  - **State Persistence via `localStorage`**: The collapsed/expanded state is saved in `localStorage` (`kinetiqo_chat_collapsed_providers`). Providers are expanded by default if no preference is stored.
+  - **Accessible Keyboard Navigation**: Arrow Up / Arrow Down keyboard traversal dynamically skips collapsed groups so focus remains only on visible models.
 - **Interactive Sidebar History**:
   - Full conversation persistence with automatic date-based sorting.
   - Hover deletion (`×`) to prune individual sessions instantly.

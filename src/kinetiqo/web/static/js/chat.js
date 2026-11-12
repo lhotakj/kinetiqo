@@ -1120,7 +1120,9 @@
 
     const getModelMenuItems = () => {
         if (!modelMenu) return [];
-        return Array.from(modelMenu.querySelectorAll('.chat-model-item'));
+        return Array.from(modelMenu.querySelectorAll('.chat-model-item')).filter((item) => {
+            return !item.closest('.chat-model-group.is-collapsed');
+        });
     };
 
     const getFocusedModelItemIndex = () => {
@@ -1247,6 +1249,27 @@
         }
     };
 
+    const COLLAPSED_PROVIDERS_STORAGE_KEY = 'kinetiqo_chat_collapsed_providers';
+
+    const getProviderCollapsedState = () => {
+        try {
+            const raw = localStorage.getItem(COLLAPSED_PROVIDERS_STORAGE_KEY);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    };
+
+    const setProviderCollapsedState = (providerKey, isCollapsed) => {
+        try {
+            const state = getProviderCollapsedState();
+            state[providerKey] = Boolean(isCollapsed);
+            localStorage.setItem(COLLAPSED_PROVIDERS_STORAGE_KEY, JSON.stringify(state));
+        } catch (_) { }
+    };
+
     const renderModelDropdown = () => {
         if (!modelMenu || !model) return;
         modelMenu.replaceChildren();
@@ -1263,14 +1286,29 @@
             grouped.get(key).items.push(item);
         });
 
-        grouped.forEach((group) => {
+        const collapsedMap = getProviderCollapsedState();
+
+        grouped.forEach((group, groupKey) => {
             const groupEl = document.createElement('div');
             groupEl.className = 'chat-model-group';
 
+            const groupProviderKey = String(group.items[0]?.provider || groupKey || '').trim().toLowerCase();
+            groupEl.dataset.provider = groupProviderKey;
+
+            const isCollapsed = Boolean(collapsedMap[groupProviderKey]);
+            if (isCollapsed) {
+                groupEl.classList.add('is-collapsed');
+            }
+
             const headerEl = document.createElement('div');
             headerEl.className = 'chat-model-group-header';
+            headerEl.setAttribute('role', 'button');
+            headerEl.setAttribute('tabindex', '0');
+            headerEl.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
 
-            const groupProviderKey = String(group.items[0]?.provider || '').trim().toLowerCase();
+            const headerLeft = document.createElement('div');
+            headerLeft.className = 'chat-model-group-header-left';
+
             const groupIconPath = getProviderIconPath(groupProviderKey);
             if (groupIconPath) {
                 const groupIconImg = document.createElement('img');
@@ -1279,14 +1317,53 @@
                 groupIconImg.alt = '';
                 groupIconImg.dataset.provider = groupProviderKey;
                 groupIconImg.setAttribute('aria-hidden', 'true');
-                headerEl.appendChild(groupIconImg);
+                headerLeft.appendChild(groupIconImg);
             }
 
             const labelEl = document.createElement('div');
             labelEl.className = 'chat-model-group-label';
             labelEl.textContent = group.label;
-            headerEl.appendChild(labelEl);
+            headerLeft.appendChild(labelEl);
+            headerEl.appendChild(headerLeft);
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.type = 'button';
+            toggleBtn.className = 'chat-model-group-toggle';
+            toggleBtn.setAttribute('aria-label', isCollapsed ? `Expand ${group.label}` : `Collapse ${group.label}`);
+            toggleBtn.title = isCollapsed ? `Expand ${group.label}` : `Collapse ${group.label}`;
+            toggleBtn.innerHTML = '<svg class="chat-model-group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>';
+            headerEl.appendChild(toggleBtn);
+
+            const toggleCollapse = (e) => {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                const currentlyCollapsed = groupEl.classList.contains('is-collapsed');
+                const nextCollapsed = !currentlyCollapsed;
+                groupEl.classList.toggle('is-collapsed', nextCollapsed);
+                headerEl.setAttribute('aria-expanded', nextCollapsed ? 'false' : 'true');
+                toggleBtn.setAttribute('aria-label', nextCollapsed ? `Expand ${group.label}` : `Collapse ${group.label}`);
+                toggleBtn.title = nextCollapsed ? `Expand ${group.label}` : `Collapse ${group.label}`;
+                setProviderCollapsedState(groupProviderKey, nextCollapsed);
+            };
+
+            toggleBtn.addEventListener('click', toggleCollapse);
+            headerEl.addEventListener('click', (e) => {
+                if (e.target.closest('.chat-model-group-toggle')) return;
+                toggleCollapse(e);
+            });
+            headerEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleCollapse(e);
+                }
+            });
+
             groupEl.appendChild(headerEl);
+
+            const itemsContainer = document.createElement('div');
+            itemsContainer.className = 'chat-model-group-items';
 
             group.items.forEach((item) => {
                 const btn = document.createElement('button');
@@ -1299,7 +1376,6 @@
 
                 const mainWrap = document.createElement('span');
                 mainWrap.className = 'chat-model-item-main';
-
 
                 const textEl = document.createElement('span');
                 textEl.className = 'chat-model-item-label';
@@ -1335,9 +1411,10 @@
                     closeModelDropdown(true);
                 });
 
-                groupEl.appendChild(btn);
+                itemsContainer.appendChild(btn);
             });
 
+            groupEl.appendChild(itemsContainer);
             modelMenu.appendChild(groupEl);
         });
 

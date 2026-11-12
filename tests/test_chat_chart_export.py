@@ -50,6 +50,30 @@ class TestChatChartTemplatesAndSource(unittest.TestCase):
         self.assertIn("if (!container.isConnected || wrapper.clientWidth === 0)", js)
         self.assertIn("requestAnimationFrame(() => renderChartJsInElement(rootElement));", js)
 
+    def test_chat_model_provider_collapsible_and_localstorage(self):
+        with open(self.chat_html_path, "r", encoding="utf-8") as f:
+            html = f.read()
+        with open(self.chat_js_path, "r", encoding="utf-8") as f:
+            js = f.read()
+
+        # Check CSS classes for collapsible provider groups
+        self.assertIn(".chat-model-group-header", html)
+        self.assertIn(".chat-model-group-toggle", html)
+        self.assertIn(".chat-model-group-chevron", html)
+        self.assertIn(".chat-model-group.is-collapsed .chat-model-group-chevron", html)
+        self.assertIn(".chat-model-group.is-collapsed .chat-model-group-items", html)
+
+        # Check JS logic for localStorage persistence and collapsible rendering
+        self.assertIn("COLLAPSED_PROVIDERS_STORAGE_KEY = 'kinetiqo_chat_collapsed_providers'", js)
+        self.assertIn("getProviderCollapsedState", js)
+        self.assertIn("setProviderCollapsedState", js)
+        self.assertIn("chat-model-group-toggle", js)
+        self.assertIn("chat-model-group-chevron", js)
+        self.assertIn("chat-model-group-items", js)
+
+        # Check that getModelMenuItems filters out collapsed items for keyboard navigation
+        self.assertIn("!item.closest('.chat-model-group.is-collapsed')", js)
+
 
 class TestChatChartBrowserPlaywright(unittest.TestCase):
     """Browser automation tests verifying UI chart canvas display and HTML black-text export."""

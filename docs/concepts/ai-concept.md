@@ -73,7 +73,7 @@ A user can:
 - **Unified Credential Authorization Verification**: Pre-save verification across all providers; invalid API keys or expired tokens are rejected before saving, with theme-aware red input highlighting and immediate inline GUI error feedback.
 - Encrypted per-athlete provider keys (AES-256-GCM envelope with HKDF-SHA256).
 - Persistent conversations and messages for PostgreSQL, MySQL, and Firebird.
-- `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
+- `/chat` UI: conversation list with instant hover delete (`×`), standardized "+ New chat" button, grouped model selector by provider with collapsible provider sections and `localStorage` state persistence, markdown responses, streaming, retry, stop/cancel, keyboard accessibility, dark mode, suggested starter prompts, copy answer, and Markdown file download.
 - Brand color composer animation (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`) during live streaming.
 - Assistant message footer: 1px top divider (`#e5e7eb` / `#3f3f46`), unified right-aligned metadata row (`text-xs text-gray-500 dark:text-zinc-400 font-sans`), and transparent provenance list readable in both themes.
 - 32 read-only Kinetiqo telemetry tools through the in-process FastMCP layer, including the bounded, stored activity-weather tool, with strict mutating tool exclusion and `CYCLING_SPORT_TYPES` power filtering.
