@@ -6,6 +6,23 @@ import math
 from kinetiqo.analytics.power import calculate_mmp_curve
 
 
+def _format_coggan_range(ftp: float, z: Dict[str, Any]) -> str:
+    """Format the power range string for a Coggan zone."""
+    if z["zone"] == "Z1":
+        return f"< {round(ftp * 0.55)} W"
+    if z["zone"] == "Z7":
+        return f"> {round(ftp * 1.50)} W"
+    return f"{round(ftp * z['min_pct'])}–{round(ftp * z['max_pct'])} W"
+
+
+def _assign_coggan_zone(pct: float, zones_def: List[Dict[str, Any]]) -> int:
+    """Find the zone index for a given percentage of FTP."""
+    for idx, z in enumerate(zones_def):
+        if pct <= z["max_pct"] or idx == len(zones_def) - 1:
+            return idx
+    return len(zones_def) - 1
+
+
 def calculate_coggan_zones(
     watts_stream: Sequence[Optional[float]],
     ftp: Optional[float],
@@ -49,33 +66,17 @@ def calculate_coggan_zones(
     counts = [0] * len(zones_def)
     for w in valid_samples:
         pct = w / float(ftp)
-        assigned = False
-        for idx, z in enumerate(zones_def):
-            if pct <= z["max_pct"] or idx == len(zones_def) - 1:
-                counts[idx] += 1
-                assigned = True
-                break
-        if not assigned:
-            counts[-1] += 1
+        counts[_assign_coggan_zone(pct, zones_def)] += 1
 
     result = []
     for idx, z in enumerate(zones_def):
         sec = counts[idx]
-        pct_time = round((sec / float(total_seconds)) * 100.0, 1) if total_seconds > 0 else 0.0
-        
-        # Calculate power range string
-        if z["zone"] == "Z1":
-            range_w = f"< {round(ftp * 0.55)} W"
-        elif z["zone"] == "Z7":
-            range_w = f"> {round(ftp * 1.50)} W"
-        else:
-            range_w = f"{round(ftp * z['min_pct'])}–{round(ftp * z['max_pct'])} W"
-
+        pct_time = round((sec / float(total_seconds)) * 100.0, 1)
         result.append({
             "zone": z["zone"],
             "name": z["name"],
             "color": z["color"],
-            "range_w": range_w,
+            "range_w": _format_coggan_range(ftp, z),
             "seconds": sec,
             "percent": pct_time,
         })
