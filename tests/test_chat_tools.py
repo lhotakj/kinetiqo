@@ -286,3 +286,88 @@ class TestChatTools(unittest.TestCase):
         self.assertEqual(payload.get("data", {}).get("activity_id"), "20749829518")
         self.assertGreaterEqual(elapsed, 0)
 
+    def test_normalize_sport_types_outdoor_vs_indoor_taxonomy(self):
+        from kinetiqo.mcp.utils import (
+            normalize_sport_types,
+            OUTDOOR_CYCLING_SPORT_TYPES,
+            INDOOR_CYCLING_SPORT_TYPES,
+            CYCLING_SPORT_TYPES,
+            OUTDOOR_RUNNING_SPORT_TYPES,
+            INDOOR_RUNNING_SPORT_TYPES,
+            RUNNING_SPORT_TYPES,
+            WALKING_SPORT_TYPES,
+            SWIMMING_SPORT_TYPES,
+        )
+
+        # 1. Outdoor cycling aliases must never include VirtualRide
+        for alias in ("outdoor_cycling", "outdoor_bike", "outdoor_biking", "outdoor_ride", "road_bike", "gravel", "mtb"):
+            norm = normalize_sport_types([alias])
+            self.assertEqual(norm, list(OUTDOOR_CYCLING_SPORT_TYPES))
+            self.assertNotIn("VirtualRide", norm)
+
+        # 2. Indoor cycling aliases must include only VirtualRide
+        for alias in ("indoor_cycling", "indoor_bike", "virtual_cycling", "zwift", "rouvy", "trainer", "turbo"):
+            norm = normalize_sport_types([alias])
+            self.assertEqual(norm, list(INDOOR_CYCLING_SPORT_TYPES))
+
+        # 3. Ride / cycling / biking all mean all means of biking (indoor + outdoor)
+        for general_alias in ("ride", "rides", "cycling", "bike", "biking"):
+            general_norm = normalize_sport_types([general_alias])
+            self.assertEqual(general_norm, list(CYCLING_SPORT_TYPES))
+            self.assertIn("VirtualRide", general_norm)
+
+        # 4. Multi-type outdoor selection preserves elements without VirtualRide
+        outdoor_list = ["Ride", "GravelRide", "MountainBikeRide"]
+        self.assertEqual(normalize_sport_types(["outdoor_cycling"]), list(OUTDOOR_CYCLING_SPORT_TYPES))
+
+        # 5. General cycling includes all cycling types
+        for alias in ("cycling", "bike", "biking"):
+            self.assertEqual(normalize_sport_types([alias]), list(CYCLING_SPORT_TYPES))
+            self.assertIn("VirtualRide", normalize_sport_types([alias]))
+
+        # 6. Running outdoor vs indoor
+        self.assertEqual(normalize_sport_types(["outdoor_running"]), list(OUTDOOR_RUNNING_SPORT_TYPES))
+        self.assertNotIn("VirtualRun", normalize_sport_types(["outdoor_running"]))
+        self.assertEqual(normalize_sport_types(["indoor_running"]), list(INDOOR_RUNNING_SPORT_TYPES))
+        self.assertEqual(normalize_sport_types(["running"]), list(RUNNING_SPORT_TYPES))
+
+        # 7. Walking and swimming
+        self.assertEqual(normalize_sport_types(["walking"]), list(WALKING_SPORT_TYPES))
+        self.assertEqual(normalize_sport_types(["swimming"]), list(SWIMMING_SPORT_TYPES))
+
+        # 8. String input normalization
+        self.assertEqual(normalize_sport_types("outdoor_cycling"), list(OUTDOOR_CYCLING_SPORT_TYPES))
+        self.assertIsNone(normalize_sport_types(None))
+        self.assertIsNone(normalize_sport_types([]))
+
+    def test_activity_totals_with_outdoor_cycling_passes_exact_types_to_repo(self):
+        from kinetiqo.mcp.tools.activities import kinetiqo_get_activity_totals
+        from kinetiqo.mcp.utils import OUTDOOR_CYCLING_SPORT_TYPES
+
+        mock_repo = MagicMock()
+        mock_repo.get_activities_totals.return_value = {
+            "total_distance": 1250000.0,
+            "total_elevation": 15000.0,
+            "total_moving_time": 180000,
+        }
+        mock_repo.count_activities.return_value = 35
+
+        result = kinetiqo_get_activity_totals(mock_repo, sport_types=["outdoor_cycling"], start_date="2026")
+        self.assertNotIn("error", result)
+        called_types = mock_repo.get_activities_totals.call_args[1]["types"]
+        self.assertEqual(called_types, list(OUTDOOR_CYCLING_SPORT_TYPES))
+        self.assertNotIn("VirtualRide", called_types)
+        self.assertEqual(result["data"]["distance_km"], 1250.0)
+
+    def test_system_prompt_contains_explicit_outdoor_vs_indoor_mandate(self):
+        from kinetiqo.chat.service import build_system_instruction
+
+        prompt = build_system_instruction()
+        self.assertIn("SPORT TAXONOMY MANDATE", prompt)
+        self.assertIn("OUTDOOR CYCLING", prompt)
+        self.assertIn("sport_types=['outdoor_cycling']", prompt)
+        self.assertIn("INDOOR CYCLING", prompt)
+        self.assertIn("VirtualRide", prompt)
+        self.assertIn("ANNUAL / TIME-SERIES", prompt)
+
+

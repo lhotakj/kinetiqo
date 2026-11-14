@@ -276,7 +276,7 @@ class TestMCPTools(unittest.TestCase):
         res = activities.kinetiqo_find_similar_routes(
             self.mock_repo,
             activity_id="123",
-            sport_types=["Ride"],
+            sport_types=["cycling"],
             max_candidates=5,
         )
 
@@ -312,8 +312,8 @@ class TestMCPTools(unittest.TestCase):
         }
         self.mock_repo.count_activities.return_value = 250
 
-        # When AI passes ['Ride'], it is normalized to include all cycling types (VirtualRide, GravelRide, etc.)
-        res = activities.kinetiqo_get_activity_totals(self.mock_repo, sport_types=["Ride"], start_date="2026-01-01", end_date="2026-12-31")
+        # When AI passes ['cycling'], it is normalized to include all cycling types (VirtualRide, GravelRide, etc.)
+        res = activities.kinetiqo_get_activity_totals(self.mock_repo, sport_types=["cycling"], start_date="2026-01-01", end_date="2026-12-31")
         self.assertEqual(res["data_status"], "complete")
         self.assertEqual(res["data"]["distance_km"], 11122.55)
         self.assertEqual(res["data"]["elevation_m"], 91245.9)
@@ -321,6 +321,27 @@ class TestMCPTools(unittest.TestCase):
         self.assertIn("VirtualRide", call_types)
         self.assertIn("GravelRide", call_types)
         self.assertIn("Ride", call_types)
+
+        # When AI passes ['outdoor_cycling'], it includes all outdoor cycling types but excludes VirtualRide
+        res_out = activities.kinetiqo_get_activity_totals(self.mock_repo, sport_types=["outdoor_cycling"], start_date="2026-01-01", end_date="2026-12-31")
+        self.assertEqual(res_out["data_status"], "complete")
+        call_out_types = self.mock_repo.get_activities_totals.call_args.kwargs["types"]
+        self.assertNotIn("VirtualRide", call_out_types)
+        self.assertIn("Ride", call_out_types)
+        self.assertIn("GravelRide", call_out_types)
+
+        # When AI passes ['indoor_cycling'], it includes only VirtualRide
+        res_in = activities.kinetiqo_get_activity_totals(self.mock_repo, sport_types=["indoor_cycling"], start_date="2026-01-01", end_date="2026-12-31")
+        self.assertEqual(res_in["data_status"], "complete")
+        call_in_types = self.mock_repo.get_activities_totals.call_args.kwargs["types"]
+        self.assertEqual(call_in_types, ["VirtualRide"])
+
+        # When AI passes ['ride'] (general biking), it includes all cycling types (indoor + outdoor)
+        res_ride = activities.kinetiqo_get_activity_totals(self.mock_repo, sport_types=["ride"], start_date="2026-01-01", end_date="2026-12-31")
+        self.assertEqual(res_ride["data_status"], "complete")
+        call_ride_types = self.mock_repo.get_activities_totals.call_args.kwargs["types"]
+        self.assertIn("VirtualRide", call_ride_types)
+        self.assertIn("Ride", call_ride_types)
 
     # --- Group B: Telemetry ---
     def test_get_activity_streams(self):

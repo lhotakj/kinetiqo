@@ -129,6 +129,7 @@ class GeminiChatProvider(BaseChatProvider):
                 max_turns = 64  # Generous headroom for multi-year, multi-sport, or complex analytics comparisons
                 any_text_streamed = False
                 seen_tool_signatures: list[str] = []
+                yielded_usage: tuple[Any, Any] | None = None
 
                 for turn_idx in range(max_turns):
                     body: dict[str, Any] = {
@@ -187,9 +188,24 @@ class GeminiChatProvider(BaseChatProvider):
                             usage = data.get("usageMetadata", {})
                             if usage:
                                 last_usage = usage
+                                in_tok = usage.get("promptTokenCount")
+                                out_tok = usage.get("candidatesTokenCount")
+                                if (in_tok is not None or out_tok is not None) and (in_tok, out_tok) != yielded_usage:
+                                    yielded_usage = (in_tok, out_tok)
+                                    yield StreamEvent("usage", input_tokens=in_tok, output_tokens=out_tok)
 
                     # If model invoked one or more tools, execute them and continue to next turn
                     if turn_function_calls and tool_executor is not None and turn_idx < (max_turns - 1):
+                        # Stream any interim thought or reasoning text produced by the model before the tool call
+                        if turn_text_chunks:
+                            for chunk in turn_text_chunks:
+                                if chunk:
+                                    yield StreamEvent("text_delta", text=chunk)
+                                    any_text_streamed = True
+                            combined_interim = "".join(turn_text_chunks)
+                            if combined_interim and not combined_interim.endswith("\n\n"):
+                                yield StreamEvent("text_delta", text="\n\n")
+
                         executed_results: list[tuple[str, Any, str | None]] = []
                         for call in turn_function_calls:
                             call_id = call.get("id")
@@ -229,7 +245,7 @@ class GeminiChatProvider(BaseChatProvider):
                         if chunk:
                             yield StreamEvent("text_delta", text=chunk)
                             any_text_streamed = True
-                    if last_usage:
+                    if last_usage and (last_usage.get("promptTokenCount"), last_usage.get("candidatesTokenCount")) != yielded_usage:
                         yield StreamEvent("usage", input_tokens=last_usage.get("promptTokenCount"), output_tokens=last_usage.get("candidatesTokenCount"))
                     logger.info("Gemini stream completed: model=%s turns=%d text_events=%d", model_id, turn_idx + 1, len(turn_text_chunks))
                     break
@@ -256,6 +272,10 @@ class GeminiChatProvider(BaseChatProvider):
                                 continue
                             if "usageMetadata" in data:
                                 synth_usage = data["usageMetadata"]
+                                in_tok = synth_usage.get("promptTokenCount")
+                                out_tok = synth_usage.get("candidatesTokenCount")
+                                if in_tok is not None or out_tok is not None:
+                                    yield StreamEvent("usage", input_tokens=in_tok, output_tokens=out_tok)
                             for candidate in data.get("candidates", []):
                                 for part in candidate.get("content", {}).get("parts", []):
                                     if "text" in part and isinstance(part["text"], str) and part["text"]:

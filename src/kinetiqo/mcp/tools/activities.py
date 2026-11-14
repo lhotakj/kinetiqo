@@ -61,7 +61,13 @@ def kinetiqo_search_activities(
     sort_by: str = "start_date",
     sort_order: str = "desc",
 ) -> Dict[str, Any]:
-    """Search and filter activities using comprehensive telemetry criteria with deterministic keyset pagination."""
+    """Search and filter activities using comprehensive telemetry criteria with deterministic keyset pagination.
+
+    SPORT TAXONOMY MANDATE:
+      - General biking ('ride', 'cycling', 'biking') -> ['cycling'] (all means of biking, indoor + outdoor)
+      - Explicit indoor biking ('indoor ride', 'indoor cycling', 'indoor bike') -> ['indoor_cycling'] (only indoor bike / VirtualRide in Strava)
+      - Explicit outdoor biking ('outdoor bike', 'outdoor cycling', 'outdoor rides') -> ['outdoor_cycling'] (all bikes minus indoor)
+    """
     limit = max(1, min(limit, 100))
     norm_sport_types = normalize_sport_types(sport_types)
     filters: Dict[str, Any] = {"sort_by": sort_by, "sort_order": sort_order}
@@ -309,7 +315,13 @@ def kinetiqo_get_activity_totals(
     end_date: Optional[str] = None,
     date_preset: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Compute aggregated distance, elevation, moving time, and count."""
+    """Compute aggregated distance, elevation, moving time, and count.
+
+    SPORT TAXONOMY MANDATE:
+      - General biking ('ride', 'cycling', 'biking') -> sport_types=['cycling'] (all means of biking, indoor + outdoor)
+      - Explicit indoor biking ('indoor ride', 'indoor cycling', 'indoor bike') -> sport_types=['indoor_cycling'] (only indoor bike / VirtualRide in Strava)
+      - Explicit outdoor biking ('outdoor bike', 'outdoor cycling', 'outdoor rides') -> sport_types=['outdoor_cycling'] (all bikes minus indoor)
+    """
     norm_sports = normalize_sport_types(sport_types)
     resolved_start, resolved_end = resolve_date_range(start_date=start_date, end_date=end_date, preset=date_preset)
     try:

@@ -480,6 +480,10 @@ class PayPerQChatProvider(BaseChatProvider):
 
                     # If model requested tools, execute them and proceed to next turn
                     if accumulated_tool_calls and tool_executor is not None and turn_idx < (max_turns - 1):
+                        if accumulated_content and not accumulated_content.endswith("\n\n"):
+                            accumulated_content += "\n\n"
+                            yield StreamEvent("text_delta", text="\n\n")
+
                         executed_tool_messages: list[dict[str, Any]] = []
                         assistant_tool_calls: list[dict[str, Any]] = []
 

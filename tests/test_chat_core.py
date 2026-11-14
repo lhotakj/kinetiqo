@@ -251,6 +251,38 @@ class TestChatService(unittest.TestCase):
         self.assertIn("VirtualRide", instruction)
         self.assertIn("VirtualRun", instruction)
 
+    def test_system_instruction_injects_athlete_profile_metrics(self):
+        profile = {
+            "first_name": "Jaroslav",
+            "last_name": "Lhoták",
+            "height": 182,
+            "age": 44,
+            "weight": 81.2,
+            "ftp": 282.0,
+        }
+        instruction = build_system_instruction(athlete_profile=profile)
+        self.assertIn("ATHLETE PROFILE (SOURCE OF TRUTH):", instruction)
+        self.assertIn("Jaroslav Lhoták", instruction)
+        self.assertIn("Age: 44", instruction)
+        self.assertIn("Height: 182 cm", instruction)
+        self.assertIn("Weight: 81.2 kg", instruction)
+        self.assertIn("FTP: 282 W (3.47 W/kg)", instruction)
+        self.assertIn("VO₂max: ~51.2 ml/kg/min", instruction)
+
+    def test_system_instruction_resolves_profile_from_repository(self):
+        mock_repo = MagicMock()
+        mock_repo.get_profile.return_value = {
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "weight": 60.0,
+            "ftp": 240.0,
+        }
+        instruction = build_system_instruction(repo=mock_repo)
+        self.assertIn("Jane Doe", instruction)
+        self.assertIn("Weight: 60.0 kg", instruction)
+        self.assertIn("FTP: 240 W (4.00 W/kg)", instruction)
+        self.assertIn("VO₂max: ~58.9 ml/kg/min", instruction)
+
     @patch("kinetiqo.chat.service.decrypt_api_key", return_value="key")
     @patch("kinetiqo.chat.service.PROVIDER_REGISTRY")
     def test_stream_turn_uses_fallback_when_primary_fails(self, registry, decrypt):

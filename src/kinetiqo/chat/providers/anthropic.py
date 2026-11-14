@@ -399,6 +399,7 @@ class AnthropicChatProvider(BaseChatProvider):
                 seen_tool_signatures: list[str] = []
                 total_input_tokens: int | None = None
                 total_output_tokens: int = 0
+                yielded_usage: tuple[Any, Any] | None = None
 
                 for turn_idx in range(max_turns):
                     body: dict[str, Any] = {
@@ -478,6 +479,9 @@ class AnthropicChatProvider(BaseChatProvider):
                                 usage = chunk.get("usage") or {}
                                 if usage.get("output_tokens") is not None:
                                     total_output_tokens += int(usage["output_tokens"])
+                                    if (total_input_tokens, total_output_tokens) != yielded_usage:
+                                        yielded_usage = (total_input_tokens, total_output_tokens)
+                                        yield StreamEvent("usage", input_tokens=total_input_tokens, output_tokens=total_output_tokens)
 
                             elif event_type == "error":
                                 err = chunk.get("error") or {}
@@ -487,6 +491,10 @@ class AnthropicChatProvider(BaseChatProvider):
 
                     # Check if model requested tool execution
                     if accumulated_tool_calls and tool_executor is not None and turn_idx < (max_turns - 1):
+                        if accumulated_content and not accumulated_content.endswith("\n\n"):
+                            accumulated_content += "\n\n"
+                            yield StreamEvent("text_delta", text="\n\n")
+
                         assistant_blocks: list[dict[str, Any]] = []
                         if accumulated_content:
                             assistant_blocks.append({"type": "text", "text": accumulated_content})
@@ -543,7 +551,7 @@ class AnthropicChatProvider(BaseChatProvider):
                         continue
 
                     # Final turn or no tool calls
-                    if total_input_tokens is not None or total_output_tokens:
+                    if (total_input_tokens is not None or total_output_tokens) and (total_input_tokens, total_output_tokens) != yielded_usage:
                         yield StreamEvent(
                             "usage",
                             input_tokens=total_input_tokens,

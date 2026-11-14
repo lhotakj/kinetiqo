@@ -478,6 +478,7 @@
 
         const sepProv = footer.querySelector('.chat-footer-sep-prov');
         const sepModel = footer.querySelector('.chat-footer-sep-model');
+        const sepTokensThinking = footer.querySelector('.chat-footer-sep-tokens-thinking');
         const sepTokens = footer.querySelector('.chat-footer-sep-tokens');
 
         const hasProv = Boolean(provSlot && provSlot.children.length > 0);
@@ -497,8 +498,11 @@
         if (sepModel) {
             sepModel.classList.toggle('hidden', !(hasModel && (hasThinking || hasTokens || hasDownload)));
         }
+        if (sepTokensThinking) {
+            sepTokensThinking.classList.toggle('hidden', !(hasTokens && hasThinking));
+        }
         if (sepTokens) {
-            sepTokens.classList.toggle('hidden', !(hasTokens && hasDownload));
+            sepTokens.classList.toggle('hidden', !((hasTokens || hasThinking) && hasDownload));
         }
     };
 
@@ -630,6 +634,12 @@
             const badge = document.createElement('span');
             badge.className = 'chat-tokens-badge text-xs text-gray-500 dark:text-zinc-400 whitespace-nowrap';
             row.appendChild(badge);
+
+            // Separator between tokens and thinking status while generating
+            const sepTokensThinking = document.createElement('span');
+            sepTokensThinking.className = 'chat-footer-sep-tokens-thinking hidden text-gray-300 dark:text-zinc-600 select-none';
+            sepTokensThinking.textContent = '·';
+            row.appendChild(sepTokensThinking);
 
             // While generating, display elapsed-time counter in place of download actions.
             const thinkingBadge = document.createElement('span');
@@ -886,10 +896,9 @@
         });
     };
 
-    const setFooterThinkingState = (article, elapsedSeconds) => {
+    const setFooterThinkingState = (article, elapsedSeconds = 0) => {
         const footer = ensureFooter(article);
         const thinkingBadge = footer.querySelector('.chat-thinking-badge');
-        const tokensBadge = footer.querySelector('.chat-tokens-badge');
 
         article._isThinking = true;
         if (thinkingBadge) {
@@ -897,9 +906,7 @@
             thinkingBadge.textContent = `Thinking for ${safeSeconds}s`;
             thinkingBadge.classList.remove('hidden');
         }
-        if (tokensBadge) {
-            tokensBadge.classList.add('hidden');
-        }
+        updateFooterInfo(article, null, null, null);
         setDownloadButtonsState(article, false);
         refreshSeparators(footer);
     };
@@ -907,16 +914,13 @@
     const clearFooterThinkingState = (article) => {
         const footer = ensureFooter(article);
         const thinkingBadge = footer.querySelector('.chat-thinking-badge');
-        const tokensBadge = footer.querySelector('.chat-tokens-badge');
 
         article._isThinking = false;
         if (thinkingBadge) {
             thinkingBadge.textContent = '';
             thinkingBadge.classList.add('hidden');
         }
-        if (tokensBadge) {
-            tokensBadge.classList.remove('hidden');
-        }
+        updateFooterInfo(article, null, null, null);
         if (!article._hideDownloadsPermanently) {
             setDownloadButtonsState(article, true);
         }
@@ -942,17 +946,21 @@
 
         if (parts.length > 0) {
             let text = `Tokens: ${parts.join(' · ')}`;
-            if (currentDur) {
+            if (currentDur && !article._isThinking) {
                 text += ` · ${currentDur}`;
             }
             badge.textContent = text;
+            badge.classList.remove('hidden');
+        } else if (article._isThinking) {
+            badge.textContent = 'Tokens: calculating…';
+            badge.classList.remove('hidden');
         } else if (currentDur) {
             badge.textContent = currentDur;
+            badge.classList.remove('hidden');
         } else {
             badge.textContent = '';
+            badge.classList.add('hidden');
         }
-
-        badge.classList.toggle('hidden', Boolean(article._isThinking));
 
         refreshSeparators(footer);
     };
@@ -2199,6 +2207,14 @@
             answer = messageNode('assistant', '', null, null, null, chosenModelId, chosenProvider);
             ensureFooter(answer);
             answer._hideDownloadsPermanently = false;
+
+            // Immediate initial prompt tokens estimate (system prompt + schemas ~3200 tokens + prompt length)
+            let estimatedInTokens = Math.max(100, Math.round(3200 + (content.length / 3.8)));
+            let estimatedOutTokens = 0;
+            let serverInTokens = null;
+            let serverOutTokens = null;
+            updateFooterInfo(answer, estimatedInTokens, estimatedOutTokens);
+
             setFooterThinkingState(answer, 0);
             thinkingCounterInterval = window.setInterval(() => {
                 const elapsedSeconds = Math.floor((performance.now() - turnStartTime) / 1000);
@@ -2218,6 +2234,7 @@
             const decoder = new TextDecoder();
             let buffer = '';
             let rawAssistantMarkdown = '';
+            let pendingTurnParagraphBreak = false;
 
             while (true) {
                 const chunk = await reader.read();
@@ -2237,6 +2254,9 @@
                             thinkingEl.remove();
                             thinkingEl = null;
                         }
+                        if (rawAssistantMarkdown.trim().length > 0) {
+                            pendingTurnParagraphBreak = true;
+                        }
                         if (!toolStatusEl) {
                             toolStatusEl = document.createElement('div');
                             toolStatusEl.className = 'chat-tool-status mb-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2';
@@ -2252,7 +2272,13 @@
                             scrollToBottom();
                         }
                     } else if (eventType === 'usage') {
-                        updateFooterInfo(answer, payload.input_tokens, payload.output_tokens);
+                        if (payload.input_tokens !== undefined && payload.input_tokens !== null) {
+                            serverInTokens = payload.input_tokens;
+                        }
+                        if (payload.output_tokens !== undefined && payload.output_tokens !== null) {
+                            serverOutTokens = payload.output_tokens;
+                        }
+                        updateFooterInfo(answer, serverInTokens, serverOutTokens);
                         scrollToBottom();
                     } else if (eventType === 'completed') {
                         if (payload.model_id) {
@@ -2268,9 +2294,23 @@
                             toolStatusEl.remove();
                             toolStatusEl = null;
                         }
+                        if (pendingTurnParagraphBreak && rawAssistantMarkdown.trim().length > 0) {
+                            if (!rawAssistantMarkdown.endsWith('\n\n')) {
+                                rawAssistantMarkdown = rawAssistantMarkdown.trimEnd() + '\n\n';
+                            }
+                            pendingTurnParagraphBreak = false;
+                        }
                         rawAssistantMarkdown += payload.text || '';
                         answer._rawMarkdown = rawAssistantMarkdown;
                         answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(rawAssistantMarkdown));
+
+                        // Dynamically update output tokens spend live as text streams
+                        const estimatedOut = Math.max(1, Math.round(rawAssistantMarkdown.length / 3.8));
+                        const liveIn = serverInTokens ?? estimatedInTokens;
+                        const liveOut = (serverOutTokens !== null && serverOutTokens !== undefined)
+                            ? Math.max(serverOutTokens, estimatedOut)
+                            : estimatedOut;
+                        updateFooterInfo(answer, liveIn, liveOut);
                         scrollToBottom();
                     } else if (eventType === 'error') {
                         if (thinkingEl) {
@@ -2300,7 +2340,7 @@
             }
 
             const totalDurationSec = `${((performance.now() - turnStartTime) / 1000).toFixed(1)}s`;
-            updateFooterInfo(answer, null, null, totalDurationSec);
+            updateFooterInfo(answer, serverInTokens, serverOutTokens, totalDurationSec);
 
             if (executedTools.length > 0 && !answer.querySelector('.chat-provenance-btn')) {
                 appendProvenance(answer, executedTools);

@@ -307,6 +307,7 @@ class OpenRouterChatProvider(BaseChatProvider):
                 if "embed" in model_id.lower():
                     model_supports_tools = False
 
+                yielded_usage: tuple[Any, Any] | None = None
                 for turn_idx in range(max_turns):
                     body: dict[str, Any] = {
                         "model": model_id,
@@ -339,6 +340,11 @@ class OpenRouterChatProvider(BaseChatProvider):
                             usage = chunk.get("usage")
                             if usage:
                                 last_usage = usage
+                                in_tok = usage.get("prompt_tokens")
+                                out_tok = usage.get("completion_tokens")
+                                if (in_tok is not None or out_tok is not None) and (in_tok, out_tok) != yielded_usage:
+                                    yielded_usage = (in_tok, out_tok)
+                                    yield StreamEvent("usage", input_tokens=in_tok, output_tokens=out_tok)
 
                             choices = chunk.get("choices") or []
                             if not choices:
@@ -372,6 +378,10 @@ class OpenRouterChatProvider(BaseChatProvider):
 
                     # If model requested tools, execute them and proceed to next turn
                     if accumulated_tool_calls and tool_executor is not None and turn_idx < (max_turns - 1):
+                        if accumulated_content and not accumulated_content.endswith("\n\n"):
+                            accumulated_content += "\n\n"
+                            yield StreamEvent("text_delta", text="\n\n")
+
                         executed_tool_messages: list[dict[str, Any]] = []
                         assistant_tool_calls: list[dict[str, Any]] = []
 
@@ -419,7 +429,7 @@ class OpenRouterChatProvider(BaseChatProvider):
                         continue
 
                     # Final turn or no tools called
-                    if last_usage:
+                    if last_usage and (last_usage.get("prompt_tokens"), last_usage.get("completion_tokens")) != yielded_usage:
                         yield StreamEvent(
                             "usage",
                             input_tokens=last_usage.get("prompt_tokens"),

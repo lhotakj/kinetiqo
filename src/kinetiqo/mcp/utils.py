@@ -249,37 +249,78 @@ def get_best_powers_for_durations(repo: Any, activity_ids: List[str], durations:
     return result
 
 
-CYCLING_SPORT_TYPES = (
-    "Ride", "VirtualRide", "EBikeRide", "EMountainBikeRide",
-    "GravelRide", "MountainBikeRide", "Velomobile", "Handcycle",
+OUTDOOR_CYCLING_SPORT_TYPES = (
+    "Ride", "GravelRide", "MountainBikeRide", "EBikeRide",
+    "EMountainBikeRide", "Velomobile", "Handcycle",
 )
-RUNNING_SPORT_TYPES = ("Run", "VirtualRun", "TrailRun")
+INDOOR_CYCLING_SPORT_TYPES = ("VirtualRide",)
+CYCLING_SPORT_TYPES = OUTDOOR_CYCLING_SPORT_TYPES + INDOOR_CYCLING_SPORT_TYPES
+
+OUTDOOR_RUNNING_SPORT_TYPES = ("Run", "TrailRun")
+INDOOR_RUNNING_SPORT_TYPES = ("VirtualRun",)
+RUNNING_SPORT_TYPES = OUTDOOR_RUNNING_SPORT_TYPES + INDOOR_RUNNING_SPORT_TYPES
+
 WALKING_SPORT_TYPES = ("Walk", "Hike")
+SWIMMING_SPORT_TYPES = ("Swim",)
 
 
-def normalize_sport_types(sport_types: Optional[List[str]]) -> Optional[List[str]]:
+def normalize_sport_types(sport_types: Optional[Any]) -> Optional[List[str]]:
     """Expand generic or shorthand sport types into canonical database taxonomy.
 
-    If an AI provider passes generic strings like ['cycling'], ['bike'], or mistakenly
-    restricts a riding query to solely ['Ride'], this expands it to all cycling types
-    so that VirtualRide (Zwift/Rouvy), GravelRide, MountainBikeRide, etc., are included.
+    Supports explicit outdoor vs indoor distinctions:
+      - 'outdoor_cycling', 'outdoor_bike', etc. -> all outdoor cycling types (excludes VirtualRide)
+      - 'indoor_cycling', 'indoor_bike', 'virtual_cycling', 'zwift', etc. -> VirtualRide
+      - 'cycling', 'bike', 'biking' -> all cycling (outdoor + indoor)
+      - 'outdoor_running', 'outdoor_run', 'trail' -> Run, TrailRun
+      - 'indoor_running', 'indoor_run', 'treadmill' -> VirtualRun
+      - 'running', 'run' -> all running (Run, TrailRun, VirtualRun)
+      - 'walking', 'hiking', 'walk', 'hike' -> Walk, Hike
+      - 'swimming', 'swim' -> Swim
     """
     if not sport_types:
         return None
+    if isinstance(sport_types, str):
+        sport_types = [x.strip() for x in sport_types.split(",") if x.strip()]
+    if not isinstance(sport_types, (list, tuple, set)):
+        return None
+    if not sport_types:
+        return None
+
     normalized = []
     for s in sport_types:
         s_clean = str(s).strip()
-        lower = s_clean.lower()
-        if lower in ("cycling", "bike", "biking", "all_cycling", "cycle"):
+        lower = s_clean.lower().replace("-", "_").replace(" ", "_")
+        if lower in (
+            "outdoor_cycling", "outdoor_bike", "outdoor_biking", "outdoor_ride",
+            "outdoor_rides", "outdoor_cycle", "outdoor_bicycle", "road_bike", "gravel", "mtb",
+            "mountain_bike", "outdoor_biking_only", "outdoor_cycling_only",
+        ):
+            normalized.extend(OUTDOOR_CYCLING_SPORT_TYPES)
+        elif lower in (
+            "indoor_cycling", "indoor_bike", "indoor_biking", "indoor_ride",
+            "indoor_rides", "indoor_cycle", "virtual_cycling", "virtual_bike", "virtual_biking",
+            "virtual_ride", "virtual_rides", "virtualride", "zwift", "rouvy", "trainer",
+            "turbo", "stationary_trainer", "smart_trainer", "indoor_trainer", "indoor",
+        ):
+            normalized.extend(INDOOR_CYCLING_SPORT_TYPES)
+        elif lower in (
+            "cycling", "bike", "biking", "all_cycling", "cycle", "ride", "rides",
+            "all_rides", "all_bike", "all_bikes", "all_biking", "bicycle", "bicycles", "bicycling",
+        ):
             normalized.extend(CYCLING_SPORT_TYPES)
+        elif lower in ("outdoor_running", "outdoor_run", "outdoor_runs", "trail_running", "trail"):
+            normalized.extend(OUTDOOR_RUNNING_SPORT_TYPES)
+        elif lower in (
+            "indoor_running", "indoor_run", "indoor_runs", "virtual_running",
+            "virtual_run", "treadmill",
+        ):
+            normalized.extend(INDOOR_RUNNING_SPORT_TYPES)
         elif lower in ("running", "runs", "all_running", "run"):
             normalized.extend(RUNNING_SPORT_TYPES)
-        elif lower in ("walking", "hiking", "all_walking", "walk", "hike"):
+        elif lower in ("walking", "hiking", "all_walking", "walk", "hike", "walks", "hikes"):
             normalized.extend(WALKING_SPORT_TYPES)
-        elif s_clean == "Ride" and len(sport_types) == 1:
-            # Single 'Ride' filter sent by AI for 'ride' / 'rode' prompt:
-            # Expand to include all biking activities per user expectation.
-            normalized.extend(CYCLING_SPORT_TYPES)
+        elif lower in ("swimming", "swim", "swims"):
+            normalized.extend(SWIMMING_SPORT_TYPES)
         else:
             normalized.append(s_clean)
 

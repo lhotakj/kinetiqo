@@ -99,8 +99,12 @@ def create_mcp_server(
         name="kinetiqo_search_activities",
         description=(
             "Search and filter activities with comprehensive telemetry criteria and deterministic keyset pagination. "
-            "Supports flexible dates (e.g. '2026', '2026-08', '24.10.2026', 'yesterday', 'this_week', 'this_month', 'this_year', '7_days', '30_days', 'all_time'), "
-            "name keywords, sport types (e.g. ['cycling'], ['running']), weather conditions (rain, snow, clear), temperature, wind speed, wind gusts, distance, elevation, moving time, watts, heartrate, speed, suffer score, gear, PRs, and trophies. "
+            "SPORT TAXONOMY MANDATE: "
+            "1) General biking ('ride', 'cycling', 'biking') -> ['cycling'] (all means of biking, indoor + outdoor). "
+            "2) Explicit indoor biking ('indoor ride', 'indoor cycling', 'indoor bike') -> ['indoor_cycling'] (only indoor bike / VirtualRide in Strava). "
+            "3) Explicit outdoor biking ('outdoor bike', 'outdoor cycling', 'outdoor rides') -> ['outdoor_cycling'] (all bikes minus indoor). "
+            "Supports flexible dates and presets (e.g. date_preset='2026', 'this_week', 'this_year'), name keywords, weather conditions, "
+            "temperature, wind speed, wind gusts, distance, elevation, moving time, watts, heartrate, speed, suffer score, gear, PRs, and trophies. "
             "Supports sort_by='wind_gust', 'wind_speed', 'temp', 'start_date', 'distance', etc."
         ),
     )
@@ -227,7 +231,16 @@ def create_mcp_server(
 
     @server.tool(
         name="kinetiqo_get_activity_totals",
-        description="Compute aggregated distance, elevation, moving time, and count. Supports flexible dates and presets (e.g. 'this_year', 'last_month', '2026'). For riding/cycling, specify all biking types or ['cycling']. Omit for all sports.",
+        description=(
+            "Compute aggregated distance, elevation, moving time, and count. "
+            "Supports flexible dates and presets (e.g. date_preset='this_year', date_preset='2026', 'last_month'). "
+            "SPORT TAXONOMY MANDATE: "
+            "1) General biking ('ride', 'cycling', 'biking') -> sport_types=['cycling'] (all means of biking, indoor + outdoor). "
+            "2) Explicit indoor biking ('indoor ride', 'indoor cycling', 'indoor bike') -> sport_types=['indoor_cycling'] (only indoor bike / VirtualRide in Strava). "
+            "3) Explicit outdoor biking ('outdoor bike', 'outdoor cycling', 'outdoor rides') -> sport_types=['outdoor_cycling'] (all bikes minus indoor). "
+            "For running, specify ['running'] (all), ['indoor_running'], or ['outdoor_running']. Omit for all sports. "
+            "For annual trends / yearly charts, query each year individually with date_preset='2021', date_preset='2022', etc."
+        ),
     )
     def get_activity_totals(
         sport_types: Optional[List[str]] = None,

@@ -263,10 +263,20 @@ Kinetiqo Flask Application Server
   - **Self-Contained HTML Export (`.html`)**: Downloads unstyled, portable HTML with auto-embedded Base64 images and rendered high-res chart graphics (removing interactive toggle buttons and extraneous dashboard classes).
 - **Dynamic Composer Animation**:
   - Rotating frame border utilizing Kinetiqo brand colors (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`) during live response streaming.
-- **Streamlined Message Footer**:
+- **Streamlined Message Footer & Real-Time Token Spend**:
   - Crisp 1px top border separator in both light (`#e5e7eb`) and dark (`#3f3f46`) modes.
   - Unified right-aligned metadata row: `[Data used (X queries) ▾] · [Model Badge] · [Tokens: X in · Y out · Zs] · [Download MD] · [Download HTML]`.
+  - **Live Real-Time Token Updates**: The token spend badge remains visible throughout response generation, updating input ("in") and output ("out") tokens live in real-time as text streams and across multi-turn tool executions, locking in final verified token counts on completion.
+  - **Multi-Step Paragraph Formatting**: Intermediate tool-calling reasoning and multi-step phases are automatically formatted with clean visual paragraph breaks (`\n\n`), preventing run-on text collisions and ensuring Markdown headers (`##`) always render as top-level headings.
   - Transparent, distraction-free provenance view with high-contrast text.
+
+- **Sport Taxonomy & Strict Outdoor vs. Indoor Filtering**:
+  - **General Biking (`ride`, `cycling`, `biking`, `bike`)**: All means of biking are meant (both indoor and outdoor combined). Mapped to all 8 Strava cycling types (`Ride`, `GravelRide`, `MountainBikeRide`, `EBikeRide`, `EMountainBikeRide`, `Velomobile`, `Handcycle`, `VirtualRide`) via `sport_types=['cycling']`.
+  - **Explicit Indoor Cycling (`indoor ride`, `indoor cycling`, `indoor bike`)**: Only indoor biking as defined in Strava (`VirtualRide`) via `sport_types=['indoor_cycling']` (aliases: `virtual_ride`, `zwift`, `rouvy`, `trainer`).
+  - **Explicit Outdoor Cycling (`outdoor bike`, `outdoor cycling`, `outdoor rides`, `outdoor biking`)**: All bikes minus indoor (`Ride`, `GravelRide`, `MountainBikeRide`, `EBikeRide`, `EMountainBikeRide`, `Velomobile`, `Handcycle`) via `sport_types=['outdoor_cycling']`, strictly excluding virtual rides.
+  - **Running**: General running (`running`, `runs`) via `sport_types=['running']` (includes `Run`, `TrailRun`, `VirtualRun`), explicit outdoor running (`outdoor_running`), and explicit indoor running (`indoor_running` / treadmill).
+  - **Walking & Swimming**: Supported via `sport_types=['walking']` (`Walk`, `Hike`) and `sport_types=['swimming']` (`Swim`).
+  - **Annual & Multi-Year Trends**: To build yearly charts or tables across multiple years (e.g. 2021 to 2026 for indoor or outdoor cycling), query each year individually with `date_preset='<year>'` (or `start_date='<year>', end_date='<year>'`) to guarantee accurate year-by-year values without single-year date-range truncation.
 
 ---
 

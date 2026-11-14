@@ -913,7 +913,22 @@ Build the tool catalog dynamically from registered FastMCP tool definitions and 
 - Achievements and goals: `kinetiqo_get_verified_koms`, `kinetiqo_get_segment_trophies`, `kinetiqo_get_fondo_milestones`, and `kinetiqo_get_training_goals`.
 - Visual artifacts: `kinetiqo_generate_activity_poster`, `kinetiqo_generate_mega_stats_infographic`, `kinetiqo_generate_fondo_infographic`, and `kinetiqo_generate_map_artifact`.
 - Operations: `kinetiqo_get_sync_job_status` and `kinetiqo_preview_strava_description`.
-- Activity filtering strictly enforces `CYCLING_SPORT_TYPES = ["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]` for cycling power analysis.
+- Activity filtering strictly enforces sport taxonomy contracts:
+  * `OUTDOOR_CYCLING_SPORT_TYPES = ("Ride", "GravelRide", "MountainBikeRide", "EBikeRide", "EMountainBikeRide", "Velomobile", "Handcycle")`
+  * `INDOOR_CYCLING_SPORT_TYPES = ("VirtualRide",)`
+  * `CYCLING_SPORT_TYPES = OUTDOOR_CYCLING_SPORT_TYPES + INDOOR_CYCLING_SPORT_TYPES`
+  * `OUTDOOR_RUNNING_SPORT_TYPES = ("Run", "TrailRun")`
+  * `INDOOR_RUNNING_SPORT_TYPES = ("VirtualRun",)`
+  * `RUNNING_SPORT_TYPES = OUTDOOR_RUNNING_SPORT_TYPES + INDOOR_RUNNING_SPORT_TYPES`
+  * `WALKING_SPORT_TYPES = ("Walk", "Hike")`
+  * `SWIMMING_SPORT_TYPES = ("Swim",)`
+  * `normalize_sport_types()` enforces a strict three-tier cycling taxonomy:
+    - **General biking** (`ride`, `cycling`, `biking`, `bike`): Maps to all means of biking (both indoor and outdoor combined, including `VirtualRide`) via `sport_types=['cycling']`.
+    - **Explicit indoor biking** (`indoor ride`, `indoor cycling`, `indoor bike`): Maps strictly to indoor cycling as defined in Strava (`VirtualRide`) via `sport_types=['indoor_cycling']`.
+    - **Explicit outdoor biking** (`outdoor bike`, `outdoor cycling`, `outdoor rides`, `outdoor biking`): Maps to all bikes minus indoor (`Ride`, `GravelRide`, `MountainBikeRide`, `EBikeRide`, `EMountainBikeRide`, `Velomobile`, `Handcycle`) via `sport_types=['outdoor_cycling']`, strictly excluding virtual trainer rides.
+  * Annual and multi-year trend queries: Querying annual charts or tables for any sport discipline (indoor or outdoor) queries each calendar year individually with `date_preset='<year>'` or `start_date='<year>', end_date='<year>'` to eliminate single-year bounding and date-range truncation errors.
+- Multi-step tool reasoning: Intermediate reasoning phases across tool execution turns are automatically formatted with clean visual paragraph breaks (`\n\n`), preventing run-on text collisions and ensuring Markdown headers (`##`) always render as top-level headings.
+- Real-time token tracking: The assistant message footer renders live token spend (`Tokens: X in · Y out · Zs`), updating input and output tokens live in real time as text deltas and turn usage arrive, without hiding the token badge during generation.
 
 Explicitly excluded from chat (never exposed to in-browser chat, regardless of `KINETIQO_MCP_ALLOW_*` flags):
 
@@ -985,7 +1000,7 @@ Use a server-generated system instruction (`src/kinetiqo/chat/service.py`) that:
 ### 10.5 Context policy
 
 - Build system instructions on the server for every request; never accept system prompts from the browser.
-- Optionally pre-load a small, cheap athlete context block (name, sports, last sync date, current CTL/ATL/TSB) so the model can personalize without a tool round.
+- Injects a compact athlete profile source of truth (name, height, age, weight, FTP, estimated VO₂max when available) into server system instructions so the model personalizes immediately without requiring extra tool rounds for core biometrics.
 - Do not inject a large lifetime data dump into every prompt.
 - The UI provides a collapsible "Data used" toggle per assistant turn showing tool names, call counts, and execution latencies from `tool_provenance`.
 - Never claim the model has access to all Kinetiqo data unless the available tools and query results justify that claim.
