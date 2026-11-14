@@ -155,6 +155,15 @@
                         const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
                         return `<a href="${href || '#'}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
                     },
+                    image({ href, title, text }) {
+                        let cleanHref = href || '';
+                        if (cleanHref.includes('/api/chat/artifacts/')) {
+                            cleanHref = cleanHref.substring(cleanHref.indexOf('/api/chat/artifacts/'));
+                        }
+                        const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+                        const altAttr = text ? ` alt="${escapeHtml(text)}"` : ' alt="Infographic"';
+                        return `<img src="${cleanHref}" class="chat-artifact-image block max-w-full h-auto rounded-xl shadow-md my-3 border border-warm-200/60 dark:border-zinc-700/60"${altAttr}${titleAttr} loading="lazy" />`;
+                    },
                     code(codeOrToken, infostring) {
                         let lang = '';
                         let text = '';
@@ -178,15 +187,54 @@
         }
     }
 
-    const renderMarkdown = (text) => {
+    const renderMarkdown = (text, isCompleted = false) => {
         if (!text) return '';
         let cleaned = text;
         if (cleaned.includes('Mermaid live editor') && cleaned.includes('Copy the block above')) {
             cleaned = cleaned.replace(/(?:^|\n)[ \t]*\*?Copy the block above[^\n\r]*(?:\r?\n[^\n\r]*){0,4}Mermaid live editor[^\n\r]*\*?/gi, '');
         }
+
+        // Heal markdown image syntax split across newlines (e.g. ![Title]\n(/api/chat/...))
+        cleaned = cleaned.replace(/!\[([^\]]*)\]\s*\n+\s*\(([^)]+)\)/g, '![$1]($2)');
+        // Normalize any absolute or external origin prepended to chat artifacts (e.g. ![...](https://kinetiqo.com/api/chat/artifacts/...))
+        cleaned = cleaned.replace(/!\[([^\]]*)\]\((?:https?:\/\/[^\/]+)?(\/api\/chat\/artifacts\/[^)]+)\)/g, '![$1]($2)');
+
+        // Intercept streaming or unclosed base64 image data to prevent raw token flooding
+        const unclosedImageMatch = cleaned.match(/(!\[([^\]]*)\]\s*\n*\s*\(?\s*data:image\/(?:png|jpeg|webp|gif);base64,([a-zA-Z0-9+/=\s.]*))$/i);
+        let streamingPlaceholder = '';
+        if (unclosedImageMatch) {
+            const rawPrefix = unclosedImageMatch[1];
+            const label = (unclosedImageMatch[2] || '').trim() || 'Infographic';
+            const b64Data = (unclosedImageMatch[3] || '').replace(/[\s.]+/g, '');
+            const bytesReceived = Math.round((b64Data.length * 3) / 4);
+            const kbReceived = (bytesReceived / 1024).toFixed(1);
+            const progressPercent = Math.min(95, Math.max(12, Math.round((bytesReceived / 25000) * 100)));
+
+            // Remove the raw unclosed base64 chunk from markdown before parsing
+            cleaned = cleaned.slice(0, cleaned.length - rawPrefix.length);
+
+            const statusText = isCompleted
+                ? `Rendering cancelled (${kbReceived} KB received)`
+                : `Rendering ${escapeHtml(label)}…`;
+
+            streamingPlaceholder = `
+<div class="chat-image-loading-placeholder my-3 p-3.5 rounded-xl border border-warm-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900/60 shadow-xs flex items-center gap-3">
+    <img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" width="28" height="28" class="flex-shrink-0">
+    <div class="flex-1 min-w-0">
+        <div class="text-xs font-semibold text-warm-900 dark:text-zinc-100 flex items-center justify-between gap-2">
+            <span class="truncate">${statusText}</span>
+            <span class="text-[11px] text-warm-500 dark:text-zinc-400 font-mono flex-shrink-0">${kbReceived} KB</span>
+        </div>
+        <div class="w-full bg-warm-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-1.5 border border-warm-200/50 dark:border-zinc-700/50">
+            <div class="bg-orange-500 h-full rounded-full transition-all duration-150" style="width: ${progressPercent}%;"></div>
+        </div>
+    </div>
+</div>`;
+        }
+
         if (typeof window.marked !== 'undefined' && typeof window.marked.parse === 'function') {
             try {
-                return DOMPurify.sanitize(window.marked.parse(cleaned));
+                return DOMPurify.sanitize(window.marked.parse(cleaned) + streamingPlaceholder);
             } catch (err) {
                 console.warn('Marked parse error, using fallback:', err);
             }
@@ -262,14 +310,24 @@
         // Horizontal Rules
         processed = processed.replace(/^---$/gim, '<hr class="my-4 border-warm-200 dark:border-zinc-700"/>');
 
+        // Images fallback
+        processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, src) => {
+            let cleanSrc = src ? src.trim() : '';
+            if (cleanSrc.includes('/api/chat/artifacts/')) {
+                cleanSrc = cleanSrc.substring(cleanSrc.indexOf('/api/chat/artifacts/'));
+            }
+            return `<img src="${cleanSrc}" class="chat-artifact-image block max-w-full h-auto rounded-xl shadow-md my-3 border border-warm-200/60 dark:border-zinc-700/60" alt="${alt}" loading="lazy" />`;
+        });
+
         // Paragraphs
         const paras = processed.split(/\n{2,}/);
-        return DOMPurify.sanitize(paras.map(p => {
+        const parsedFallback = paras.map(p => {
             p = p.trim();
             if (!p) return '';
-            if (/^<(h\d|pre|table|ul|ol|blockquote|div|hr)/.test(p)) return p;
+            if (/^<(h\d|pre|table|ul|ol|blockquote|div|hr|img)/.test(p)) return p;
             return `<p class="my-1.5 leading-relaxed">${p.replaceAll('\n', '<br/>')}</p>`;
-        }).join(''));
+        }).join('');
+        return DOMPurify.sanitize(parsedFallback + streamingPlaceholder);
     };
 
     const request = async (url, options = {}) => {
@@ -668,8 +726,9 @@
             `;
             downloadMdBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                const mdContent = article._rawMarkdown || article.querySelector('.chat-text')?.textContent || '';
+                let mdContent = article._rawMarkdown || article.querySelector('.chat-text')?.textContent || '';
                 if (!mdContent) return;
+                mdContent = mdContent.replace(/!\[([^\]]*)\]\s*\n+\s*\(([^)]+)\)/g, '![$1]($2)');
                 const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -816,6 +875,8 @@
                     if (toggleHeader) toggleHeader.remove();
                     if (codePre) codePre.remove();
                 });
+
+                clone.querySelectorAll('.chat-image-loading-placeholder').forEach(el => el.remove());
 
                 clone.querySelectorAll('*').forEach(el => {
                     if (el.closest('svg')) return;
@@ -993,8 +1054,9 @@
         const textContainer = document.createElement('div');
         textContainer.className = 'chat-text';
         if (role === 'assistant') {
-            article._rawMarkdown = content;
-            textContainer.innerHTML = DOMPurify.sanitize(renderMarkdown(content));
+            const healed = (content || '').replace(/!\[([^\]]*)\]\s*\n+\s*\((data:image\/[^)]+)\)/g, '![$1]($2)');
+            article._rawMarkdown = healed;
+            textContainer.innerHTML = DOMPurify.sanitize(renderMarkdown(healed, true));
         } else {
             textContainer.textContent = content;
         }
@@ -2302,7 +2364,7 @@
                         }
                         rawAssistantMarkdown += payload.text || '';
                         answer._rawMarkdown = rawAssistantMarkdown;
-                        answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(rawAssistantMarkdown));
+                        answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(rawAssistantMarkdown, false));
 
                         // Dynamically update output tokens spend live as text streams
                         const estimatedOut = Math.max(1, Math.round(rawAssistantMarkdown.length / 3.8));
@@ -2334,8 +2396,9 @@
             if (toolStatusEl) toolStatusEl.remove();
 
             if (rawAssistantMarkdown) {
-                answer._rawMarkdown = rawAssistantMarkdown;
-                answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(rawAssistantMarkdown));
+                const healed = rawAssistantMarkdown.replace(/!\[([^\]]*)\]\s*\n+\s*\((data:image\/[^)]+)\)/g, '![$1]($2)');
+                answer._rawMarkdown = healed;
+                answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(healed, true));
                 renderChartJsInElement(answer);
             }
 
@@ -2361,7 +2424,11 @@
                         const cancelPill = document.createElement('div');
                         cancelPill.className = 'chat-cancelled-indicator';
                         cancelPill.innerHTML = '<span class="text-xs font-bold leading-none select-none">■</span><span>Cancelled</span>';
-                        if (!lastAssistant._rawMarkdown) {
+                        if (lastAssistant._rawMarkdown) {
+                            const healed = lastAssistant._rawMarkdown.replace(/!\[([^\]]*)\]\s*\n+\s*\((data:image\/[^)]+)\)/g, '![$1]($2)');
+                            lastAssistant._rawMarkdown = healed;
+                            answerText.innerHTML = DOMPurify.sanitize(renderMarkdown(healed, true));
+                        } else {
                             answerText.innerHTML = '<p class="text-xs text-gray-500 dark:text-zinc-400 italic">Prompt cancelled</p>';
                         }
                         lastAssistant.insertBefore(cancelPill, answerText.nextSibling);

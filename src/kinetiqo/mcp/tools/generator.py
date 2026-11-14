@@ -5,6 +5,7 @@ import base64
 import os
 from pathlib import Path
 
+from kinetiqo.chat.artifacts import store_chat_artifact
 from kinetiqo.mcp.contracts import (
     create_envelope,
     create_error_envelope,
@@ -13,7 +14,7 @@ from kinetiqo.mcp.contracts import (
     ERROR_NOT_FOUND,
 )
 from kinetiqo.web.renderers.poster_renderer import render_poster_artifact
-from kinetiqo.web.renderers.stats_renderer import render_stats_artifact
+from kinetiqo.web.renderers.stats_renderer import render_stats_artifact, normalize_stats_sport_group
 from kinetiqo.web.renderers.fondo_renderer import render_fondo_artifact
 
 
@@ -22,7 +23,14 @@ def _format_generator_error(action: str, exc: Exception) -> Dict[str, Any]:
     msg = f"Failed generating {action}: {err_str}"
     lower = err_str.lower()
     error_code = ERROR_INVALID_ARGUMENT
-    if "playwright" in lower or "chromium" in lower or "executable" in lower:
+    is_missing_env = (
+        isinstance(exc, (ImportError, ModuleNotFoundError))
+        or "not installed" in lower
+        or "executable doesn't exist" in lower
+        or "cannot find chrome" in lower
+        or ("chromium" in lower and ("not found" in lower or "missing" in lower))
+    )
+    if is_missing_env:
         msg += ". Visual rendering requires Chromium and Playwright (available in the 'kinetiqo/web-mcp' Docker image)."
         error_code = ERROR_NOT_CONFIGURED
     return create_error_envelope(error_code, msg)
@@ -49,10 +57,15 @@ def kinetiqo_generate_activity_poster(
         }
         png_bytes = render_poster_artifact(activity_id=activity_id, options=options, repo=repo, config=config)
 
-        # Artifact formatting (dual stdio: base64 + size)
+        artifact_id = store_chat_artifact(png_bytes)
+        image_url = f"/api/chat/artifacts/{artifact_id}.png"
+
+        # Artifact formatting (dual stdio: base64 + size + local URL)
         b64_str = base64.b64encode(png_bytes).decode("ascii")
         data = {
             "artifact_type": "activity_poster",
+            "artifact_id": artifact_id,
+            "image_url": image_url,
             "activity_id": str(activity_id),
             "mime_type": "image/png",
             "byte_size": len(png_bytes),
@@ -70,18 +83,31 @@ def kinetiqo_generate_mega_stats_infographic(
     config: Any,
     year: Any = "all",
     sport_group: str = "cycling",
+    size: str = "XL",
+    period: str = "year",
     font_family: str = "Inter",
 ) -> Dict[str, Any]:
     """Generate 365-day MEGA Stats calendar heatmap infographic via Playwright."""
     try:
-        options = {"font_family": font_family}
-        png_bytes = render_stats_artifact(year=year, sport_group=sport_group, options=options, repo=repo, config=config)
+        norm_group = normalize_stats_sport_group(sport_group)
+        options = {
+            "font_family": font_family,
+            "size": size,
+            "period": period,
+        }
+        png_bytes = render_stats_artifact(year=year, sport_group=norm_group, options=options, repo=repo, config=config)
 
+        artifact_id = store_chat_artifact(png_bytes)
+        image_url = f"/api/chat/artifacts/{artifact_id}.png"
         b64_str = base64.b64encode(png_bytes).decode("ascii")
         data = {
             "artifact_type": "mega_stats_infographic",
+            "artifact_id": artifact_id,
+            "image_url": image_url,
             "year": year,
-            "sport_group": sport_group,
+            "sport_group": norm_group,
+            "size": size,
+            "period": period,
             "mime_type": "image/png",
             "byte_size": len(png_bytes),
             "inline_image_base64": b64_str,
@@ -100,14 +126,19 @@ def kinetiqo_generate_fondo_infographic(
 ) -> Dict[str, Any]:
     """Generate concentric rings Fondo-o-meter endurance showcase infographic."""
     try:
+        norm_group = normalize_stats_sport_group(sport_group)
         options = {"arc_color": arc_color}
-        png_bytes = render_fondo_artifact(year=year, sport_group=sport_group, options=options, repo=repo, config=config)
+        png_bytes = render_fondo_artifact(year=year, sport_group=norm_group, options=options, repo=repo, config=config)
 
+        artifact_id = store_chat_artifact(png_bytes)
+        image_url = f"/api/chat/artifacts/{artifact_id}.png"
         b64_str = base64.b64encode(png_bytes).decode("ascii")
         data = {
             "artifact_type": "fondo_infographic",
+            "artifact_id": artifact_id,
+            "image_url": image_url,
             "year": year,
-            "sport_group": sport_group,
+            "sport_group": norm_group,
             "mime_type": "image/png",
             "byte_size": len(png_bytes),
             "inline_image_base64": b64_str,

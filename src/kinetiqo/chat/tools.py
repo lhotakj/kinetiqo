@@ -306,6 +306,24 @@ def execute_chat_tool(
         else:
             result_dict = {"status": "complete", "result": str(raw_result)}
 
+        # For visual artifacts in chat mode, strip raw base64 data to save tokens and latency.
+        # The visual image is safely persisted locally and accessible via image_url.
+        if isinstance(result_dict, dict):
+            data_payload = result_dict.get("data")
+            if isinstance(data_payload, dict) and "image_url" in data_payload:
+                clean_data = dict(data_payload)
+                img_url = clean_data.get("image_url", "")
+                if "inline_image_base64" in clean_data:
+                    clean_data["inline_image_base64"] = f"[Stored locally. Use EXACT relative image_url without domain: ![]({img_url})]"
+                if "base64_data" in clean_data:
+                    del clean_data["base64_data"]
+                result_dict = dict(result_dict)
+                result_dict["data"] = clean_data
+            elif "image_url" in result_dict and "inline_image_base64" in result_dict:
+                img_url = result_dict.get("image_url", "")
+                result_dict = dict(result_dict)
+                result_dict["inline_image_base64"] = f"[Stored locally. Use EXACT relative image_url without domain: ![]({img_url})]"
+
         # Ensure bounded context to prevent token exhaustion
         serialized = json.dumps(result_dict, default=str)
         if len(serialized) > 24_000:

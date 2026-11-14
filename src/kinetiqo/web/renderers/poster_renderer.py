@@ -1,11 +1,36 @@
 """Poster export renderer using in-process HTML synthesis or Playwright rendering."""
 
+import asyncio
+import concurrent.futures
+import json as _json
 import logging
 import os
+from pathlib import Path
 import shutil
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("kinetiqo")
+
+
+def run_in_clean_thread(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Execute a function in a clean worker thread if the current thread has an active asyncio loop.
+
+    Playwright's Sync API uses greenlets and explicitly prohibits being called inside
+    an active asyncio event loop thread. When invoked from asynchronous frameworks
+    (such as FastMCP or in-process asyncio event loops), running in a separate worker
+    thread ensures no asyncio event loop is active on the executing thread.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func, *args, **kwargs)
+            return future.result()
+
+    return func(*args, **kwargs)
 
 
 def find_chromium_executable() -> Optional[str]:
@@ -53,22 +78,14 @@ def find_chromium_executable() -> Optional[str]:
     return None
 
 
-def render_poster_artifact(
+def _render_poster_sync(
     activity_id: Any,
     options: Optional[Dict[str, Any]] = None,
     repo: Any = None,
     config: Any = None,
     html_content: Optional[str] = None,
 ) -> bytes:
-    """Renders an activity poster to PNG bytes using headless Playwright.
-
-    :param activity_id: Target activity ID.
-    :param options: Dict of rendering options (ratio, poster_size, route_color, etc.).
-    :param repo: Database repository instance (optional).
-    :param config: Application configuration instance (optional).
-    :param html_content: Synthesized HTML content (optional).
-    :return: PNG bytes.
-    """
+    """Internal synchronous implementation of poster rendering via Playwright."""
     options = options or {}
     width = int(options.get("poster_size") or options.get("posterSize") or 1280)
     ratio = str(options.get("ratio") or "4/3")
@@ -86,22 +103,56 @@ def render_poster_artifact(
         raise RuntimeError("Playwright is not installed. Run: pip install playwright && playwright install chromium") from e
 
     chromium_exe = find_chromium_executable()
-    launch_kwargs: Dict[str, Any] = {"headless": True}
+    launch_kwargs: Dict[str, Any] = {
+        "headless": True,
+        "args": [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--font-render-hinting=none",
+        ],
+    }
     if chromium_exe:
         launch_kwargs["executable_path"] = chromium_exe
-    else:
-        launch_kwargs["args"] = ["--no-sandbox", "--disable-setuid-sandbox"]
 
     with sync_playwright() as p:
         browser = p.chromium.launch(**launch_kwargs)
         try:
-            page = browser.new_page(
+            context = browser.new_context(
                 viewport={"width": width, "height": height},
                 device_scale_factor=1,
+                ignore_https_errors=True,
             )
+            cookies = options.get("cookies") or []
+            if cookies:
+                try:
+                    context.add_cookies(cookies)
+                except Exception:
+                    pass
+
+            page = context.new_page()
+
             if html_content:
                 page.set_content(html_content, wait_until="networkidle")
-            else:
+                return page.screenshot(type="png")
+
+            port = str(options.get("port") or 4444)
+            internal_url = f"http://127.0.0.1:{port}/poster/{activity_id}"
+            rendered_via_server = False
+
+            try:
+                page.goto(internal_url, wait_until="networkidle", timeout=30_000)
+                page.wait_for_function("document.fonts.ready", timeout=10_000)
+                page.wait_for_selector("#posterContainer", state="visible", timeout=10_000)
+                page.wait_for_timeout(600)
+                png_bytes = page.screenshot(type="png")
+                rendered_via_server = True
+                return png_bytes
+            except Exception as nav_err:
+                logger.warning("Failed to render Poster via internal URL %s: %s — using fallback HTML", internal_url, nav_err)
+
+            if not rendered_via_server:
                 fallback_html = f"""
                 <!DOCTYPE html>
                 <html>
@@ -128,3 +179,45 @@ def render_poster_artifact(
             return png_bytes
         finally:
             browser.close()
+
+
+def render_poster_artifact(
+    activity_id: Any,
+    options: Optional[Dict[str, Any]] = None,
+    repo: Any = None,
+    config: Any = None,
+    html_content: Optional[str] = None,
+) -> bytes:
+    """Renders an activity poster to PNG bytes using headless Playwright.
+
+    :param activity_id: Target activity ID.
+    :param options: Dict of rendering options (ratio, poster_size, route_color, etc.).
+    :param repo: Database repository instance (optional).
+    :param config: Application configuration instance (optional).
+    :param html_content: Synthesized HTML content (optional).
+    :return: PNG bytes.
+    """
+    opts = dict(options or {})
+    try:
+        import flask
+        if flask.has_request_context():
+            if "cookies" not in opts:
+                c_list = []
+                for n, v in flask.request.cookies.items():
+                    c_list.append({"name": n, "value": v, "domain": "127.0.0.1", "path": "/"})
+                    c_list.append({"name": n, "value": v, "domain": "localhost", "path": "/"})
+                opts["cookies"] = c_list
+            if "port" not in opts:
+                host = flask.request.host
+                opts["port"] = host.split(":")[1] if ":" in host else "4444"
+    except Exception:
+        pass
+
+    return run_in_clean_thread(
+        _render_poster_sync,
+        activity_id=activity_id,
+        options=opts,
+        repo=repo,
+        config=config,
+        html_content=html_content,
+    )

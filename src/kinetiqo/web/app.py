@@ -78,6 +78,7 @@ from kinetiqo.web.stats import (
     compute_mega_stats, ACTIVITY_GROUPS, VALID_PERIODS as STATS_PERIODS,
 )
 from kinetiqo.web.fondo_o_meter import compute_fondo_o_meter, compute_achievements
+from kinetiqo.chat.artifacts import get_chat_artifact
 from kinetiqo.chat.encryption import encrypt_api_key, decrypt_api_key, ChatEncryptionError
 from kinetiqo.chat.errors import (
     ChatError,
@@ -2718,6 +2719,20 @@ def chat_messages_api(session_id: str):
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'
     return response
+
+
+@app.route('/api/chat/artifacts/<artifact_id>', methods=['GET'])
+@login_required
+def chat_artifact_api(artifact_id: str):
+    clean_id = artifact_id[:-4] if artifact_id.endswith('.png') else artifact_id
+    if not re.fullmatch(r'art_[a-fA-F0-9]{16}', clean_id):
+        return Response(status=400)
+    data = get_chat_artifact(clean_id)
+    if not data:
+        return Response(status=404)
+    resp = Response(data, mimetype='image/png')
+    resp.headers['Cache-Control'] = 'public, max-age=86400, immutable'
+    return resp
 
 
 @app.route('/api/chat/models', methods=['GET'])

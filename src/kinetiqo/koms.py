@@ -65,7 +65,7 @@ def save_verified_koms(data: Dict[str, int], cache_path: Optional[Path] = None) 
             json.dump(data, f, indent=2)
         temp_path.replace(path)
     except Exception as e:
-        logger.exception("Failed to save verified KOMs cache to %s: %e", path, e)
+        logger.exception("Failed to save verified KOMs cache to %s: %s", path, e)
 
 
 def load_verified_trophies(cache_path: Optional[Path] = None) -> Dict[str, Dict[str, int]]:

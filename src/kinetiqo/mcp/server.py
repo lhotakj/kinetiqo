@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, List, Optional, Union
+from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Union
 from mcp.server.fastmcp import FastMCP
 
 from kinetiqo.db.factory import create_repository
@@ -514,10 +514,32 @@ def create_mcp_server(
                 hide_start_end_km=hide_start_end_km,
             )
 
-    @server.tool(name="kinetiqo_generate_mega_stats_infographic", description="Generate 365-day MEGA Stats calendar heatmap.")
+    @server.tool(
+        name="kinetiqo_generate_mega_stats_infographic",
+        description=(
+            "Generate high-resolution 365-day MEGA Stats calendar heatmap infographic via Playwright. "
+            "Supports sport_group: 'cycling_outdoor' (outdoor rides only; road/gravel/MTB; excludes virtual/trainer), "
+            "'cycling_indoor' (virtual/trainer only), 'cycling' (all cycling combined), 'running_outdoor', "
+            "'running_indoor', 'running', 'walking', 'skiing', 'swimming'. "
+            "Supports size: 'M' (1280px), 'L' (1440px), 'XL' (1600px), 'XXL' (1920px), 'XXXL' (2048px). "
+            "Supports period: 'year', 'q1', 'q2', 'q3', 'q4', 'h1', 'h2'."
+        ),
+    )
     def generate_mega_stats(
         year: Any = "all",
-        sport_group: str = "cycling",
+        sport_group: Literal[
+            "cycling_outdoor",
+            "cycling_indoor",
+            "cycling",
+            "running_outdoor",
+            "running_indoor",
+            "running",
+            "walking",
+            "skiing",
+            "swimming",
+        ] = "cycling",
+        size: Literal["M", "L", "XL", "XXL", "XXXL"] = "XL",
+        period: Literal["year", "q1", "q2", "q3", "q4", "h1", "h2"] = "year",
         font_family: str = "Inter",
     ) -> Dict[str, Any]:
         with get_repo() as r:
@@ -526,13 +548,32 @@ def create_mcp_server(
                 config=config,
                 year=year,
                 sport_group=sport_group,
+                size=size,
+                period=period,
                 font_family=font_family,
             )
 
-    @server.tool(name="kinetiqo_generate_fondo_infographic", description="Generate Fondo-o-meter concentric rings infographic.")
+    @server.tool(
+        name="kinetiqo_generate_fondo_infographic",
+        description=(
+            "Generate concentric rings Fondo-o-meter endurance showcase infographic via Playwright. "
+            "Supports sport_group: 'cycling_outdoor' (outdoor rides only), 'cycling_indoor', 'cycling', "
+            "'running_outdoor', 'running_indoor', 'running', 'walking', 'skiing', 'swimming'."
+        ),
+    )
     def generate_fondo_infographic(
         year: Any = "all",
-        sport_group: str = "cycling",
+        sport_group: Literal[
+            "cycling_outdoor",
+            "cycling_indoor",
+            "cycling",
+            "running_outdoor",
+            "running_indoor",
+            "running",
+            "walking",
+            "skiing",
+            "swimming",
+        ] = "cycling",
         arc_color: str = "#22c55e",
     ) -> Dict[str, Any]:
         with get_repo() as r:
