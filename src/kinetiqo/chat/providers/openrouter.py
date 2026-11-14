@@ -1,22 +1,12 @@
 """OpenRouter REST adapter using httpx and OpenAI-compatible streaming SSE."""
 
-import json
 import logging
-from collections.abc import Iterator
 from typing import Any
 
 import httpx
 
-from kinetiqo.chat.errors import (
-    ChatAuthenticationError,
-    ChatProviderResponseError,
-    ChatProviderUnavailableError,
-    ChatRateLimitError,
-    ChatSafetyBlockedError,
-    ChatTimeoutError,
-)
-from kinetiqo.chat.models import ChatProviderModel, StreamEvent
-from kinetiqo.chat.providers.base import BaseChatProvider
+from kinetiqo.chat.models import ChatProviderModel
+from kinetiqo.chat.providers.openai_compatible import OpenAICompatibleChatProvider
 
 _BASE_URL = "https://openrouter.ai/api/v1"
 logger = logging.getLogger("kinetiqo.chat.openrouter")
@@ -67,12 +57,15 @@ DEFAULT_OPENROUTER_MODELS = (
 )
 
 
-class OpenRouterChatProvider(BaseChatProvider):
+class OpenRouterChatProvider(OpenAICompatibleChatProvider):
     provider_name = "openrouter"
     display_name = "OpenRouter AI"
     description = "Access hundreds of open & commercial models via openrouter.ai"
+    base_url = _BASE_URL
+    auth_endpoint = f"{_BASE_URL}/auth/key"
     default_model = "meta-llama/llama-3.3-70b-instruct"
     preferred_models = tuple(m["id"] for m in DEFAULT_OPENROUTER_MODELS)
+    fallback_models = DEFAULT_OPENROUTER_MODELS
     auth_type = "api_key"
     api_key_placeholder = "sk-or-v1-..."
     model_mode = "curated"
@@ -85,77 +78,60 @@ class OpenRouterChatProvider(BaseChatProvider):
     )
     docs_url = "https://openrouter.ai/docs"
 
-    def __init__(
-        self,
-        api_key: str,
-        client_factory: Any = httpx.Client,
-        configured_models: list[dict[str, Any]] | None = None,
-    ):
-        super().__init__(api_key, client_factory or httpx.Client)
-        self.configured_models = configured_models or []
-
     def _headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
+        headers = super()._headers()
+        headers.update({
             "HTTP-Referer": "https://github.com/lhotakj/kinetiqo",
             "X-Title": "Kinetiqo",
             "X-OpenRouter-Title": "Kinetiqo",
+        })
+        return headers
+
+    @staticmethod
+    def _parse_model_item(item: dict[str, Any]) -> dict[str, Any]:
+        mid = item.get("id", "")
+        name = item.get("name") or mid
+        context_len = item.get("context_length") or 128000
+        arch = item.get("architecture") or {}
+        modality = arch.get("modality", "")
+        supports_vision = "image" in modality.lower() or "multimodal" in modality.lower()
+        pricing = item.get("pricing") or {}
+        supported_params = item.get("supported_parameters") or []
+        top_provider = item.get("top_provider") or {}
+        is_embedding = "embed" in mid.lower() or "embedding" in modality.lower()
+        supports_tools = ("tools" in supported_params or not supported_params) and not is_embedding
+        return {
+            "id": mid,
+            "name": name,
+            "display_name": name,
+            "context_length": context_len,
+            "supports_tools": supports_tools,
+            "supports_vision": supports_vision,
+            "pricing": pricing,
+            "description": item.get("description") or "",
+            "max_output_tokens": top_provider.get("max_completion_tokens") or item.get("max_completion_tokens"),
+            "rate_limits": item.get("rate_limits"),
+            "request_limits": item.get("per_request_limits"),
+            "is_embedding": is_embedding,
         }
 
-    def _raise_for_status(self, response: httpx.Response) -> None:
-        if response.is_success:
-            return
-
-        err_body = ""
-        try:
-            if hasattr(response, "read"):
-                raw = response.read()
-                err_body = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
-            elif hasattr(response, "text"):
-                err_body = response.text
-        except Exception:
-            pass
-
-        err_msg = ""
-        if err_body:
-            try:
-                payload = json.loads(err_body)
-                if isinstance(payload, dict):
-                    err_obj = payload.get("error")
-                    if isinstance(err_obj, dict):
-                        err_msg = str(err_obj.get("message") or "")
-                    elif isinstance(err_obj, str):
-                        err_msg = err_obj
-                    elif payload.get("message"):
-                        err_msg = str(payload["message"])
-            except Exception:
-                pass
-
-        if response.status_code in (401, 403):
-            logger.warning("OpenRouter API rejected key: http_status=%d body=%s", response.status_code, err_body[:500])
-            detail = f": {err_msg}" if err_msg else ". Check your API key at openrouter.ai."
-            raise ChatAuthenticationError(f"OpenRouter access rejected (HTTP {response.status_code}){detail}")
-        if response.status_code == 402:
-            logger.warning("OpenRouter API returned 402 (Payment Required / Credit limit): %s", err_body[:500])
-            detail = f": {err_msg}" if err_msg else "."
-            raise ChatRateLimitError(f"OpenRouter account has insufficient credits{detail}")
-        if response.status_code == 429:
-            logger.warning("OpenRouter API rate limit hit: http_status=429 %s", err_body[:500])
-            detail = f": {err_msg}" if err_msg else "."
-            raise ChatRateLimitError(f"OpenRouter rate limit or quota exceeded{detail}")
-        if 500 <= response.status_code < 600:
-            logger.warning("OpenRouter upstream error: http_status=%d", response.status_code)
-            raise ChatProviderUnavailableError()
-        logger.warning("OpenRouter error response: http_status=%d body=%s", response.status_code, err_body[:500])
-        detail = f": {err_msg}" if err_msg else "."
-        raise ChatProviderResponseError(f"OpenRouter returned an error (HTTP {response.status_code}){detail}")
-
-    def validate_credentials(self) -> None:
-        """Validate OpenRouter API key against its auth endpoint."""
-        with self.client_factory(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
-            resp = client.get(f"{_BASE_URL}/auth/key", headers=self._headers())
-            self._raise_for_status(resp)
+    def list_models(self) -> list[ChatProviderModel]:
+        """Return configured models for this athlete, or curated defaults (excluding embedding models)."""
+        raw_list = self.configured_models if self.configured_models else list(DEFAULT_OPENROUTER_MODELS)
+        result = []
+        for m in raw_list:
+            mid = m.get("id", "")
+            if "embed" in mid.lower() or m.get("is_embedding"):
+                continue
+            result.append(
+                ChatProviderModel(
+                    id=mid,
+                    display_name=m.get("name") or mid,
+                    supports_tools=m.get("supports_tools", True),
+                    supports_vision=m.get("supports_vision", False),
+                )
+            )
+        return result
 
     def validate_model(self, model_id: str) -> dict[str, Any]:
         """Validate an OpenRouter model ID by fetching its metadata from OpenRouter."""
@@ -228,219 +204,3 @@ class OpenRouterChatProvider(BaseChatProvider):
                 raise err
 
         raise LookupError(f"Model '{clean_id}' was not found in OpenRouter.")
-
-    @staticmethod
-    def _parse_model_item(item: dict[str, Any]) -> dict[str, Any]:
-        mid = item.get("id", "")
-        name = item.get("name") or mid
-        context_len = item.get("context_length") or 128000
-        arch = item.get("architecture") or {}
-        modality = arch.get("modality", "")
-        supports_vision = "image" in modality.lower() or "multimodal" in modality.lower()
-        pricing = item.get("pricing") or {}
-        supported_params = item.get("supported_parameters") or []
-        top_provider = item.get("top_provider") or {}
-        # If supported_parameters is present, check for 'tools'; embedding models have no tools support
-        is_embedding = "embed" in mid.lower() or "embedding" in modality.lower()
-        supports_tools = ("tools" in supported_params or not supported_params) and not is_embedding
-        return {
-            "id": mid,
-            "name": name,
-            "display_name": name,
-            "context_length": context_len,
-            "supports_tools": supports_tools,
-            "supports_vision": supports_vision,
-            "pricing": pricing,
-            "description": item.get("description") or "",
-            "max_output_tokens": top_provider.get("max_completion_tokens") or item.get("max_completion_tokens"),
-            "rate_limits": item.get("rate_limits"),
-            "request_limits": item.get("per_request_limits"),
-        }
-
-    def list_models(self) -> list[ChatProviderModel]:
-        """Return configured models for this athlete, or curated defaults (excluding embedding models)."""
-        raw_list = self.configured_models if self.configured_models else list(DEFAULT_OPENROUTER_MODELS)
-        result = []
-        for m in raw_list:
-            mid = m.get("id", "")
-            if "embed" in mid.lower() or m.get("is_embedding"):
-                continue
-            result.append(
-                ChatProviderModel(
-                    id=mid,
-                    display_name=m.get("name") or mid,
-                    supports_tools=m.get("supports_tools", True),
-                    supports_vision=m.get("supports_vision", False),
-                )
-            )
-        return result
-
-    def stream(
-        self,
-        model_id: str,
-        system_instruction: str,
-        history: list[dict[str, str]],
-        prompt: str,
-        tools: list[dict[str, Any]] | None = None,
-        tool_executor: Any = None,
-    ) -> Iterator[StreamEvent]:
-        """Stream completion events with OpenAI-compatible multi-turn tool calling."""
-        messages: list[dict[str, Any]] = [{"role": "system", "content": system_instruction}]
-        for item in history:
-            role = item["role"]
-            content = item["content"]
-            messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": prompt})
-
-        url = f"{_BASE_URL}/chat/completions"
-        logger.debug("OpenRouter stream starting: model=%s history_messages=%d tools_provided=%d", model_id, len(history), len(tools or []))
-
-        try:
-            with self.client_factory(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
-                max_turns = 64
-                any_text_streamed = False
-                seen_tool_signatures: list[str] = []
-
-                # Check if this model supports tools
-                model_meta = next((m for m in self.configured_models if m.get("id") == model_id), None)
-                model_supports_tools = model_meta.get("supports_tools", True) if model_meta else True
-                if "embed" in model_id.lower():
-                    model_supports_tools = False
-
-                yielded_usage: tuple[Any, Any] | None = None
-                for turn_idx in range(max_turns):
-                    body: dict[str, Any] = {
-                        "model": model_id,
-                        "messages": messages,
-                        "stream": True,
-                        "stream_options": {"include_usage": True},
-                    }
-                    if tools and model_supports_tools:
-                        body["tools"] = tools
-                        if turn_idx >= (max_turns - 1):
-                            body["tool_choice"] = "none"
-
-                    accumulated_content = ""
-                    accumulated_tool_calls: dict[int, dict[str, Any]] = {}
-                    last_usage: dict[str, Any] | None = None
-
-                    with client.stream("POST", url, headers=self._headers(), json=body) as response:
-                        self._raise_for_status(response)
-                        for line in response.iter_lines():
-                            if not line or not line.startswith("data:"):
-                                continue
-                            data_str = line[5:].strip()
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                chunk = json.loads(data_str)
-                            except json.JSONDecodeError:
-                                continue
-
-                            usage = chunk.get("usage")
-                            if usage:
-                                last_usage = usage
-                                in_tok = usage.get("prompt_tokens")
-                                out_tok = usage.get("completion_tokens")
-                                if (in_tok is not None or out_tok is not None) and (in_tok, out_tok) != yielded_usage:
-                                    yielded_usage = (in_tok, out_tok)
-                                    yield StreamEvent("usage", input_tokens=in_tok, output_tokens=out_tok)
-
-                            choices = chunk.get("choices") or []
-                            if not choices:
-                                continue
-                            delta = choices[0].get("delta") or {}
-
-                            # 1. Text deltas
-                            text_piece = delta.get("content")
-                            if text_piece:
-                                accumulated_content += text_piece
-                                yield StreamEvent("text_delta", text=text_piece)
-                                any_text_streamed = True
-
-                            # 2. Tool calls delta
-                            raw_tool_deltas = delta.get("tool_calls") or []
-                            for tc in raw_tool_deltas:
-                                idx = tc.get("index", 0)
-                                if idx not in accumulated_tool_calls:
-                                    accumulated_tool_calls[idx] = {
-                                        "id": tc.get("id", f"call_{idx}"),
-                                        "name": "",
-                                        "arguments": "",
-                                    }
-                                if tc.get("id"):
-                                    accumulated_tool_calls[idx]["id"] = tc["id"]
-                                fn = tc.get("function") or {}
-                                if fn.get("name"):
-                                    accumulated_tool_calls[idx]["name"] += fn["name"]
-                                if fn.get("arguments"):
-                                    accumulated_tool_calls[idx]["arguments"] += fn["arguments"]
-
-                    # If model requested tools, execute them and proceed to next turn
-                    if accumulated_tool_calls and tool_executor is not None and turn_idx < (max_turns - 1):
-                        if accumulated_content and not accumulated_content.endswith("\n\n"):
-                            accumulated_content += "\n\n"
-                            yield StreamEvent("text_delta", text="\n\n")
-
-                        executed_tool_messages: list[dict[str, Any]] = []
-                        assistant_tool_calls: list[dict[str, Any]] = []
-
-                        for _, call_info in sorted(accumulated_tool_calls.items()):
-                            fn_name = call_info["name"]
-                            raw_args = call_info["arguments"]
-                            try:
-                                fn_args = json.loads(raw_args) if raw_args else {}
-                            except json.JSONDecodeError:
-                                fn_args = {}
-
-                            call_id = call_info["id"]
-                            assistant_tool_calls.append({
-                                "id": call_id,
-                                "type": "function",
-                                "function": {
-                                    "name": fn_name,
-                                    "arguments": raw_args,
-                                },
-                            })
-
-                            sig = f"{fn_name}:{json.dumps(fn_args, sort_keys=True, default=str)}"
-                            seen_tool_signatures.append(sig)
-                            yield StreamEvent("tool_call", tool=fn_name, arguments=fn_args)
-                            result_data, _ = tool_executor(fn_name, fn_args)
-
-                            if seen_tool_signatures.count(sig) >= 3 and isinstance(result_data, dict):
-                                result_data["_directive"] = "You have queried this identical data multiple times. Do not call this tool again with identical parameters; synthesize your answer now."
-
-                            yield StreamEvent("tool_result", tool=fn_name, tool_data=result_data)
-                            executed_tool_messages.append({
-                                "role": "tool",
-                                "tool_call_id": call_id,
-                                "name": fn_name,
-                                "content": json.dumps(result_data, default=str),
-                            })
-
-                        messages.append({
-                            "role": "assistant",
-                            "content": accumulated_content or None,
-                            "tool_calls": assistant_tool_calls,
-                        })
-                        messages.extend(executed_tool_messages)
-                        logger.info("OpenRouter turn %d executed %d tool calls; looping", turn_idx + 1, len(executed_tool_messages))
-                        continue
-
-                    # Final turn or no tools called
-                    if last_usage and (last_usage.get("prompt_tokens"), last_usage.get("completion_tokens")) != yielded_usage:
-                        yield StreamEvent(
-                            "usage",
-                            input_tokens=last_usage.get("prompt_tokens"),
-                            output_tokens=last_usage.get("completion_tokens"),
-                        )
-                    logger.info("OpenRouter stream finished: model=%s turns=%d text_len=%d", model_id, turn_idx + 1, len(accumulated_content))
-                    break
-
-        except httpx.TimeoutException as exc:
-            logger.warning("OpenRouter stream timed out: model=%s", model_id)
-            raise ChatTimeoutError() from exc
-        except httpx.RequestError as exc:
-            logger.warning("OpenRouter stream network error: model=%s error=%s", model_id, exc)
-            raise ChatProviderUnavailableError() from exc

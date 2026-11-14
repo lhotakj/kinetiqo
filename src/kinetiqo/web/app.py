@@ -104,6 +104,11 @@ from kinetiqo.chat.providers.openrouter import OpenRouterChatProvider
 from kinetiqo.chat.providers.payperq import PayPerQChatProvider
 from kinetiqo.chat.providers.poe import PoeChatProvider
 from kinetiqo.chat.providers.vercel import VercelChatProvider
+from kinetiqo.web.renderers.base import (
+    find_chromium_executable as _find_system_chromium,
+    playwright_page,
+)
+from kinetiqo.web.renderers.activity_renderer import render_activity_artifact
 
 
 
@@ -1515,72 +1520,6 @@ def _get_athlete_weight() -> tuple[float, str]:
 # --- Detect Playwright Chromium Version at Startup ---
 try:
     from playwright.sync_api import sync_playwright
-
-
-    def _find_system_chromium() -> Optional[str]:
-        """
-        Try to find a system-installed Chromium executable.
-        
-        Searches in this order:
-        1. PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH environment variable
-        2. System PATH locations (varies by OS)
-        3. Common installation paths
-        
-        Returns:
-            Full path to chromium executable if found, None otherwise
-        """
-        # Priority 1: Check environment variable
-        exe_path = os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH')
-        if exe_path and os.path.isfile(exe_path) and os.access(exe_path, os.X_OK):
-            return exe_path
-
-        # Priority 2: Try to find in system PATH
-        # Common executable names across platforms
-        executable_names = [
-            'chromium',  # Linux (common package name)
-            'chromium-browser',  # Debian/Ubuntu variant
-            'chromium-headless-shell',  # Playwright headless variant
-            'google-chrome',  # Google Chrome (if installed as Chrome)
-            'google-chrome-stable',  # Chrome stable variant
-            'chrome',  # Windows/macOS
-        ]
-
-        for name in executable_names:
-            exe = shutil.which(name)
-            if exe:
-                logger.debug(f"Found Chromium via PATH: {exe} (name: {name})")
-                return exe
-
-        # Priority 3: Check common installation paths (Windows)
-        if os.name == 'nt':  # Windows
-            common_paths = [
-                r'C:\Program Files\Chromium\Application\chrome.exe',
-                r'C:\Program Files (x86)\Chromium\Application\chrome.exe',
-                r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-                r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
-            ]
-            for path in common_paths:
-                if os.path.isfile(path):
-                    logger.debug(f"Found Chromium at common Windows path: {path}")
-                    return path
-
-        # Priority 4: Check common installation paths (Unix/Linux/macOS)
-        else:
-            common_paths = [
-                '/usr/bin/chromium',
-                '/usr/bin/chromium-browser',
-                '/snap/bin/chromium',
-                '/opt/chromium/chrome',
-                '/Applications/Chromium.app/Contents/MacOS/Chromium',
-                '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            ]
-            for path in common_paths:
-                if os.path.isfile(path) and os.access(path, os.X_OK):
-                    logger.debug(f"Found Chromium at common path: {path}")
-                    return path
-
-        return None
-
 
     def detect_chromium_version() -> Optional[str]:
         """
@@ -4860,160 +4799,38 @@ def activity_photo_clear(activity_id):
 @login_required
 def activity_export(activity_id):
     """Export the Activity Detail canvas as a pixel-perfect PNG or vector PDF via Playwright."""
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        logger.exception('playwright package is not installed')
-        return jsonify({'error': 'playwright is not installed on the server. '
-                                 'Run: pip install playwright && playwright install chromium'}), 500
-
     payload = request.get_json(silent=True) or {}
     export_format = str(payload.get('format', 'png')).lower()
-    width = max(800, min(int(payload.get('width', 1280)), 2560))
-    ratio = str(payload.get('ratio', 'auto')).lower()
-    height = int(payload.get('height', 960)) if ratio != 'auto' else None
-
-    host_header = request.host
-    port = host_header.split(':')[1] if ':' in host_header else '4444'
-    selected_agent = str(payload.get('selectedAgent') or payload.get('agentName') or '').strip()
-    agent_param = f"&agent={quote(selected_agent)}" if selected_agent else ""
-    internal_url = f"http://127.0.0.1:{port}/activity/{activity_id}?export=1{agent_param}"
-
-    cookies_for_playwright = [
-        {'name': n, 'value': v, 'domain': '127.0.0.1', 'path': '/'}
-        for n, v in request.cookies.items()
-    ]
-    chromium_exe = _find_system_chromium()
-
     try:
-        with sync_playwright() as p:
-            launch_kwargs = {
-                'headless': True,
-                'args': [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--font-render-hinting=none',
-                ],
-            }
-            if chromium_exe:
-                launch_kwargs['executable_path'] = chromium_exe
-
-            # Viewport sized to fit the canvas at full configured width plus sidebar & panel margin (matching poster export)
-            viewport_width = width + 700
-            viewport_height = (height or 1400) + 400
-
-            browser = p.chromium.launch(**launch_kwargs)
-            context = browser.new_context(
-                viewport={'width': viewport_width, 'height': viewport_height},
-                device_scale_factor=2 if export_format == 'png' else 1,
-                ignore_https_errors=True,
-            )
-            if cookies_for_playwright:
-                context.add_cookies(cookies_for_playwright)
-
-            page = context.new_page()
-            page.goto(internal_url, wait_until='networkidle', timeout=30_000)
-            page.wait_for_function('document.fonts.ready', timeout=10_000)
-            page.wait_for_selector('#activity-canvas', state='visible', timeout=10_000)
-
-            # Ingest settings into localStorage and trigger canvas update
-            settings_json = json_module.dumps(payload)
-            page.evaluate(f"""() => {{
-                const s = {settings_json};
-                if (window.applyExportSettings) {{
-                    window.applyExportSettings(s);
-                }}
-                document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-container').forEach(el => {{
-                    el.style.setProperty('display', 'none', 'important');
-                }});
-                const wrapper = document.getElementById('detail-wrapper');
-                if (wrapper) {{
-                    wrapper.style.transform = 'none';
-                }}
-                const scaler = document.getElementById('detail-preview-scaler');
-                if (scaler) {{
-                    scaler.style.transform = 'none';
-                }}
-            }}""")
-
-            # Wait for Telemetry Chart to finish rendering (matching poster elevation chart wait)
-            page.wait_for_function(
-                """
-(function() {
-    var sec = document.getElementById('sec-streams');
-    if (!sec || sec.style.display === 'none') return true;
-    if (window.telemetryChartReady === true) {
-        var c = document.getElementById('telemetry-chart');
-        if (!c) return true;
-        if (c.width > 0) return true;
-        if (typeof Chart !== 'undefined' && Chart.instances && Object.keys(Chart.instances).length > 0) return true;
-        try { return (c.getContext && c.getContext('2d')) ? true : false; } catch(e) { return false; }
-    }
-    return false;
-})()
-""",
-                timeout=30_000
-            )
-
-            # Re-trigger Chart.js resize so the telemetry chart fills the container dimensions
-            page.evaluate("""
-                (function() {
-                    var canvas = document.getElementById('telemetry-chart');
-                    if (canvas && canvas.__chartjs_instance) {
-                        canvas.__chartjs_instance.resize();
-                    }
-                    if (typeof Chart !== 'undefined' && Chart.instances) {
-                        Object.values(Chart.instances).forEach(function(c) { c.resize(); });
-                    }
-                    if (window.ensureMapBounds) {
-                        window.ensureMapBounds();
-                    }
-                    if (typeof window.updateCanvasWatermark === 'function') {
-                        window.updateCanvasWatermark();
-                    }
-                })();
-            """)
-
-            # Give Leaflet and Chart.js a moment to stabilize
-            page.wait_for_timeout(300)
-
-            element = page.locator('#activity-canvas')
-            repo = get_db()
-            act_name = "activity"
-            try:
-                name_val = repo.get_activity_name(activity_id)
-                if name_val:
-                    act_name = re.sub(r'[^a-zA-Z0-9_-]', '_', name_val)[:40]
-            except Exception:
-                pass
-
-            if export_format == 'pdf':
-                pdf_bytes = page.pdf(
-                    width=f"{width}px",
-                    height=f"{height}px" if height else None,
-                    print_background=True,
-                    margin={'top': '0px', 'right': '0px', 'bottom': '0px', 'left': '0px'}
-                )
-                browser.close()
-                return Response(
-                    pdf_bytes,
-                    mimetype='application/pdf',
-                    headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.pdf"'}
-                )
-            else:
-                png_bytes = element.screenshot(type='png')
-                browser.close()
-                return Response(
-                    png_bytes,
-                    mimetype=PNG_MIMETYPE,
-                    headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.png"'}
-                )
+        data_bytes = render_activity_artifact(activity_id, payload)
+    except RuntimeError as e:
+        logger.exception("Playwright package is not installed: %s", e)
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         safe_act_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(activity_id))
         logger.exception("Activity export failed for %s: %s", safe_act_id, e)
         return jsonify({'error': str(e)}), 500
+
+    repo = get_db()
+    act_name = "activity"
+    try:
+        name_val = repo.get_activity_name(activity_id)
+        if name_val:
+            act_name = re.sub(r'[^a-zA-Z0-9_-]', '_', name_val)[:40]
+    except Exception:
+        pass
+
+    if export_format == 'pdf':
+        return Response(
+            data_bytes,
+            mimetype='application/pdf',
+            headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.pdf"'}
+        )
+    return Response(
+        data_bytes,
+        mimetype=PNG_MIMETYPE,
+        headers={'Content-Disposition': f'attachment; filename="kinetiqo-activity-{activity_id}-{act_name}.png"'}
+    )
 
 
 @app.route('/poster/<activity_id>', methods=['GET'])

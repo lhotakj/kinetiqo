@@ -19,6 +19,7 @@ from kinetiqo.mcp.utils import (
     CYCLING_SPORT_TYPES,
 )
 from kinetiqo.analytics.fitness import calculate_ctl_atl_tsb
+from kinetiqo.analytics.zones import compute_coggan_zones
 from kinetiqo.web.vo2max import estimate_vo2max, estimate_vo2max_coggan, classify_vo2max
 
 
@@ -89,41 +90,6 @@ def kinetiqo_get_fitness_and_freshness(
         return create_envelope(data, source="calculated")
     except Exception as e:
         return create_error_envelope(ERROR_INVALID_ARGUMENT, f"Failed calculating fitness and freshness: {e}")
-
-
-def compute_coggan_zones(ftp: float, weight_kg: float = 0.0) -> List[Dict[str, Any]]:
-    """Compute Coggan 7-Zone power model boundaries, percentages, and W/kg from athlete FTP."""
-    zones_def = [
-        ("Z1", "Active Recovery", 0, 55, "< 55% FTP", "Easy recovery spinning, post-interval recovery, promotes circulation with minimal fatigue."),
-        ("Z2", "Endurance", 56, 75, "56% - 75% FTP", "All-day aerobic base pace, builds mitochondrial density and lipid oxidation capacity."),
-        ("Z3", "Tempo", 76, 90, "76% - 90% FTP", "Rhythmic aerobic endurance, sustainable for 1-3 hours, conversation in broken sentences."),
-        ("Sweet Spot", "Sweet Spot Sub-Zone", 88, 94, "88% - 94% FTP", "High aerobic stimulus with manageable neuro-muscular strain; optimal base training efficiency."),
-        ("Z4", "Lactate Threshold", 91, 105, "91% - 105% FTP", "FTP maintenance and raising, 10-30 min intervals, onset of blood lactate accumulation."),
-        ("Z5", "VO2max", 106, 120, "106% - 120% FTP", "Maximal aerobic ceiling expansion, 3-8 min intervals or 30/30s micro-intervals, high cadence (>95 RPM)."),
-        ("Z6", "Anaerobic Capacity", 121, 150, "121% - 150% FTP", "Short intense efforts (30s to 2 min), severe glycolytic acidosis."),
-        ("Z7", "Neuromuscular Power", 151, None, "> 150% FTP", "Maximal sprint efforts (< 15-20 seconds), maximum motor unit recruitment, non-aerobic."),
-    ]
-    res = []
-    for code, name, min_pct, max_pct, pct_range, desc in zones_def:
-        min_w = round(ftp * (min_pct / 100.0), 1) if min_pct > 0 else 0.0
-        max_w = round(ftp * (max_pct / 100.0), 1) if max_pct is not None else None
-        min_w_kg = round(min_w / weight_kg, 2) if (weight_kg > 0 and min_w > 0) else (0.0 if weight_kg > 0 else None)
-        max_w_kg = round(max_w / weight_kg, 2) if (weight_kg > 0 and max_w is not None) else None
-        range_str = f"{min_w:.0f}W - {max_w:.0f}W" if max_w is not None else f">{min_w:.0f}W"
-        w_kg_str = f"{min_w_kg:.2f} - {max_w_kg:.2f} W/kg" if (min_w_kg is not None and max_w_kg is not None) else (f">{min_w_kg:.2f} W/kg" if min_w_kg is not None else None)
-        res.append({
-            "zone": code,
-            "name": name,
-            "pct_ftp_range": pct_range,
-            "min_watts": min_w,
-            "max_watts": max_w,
-            "watts_range": range_str,
-            "min_w_per_kg": min_w_kg,
-            "max_w_per_kg": max_w_kg,
-            "w_per_kg_range": w_kg_str,
-            "description": desc,
-        })
-    return res
 
 
 def kinetiqo_get_ftp_history(repo: Any, athlete_id: int = 1) -> Dict[str, Any]:

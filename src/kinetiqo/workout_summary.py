@@ -14,6 +14,8 @@ threshold) are highlighted as best moments, e.g.
 import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
+from kinetiqo.analytics.zones import get_power_zone_name
+
 # ---------------------------------------------------------------------------
 # Peak highlight constants. A "peak" is a sustained high-watt effort worth
 # calling out as one of the ride's best moments (see format_peaks_highlight).
@@ -66,22 +68,6 @@ def format_duration(seconds: float, use_minutes: bool = True) -> str:
     if mins == 0:
         return f"{hours}h"
     return f"{hours}h{mins:02d}m" if hours > 0 else f"{mins}min"
-
-
-def get_power_zone_name(pct_ftp: float) -> str:
-    """Return the Coggan 7-Zone power zone name from percentage of FTP."""
-    if pct_ftp < 55.0:
-        return "Recovery"
-    elif pct_ftp <= 75.0:
-        return "Endurance"
-    elif pct_ftp <= 90.0:
-        return "Tempo"
-    elif pct_ftp <= 105.0:
-        return "Threshold"
-    elif pct_ftp <= 120.0:
-        return "VO2max"
-    else:
-        return "Anaerobic"
 
 
 def _detect_blocks(watts_stream: List[float], _time_stream: Optional[List[float]], ftp: float, overall_avg_w: float = 0.0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
