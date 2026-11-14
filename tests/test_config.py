@@ -134,6 +134,70 @@ class TestConfigEnvironmentParsing(unittest.TestCase):
         self.assertEqual(config.carto_api_key, "carto_key")
         self.assertEqual(config.date_format, "%d/%m/%Y")
 
+    @patch.dict(os.environ, {"ATHLETE_TIMEZONE": "Europe/Prague"}, clear=True)
+    def test_athlete_timezone_env_var(self):
+        """ATHLETE_TIMEZONE is parsed and resolved with top priority."""
+        config = Config()
+        self.assertEqual(config.athlete_timezone, "Europe/Prague")
+        self.assertEqual(config.get_athlete_timezone(db_timezone="America/New_York"), "Europe/Prague")
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_athlete_timezone_db_fallback(self):
+        """When ATHLETE_TIMEZONE is unset, get_athlete_timezone falls back to DB timezone."""
+        config = Config()
+        self.assertEqual(config.athlete_timezone, "")
+        self.assertEqual(config.get_athlete_timezone(db_timezone="Europe/Berlin"), "Europe/Berlin")
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_athlete_timezone_default_utc(self):
+        """When both ATHLETE_TIMEZONE and DB timezone are unset, default to UTC."""
+        config = Config()
+        self.assertEqual(config.get_athlete_timezone(), "UTC")
+        self.assertEqual(config.get_athlete_timezone(db_timezone=""), "UTC")
+
+    @patch.dict(os.environ, {
+        "POSTGRESQL_HOST": "localhost",
+        "POSTGRESQL_PORT": "5432",
+        "POSTGRESQL_USER": "test",
+        "POSTGRESQL_PASSWORD": "password",
+        "POSTGRESQL_DATABASE": "test_db",
+    }, clear=True)
+    def test_validate_db_config_success_without_strava(self):
+        """validate_db_config succeeds when DB credentials exist even if Strava credentials are missing."""
+        from kinetiqo.cli import validate_db_config
+        config = Config()
+        self.assertIsNone(config.strava_client_id)
+        # Should not raise SystemExit
+        validate_db_config(config)
+
+    @patch.dict(os.environ, {
+        "POSTGRESQL_HOST": "localhost",
+        "POSTGRESQL_PORT": "5432",
+        "POSTGRESQL_USER": "test",
+        # Missing POSTGRESQL_PASSWORD and POSTGRESQL_DATABASE
+    }, clear=True)
+    def test_validate_db_config_missing_db_vars(self):
+        """validate_db_config exits with code 1 when required DB credentials are missing."""
+        from kinetiqo.cli import validate_db_config
+        config = Config()
+        with self.assertRaises(SystemExit) as cm:
+            validate_db_config(config)
+        self.assertEqual(cm.exception.code, 1)
+
+    @patch.dict(os.environ, {
+        "ENABLE_MCP": "1",
+        "MCP_PORT": "8000",
+        "MCP_HOST": "127.0.0.1",
+        "MCP_TRANSPORT": "sse",
+    }, clear=True)
+    def test_mcp_env_vars_parsed(self):
+        """Verify ENABLE_MCP, MCP_PORT, MCP_HOST, and MCP_TRANSPORT are parsed correctly."""
+        config = Config()
+        self.assertTrue(config.enable_mcp)
+        self.assertEqual(config.mcp_port, 8000)
+        self.assertEqual(config.mcp_host, "127.0.0.1")
+        self.assertEqual(config.mcp_transport, "sse")
+
 
 if __name__ == '__main__':
     unittest.main()

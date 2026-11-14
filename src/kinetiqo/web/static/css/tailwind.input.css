@@ -15,3 +15,25 @@
   --font-sans: "Inter", sans-serif;
   --font-serif: "Merriweather", serif;
 }
+
+/* Explicit Strava rate limit banner contrast safeguard for both light and dark modes */
+#stravaRateLimitBanner {
+  background-color: #fffbeb;
+  border-color: #fcd34d;
+  color: #451a03;
+}
+
+:where(.dark, .dark *) #stravaRateLimitBanner {
+  background-color: rgba(69, 26, 3, 0.45);
+  border-color: rgba(180, 83, 9, 0.65);
+  color: #fef3c7;
+}
+
+:where(.dark, .dark *) #stravaRateLimitBanner strong {
+  color: #fffbeb;
+}
+
+:where(.dark, .dark *) #stravaRateLimitBanner svg {
+  color: #fbbf24;
+}
+

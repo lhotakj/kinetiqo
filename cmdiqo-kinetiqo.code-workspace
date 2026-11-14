@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../cmdiqo"
+		},
+		{
+			"path": "../cmdiqo-web"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../kinetiqo-web"
+		}
+	],
+	"settings": {}
+}

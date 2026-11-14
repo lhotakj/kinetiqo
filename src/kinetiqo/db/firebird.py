@@ -6,6 +6,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
 from kinetiqo.config import Config
+from kinetiqo.db.pagination import encode_cursor, decode_cursor
+from kinetiqo.db.search_builder import build_search_activities_query, process_search_rows
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 
@@ -28,6 +30,8 @@ class FirebirdRepository(DatabaseRepository):
     and includes connection verification, schema initialization and data
     access methods optimized for the Firebird engine.
     """
+
+    db_type = "firebird"
 
     # Minimum seconds between active connection probes.  Within this window
     # only a cheap ``is_closed()`` check is performed.  The web layer creates
@@ -297,19 +301,6 @@ class FirebirdRepository(DatabaseRepository):
                 except Exception:
                     pass
 
-            try:
-                cur.execute("""
-                    CREATE GLOBAL TEMPORARY TABLE "gtt_activity_ids" (
-                        "activity_id" BIGINT NOT NULL PRIMARY KEY
-                    ) ON COMMIT DELETE ROWS
-                """)
-                self.conn.commit()
-            except Exception:
-                try:
-                    self.conn.rollback()
-                except Exception:
-                    pass
-
         schema_manager.ensure_schema()
 
         # --- Migration: BLOB → VARCHAR for the name column ----------------
@@ -462,7 +453,8 @@ class FirebirdRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from Firebird"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts',
+                           'weather_temp_avg', 'weather_wind_speed']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -525,7 +517,17 @@ class FirebirdRepository(DatabaseRepository):
                 "has_heartrate",
                 "workout_type",
                 "max_speed",
-                "trophies"
+                "trophies",
+                "ai_responses",
+                "weather_temp_min",
+                "weather_temp_max",
+                "weather_temp_avg",
+                "weather_condition",
+                "weather_condition_icon",
+                "weather_wind_deg",
+                "weather_wind_speed",
+                "weather_precipitation",
+                "weather_wind_gust_max"
             FROM "activities"
             {where_clause}
             ORDER BY {sort_by} {sort_order}
@@ -542,6 +544,13 @@ class FirebirdRepository(DatabaseRepository):
                         trophies_parsed = json.loads(row[26]) if isinstance(row[26], str) else row[26]
                     except Exception:
                         trophies_parsed = None
+                ai_parsed = None
+                if len(row) > 27 and row[27]:
+                    val = row[27].read() if hasattr(row[27], 'read') else row[27]
+                    try:
+                        ai_parsed = json.loads(val) if isinstance(val, str) else val
+                    except Exception:
+                        ai_parsed = val
                 activity = {
                     'id': row[0],
                     'name': row[1],
@@ -569,7 +578,17 @@ class FirebirdRepository(DatabaseRepository):
                     'has_heartrate': row[23],
                     'workout_type': row[24],
                     'max_speed': row[25],
-                    'trophies': trophies_parsed
+                    'trophies': trophies_parsed,
+                    'ai_responses': ai_parsed,
+                    'weather_temp_min': row[28] if len(row) > 28 else None,
+                    'weather_temp_max': row[29] if len(row) > 29 else None,
+                    'weather_temp_avg': row[30] if len(row) > 30 else None,
+                    'weather_condition': row[31] if len(row) > 31 else None,
+                    'weather_condition_icon': row[32] if len(row) > 32 else None,
+                    'weather_wind_deg': row[33] if len(row) > 33 else None,
+                    'weather_wind_speed': row[34] if len(row) > 34 else None,
+                    'weather_precipitation': row[35] if len(row) > 35 else None,
+                    'weather_wind_gust_max': row[36] if len(row) > 36 else None
                 }
                 activities.append(activity)
             return activities
@@ -655,6 +674,121 @@ class FirebirdRepository(DatabaseRepository):
                 }
                 activities.append(activity)
             return activities
+
+    def get_activity_detail(self, activity_id: int | str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive activity details for a single activity ID (Firebird)."""
+        if not activity_id:
+            return None
+
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    "activity_id" as id,
+                    CAST("name" AS VARCHAR(500)) as "name",
+                    "sport" as type,
+                    "athlete_id",
+                    "distance",
+                    "moving_time",
+                    "elapsed_time",
+                    "total_elevation_gain",
+                    "start_date",
+                    "average_speed",
+                    "max_speed",
+                    "average_heartrate",
+                    "max_heartrate",
+                    "average_cadence",
+                    "average_watts",
+                    "max_watts",
+                    "weighted_average_watts",
+                    "device_watts",
+                    "calories",
+                    "kilojoules",
+                    "achievement_count",
+                    "pr_count",
+                    "suffer_score",
+                    "average_temp",
+                    "elev_high",
+                    "elev_low",
+                    "gear_id",
+                    "has_heartrate",
+                    "workout_type",
+                    "trophies",
+                    "ai_responses",
+                    "weather_temp_min",
+                    "weather_temp_max",
+                    "weather_temp_avg",
+                    "weather_condition",
+                    "weather_condition_icon",
+                    "weather_wind_deg",
+                    "weather_wind_speed",
+                    "weather_wind_gust_max",
+                    "weather_precipitation"
+                FROM "activities"
+                WHERE "activity_id" = ?
+            """, (int(activity_id),))
+            row = cur.fetchone()
+
+        if not row:
+            return None
+
+        trophies_parsed = None
+        if row[29]:
+            try:
+                trophies_parsed = json.loads(row[29]) if isinstance(row[29], str) else row[29]
+            except Exception:
+                trophies_parsed = None
+
+        ai_parsed = None
+        if row[30]:
+            try:
+                val = row[30].read() if hasattr(row[30], 'read') else row[30]
+                ai_parsed = json.loads(val) if isinstance(val, str) else val
+            except Exception:
+                ai_parsed = None
+
+        return {
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'athlete_id': row[3],
+            'distance': row[4],
+            'moving_time': row[5],
+            'elapsed_time': row[6],
+            'total_elevation_gain': row[7],
+            'start_date': row[8].isoformat() if isinstance(row[8], datetime) else row[8],
+            'average_speed': row[9],
+            'max_speed': row[10],
+            'average_heartrate': row[11],
+            'max_heartrate': row[12],
+            'average_cadence': row[13],
+            'average_watts': row[14],
+            'max_watts': row[15],
+            'weighted_average_watts': row[16],
+            'device_watts': row[17],
+            'calories': row[18],
+            'kilojoules': row[19],
+            'achievement_count': row[20],
+            'pr_count': row[21],
+            'suffer_score': row[22],
+            'average_temp': row[23],
+            'elev_high': row[24],
+            'elev_low': row[25],
+            'gear_id': row[26],
+            'has_heartrate': row[27],
+            'workout_type': row[28],
+            'trophies': trophies_parsed,
+            'ai_responses': ai_parsed,
+            'weather_temp_min': row[31],
+            'weather_temp_max': row[32],
+            'weather_temp_avg': row[33],
+            'weather_condition': row[34],
+            'weather_condition_icon': row[35],
+            'weather_wind_deg': row[36],
+            'weather_wind_speed': row[37],
+            'weather_wind_gust_max': row[38],
+            'weather_precipitation': row[39],
+        }
 
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
@@ -784,6 +918,10 @@ class FirebirdRepository(DatabaseRepository):
             if trophies_val is not None:
                 trophies_str = json.dumps(trophies_val) if isinstance(trophies_val, dict) else str(trophies_val)
                 cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (trophies_str, int(activity["id"])))
+            ai_responses_val = activity.get("ai_responses")
+            if ai_responses_val is not None:
+                ai_responses_str = json.dumps(ai_responses_val) if isinstance(ai_responses_val, dict) else str(ai_responses_val)
+                cur.execute('UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?', (ai_responses_str, int(activity["id"])))
             self.conn.commit()
 
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
@@ -793,6 +931,99 @@ class FirebirdRepository(DatabaseRepository):
         with self.conn.cursor() as cur:
             cur.execute('UPDATE "activities" SET "trophies" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
         self.conn.commit()
+
+    def update_activity_weather_summary(self, activity_id: Any, summary: Dict[str, Any]):
+        """Update precomputed weather summary columns for an activity."""
+        self._ensure_connected()
+        if not summary:
+            return
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE "activities" SET
+                    "weather_temp_min" = ?,
+                    "weather_temp_max" = ?,
+                    "weather_temp_avg" = ?,
+                    "weather_condition" = ?,
+                    "weather_condition_icon" = ?,
+                    "weather_wind_deg" = ?,
+                    "weather_wind_speed" = ?,
+                    "weather_wind_gust_max" = ?,
+                    "weather_precipitation" = ?
+                WHERE "activity_id" = ?
+                """,
+                (
+                    summary.get("weather_temp_min"),
+                    summary.get("weather_temp_max"),
+                    summary.get("weather_temp_avg"),
+                    summary.get("weather_condition"),
+                    summary.get("weather_condition_icon"),
+                    summary.get("weather_wind_deg"),
+                    summary.get("weather_wind_speed"),
+                    summary.get("weather_wind_gust_max"),
+                    summary.get("weather_precipitation"),
+                    int(activity_id),
+                ),
+            )
+        self.conn.commit()
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute('UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?', (val, int(activity_id)))
+        self.conn.commit()
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "ai_responses" FROM "activities" WHERE "activity_id" = ?', (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                raw = row[0]
+                val = raw.read() if hasattr(raw, 'read') else raw
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        placeholders = ', '.join(['?'] * len(activity_ids))
+        with self.conn.cursor() as cur:
+            cur.execute(f'UPDATE "activities" SET "ai_responses" = NULL WHERE "activity_id" IN ({placeholders})', [int(aid) for aid in activity_ids])
+        self.conn.commit()
+
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        self._ensure_connected()
+        tokens = {f"agent-ai-{agent_name}"}
+        affected = 0
+        with self.conn.cursor() as cur:
+            cur.execute('SELECT "activity_id", "ai_responses" FROM "activities" WHERE "ai_responses" IS NOT NULL')
+            for activity_id, raw in cur.fetchall():
+                try:
+                    value = raw.read() if hasattr(raw, "read") else raw
+                    responses = value if isinstance(value, dict) else json.loads(value)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(responses, dict) and tokens.intersection(responses):
+                    for token in tokens:
+                        responses.pop(token, None)
+                    cur.execute(
+                        'UPDATE "activities" SET "ai_responses" = ? WHERE "activity_id" = ?',
+                        (json.dumps(responses) if responses else None, activity_id),
+                    )
+                    affected += 1
+        self.conn.commit()
+        return affected
 
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
@@ -1244,12 +1475,18 @@ class FirebirdRepository(DatabaseRepository):
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
                 '"update_strava_walking", "update_strava_swimming", "refresh_token", '
-                '"gps_simplification" '
+                '"gps_simplification", "strava_agents_config", "enable_weather_data" '
                 'FROM "profile" ROWS 1'
             )
             row = cur.fetchone()
             if not row:
                 return None
+            strava_agents_config_raw = row[13] if len(row) > 13 else None
+            strava_agents_config_val = (
+                strava_agents_config_raw.read()
+                if hasattr(strava_agents_config_raw, 'read')
+                else strava_agents_config_raw
+            )
             return {
                 'athlete_id': row[0],
                 'first_name': row[1],
@@ -1264,6 +1501,8 @@ class FirebirdRepository(DatabaseRepository):
                 'update_strava_swimming': row[10],
                 'refresh_token': row[11],
                 'gps_simplification': row[12],
+                'strava_agents_config': strava_agents_config_val or '',
+                'enable_weather_data': bool(row[14]) if len(row) > 14 else False,
             }
 
     def upsert_profile(self, athlete_id: int, first_name: str, last_name: str, weight: float,
@@ -1271,7 +1510,9 @@ class FirebirdRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       strava_agents_config: Optional[str] = None,
+                       enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
@@ -1283,20 +1524,23 @@ class FirebirdRepository(DatabaseRepository):
         effective_walking = update_strava_walking
         effective_swimming = update_strava_swimming
         effective_refresh_token = refresh_token if refresh_token else (existing.get('refresh_token', '') if existing else '')
+        effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config', '') if existing else '')
+        effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
         with self.conn.cursor() as cur:
             cur.execute(
                 'UPDATE OR INSERT INTO "profile" '
                 '("athlete_id", "first_name", "last_name", "weight", "ftp", '
                 '"update_strava_cycling_indoor", "update_strava_cycling_outdoor", '
                 '"update_strava_running_indoor", "update_strava_running_outdoor", '
-                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification") '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '"update_strava_walking", "update_strava_swimming", "refresh_token", "gps_simplification", "strava_agents_config", "enable_weather_data") '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'MATCHING ("athlete_id")',
                 (athlete_id, first_name, last_name, weight, effective_ftp,
                  effective_cycling_indoor, effective_cycling_outdoor,
                  effective_running_indoor, effective_running_outdoor,
                  effective_walking, effective_swimming, effective_refresh_token,
-                 effective_gps_simplification)
+                 effective_gps_simplification, effective_strava_agents_config or '',
+                 int(effective_enable_weather_data))
             )
         self.conn.commit()
 
@@ -1434,6 +1678,155 @@ class FirebirdRepository(DatabaseRepository):
             'suffer_count': suffer_count,
             'count_ms': count_ms,
             'activity_count': activity_count,
+        }
+
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination."""
+        self._ensure_connected()
+        query, params, sort_col, _ = build_search_activities_query(
+            "firebird", athlete_id=athlete_id, filters=filters, limit=limit, cursor=cursor
+        )
+        with self.conn.cursor() as cur:
+            cur.execute(query, tuple(params))
+            col_names = [d[0].lower() for d in cur.description]
+            raw_rows = [dict(zip(col_names, r)) for r in cur.fetchall()]
+        return process_search_rows(raw_rows, limit=limit, sort_col=sort_col)
+
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*),
+                    MIN("ts"),
+                    MAX("ts"),
+                    COUNT("watts"),
+                    COUNT("heartrate"),
+                    COUNT("cadence"),
+                    COUNT("altitude"),
+                    COUNT("lat"),
+                    COUNT("speed"),
+                    COUNT("temp")
+                FROM "streams"
+                WHERE "activity_id" = ?
+            """, (activity_id,))
+            row = cur.fetchone() or (0, None, None, 0, 0, 0, 0, 0, 0, 0)
+
+        first_ts = row[1]
+        last_ts = row[2]
+        if isinstance(first_ts, datetime) and first_ts.tzinfo is None:
+            first_ts = first_ts.replace(tzinfo=timezone.utc)
+        if isinstance(last_ts, datetime) and last_ts.tzinfo is None:
+            last_ts = last_ts.replace(tzinfo=timezone.utc)
+        first_iso = first_ts.isoformat() if isinstance(first_ts, datetime) else str(first_ts) if first_ts else None
+        last_iso = last_ts.isoformat() if isinstance(last_ts, datetime) else str(last_ts) if last_ts else None
+
+        channels = {
+            "watts": {"present": (row[3] or 0) > 0, "count": int(row[3] or 0)},
+            "heartrate": {"present": (row[4] or 0) > 0, "count": int(row[4] or 0)},
+            "cadence": {"present": (row[5] or 0) > 0, "count": int(row[5] or 0)},
+            "altitude": {"present": (row[6] or 0) > 0, "count": int(row[6] or 0)},
+            "latlng": {"present": (row[7] or 0) > 0, "count": int(row[7] or 0)},
+            "speed": {"present": (row[8] or 0) > 0, "count": int(row[8] or 0)},
+            "temp": {"present": (row[9] or 0) > 0, "count": int(row[9] or 0)},
+        }
+
+        return {
+            "activity_id": activity_id,
+            "total_points": int(row[0] or 0),
+            "first_ts": first_iso,
+            "last_ts": last_iso,
+            "channels": channels,
+        }
+
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        self._ensure_connected()
+        allowed = {"ts", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance", "watts", "temp", "grade_smooth", "moving"}
+        cols = [c for c in columns if c in allowed]
+        if "ts" not in cols:
+            cols.insert(0, "ts")
+        if len(cols) == 1 and cols[0] == "ts":
+            cols.extend(["watts", "heartrate", "cadence", "altitude"])
+
+        col_str = ", ".join([f'"{c}"' for c in cols])
+        where_clauses = ['"activity_id" = ?']
+        params: List[Any] = [activity_id]
+
+        if start_ts is not None:
+            where_clauses.append('"ts" >= ?')
+            params.append(datetime.fromtimestamp(start_ts, tz=timezone.utc))
+
+        if end_ts is not None:
+            where_clauses.append('"ts" <= ?')
+            params.append(datetime.fromtimestamp(end_ts, tz=timezone.utc))
+
+        where_sql = " AND ".join(where_clauses)
+        limit = max(1, min(int(max_rows), 20000))
+
+        query = f'SELECT FIRST {limit} {col_str} FROM "streams" WHERE {where_sql} ORDER BY "ts" ASC'
+        with self.conn.cursor() as cur:
+            cur.execute(query, tuple(params))
+            col_names = [d[0].lower() for d in cur.description]
+            raw_rows = cur.fetchall()
+
+        result = []
+        for r in raw_rows:
+            d = dict(zip(col_names, r))
+            if isinstance(d.get("ts"), datetime):
+                dt = d["ts"]
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                d["ts"] = dt.isoformat()
+            result.append(d)
+        return result
+
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update index selectivity statistics in Firebird via SET STATISTICS INDEX.
+
+        This is a lightweight, non-destructive operation that recalculates
+        index selectivity values for Firebird query optimizer.
+        """
+        self._ensure_connected()
+        t0 = time.perf_counter()
+        target_indexes = ["idx_activities_start_date"]
+        updated = []
+        with self.conn.cursor() as cur:
+            for idx in target_indexes:
+                try:
+                    cur.execute(f"SET STATISTICS INDEX {idx};")
+                    updated.append(idx)
+                except Exception:
+                    try:
+                        cur.execute(f'SET STATISTICS INDEX "{idx}";')
+                        updated.append(idx)
+                    except Exception as err:
+                        logger.warning(f"Could not update Firebird statistics for index {idx}: {err}")
+            self.conn.commit()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        details = ", ".join(updated) if updated else "None"
+        logger.info(
+            f"Firebird index statistics updated for [{details}] (non-destructive) in {elapsed_ms} ms"
+        )
+        return {
+            "engine": "firebird",
+            "success": True,
+            "indexes": updated,
+            "elapsed_ms": elapsed_ms,
         }
 
     def __del__(self):

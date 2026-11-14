@@ -159,3 +159,21 @@ libraries:
     files:
       - filename: "xlsx.full.min.js"
         url: "https://cdn.sheetjs.com/xlsx-{version}/package/dist/xlsx.full.min.js"
+
+  - id: "marked"
+    name: "Marked"
+    target_dir: "marked"
+    version: "15.0.7"
+    files:
+      - filename: "marked.min.js"
+        url: "https://cdn.jsdelivr.net/npm/marked@{version}/marked.min.js"
+
+  - id: "dompurify"
+    name: "DOMPurify"
+    target_dir: "dompurify"
+    version: "3.2.4"
+    files:
+      - filename: "purify.min.js"
+        url: "https://cdn.jsdelivr.net/npm/dompurify@{version}/dist/purify.min.js"
+
+

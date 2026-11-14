@@ -1055,4 +1055,27 @@ body.dark #syncLimit {
     height: 85% !important;
 }
 
+/* ---------------------------------------------------------------
+   20. AI Provider Logos — Skin-adaptive monochrome theming
+   --------------------------------------------------------------- */
+.ai-provider-icon,
+.chat-model-group-icon,
+#chat-model-trigger-icon,
+img[src*="icons/ai_"] {
+    filter: brightness(0) invert(28%);
+    transition: filter 0.15s ease-in-out;
+}
+
+body.dark .ai-provider-icon,
+body.dark .chat-model-group-icon,
+body.dark #chat-model-trigger-icon,
+body.dark img[src*="icons/ai_"],
+html.dark .ai-provider-icon,
+html.dark .chat-model-group-icon,
+html.dark #chat-model-trigger-icon,
+html.dark img[src*="icons/ai_"] {
+    filter: brightness(0) invert(85%);
+}
+
+
 

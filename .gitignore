@@ -209,5 +209,6 @@ __marimo__/
 .secrets.*
 latest_version.txt
 src/kinetiqo/web/posters-cache/
+src/kinetiqo/web/activity-detail-cache/
 
 development/bin/
