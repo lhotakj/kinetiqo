@@ -74,17 +74,26 @@ Research into MyWhoosh's coaching ecosystem (built with WorldTour coaches such a
 You are a personal endurance coach for {{name}}. My age is {{age}}, my weight is {{weight}} kg, and my last measured FTP is {{ftp}} W (estimated VO2max: {{vo2max}} ml/kg/min).
 My usual sport activities are mostly cycling, with occasional hiking and swimming. I want to focus primarily on my cycling performance.
 My goal is to reach {{target_vo2max}} VO2max and {{target_ftp}} W FTP by {{target_date}}.
-You have access to all my historical Strava activities in Kinetiqo via MCP tools, and (when configured) my Garmin Connect sleep, Body Battery, HRV, and readiness data via Garmin MCP.
-Adapt my weekly plan dynamically based on fatigue (TSB/ACWR), sleep quality, Body Battery, and schedule constraints. Include recommended cadence targets (RPM) on structured cycling intervals when cadence guidance is enabled.
+You have access to all my historical Strava activities in Kinetiqo via MCP tools, and (when configured) my Garmin Connect sleep, resting heart rate, Body Battery, HRV, and readiness data via Garmin MCP.
+Treat my training plan as a living schedule: adapt upcoming workouts dynamically based on actual training load (CTL/ATL/TSB/ACWR), Garmin sleep & rest metrics, and any personal context or memory I share (such as illness, fatigue, soreness, or travel). If I report feeling sick or run-down, prioritize health and propose postponing or downgrading hard sessions. Include recommended cadence targets (RPM) on structured cycling intervals when cadence guidance is enabled.
 ```
 
-- Users can freely customize this harness (e.g., adding injury notes, available training days/hours, indoor smart trainer vs. outdoor climb preferences, target events).
+- Users can freely customize this harness (e.g., adding injury notes, available training days/hours, indoor smart trainer vs. outdoor climb preferences, target events), and enrich the coach's **persistent context memory** directly from chat or the `+ Add Context` bar.
 
-### 2.2.1 Built-In Scientific Plan Generation Harness (`COACH_SYSTEM_HARNESS`)
+### 2.2.1 Built-In Scientific Plan Generation & Living-Adaptation Harness (`COACH_SYSTEM_HARNESS`)
 
-Alongside the athlete's personal harness, Kinetiqo injects a deterministic server-side planning harness (`src/kinetiqo/coach/context.py`) synthesized from established polarized and indoor cycling coaching frameworks (`polarized.cc`, `roadmancycling.com`, `anytimefitness.com`, `mywhoosh.com`):
+Alongside the athlete's personal harness, Kinetiqo injects a deterministic server-side planning harness (`src/kinetiqo/coach/context.py`) synthesized from established polarized and indoor cycling coaching frameworks (`polarized.cc`, `roadmancycling.com`, `anytimefitness.com`, `mywhoosh.com`) plus dynamic living-plan & health safety rules:
 
-1. **80/20 Polarized Distribution (`polarized.cc`):**
+1. **Living Plan & Health-First Mandate (Dynamic Re-Planning):**
+   - Never treat an existing plan as rigid. On every Morning Brief and coaching turn, evaluate the upcoming 7-day schedule against:
+     - **Actual Strava Load:** Recent `CYCLING_SPORT_TYPES` + multisport hikes/swims, `CTL`, `ATL`, `TSB`, `ACWR`, and missed or unexpectedly hard rides.
+     - **Garmin Sleep & Rest Telemetry (Mandatory when Garmin MCP is enabled):** Inspect `sleep_score`, `sleep_seconds` (duration & stages), `resting_hr`, `hrv_status` / `hrv_avg`, `body_battery_current` / `body_battery_charged`, and `training_readiness` from `garmin_health_cache` (or live Garmin MCP read tools). Poor sleep (`< 60` or `< 6h`), elevated RHR (`≥ +5 bpm` over baseline), suppressed HRV, or low Body Battery (`< 45`) MUST trigger intensity down-scaling or recovery substitution.
+     - **Active Coach Memory & User Context:** Inject all active `coach_memory_entries` (`illness`, `injury`, `fatigue`, `schedule`, `habit`, `preference`) into context so the coach never forgets recent constraints.
+   - **Illness / Feeling Sick Protocol:** If the athlete states in chat that they feel sick, have a fever, sore throat, chills, or acute illness:
+     1. Immediately prioritize recovery over plan compliance — **never prescribe VO₂max, Threshold, or HIIT**.
+     2. Propose **postponing / shifting** upcoming key sessions (`kinetiqo-plan-patch` JSON block) and replacing today/tomorrow with Rest or light mobility until recovered.
+     3. Emit a `kinetiqo-memory` block (`category: "illness"`, default `expires_in_days: 4`) so the athlete can save it to coach memory with one click (or auto-save if enabled), updating all subsequent Morning Briefs until marked recovered.
+2. **80/20 Polarized Distribution (`polarized.cc`):**
    - Allocate ~80% of weekly training time below LT1 (`<70% FTP`, conversational Zone 2) and ~20% to high-intensity work (`>85% FTP`, spanning Threshold `95–100% FTP` and VO₂max `106–130% FTP`).
    - Avoid unprescribed "gray zone" (`70–85% FTP`) junk fatigue unless intentionally scheduling a structured Tempo/Sweet Spot or Low-Cadence Torque block.
    - Cap VO₂max sessions at **1–2 sessions per week** so recovery debt does not erode aerobic base volume.
@@ -121,6 +130,8 @@ Beyond standard chat and plan generation, these targeted analytics & coaching fe
 
 ### 2.4 Consolidated Cogwheel Settings Modal on `/coach` (`Kinetiqo` Style)
 
+![AI Coach Cogwheel Settings Modal Mockup](ai-coach-settings-mockup.png)
+
 All AI Coach configuration is grouped into **one consolidated Settings modal** triggered from a **Cogwheel icon button (`⚙`)** in the top toolbar of `/coach` (next to the model selector and *Refresh Brief* button), persisted directly into `profile.coach_settings_json` (and encrypted secrets into `profile.garmin_mcp_secrets_enc`):
 
 - **Design & Accessibility Standard (`.agents/skills/web-elements/SKILL.md`):**
@@ -128,7 +139,7 @@ All AI Coach configuration is grouped into **one consolidated Settings modal** t
   - All action buttons enforce `h-[40px] px-3 py-2 rounded-lg flex items-center`; waiting states replace button content with `static/img/kinetiqo-loading-32x32.webp` (`ui-loading-standards`).
   - Every input/toggle has `<label for="...">` + adjacent **`Saved ✓`** / theme-aware validation error highlight (`bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-600`).
 - **4 Settings Tabs inside the Cogwheel Modal:**
-  1. **Athlete & Coach Harness:** Synced Name/Weight/FTP preview (links to `/profile` or edits inline), Birthdate / Age, Height (cm), Max HR / Resting HR / LTHR, Target FTP (`W`), Target VO₂max, Target Date, Plan Methodology (`polarized_80_20` | `pyramidal_sweet_spot` | `time_crunched_indoor`), Weekly Availability (`Mon..Sun` checkboxes + target hours/week), and Editable Coach Harness `<textarea>` with `{{var}}` helper chips + *"Reset to Default Example"* button.
+  1. **Athlete, Harness & Memory:** Synced Name/Weight/FTP preview (links to `/profile` or edits inline), Birthdate / Age, Height (cm), Max HR / Resting HR / LTHR, Target FTP (`W`), Target VO₂max, Target Date, Plan Methodology (`polarized_80_20` | `pyramidal_sweet_spot` | `time_crunched_indoor`), Weekly Availability (`Mon..Sun` checkboxes + target hours/week), Editable Coach Harness `<textarea>` with `{{var}}` helper chips + *"Reset to Default Example"* button, and a **Coach Memory & Active Context** list (add/resolve/delete illness, injury, schedule, and habit notes).
   2. **Workouts & Cadence:**
      - `include_cadence_targets` (toggle, default `true`): Include recommended RPM cadence targets in generated workouts, `.fit` files, and Garmin Connect uploads so Garmin Edge guides cadence alongside power. Disable for power-only riding.
      - `cadence_strategy` (`adaptive_by_zone` | `high_cadence_vo2` | `torque_emphasis`).
@@ -143,6 +154,8 @@ All AI Coach configuration is grouped into **one consolidated Settings modal** t
 
 ### 2.5 Visual & Interaction Design (`chat.html`-Inspired App Shell)
 
+![AI Coach Main Page Mockup](ai-coach-page-mockup.png)
+
 To feel native to Kinetiqo, `/coach` directly mirrors the layout, CSS tokens, and interaction ergonomics of `src/kinetiqo/web/templates/chat.html` and `src/kinetiqo/web/static/js/chat.js`:
 
 - **Full-Viewport 2-Column Shell (`.coach-layout-wrapper`):**
@@ -156,13 +169,14 @@ To feel native to Kinetiqo, `/coach` directly mirrors the layout, CSS tokens, an
       - **`AI Provider Keys`** link (`{{ url_for('settings') }}#ai`, matching `chat.html`).
       - **`Clear history`** button (`bg-gray-500 hover:bg-red-600`, clears only `session_kind = 'coach'` threads).
 - **Right Main Area (`.coach-main-area`):**
-  - **Pinned Readiness & 7-Day Near-Plan Header (`border-b border-gray-200 dark:border-zinc-700`):**
-    - Left: Readiness traffic-light badge (Green/Amber/Red) + KPI chips (`CTL / ATL / TSB`, `FTP → Goal`, `VO₂max → Goal`, and `Sleep / Body Battery / HRV` when Garmin is enabled).
+  - **Pinned Readiness, Context & 7-Day Near-Plan Header (`border-b border-gray-200 dark:border-zinc-700`):**
+    - Left: Readiness traffic-light badge (Green/Amber/Red) + KPI chips (`CTL / ATL / TSB`, `FTP → Goal`, `VO₂max → Goal`, and `Sleep Score & Hours / Resting HR / Body Battery / HRV` when Garmin is enabled).
+    - Context Pill Bar: Shows active `coach_memory_entries` chips (e.g., `🤒 Feeling sick — recovery mode [Mark Recovered ✓]`) + **`+ Add Context`** quick-note button (lets the user inject habits, fatigue, soreness, or travel notes anytime without editing the full harness).
     - Right: **7-Day "Near Plan" Strip** (7 clickable day pills showing sport icon + TSS or Rest), **`Refresh Brief`** button, and **`⚙`** Cogwheel icon button.
   - **Scrollable Coaching Feed (`#coach-scroll`):**
     - **Morning Brief Card:** Auto-loaded from `coach_brief_cache` at the top of fresh views (collapsible, with model/timestamp badge + *"Regenerate Brief"* action).
-    - **Empty State Hero (`chat-empty` style):** Pill badge (`🚴 AI Cycling Performance Coach`), concise subtitle, and rotating **Coach Starter Chips** (`"Build a 4-week polarized plan to reach 290W FTP"`, `"How did yesterday's ride match my plan?"`, `"Prescribe a 45m VO₂max workout for today's Body Battery"`, `"Audit my 80/20 zone split over the last 4 weeks"`).
-    - **Rich Assistant Turns:** `marked` + `DOMPurify` Markdown, interactive `Chart.js` ```chart``` blocks, **inline MyWhoosh-style `kinetiqo-workout` card**, **inline `kinetiqo-plan` activation card**, and `ai-concept.md`-compliant **1px top-divider message footer** (`provider/model`, tokens, elapsed ms, and expandable **"Data used"** provenance pills showing both Kinetiqo + Garmin MCP tools).
+    - **Empty State Hero (`chat-empty` style):** Pill badge (`🚴 AI Cycling Performance Coach`), concise subtitle, and rotating **Coach Starter Chips** (`"Build a 4-week polarized plan to reach 290W FTP"`, `"How did yesterday's ride match my plan?"`, `"Prescribe a 45m VO₂max workout for today's Body Battery"`, `"I'm feeling a bit sick today — adjust my week"`).
+    - **Rich Assistant Turns:** `marked` + `DOMPurify` Markdown, interactive `Chart.js` ```chart``` blocks, **inline MyWhoosh-style `kinetiqo-workout` card**, **inline `kinetiqo-plan` activation card**, **inline `kinetiqo-plan-patch` confirmation card** (*"Postpone Tue VO₂max → Fri, insert Rest today [Apply Adjustment]"*), **inline `kinetiqo-memory` confirmation chip** (*"Remember: sore throat / illness for 4 days [Save to Memory]"*), and `ai-concept.md`-compliant **1px top-divider message footer** (`provider/model`, tokens, elapsed ms, and expandable **"Data used"** provenance pills showing both Kinetiqo + Garmin MCP tools).
   - **Pinned Bottom Composer (`chat-composer-box` / `chat-composer-card`):**
     - Reuses `chat.html`'s exact composer card, **4-color Kinetiqo streaming border animation** (`#df3c57`, `#e07d4b`, `#efc65e`, `#49ae9f`), grouped **`#chat-model` dropdown** (with provider icons, default star badge, and mid-conversation model switching), **Stop / Retry**, **`🔒 Strava + Garmin read-only tools active`** indicator, and **Coach & Garmin Disclaimer Modal** (`#ai-disclaimer-modal` pattern).
 
@@ -402,6 +416,36 @@ When the AI Coach prescribes a multi-day or multi-week bike plan, it emits a fen
 }
 ```
 
+### 5.1.3 Living Plan Adaptation & Memory Enrichment Blocks (`kinetiqo.plan-patch.v1` & `kinetiqo.memory.v1`)
+
+To keep the training plan alive based on chat context (illness, soreness, travel, unexpected fatigue) and Garmin sleep/rest data without silent destructive writes, the AI Coach emits two structured confirmation blocks:
+
+1. **Plan Adaptation Proposal (```kinetiqo-plan-patch```):** Rendered as a concise diff card with a 1-click **"Apply Adjustment"** button calling `POST /api/coach/plans/<plan_id>/adapt`:
+   ```json
+   {
+     "schema": "kinetiqo.plan-patch.v1",
+     "reason": "Athlete reported illness symptoms; Garmin RHR +6 bpm and Sleep Score 52.",
+     "operations": [
+       { "op": "replace_with_rest", "workout_id": "w_tue", "date": "2026-11-25", "note": "Rest / recovery due to illness" },
+       { "op": "reschedule", "workout_id": "w_thu_vo2", "from_date": "2026-11-26", "to_date": "2026-11-29" },
+       { "op": "scale_intensity", "workout_id": "w_sat_endurance", "factor": 0.90 }
+     ]
+   }
+   ```
+   *(When `garmin_upload_enabled` and `garmin_auto_schedule` are enabled, applying the patch also offers to reschedule/unschedule affected workouts on Garmin Connect.)*
+
+2. **Coach Memory Enrichment (```kinetiqo-memory```):** Rendered as a 1-click **"Save to Coach Memory"** chip calling `POST /api/coach/memory`:
+   ```json
+   {
+     "schema": "kinetiqo.memory.v1",
+     "category": "illness",
+     "summary": "Mild sore throat and fatigue; avoid high intensity until recovered.",
+     "severity": "high",
+     "expires_in_days": 4
+   }
+   ```
+   *(Categories: `illness`, `injury`, `fatigue`, `schedule`, `habit`, `preference`. Permanent habits/preferences omit `expires_in_days`.)*
+
 ### 5.2 MyWhoosh-Style Interactive Workout Component (`static/js/workout_visualizer.js`)
 
 - **Left Interval Rail:** Lists flattened steps with zone-colored pill backgrounds (`#9ca3af` Z1, `#0ea5e9` Z2, `#22c55e` Z3, `#eab308` Z4, `#f97316` Z5, `#dc2626` Z6/Z7), formatted target power (`286–305 W` or `Ramp 119→199 W`), duration (`4:00`), and cadence chip (`95–105 rpm`).
@@ -471,6 +515,7 @@ erDiagram
     activities ||--o| workout_executions : fulfills
     profile ||--o{ garmin_health_cache : caches
     profile ||--o{ coach_brief_cache : caches
+    profile ||--o{ coach_memory_entries : remembers
 
     profile {
         bigint athlete_id PK
@@ -540,13 +585,25 @@ erDiagram
         timestamptz created_at
         timestamptz expires_at
     }
+    coach_memory_entries {
+        varchar36 entry_id PK
+        bigint athlete_id
+        varchar24 category
+        text summary
+        varchar16 severity
+        date active_from
+        date expires_at
+        varchar36 source_session_id
+        varchar16 status
+        timestamptz created_at
+    }
 ```
 
 ### Key Schema, Identity Split, Profile JSON & Repository Rules
 
 - **CRITICAL — Two Distinct Athlete Identifiers in Kinetiqo:**
   - `user_key = str(current_user.id)` (from `src/kinetiqo/web/auth.py`, e.g. `"admin"`) is the Flask-Login web identity used by `ChatService`, `chat_sessions`, `chat_messages`, and `chat_provider_keys` (`TEXT`/`VARCHAR`).
-  - `athlete_id = int(profile["athlete_id"])` (`BIGINT`) is the Strava athlete ID used by `profile`, `activities`, `activity_goals`, and all new coach tables (`training_plans`, `training_workouts`, `workout_executions`, `garmin_health_cache`, `coach_brief_cache`).
+  - `athlete_id = int(profile["athlete_id"])` (`BIGINT`) is the Strava athlete ID used by `profile`, `activities`, `activity_goals`, and all new coach tables (`training_plans`, `training_workouts`, `workout_executions`, `garmin_health_cache`, `coach_brief_cache`, `coach_memory_entries`).
   - Backend routes/services MUST resolve **both**: pass `user_key` to `ChatService` for AI provider keys/sessions, and `athlete_id` to `DatabaseRepository` for telemetry, workouts, and `profile.coach_settings_json` (returning HTTP 422 with an actionable prompt if no Strava `profile` row exists yet).
 - **CRITICAL — `ChatRepository` `session_kind` Isolation (`src/kinetiqo/chat/repository.py`):**
   - Extend `chat_sessions` with `session_kind VARCHAR(16) DEFAULT 'chat'` and update `ChatRepository.create_session()`, `get_session()`, `list_sessions()`, and `clear_history()` to filter strictly by `session_kind` (treating `NULL` as `'chat'` for backward compatibility). This prevents AI Coach sessions from appearing in `/chat` and prevents *"Clear History"* in `/chat` from deleting coaching threads.
@@ -571,6 +628,8 @@ erDiagram
 | `/api/coach/brief` | `GET`, `POST` | Return cached Morning Brief (`coach_brief_cache`) or force regeneration (`POST`) |
 | `/api/coach/sessions`, `/api/coach/sessions/<id>/messages` | `GET`, `POST`, `DELETE` | Session CRUD (`session_kind='coach'`) + SSE coaching stream with Kinetiqo + Garmin read tools & workout/plan JSON extraction |
 | `/api/coach/plans`, `/api/coach/plans/<id>` | `GET`, `POST`, `PATCH`, `DELETE` | Save/activate `kinetiqo.plan.v1` multi-week plans and serve 7-day Near Plan calendar strip |
+| `/api/coach/plans/<id>/adapt` | `POST` | Apply confirmed `kinetiqo.plan-patch.v1` living adjustments (postpone, rest, scale intensity) & optional Garmin reschedule |
+| `/api/coach/memory`, `/api/coach/memory/<entry_id>` | `GET`, `POST`, `PATCH`, `DELETE` | List active/expired context entries, save chat-derived/manual memory (`illness`, `schedule`, `habit`), or mark resolved |
 | `/api/coach/workouts`, `/api/coach/workouts/<id>` | `GET`, `POST`, `PATCH`, `DELETE` | List saved + 12 core archetype workouts, save/schedule/adapt canonical `workout_json` |
 | `/api/coach/workouts/<id>/export.fit` | `GET` | Compile & download `.fit` workout file (`fit-tool`), respecting `?include_cadence=0|1` & `?ftp=...` |
 | `/api/coach/workouts/<id>/push-garmin` | `POST` | Optional Garmin Connect upload (`upload_workout` + optional `schedule_workout`) via `garmin_mcp` |
@@ -584,7 +643,7 @@ erDiagram
 
 1. **Multi-Layer Caching (Fast Page Loads & Low Token Cost):**
    - `garmin_health_cache`: Stores Garmin daily sleep/Body Battery/HRV snapshots for 2 hours (configurable) + manual "Refresh Garmin" button.
-   - `coach_brief_cache`: Keyed by `sha256(athlete_id + latest_activity_id + latest_garmin_date + harness_hash + model_id)`. Opening `/coach` hits cache in `< 20 ms` with zero LLM calls unless state changed or user clicks "Regenerate Brief".
+   - `coach_brief_cache`: Keyed by `sha256(athlete_id + latest_activity_id + latest_garmin_date + active_memory_hash + plan_updated_at + harness_hash + model_id)`. Opening `/coach` hits cache in `< 20 ms` with zero LLM calls unless load, Garmin sleep/rest data, active memory, or plan state changed (or user clicks "Regenerate Brief").
    - `workout_executions.ai_analysis_json`: Stores per-ride analysis keyed by `model_id` (matching Activity Detail's cached/re-prompt UX).
    - Rendered execution PNGs cached via `store_chat_artifact()` / `coach-posters-cache/`.
 2. **Security & Compliance (`AGENTS.md` / SonarQube Rules):**
@@ -603,7 +662,7 @@ erDiagram
   - `src/kinetiqo/web/app.py`, `src/kinetiqo/web/templates/profile.html`
 - **Scope:**
   - Add `coach_settings_json` and `garmin_mcp_secrets_enc` columns to `profile` (plus dedicated repository getter/setter methods that keep `upsert_profile()` safe).
-  - Add `training_plans`, `training_workouts`, `workout_executions`, `garmin_health_cache`, `coach_brief_cache`, and `chat_sessions.session_kind`.
+  - Add `training_plans`, `training_workouts`, `workout_executions`, `garmin_health_cache`, `coach_brief_cache`, `coach_memory_entries`, and `chat_sessions.session_kind`.
   - Expose shared athlete biometrics & VO₂max/FTP goal fields on `/profile` backed by `coach_settings_json`.
 - **Verification:** Mocked unit tests for Pydantic `CoachSettingsV1` validation, schema definitions, and all 3 repository backends (`PostgreSQL`, `MySQL`, `Firebird`).
 
@@ -640,7 +699,7 @@ erDiagram
 - **Scope:**
   - Agentic Morning Brief with `coach_brief_cache`, readiness traffic-light badge, today's prescribed workout card, 7-day "Near Plan" calendar strip, and 80/20 + VO₂max/FTP gap widgets.
   - Cogwheel (`⚙`) Settings Modal in Kinetiqo style grouping all 4 tabs (Athlete & Harness, Workouts & Cadence, Garmin Connect & MCP, Post-Ride Sharing & Cache) backed by `/api/coach/settings`.
-  - Chat workspace reusing `/chat`'s 280px sidebar + composer architecture (`chat-composer-card` streaming gradient, `#chat-model` grouped selector, Stop/Retry, tool provenance footer, `marked` + `DOMPurify`, Chart.js blocks, and Coach/Garmin Disclaimer modal), plus inline ```kinetiqo-workout``` card interception and ```kinetiqo-plan``` auto-persistence via `/api/coach/plans`.
+  - Chat workspace reusing `/chat`'s 280px sidebar + composer architecture (`chat-composer-card` streaming gradient, `#chat-model` grouped selector, Stop/Retry, tool provenance footer, `marked` + `DOMPurify`, Chart.js blocks, and Coach/Garmin Disclaimer modal), plus `+ Add Context` memory pills, inline ```kinetiqo-workout```, ```kinetiqo-plan```, ```kinetiqo-plan-patch```, and ```kinetiqo-memory``` cards wired to `/api/coach/plans`, `/api/coach/plans/<id>/adapt`, and `/api/coach/memory`.
 - **Verification:** Mocked SSE route tests, prompt/harness hydration tests, settings save/validation tests, cache invalidation tests, and DOM accessibility checks.
 
 ### Phase 5: Post-Ride Execution Analyzer & Execution Poster
@@ -685,3 +744,5 @@ All open architectural questions have been reviewed and resolved:
     - **Decision:** Multi-week plans emit structured `kinetiqo-plan` JSON (`training_plans` + `training_workouts`) and automatically render a **7-Day "Near Plan" Calendar Strip** at the top of `/coach`.
 11. **Post-Sync Cycling Adherence Matching → Silent Numeric Auto-Match + On-Click AI Debrief:**
     - **Decision:** `Fast Sync` / `Full Sync` silently matches completed `CYCLING_SPORT_TYPES` activities against scheduled workouts and computes numeric adherence metrics in `workout_executions`; AI verdict generation and Strava/Garmin description pushes run on-click (or optionally automatically if enabled in Cogwheel Settings).
+12. **Living Plan, Conversational Coach Memory & Health-First Safety:**
+    - **Decision:** Training plans are living schedules re-evaluated against actual Strava load (`CTL`/`ATL`/`TSB`/`ACWR`), Garmin sleep & rest metrics (`sleep_score`, `sleep_seconds`, `resting_hr`, `hrv_status`, `body_battery`, `training_readiness`), and persistent user context (`coach_memory_entries`). Illness/sickness reports in chat immediately trigger postponement/rest guidance via `kinetiqo-plan-patch` and memory persistence via `kinetiqo-memory`, invalidating `coach_brief_cache`.
