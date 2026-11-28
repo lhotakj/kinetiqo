@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <!-- Anthropic Claude Spark / Sunburst Logo -->
+  <g fill="#D97757">
+    <!-- Center Core -->
+    <circle cx="16" cy="16" r="3.2" />
+    <!-- Vertical & Horizontal Petals -->
+    <rect x="14.1" y="3.2" width="3.8" height="9.6" rx="1.9" />
+    <rect x="14.1" y="19.2" width="3.8" height="9.6" rx="1.9" />
+    <rect x="3.2" y="14.1" width="9.6" height="3.8" rx="1.9" />
+    <rect x="19.2" y="14.1" width="9.6" height="3.8" rx="1.9" />
+    <!-- Diagonal Petals -->
+    <rect x="14.3" y="4.8" width="3.4" height="8.4" rx="1.7" transform="rotate(45 16 16)" />
+    <rect x="14.3" y="18.8" width="3.4" height="8.4" rx="1.7" transform="rotate(45 16 16)" />
+    <rect x="4.8" y="14.3" width="8.4" height="3.4" rx="1.7" transform="rotate(45 16 16)" />
+    <rect x="18.8" y="14.3" width="8.4" height="3.4" rx="1.7" transform="rotate(45 16 16)" />
+  </g>
+</svg>
+

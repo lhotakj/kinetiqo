@@ -11,28 +11,28 @@ This document explains the architecture of Kinetiqo's database layer, presents d
 Kinetiqo uses a strict **Repository Pattern** with parameterized raw SQL. It explicitly avoids Object-Relational Mappers (ORMs) like SQLAlchemy to eliminate abstraction overhead, maximize query performance, and ensure exact database-level index utilization.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 Kinetiqo Application Layer                  │
-│       (Flask Web UI, DataTables API, Sync Engine, CLI)       │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│          DatabaseRepository (Abstract Base Class)           │
-│                src/kinetiqo/db/repository.py                │
-└──────────────┬───────────────┼───────────────┬──────────────┘
-               │               │               │
-               ▼               ▼               ▼
-      ┌─────────────────┐┌───────────┐┌─────────────────┐
-      │   PostgreSQL    ││   MySQL   ││    Firebird     │
-      │   Repository    ││Repository ││   Repository    │
-      │ (postgresql.py) ││(mysql.py) ││  (firebird.py)  │
-      └────────┬────────┘└─────┬─────┘└────────┬────────┘
-               │               │               │
-               ▼               ▼               ▼
-      ┌─────────────────┐┌───────────┐┌─────────────────┐
-      │  psycopg2 (C)   ││mysqlclient││firebird-driver  │
-      └─────────────────┘└───────────┘└─────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Kinetiqo Application Layer                      │
+│          (Flask Web UI, DataTables API, Sync Engine, CLI)           │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              DatabaseRepository (Abstract Base Class)               │
+│                    src/kinetiqo/db/repository.py                    │
+└──────────────┬───────────────────┼───────────────────┬──────────────┘
+               │                   │                   │
+               ▼                   ▼                   ▼
+      ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+      │   PostgreSQL    │ │      MySQL      │ │    Firebird     │
+      │   Repository    │ │   Repository    │ │   Repository    │
+      │ (postgresql.py) │ │   (mysql.py)    │ │  (firebird.py)  │
+      └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+               │                   │                   │
+               ▼                   ▼                   ▼
+      ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+      │  psycopg2 (C)   │ │ mysql-connector │ │ firebird-driver │
+      └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
 ### Core Architectural Principles:
@@ -209,3 +209,32 @@ For Firebird, expand the database page cache from default (16 MB) to 200 MB usin
 # Allocate 25,000 page buffers (approx 200 MB RAM cache for 8KB pages)
 gfix -buffers 25000 /path/to/kinetiqo.fdb
 ```
+
+---
+
+## 6. Automated Statistics & Query Planner Maintenance
+
+Kinetiqo includes an automated, non-destructive post-operation statistics hook (`update_statistics()`) triggered immediately after:
+1. **Full Syncs** (`SyncService.sync(full_sync=True)`) where hundreds or thousands of activities and millions of GPS stream points may be ingested.
+2. **Bulk Activity Deletions** (`DELETE /api/activities`) where substantial rows and associated streams are removed.
+
+### Backend-Specific Execution:
+- **PostgreSQL**:
+  ```sql
+  ANALYZE activities;
+  ANALYZE streams;
+  ```
+  Updates `pg_statistic` and system catalog histograms. This is non-destructive and non-blocking; it does not rewrite table heap blocks or lock tables against concurrent reads or writes. It guarantees that the PostgreSQL cost-based query optimizer continues to choose Index-Only scans and reverse composite indexes (`idx_activities_elev_start`, `idx_activities_dist_start`) rather than reverting to full sequential scans.
+- **MySQL**:
+  ```sql
+  ANALYZE TABLE activities, streams;
+  ```
+  Samples index pages to update InnoDB internal cardinality distributions. Non-destructive and completes in milliseconds without table locking.
+- **Firebird**:
+  ```sql
+  SET STATISTICS INDEX idx_activities_start_date;
+  ```
+  Recalculates index selectivity in `RDB$INDICES.RDB$STATISTICS` and commits the transaction immediately, preventing Firebird's optimizer from misjudging date-range selectivity across large historical datasets.
+
+The execution status and latency (typically sub-50ms) are logged at `INFO` level and broadcast to the real-time sync progress stream.
+

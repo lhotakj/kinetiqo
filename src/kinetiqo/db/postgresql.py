@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set, List, Dict, Any, Tuple
 
@@ -8,6 +9,8 @@ import threading
 import psycopg2
 import psycopg2.pool
 from kinetiqo.config import Config
+from kinetiqo.db.pagination import encode_cursor, decode_cursor
+from kinetiqo.db.search_builder import build_search_activities_query, process_search_rows
 from kinetiqo.db.repository import DatabaseRepository
 from kinetiqo.db.schema import SchemaManager
 from psycopg2.extras import execute_batch, RealDictCursor
@@ -38,6 +41,8 @@ def _get_pg_pool(config: Config):
 
 
 class PostgresqlRepository(DatabaseRepository):
+    db_type = "postgresql"
+
     def __init__(self, config: Config):
         """Initialize PostgreSQL repository and establish a DB connection.
 
@@ -97,8 +102,11 @@ class PostgresqlRepository(DatabaseRepository):
 
     def _ensure_connected(self):
         """Verify the connection is alive; transparently reconnect if not."""
+        if self.conn is None:
+            self.conn = self._connect()
+            return
         try:
-            if self.conn is None or self.conn.closed:
+            if self.conn.closed:
                 raise psycopg2.OperationalError("Connection is closed")
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
@@ -277,7 +285,8 @@ class PostgresqlRepository(DatabaseRepository):
         """Fetch activities with pagination and sorting from PostgreSQL"""
         self._ensure_connected()
         allowed_columns = ['start_date', 'activity_id', 'name', 'sport', 'distance', 'moving_time',
-                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts']
+                           'total_elevation_gain', 'average_speed', 'average_heartrate', 'average_cadence', 'average_watts', 'max_watts',
+                           'weather_temp_avg', 'weather_wind_speed']
         if sort_by not in allowed_columns:
             sort_by = 'start_date'
 
@@ -334,7 +343,17 @@ class PostgresqlRepository(DatabaseRepository):
                 has_heartrate,
                 workout_type,
                 max_speed,
-                trophies
+                trophies,
+                ai_responses,
+                weather_temp_min,
+                weather_temp_max,
+                weather_temp_avg,
+                weather_condition,
+                weather_condition_icon,
+                weather_wind_deg,
+                weather_wind_speed,
+                weather_wind_gust_max,
+                weather_precipitation
             FROM activities
             {where_clause}
             ORDER BY {order_col} {sort_order}
@@ -357,6 +376,12 @@ class PostgresqlRepository(DatabaseRepository):
                 if trophies and isinstance(trophies, str):
                     try:
                         activity['trophies'] = json.loads(trophies)
+                    except Exception:
+                        pass
+                ai_responses = activity.get('ai_responses')
+                if ai_responses and isinstance(ai_responses, str):
+                    try:
+                        activity['ai_responses'] = json.loads(ai_responses)
                     except Exception:
                         pass
                 activities.append(activity)
@@ -415,6 +440,78 @@ class PostgresqlRepository(DatabaseRepository):
                         pass
                 activities.append(activity)
             return activities
+
+    def get_activity_detail(self, activity_id: int | str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive activity details for a single activity ID (PostgreSQL)."""
+        if not activity_id:
+            return None
+
+        self._ensure_connected()
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT activity_id AS id,
+                       name,
+                       sport AS type,
+                       athlete_id,
+                       distance,
+                       moving_time,
+                       elapsed_time,
+                       total_elevation_gain,
+                       start_date,
+                       average_speed,
+                       max_speed,
+                       average_heartrate,
+                       max_heartrate,
+                       average_cadence,
+                       average_watts,
+                       max_watts,
+                       weighted_average_watts,
+                       device_watts,
+                       calories,
+                       kilojoules,
+                       achievement_count,
+                       pr_count,
+                       suffer_score,
+                       average_temp,
+                       elev_high,
+                       elev_low,
+                       gear_id,
+                       has_heartrate,
+                       workout_type,
+                       trophies,
+                       ai_responses,
+                       weather_temp_min,
+                       weather_temp_max,
+                       weather_temp_avg,
+                       weather_condition,
+                       weather_condition_icon,
+                       weather_wind_deg,
+                       weather_wind_speed,
+                       weather_wind_gust_max,
+                       weather_precipitation
+                FROM activities
+                WHERE activity_id = %s
+                LIMIT 1
+            """, (int(activity_id),))
+            row = cur.fetchone()
+
+        if not row:
+            return None
+
+        activity = dict(row)
+        if isinstance(activity.get('start_date'), datetime):
+            activity['start_date'] = activity['start_date'].isoformat()
+        if activity.get('trophies') and isinstance(activity['trophies'], str):
+            try:
+                activity['trophies'] = json.loads(activity['trophies'])
+            except Exception:
+                pass
+        if activity.get('ai_responses') and isinstance(activity['ai_responses'], str):
+            try:
+                activity['ai_responses'] = json.loads(activity['ai_responses'])
+            except Exception:
+                pass
+        return activity
 
     def get_activities_totals(self, types=None, start_date=None, end_date=None) -> Dict[str, float]:
         """Get totals for distance, elevation, and moving_time for the filtered activities."""
@@ -497,6 +594,12 @@ class PostgresqlRepository(DatabaseRepository):
         elif not isinstance(trophies_val, str):
             trophies_val = None
 
+        ai_responses_val = activity.get("ai_responses")
+        if isinstance(ai_responses_val, dict):
+            ai_responses_val = json.dumps(ai_responses_val)
+        elif not isinstance(ai_responses_val, str):
+            ai_responses_val = None
+
         row = (
             start_date,
             activity_id,
@@ -527,7 +630,8 @@ class PostgresqlRepository(DatabaseRepository):
             activity.get("suffer_score"),
             activity.get("weighted_average_watts"),
             activity.get("workout_type"),
-            trophies_val
+            trophies_val,
+            ai_responses_val
         )
 
         logger.debug(f"Writing activity metadata for {activity_id} to PostgreSQL...")
@@ -540,10 +644,10 @@ class PostgresqlRepository(DatabaseRepository):
                                                 average_watts, max_watts, achievement_count, average_temp,
                                                 calories, device_watts, elev_high, elev_low, gear_id,
                                                 has_heartrate, kilojoules, pr_count, suffer_score,
-                                                weighted_average_watts, workout_type, trophies)
+                                                weighted_average_watts, workout_type, trophies, ai_responses)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (activity_id) DO
                         UPDATE SET
                             start_date = EXCLUDED.start_date,
                             name = EXCLUDED.name,
@@ -573,7 +677,8 @@ class PostgresqlRepository(DatabaseRepository):
                             suffer_score = EXCLUDED.suffer_score,
                             weighted_average_watts = EXCLUDED.weighted_average_watts,
                             workout_type = EXCLUDED.workout_type,
-                            trophies = COALESCE(EXCLUDED.trophies, activities.trophies)
+                            trophies = COALESCE(EXCLUDED.trophies, activities.trophies),
+                            ai_responses = COALESCE(EXCLUDED.ai_responses, activities.ai_responses)
                         """, row)
 
     def update_activity_trophies(self, activity_id: Any, trophies: Any):
@@ -582,6 +687,94 @@ class PostgresqlRepository(DatabaseRepository):
         val = json.dumps(trophies) if isinstance(trophies, dict) else (trophies or None)
         with self.conn.cursor() as cur:
             cur.execute("UPDATE activities SET trophies = %s WHERE activity_id = %s", (val, int(activity_id)))
+
+    def update_activity_weather_summary(self, activity_id: Any, summary: Dict[str, Any]):
+        """Update precomputed weather summary columns for an activity."""
+        self._ensure_connected()
+        if not summary:
+            return
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE activities SET
+                    weather_temp_min = %s,
+                    weather_temp_max = %s,
+                    weather_temp_avg = %s,
+                    weather_condition = %s,
+                    weather_condition_icon = %s,
+                    weather_wind_deg = %s,
+                    weather_wind_speed = %s,
+                    weather_wind_gust_max = %s,
+                    weather_precipitation = %s
+                WHERE activity_id = %s
+                """,
+                (
+                    summary.get("weather_temp_min"),
+                    summary.get("weather_temp_max"),
+                    summary.get("weather_temp_avg"),
+                    summary.get("weather_condition"),
+                    summary.get("weather_condition_icon"),
+                    summary.get("weather_wind_deg"),
+                    summary.get("weather_wind_speed"),
+                    summary.get("weather_wind_gust_max"),
+                    summary.get("weather_precipitation"),
+                    int(activity_id),
+                ),
+            )
+        self.conn.commit()
+
+    def update_activity_ai_responses(self, activity_id: Any, ai_responses: Any):
+        """Update cached AI generated variable responses for an activity."""
+        self._ensure_connected()
+        val = json.dumps(ai_responses) if isinstance(ai_responses, dict) else (ai_responses or None)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET ai_responses = %s WHERE activity_id = %s", (val, int(activity_id)))
+
+    def get_activity_ai_responses(self, activity_id: Any) -> Optional[Dict[str, Any]]:
+        """Get cached AI responses for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT ai_responses FROM activities WHERE activity_id = %s", (int(activity_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                val = row[0]
+                if isinstance(val, dict):
+                    return val
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return None
+            return None
+
+    def purge_activities_ai_responses(self, activity_ids: List[Any]):
+        """Clear cached AI generated variable responses for specified activities."""
+        if not activity_ids:
+            return
+        self._ensure_connected()
+        ids = [int(aid) for aid in activity_ids]
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE activities SET ai_responses = NULL WHERE activity_id = ANY(%s)", (ids,))
+
+    def purge_strava_agent_ai_responses(self, agent_name: str) -> int:
+        self._ensure_connected()
+        tokens = {f"agent-ai-{agent_name}"}
+        affected = 0
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT activity_id, ai_responses FROM activities WHERE ai_responses IS NOT NULL")
+            for activity_id, raw in cur.fetchall():
+                try:
+                    responses = raw if isinstance(raw, dict) else json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(responses, dict) and tokens.intersection(responses):
+                    for token in tokens:
+                        responses.pop(token, None)
+                    cur.execute(
+                        "UPDATE activities SET ai_responses = %s WHERE activity_id = %s",
+                        (json.dumps(responses) if responses else None, activity_id),
+                    )
+                    affected += 1
+        return affected
 
     def get_activities_needing_trophies(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get activities with achievements that have not yet had their trophies breakdown extracted."""
@@ -1017,7 +1210,7 @@ class PostgresqlRepository(DatabaseRepository):
                 "update_strava_cycling_indoor, update_strava_cycling_outdoor, "
                 "update_strava_running_indoor, update_strava_running_outdoor, "
                 "update_strava_walking, update_strava_swimming, refresh_token, "
-                "gps_simplification "
+                "gps_simplification, strava_agents_config, enable_weather_data "
                 "FROM profile LIMIT 1"
             )
             row = cur.fetchone()
@@ -1028,11 +1221,15 @@ class PostgresqlRepository(DatabaseRepository):
                        update_strava_running_indoor: str = "", update_strava_running_outdoor: str = "",
                        update_strava_walking: str = "", update_strava_swimming: str = "",
                        refresh_token: str = "", ftp: Optional[float] = None,
-                       gps_simplification: Optional[int] = None):
+                       gps_simplification: Optional[int] = None,
+                       strava_agents_config: Optional[str] = None,
+                       enable_weather_data: Optional[bool] = None):
         self._ensure_connected()
         existing = self.get_profile()
         effective_ftp = ftp if ftp is not None else (existing.get('ftp') if existing else None)
         effective_gps_simplification = gps_simplification if gps_simplification is not None else (existing.get('gps_simplification') if existing else 0)
+        effective_strava_agents_config = strava_agents_config if strava_agents_config is not None else (existing.get('strava_agents_config') if existing else "")
+        effective_enable_weather_data = enable_weather_data if enable_weather_data is not None else bool(existing.get('enable_weather_data', False) if existing else False)
 
         with self.conn.cursor() as cur:
             cur.execute("""
@@ -1040,8 +1237,8 @@ class PostgresqlRepository(DatabaseRepository):
                     update_strava_cycling_indoor, update_strava_cycling_outdoor,
                     update_strava_running_indoor, update_strava_running_outdoor,
                     update_strava_walking, update_strava_swimming, refresh_token,
-                    gps_simplification)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    gps_simplification, strava_agents_config, enable_weather_data)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (athlete_id) DO UPDATE
                     SET first_name = EXCLUDED.first_name,
                         last_name  = EXCLUDED.last_name,
@@ -1054,12 +1251,15 @@ class PostgresqlRepository(DatabaseRepository):
                         update_strava_walking          = EXCLUDED.update_strava_walking,
                         update_strava_swimming         = EXCLUDED.update_strava_swimming,
                         refresh_token                  = EXCLUDED.refresh_token,
-                        gps_simplification             = EXCLUDED.gps_simplification
+                        gps_simplification             = EXCLUDED.gps_simplification,
+                        strava_agents_config           = EXCLUDED.strava_agents_config,
+                        enable_weather_data             = EXCLUDED.enable_weather_data
             """, (athlete_id, first_name, last_name, weight, effective_ftp,
                   update_strava_cycling_indoor or "", update_strava_cycling_outdoor or "",
                   update_strava_running_indoor or "", update_strava_running_outdoor or "",
                   update_strava_walking or "", update_strava_swimming or "", refresh_token or "",
-                  effective_gps_simplification))
+                  effective_gps_simplification, effective_strava_agents_config or "",
+                  effective_enable_weather_data))
 
     # ------------------------------------------------------------------
     # Activity goals
@@ -1209,4 +1409,131 @@ class PostgresqlRepository(DatabaseRepository):
             'suffer_count': suffer_count,
             'count_ms': count_ms,
             'activity_count': activity_count,
+        }
+
+    def search_activities(
+        self,
+        athlete_id: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+        """Search activities with multi-metric bounds, keyword search, and keyset pagination."""
+        self._ensure_connected()
+        query, params, sort_col, _ = build_search_activities_query(
+            "postgresql", athlete_id=athlete_id, filters=filters, limit=limit, cursor=cursor
+        )
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, tuple(params))
+            raw_rows = cur.fetchall()
+        return process_search_rows(raw_rows, limit=limit, sort_col=sort_col)
+
+    def get_stream_coverage(self, activity_id: int) -> Dict[str, Any]:
+        """Retrieve sensor presence, row counts, and timestamp coverage for an activity."""
+        self._ensure_connected()
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*) AS total_points,
+                    MIN(ts) AS first_ts,
+                    MAX(ts) AS last_ts,
+                    COUNT(watts) AS watts_count,
+                    COUNT(heartrate) AS heartrate_count,
+                    COUNT(cadence) AS cadence_count,
+                    COUNT(altitude) AS altitude_count,
+                    COUNT(lat) AS latlng_count,
+                    COUNT(speed) AS speed_count,
+                    COUNT(temp) AS temp_count
+                FROM streams
+                WHERE activity_id = %s
+            """, (activity_id,))
+            row = cur.fetchone() or {}
+
+        first_ts = row.get("first_ts")
+        last_ts = row.get("last_ts")
+        first_iso = first_ts.isoformat() if isinstance(first_ts, datetime) else str(first_ts) if first_ts else None
+        last_iso = last_ts.isoformat() if isinstance(last_ts, datetime) else str(last_ts) if last_ts else None
+
+        channels = {}
+        for ch in ("watts", "heartrate", "cadence", "altitude", "latlng", "speed", "temp"):
+            cnt = int(row.get(f"{ch}_count") or 0)
+            channels[ch] = {
+                "present": cnt > 0,
+                "count": cnt,
+            }
+
+        return {
+            "activity_id": activity_id,
+            "total_points": int(row.get("total_points") or 0),
+            "first_ts": first_iso,
+            "last_ts": last_iso,
+            "channels": channels,
+        }
+
+    def get_activity_stream_window(
+        self,
+        activity_id: int,
+        columns: List[str],
+        start_ts: Optional[int] = None,
+        end_ts: Optional[int] = None,
+        max_rows: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve timestamp-aligned multi-channel stream samples within a window."""
+        self._ensure_connected()
+        allowed = {"ts", "lat", "lng", "altitude", "heartrate", "cadence", "speed", "distance", "watts", "temp", "grade_smooth", "moving"}
+        cols = [c for c in columns if c in allowed]
+        if "ts" not in cols:
+            cols.insert(0, "ts")
+        if len(cols) == 1 and cols[0] == "ts":
+            cols.extend(["watts", "heartrate", "cadence", "altitude"])
+
+        col_str = ", ".join(cols)
+        where_clauses = ["activity_id = %s"]
+        params: List[Any] = [activity_id]
+
+        if start_ts is not None:
+            where_clauses.append("ts >= %s")
+            params.append(datetime.fromtimestamp(start_ts, tz=timezone.utc))
+
+        if end_ts is not None:
+            where_clauses.append("ts <= %s")
+            params.append(datetime.fromtimestamp(end_ts, tz=timezone.utc))
+
+        where_sql = " AND ".join(where_clauses)
+        limit = max(1, min(int(max_rows), 20000))
+        params.append(limit)
+
+        query = f"SELECT {col_str} FROM streams WHERE {where_sql} ORDER BY ts ASC LIMIT %s"
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, tuple(params))
+            raw_rows = cur.fetchall()
+
+        result = []
+        for r in raw_rows:
+            d = dict(r)
+            if isinstance(d.get("ts"), datetime):
+                d["ts"] = d["ts"].isoformat()
+            result.append(d)
+        return result
+
+    def update_statistics(self) -> Dict[str, Any]:
+        """Update optimizer statistics for activities and streams tables via ANALYZE.
+
+        This is a lightweight, non-destructive operation that refreshes planner
+        statistics and index distribution maps.
+        """
+        self._ensure_connected()
+        t0 = time.perf_counter()
+        with self.conn.cursor() as cur:
+            cur.execute("ANALYZE activities;")
+            cur.execute("ANALYZE streams;")
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        logger.info(
+            f"PostgreSQL optimizer statistics updated for 'activities' and 'streams' (non-destructive) in {elapsed_ms} ms"
+        )
+        return {
+            "engine": "postgresql",
+            "success": True,
+            "statements": ["ANALYZE activities;", "ANALYZE streams;"],
+            "elapsed_ms": elapsed_ms,
         }

@@ -31,61 +31,12 @@ MONTH_SHORT_NAMES: Dict[int, str] = {
     9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec',
 }
 
-# Activity-type groups surfaced in the infographic selector.
-CYCLING_ACTIVITY_TYPES = [
-    'Ride', 'VirtualRide', 'EBikeRide', 'EMountainBikeRide',
-    'GravelRide', 'MountainBikeRide', 'Velomobile', 'Handcycle',
-]
-CYCLING_INDOOR_ACTIVITY_TYPES = ['IndoorRide', 'VirtualRide']
-CYCLING_OUTDOOR_ACTIVITY_TYPES = [
-    'Ride', 'EBikeRide', 'EMountainBikeRide', 'GravelRide',
-    'MountainBikeRide', 'Velomobile', 'Handcycle',
-]
-
-ACTIVITY_GROUPS: Dict[str, Dict[str, Any]] = {
-    'walking': {
-        'name': 'Walking',
-        'icon': '🥾',
-        'noun': 'walk',
-        'types': ['Walk', 'Hike'],
-    },
-    'cycling': {
-        'name': 'Cycling',
-        'icon': '🚴',
-        'noun': 'ride',
-        'types': CYCLING_ACTIVITY_TYPES,
-    },
-    'cycling_indoor': {
-        'name': 'Cycling (indoor)',
-        'icon': '🚴',
-        'noun': 'ride',
-        'types': CYCLING_INDOOR_ACTIVITY_TYPES,
-    },
-    'cycling_outdoor': {
-        'name': 'Cycling (outdoor)',
-        'icon': '🚴',
-        'noun': 'ride',
-        'types': CYCLING_OUTDOOR_ACTIVITY_TYPES,
-    },
-    'running': {
-        'name': 'Running',
-        'icon': '🏃',
-        'noun': 'run',
-        'types': ['Run', 'VirtualRun', 'TrailRun'],
-    },
-    'skiing': {
-        'name': 'Skiing',
-        'icon': '⛷️',
-        'noun': 'ski session',
-        'types': ['AlpineSki', 'BackcountrySki', 'NordicSki', 'Snowboard'],
-    },
-    'swimming': {
-        'name': 'Swimming',
-        'icon': '🏊',
-        'noun': 'swim',
-        'types': ['Swim'],
-    },
-}
+from kinetiqo.sports import (
+    ACTIVITY_GROUPS,
+    CYCLING_ACTIVITY_TYPES,
+    CYCLING_INDOOR_ACTIVITY_TYPES,
+    CYCLING_OUTDOOR_ACTIVITY_TYPES,
+)
 
 VALID_PERIODS = ('year', 'q1', 'q2', 'q3', 'q4', 'h1', 'h2')
 

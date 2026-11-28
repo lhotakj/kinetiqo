@@ -2,5 +2,13 @@
     "sonarlint.connectedMode.project": {
         "connectionId": "lhotakj-github",
         "projectKey": "lhotakj_kinetiqo"
+    },
+    "sonarlint.rules": {
+        "python:S3776": {
+            "level": "off"
+        },
+        "python:S1192": {
+            "level": "off"
+        }
     }
 }

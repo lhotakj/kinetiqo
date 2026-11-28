@@ -1,0 +1,2753 @@
+{% extends "base.html" %}
+
+{% block head %}
+<link href="{{ poster_google_fonts_url }}" rel="stylesheet" crossorigin="anonymous">
+<!-- Leaflet CSS & JS loaded locally -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.css', v=app_version) }}">
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet-1.9.4.min.js', v=app_version) }}"></script>
+<!-- Chart.js -->
+{% include "_npm_chartjs.html" %}
+
+<style>
+    /* Override Tailwind preflight styles that break Leaflet tile rendering */
+    .leaflet-container img {
+        max-width: none !important;
+        max-height: none !important;
+    }
+
+    .leaflet-map-tone-pane {
+        pointer-events: none !important;
+    }
+
+    .leaflet-map-tone-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none !important;
+        opacity: 0;
+    }
+
+    /* ---- Scaler & Infographic Canvas matching Mega Stats ---- */
+    .stats-preview-scaler {
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+    }
+
+    .infographic-wrapper {
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+        transform-origin: top left;
+        flex-shrink: 0;
+    }
+
+    :root {
+        --detail-font-family: 'Inter', sans-serif;
+        --detail-bg-color: #0f172a;
+        --detail-text-color: #f8fafc;
+    }
+
+    .detail-canvas {
+        width: 100%;
+        background-color: var(--detail-bg-color);
+        color: var(--detail-text-color);
+        font-family: var(--detail-font-family);
+        position: relative;
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    #activity-canvas,
+    #activity-canvas * {
+        font-family: var(--detail-font-family) !important;
+    }
+
+    .detail-bg-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .detail-bg-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background-color: #000000;
+        opacity: 0.4;
+    }
+
+    .detail-content {
+        position: relative;
+        z-index: 1;
+        padding: 20px 24px 34px 24px;
+        box-sizing: border-box;
+    }
+
+    /* ---- Control panel (matching Mega Stats control-box) ---- */
+    .control-box {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+
+    .dark .control-box {
+        background: #18181b;
+        border-color: #27272a;
+    }
+
+    .control-box h4 {
+        font-weight: 600;
+        margin-bottom: 0;
+        font-size: 0.875rem;
+        color: #374151;
+    }
+
+    .dark .control-box h4 {
+        color: #d1d5db;
+    }
+
+    .control-box-header {
+        padding: 10px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .dark .control-box-header {
+        background: #202023;
+        border-color: #27272a;
+    }
+
+    .control-box-header.collapsed {
+        border-bottom: none;
+    }
+
+    .control-box-body {
+        padding: 14px;
+    }
+
+    .control-box-body.collapsed {
+        display: none;
+    }
+
+    .collapse-toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px;
+        color: #71717a;
+    }
+
+    .control-box-header .chevron-icon {
+        width: 16px;
+        height: 16px;
+        transition: transform 0.2s ease;
+    }
+
+    .control-box-header.collapsed .chevron-icon {
+        transform: rotate(-90deg);
+    }
+
+    .control-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .control-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .control-row>label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        min-width: 72px;
+        color: #6b7280;
+        flex-shrink: 0;
+    }
+
+    .dark .control-row>label {
+        color: #9ca3af;
+    }
+
+    /* ---- Compact Metric cards ---- */
+    .metric-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        padding: 5px 8px;
+        min-width: 0;
+    }
+
+    .metric-card-label {
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.6;
+        font-weight: 600;
+        margin-bottom: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .metric-card-val {
+        font-size: 1.05rem;
+        font-weight: 800;
+        line-height: 1.15;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .metric-card-unit {
+        font-size: 0.65rem;
+        font-weight: 400;
+        opacity: 0.65;
+        margin-left: 2px;
+    }
+
+    /* ---- Stream toggle pill styling ---- */
+    .stream-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.15rem 0.55rem;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+        border: 1px solid transparent;
+    }
+
+    .stream-pill.active {
+        background: rgba(255, 255, 255, 0.16);
+        border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .stream-pill.inactive {
+        opacity: 0.4;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* ---- Leaflet map container ---- */
+    #activity-map {
+        height: 100%;
+        min-height: 175px;
+        width: 100%;
+        border-radius: 6px;
+        z-index: 10;
+        position: relative;
+        background: #18181b;
+    }
+
+    /* ---- Export Mode: Hide Leaflet Zoom Controls on PNG/PDF ---- */
+        {
+        % if is_export %
+    }
+
+    .leaflet-control-zoom,
+    .leaflet-control-container .leaflet-top.leaflet-left,
+    .leaflet-control-container {
+        display: none !important;
+    }
+
+        {
+        % endif %
+    }
+
+    #activity-canvas.export-mode .leaflet-control-zoom,
+    #activity-canvas.export-mode .leaflet-control-container,
+    .is-export .leaflet-control-zoom,
+    .is-export .leaflet-control-container {
+        display: none !important;
+    }
+
+    /* Watermark (Kinetiqo logo) - static, non-interactive, positioned bottom-right of canvas */
+    .activity-canvas-watermark {
+        position: absolute;
+        right: 18px;
+        bottom: 14px;
+        pointer-events: none;
+        z-index: 50;
+        height: auto;
+        display: block;
+        opacity: 0.8;
+        image-rendering: -webkit-optimize-contrast;
+    }
+
+    /* ---- Proportional Font Size Scaling (-30% to +80%) ---- */
+    #activity-canvas {
+        --act-font-scale: 1;
+    }
+
+    #activity-canvas .text-\[9px\] {
+        font-size: calc(9px * var(--act-font-scale, 1)) !important;
+        line-height: 1.2;
+    }
+
+    #activity-canvas .text-\[10px\] {
+        font-size: calc(10px * var(--act-font-scale, 1)) !important;
+        line-height: 1.25;
+    }
+
+    #activity-canvas .text-\[11px\] {
+        font-size: calc(11px * var(--act-font-scale, 1)) !important;
+        line-height: 1.25;
+    }
+
+    #activity-canvas .text-xs {
+        font-size: calc(12px * var(--act-font-scale, 1)) !important;
+        line-height: 1.35;
+    }
+
+    #activity-canvas .text-sm {
+        font-size: calc(14px * var(--act-font-scale, 1)) !important;
+        line-height: 1.35;
+    }
+
+    #activity-canvas .text-base {
+        font-size: calc(16px * var(--act-font-scale, 1)) !important;
+        line-height: 1.35;
+    }
+
+    #activity-canvas .text-lg {
+        font-size: calc(18px * var(--act-font-scale, 1)) !important;
+        line-height: 1.3;
+    }
+
+    #activity-canvas .text-xl {
+        font-size: calc(20px * var(--act-font-scale, 1)) !important;
+        line-height: 1.25;
+    }
+
+    #activity-canvas .text-2xl {
+        font-size: calc(24px * var(--act-font-scale, 1)) !important;
+        line-height: 1.2;
+    }
+
+    #activity-canvas .text-3xl {
+        font-size: calc(30px * var(--act-font-scale, 1)) !important;
+        line-height: 1.15;
+    }
+
+    #activity-canvas .metric-card-label {
+        font-size: calc(10px * var(--act-font-scale, 1)) !important;
+    }
+
+    #activity-canvas .metric-card-val {
+        font-size: calc(15px * var(--act-font-scale, 1)) !important;
+    }
+
+    #activity-canvas .metric-card-unit {
+        font-size: calc(10px * var(--act-font-scale, 1)) !important;
+    }
+
+    #activity-canvas .hero-metric .metric-card-val {
+        font-size: calc(22px * var(--act-font-scale, 1)) !important;
+    }
+
+    /* ---- Print/PDF ---- */
+    @media print {
+
+        aside,
+        nav {
+            display: none !important;
+        }
+
+        .stats-preview-scaler {
+            overflow: visible;
+        }
+
+        .infographic-wrapper {
+            transform: none !important;
+            box-shadow: none;
+            border-radius: 0;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <!-- Breadcrumb & Top Action Buttons -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <a href="{{ url_for('activities') }}"
+                class="hover:text-blue-600 dark:hover:text-blue-400 font-medium inline-flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Activities
+            </a>
+            <span class="opacity-40">/</span>
+            <span class="text-gray-900 dark:text-gray-200 font-semibold truncate max-w-xs md:max-w-md">{{ activity.name
+                }}</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('poster', activity_id=activity.id) }}"
+                class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium transition inline-flex items-center gap-1.5 shadow-sm"
+                title="Create Poster">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                    </path>
+                </svg>
+                Poster
+            </a>
+            <a href="https://www.strava.com/activities/{{ activity.id }}" target="_blank" rel="noopener noreferrer"
+                class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs font-medium transition inline-flex items-center gap-1.5 shadow-sm"
+                title="Open in Strava">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                        d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7.38 14.544h4.168" />
+                </svg>
+                View on Strava
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="flex flex-col lg:flex-row gap-6">
+
+    <!-- ===== Left Controls Panel (Matching Mega Stats) ===== -->
+    <div class="w-full lg:w-72 flex-shrink-0">
+
+        <!-- Action Buttons (PNG / PDF Export) -->
+        {% include "_infographic_action_buttons.html" %}
+
+        <!-- Size Box -->
+        <div class="control-box">
+            {% with box_id='detailSize', box_title='Activity Detail Size' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="detail-size">Width</label>
+                    <select id="detail-size"
+                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                        <option value="1280">M (width 1280px)</option>
+                        <option value="1440" selected>L (width 1440px)</option>
+                        <option value="1600">XL (width 1600px)</option>
+                        <option value="1920">XXL (width 1920px)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="detail-ratio">Ratio</label>
+                    <select id="detail-ratio"
+                        class="h-8 px-2 rounded border border-gray-300 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1">
+                        <option value="auto" selected>Auto (Fit Content)</option>
+                        <option value="16:9">16:9 (Landscape)</option>
+                        <option value="4:3">4:3 (Classic)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label for="detail-dimensions">Dimensions</label>
+                    <span id="detail-dimensions"
+                        class="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-nowrap">— × —</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appearance Box (Canvas, Typography, Background Photo) -->
+        <div class="control-box">
+            {% with box_id='detailAppearance', box_title='Appearance & Typography' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                <div class="control-row">
+                    <label for="detail-bg">Background</label>
+                    <div class="flex justify-end flex-1">
+                        <input type="color" id="detail-bg" value="#0f172a"
+                            class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
+                    </div>
+                </div>
+                <div class="control-row">
+                    <label for="detail-text-color">Text / Accent</label>
+                    <div class="flex justify-end flex-1">
+                        <input type="color" id="detail-text-color" value="#f8fafc"
+                            class="h-8 w-12 rounded border border-gray-200 cursor-pointer dark:border-gray-600" />
+                    </div>
+                </div>
+
+                {% set font_control_id = 'detail-font' %}
+                {% set font_label = 'Font:' %}
+                {% include "_font_select.html" %}
+
+                {% with control_id='detail-font-scale', label='Font Size Scale', min_val=-30, max_val=80, step=5,
+                value=0, value_id='detail-font-scale-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+
+                {% with control_id='detail-tint', label='Photo Tint', clear_btn_id='detail-tint-clear-btn',
+                value_id='detail-tint-val', value='#000000', value_text='None' %}
+                {% include "_control_color_tint.html" %}
+                {% endwith %}
+
+                {% with control_id='detail-opacity', label='Tint Opacity', min_val=0, max_val=100, value=40,
+                value_id='detail-opacity-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+
+                <div class="flex gap-2 mt-3 flex-wrap">
+                    {% set upload_input_id = 'detail-upload-input' %}
+                    {% set upload_button_id = 'detail-upload-btn' %}
+                    {% set upload_spinner_id = 'detail-upload-spinner' %}
+                    {% set upload_text_id = 'detail-upload-text' %}
+                    {% set clear_button_id = 'detail-clear-image-btn' %}
+                    {% set clear_label = 'Reset Photo' %}
+                    {% include "_image_upload_buttons.html" %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Dedicated Key Metrics Box -->
+        <div class="control-box">
+            {% with box_id='detailKeyMetrics', box_title='Key Metrics' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                <!-- Columns Layout Dropdown -->
+                <div class="control-row mb-2.5">
+                    <label for="detail-metrics-cols"
+                        class="text-xs font-medium text-gray-700 dark:text-gray-300">Columns:</label>
+                    <select id="detail-metrics-cols"
+                        class="h-8 px-2 rounded border border-gray-300 text-xs bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1 max-w-[130px]"
+                        aria-label="Key Metrics Columns Layout">
+                        <option value="1">1 Column</option>
+                        <option value="2">2 Columns</option>
+                        <option value="3" selected>3 Columns</option>
+                        <option value="4">4 Columns</option>
+                        <option value="5">5 Columns</option>
+                        <option value="6">6 Columns</option>
+                    </select>
+                </div>
+
+                <!-- Visible Metrics Checkboxes -->
+                <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Visible Metrics</div>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-distance">
+                        <input type="checkbox" id="chk-km-distance" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="distance" checked>
+                        <span class="truncate">Distance</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-moving-time">
+                        <input type="checkbox" id="chk-km-moving-time" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="moving_time" checked>
+                        <span class="truncate">Moving Time</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-elevation-gain">
+                        <input type="checkbox" id="chk-km-elevation-gain" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="elevation_gain" checked>
+                        <span class="truncate">Elevation Gain</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-elapsed-time">
+                        <input type="checkbox" id="chk-km-elapsed-time" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="elapsed_time" checked>
+                        <span class="truncate">Elapsed Time</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-avg-speed">
+                        <input type="checkbox" id="chk-km-avg-speed" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="avg_speed" checked>
+                        <span class="truncate">Avg Speed</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-max-speed">
+                        <input type="checkbox" id="chk-km-max-speed" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="max_speed" checked>
+                        <span class="truncate">Max Speed</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-avg-power">
+                        <input type="checkbox" id="chk-km-avg-power" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="avg_power" checked>
+                        <span class="truncate">Avg Power</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-norm-power">
+                        <input type="checkbox" id="chk-km-norm-power" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="norm_power" checked>
+                        <span class="truncate">Norm Power</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-max-power">
+                        <input type="checkbox" id="chk-km-max-power" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="max_power" checked>
+                        <span class="truncate">Max Power</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-avg-hr">
+                        <input type="checkbox" id="chk-km-avg-hr" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="avg_hr" checked>
+                        <span class="truncate">Avg HR</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-max-hr">
+                        <input type="checkbox" id="chk-km-max-hr" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="max_hr" checked>
+                        <span class="truncate">Max HR</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-suffer-score">
+                        <input type="checkbox" id="chk-km-suffer-score" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="suffer_score" checked>
+                        <span class="truncate">Suffer Score</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-avg-cadence">
+                        <input type="checkbox" id="chk-km-avg-cadence" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="avg_cadence" checked>
+                        <span class="truncate">Avg Cadence</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-calories">
+                        <input type="checkbox" id="chk-km-calories" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="calories" checked>
+                        <span class="truncate">Calories</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="chk-km-elev-high-low">
+                        <input type="checkbox" id="chk-km-elev-high-low" class="km-toggle flex-shrink-0 mr-1"
+                            style="margin-right: 3px;" data-metric="elev_high_low" checked>
+                        <span class="truncate">Elev High/Low</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dedicated Map Panel (Migrated from /map) -->
+        <div class="control-box">
+            {% with box_id='detailMap', box_title='Map' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                <!-- Base Map (dropdown on new line full width) -->
+                <div class="control-row flex-col items-start mb-2.5">
+                    <label for="map-tile-provider"
+                        class="w-full text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Base Map:</label>
+                    <select id="map-tile-provider"
+                        class="h-8 px-2 rounded border border-gray-300 text-xs bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white w-full">
+                        {% for key, provider in tile_providers.items() %}
+                        {% set is_disabled = provider.get('disabled', False) %}
+                        <option value="{{ key }}" {{ 'disabled' if is_disabled else '' }} {% if is_disabled
+                            %}style="color:#9ca3af;" {% endif %}>{{ provider.name }}{{ ' (API key required)' if
+                            is_disabled else '' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Map Opacity -->
+                {% with control_id='map-opacity', label='Map Opacity:', min_val=0, max_val=100, value=100,
+                value_id='map-opacity-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+
+                <!-- Map Color Tone -->
+                {% with control_id='map-tone', label='Map Color Tone:', clear_btn_id='map-tone-clear-btn',
+                value_id='map-tone-val', value='#ffffff', value_text='None' %}
+                {% include "_control_color_tint.html" %}
+                {% endwith %}
+
+                <!-- Tone Opacity -->
+                {% with control_id='map-tone-opacity', label='Tone Opacity:', min_val=0, max_val=100, value=0,
+                value_id='map-tone-opacity-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+
+                <!-- Route Color -->
+                <div class="control-row">
+                    <label for="route-color">Route Color:</label>
+                    <div class="flex items-center gap-2 flex-1 justify-end">
+                        <input type="color" id="route-color" value="#38bdf8"
+                            class="h-8 w-12 p-0.5 rounded border border-gray-300 cursor-pointer dark:border-gray-600"
+                            aria-label="Route Color">
+                        <span id="route-color-val"
+                            class="text-xs text-gray-500 dark:text-gray-400 w-16 text-right font-mono">#38bdf8</span>
+                    </div>
+                </div>
+
+                <!-- Route Width -->
+                {% with control_id='route-width', label='Route Width:', min_val=1, max_val=15, value=4, suffix='px',
+                span_width='w-8', value_id='route-width-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+
+                <!-- Route Opacity -->
+                {% with control_id='route-opacity', label='Route Opacity:', min_val=10, max_val=100, value=95,
+                value_id='route-opacity-val' %}
+                {% include "_control_range.html" %}
+                {% endwith %}
+            </div>
+        </div>
+
+        <!-- Dedicated Telemetry Streams Box -->
+        <div class="control-box">
+            {% with box_id='detailTelemetry', box_title='Telemetry Streams' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                <!-- X-Axis Mode: Dist vs Time -->
+                <div class="control-row mb-2.5">
+                    <span class="text-xs font-medium text-gray-700 dark:text-gray-300">X-Axis Mode:</span>
+                    <div
+                        class="flex items-center rounded bg-gray-200 dark:bg-zinc-700 p-0.5 border border-gray-300 dark:border-zinc-600 text-xs flex-1 justify-end">
+                        <button type="button" id="telemetry-axis-dist-btn"
+                            class="px-2.5 py-1 rounded font-semibold text-xs transition-colors bg-sky-600 text-white shadow-xs"
+                            aria-label="X-Axis Distance">Distance</button>
+                        <button type="button" id="telemetry-axis-time-btn"
+                            class="px-2.5 py-1 rounded font-semibold text-xs transition-colors text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white"
+                            aria-label="X-Axis Time">Time</button>
+                    </div>
+                </div>
+
+                <!-- Visible Streams Checkboxes -->
+                <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Visible Streams</div>
+                <div class="space-y-1.5">
+                    <label for="stream-chk-altitude"
+                        class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:text-sky-500 py-0.5">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block"
+                                style="background-color: #cbd5e1;"></span>
+                            Elevation
+                        </span>
+                        <input type="checkbox" id="stream-chk-altitude"
+                            class="stream-channel-chk rounded bg-white dark:bg-zinc-700 border-gray-300 dark:border-zinc-600 text-sky-600 focus:ring-0"
+                            data-channel="altitude" data-idx="0" checked>
+                    </label>
+                    <label for="stream-chk-heartrate"
+                        class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:text-sky-500 py-0.5">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block"
+                                style="background-color: #f43f5e;"></span>
+                            Heart Rate
+                        </span>
+                        <input type="checkbox" id="stream-chk-heartrate"
+                            class="stream-channel-chk rounded bg-white dark:bg-zinc-700 border-gray-300 dark:border-zinc-600 text-sky-600 focus:ring-0"
+                            data-channel="heartrate" data-idx="1" checked>
+                    </label>
+                    <label for="stream-chk-watts"
+                        class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:text-sky-500 py-0.5">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block"
+                                style="background-color: #f59e0b;"></span>
+                            Power
+                        </span>
+                        <input type="checkbox" id="stream-chk-watts"
+                            class="stream-channel-chk rounded bg-white dark:bg-zinc-700 border-gray-300 dark:border-zinc-600 text-sky-600 focus:ring-0"
+                            data-channel="watts" data-idx="2" checked>
+                    </label>
+                    <label for="stream-chk-cadence"
+                        class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:text-sky-500 py-0.5">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block"
+                                style="background-color: #10b981;"></span>
+                            Cadence
+                        </span>
+                        <input type="checkbox" id="stream-chk-cadence"
+                            class="stream-channel-chk rounded bg-white dark:bg-zinc-700 border-gray-300 dark:border-zinc-600 text-sky-600 focus:ring-0"
+                            data-channel="cadence" data-idx="3" checked>
+                    </label>
+                    <label for="stream-chk-speed"
+                        class="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:text-sky-500 py-0.5">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block"
+                                style="background-color: #38bdf8;"></span>
+                            Speed
+                        </span>
+                        <input type="checkbox" id="stream-chk-speed"
+                            class="stream-channel-chk rounded bg-white dark:bg-zinc-700 border-gray-300 dark:border-zinc-600 text-sky-600 focus:ring-0"
+                            data-channel="speed" data-idx="4" checked>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Agent & Prompt Actions Box -->
+        <div class="control-box">
+            {% with box_id='detailAgent', box_title='AI Agent & Prompts' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                {% if configured_agents %}
+                <div class="control-row mb-2">
+                    <label for="detail-agent-select">Active Agent</label>
+                    <select id="detail-agent-select"
+                        class="h-8 px-2 rounded border border-gray-300 text-xs bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1"
+                        aria-label="Select AI Agent">
+                        {% for agent in configured_agents %}
+                        {% set token = "agent-ai-" ~ agent.name|lower %}
+                        {% set is_cached = activity.ai_responses and activity.ai_responses.get(token) %}
+                        {% set is_selected = (selected_agent and agent.name|lower == selected_agent|lower) or (not
+                        selected_agent and loop.first) %}
+                        <option value="{{ agent.name }}" {% if is_selected %}selected{% endif %}>{{ agent.name }}{% if
+                            is_cached %} (cached){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Prompt Action</span>
+                    <span id="agent-save-indicator"
+                        class="text-xs text-emerald-600 dark:text-emerald-400 font-semibold hidden">Saved ✓</span>
+                </div>
+
+                <button id="btn-reprompt-agent"
+                    class="w-full py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded text-xs font-semibold transition inline-flex items-center justify-center shadow"
+                    aria-label="Execute prompt action">
+                    <span>✨ Run prompt</span>
+                </button>
+
+                <div id="agent-status-msg"
+                    class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1.5 min-h-[1.2rem]">
+                    Ready
+                </div>
+                {% else %}
+                <div class="text-xs text-gray-500 dark:text-gray-400 py-1">
+                    No AI agents configured yet.
+                    <a href="{{ url_for('settings') }}#ai-agents"
+                        class="text-blue-600 dark:text-blue-400 underline ml-1">Configure in Settings →</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Visible Stats Options Box -->
+        <div class="control-box">
+            {% with box_id='detailOptions', box_title='Stats Options' %}
+            {% include "_control_box_header.html" %}
+            {% endwith %}
+            <div class="control-box-body">
+                <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2.5">Visible Sections</div>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-stats">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-stats" checked>
+                        <span class="truncate">Key Metrics</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-map">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-map" checked>
+                        <span class="truncate">Route Map</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-streams">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-streams" checked>
+                        <span class="truncate">Telemetry</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-ai">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-ai" checked>
+                        <span class="truncate">AI Analysis</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-coggan">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-coggan" checked>
+                        <span class="truncate">Power Zones</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-mmp">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-mmp" checked>
+                        <span class="truncate">Peak MMP</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-hr">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-hr" checked>
+                        <span class="truncate">HR Zones</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-climb">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-climb" checked>
+                        <span class="truncate">Climb Stats</span>
+                    </label>
+                    <label
+                        class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer min-w-0 overflow-hidden whitespace-nowrap py-0.5"
+                        for="toggle-sec-weather">
+                        <input type="checkbox" class="stat-toggle flex-shrink-0 mr-1" style="margin-right: 3px;"
+                            id="toggle-sec-weather" checked>
+                        <span class="truncate">Weather</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===== Right Infographic Canvas Preview Area ===== -->
+    <div class="flex-1 min-w-0 flex justify-center">
+        <div class="stats-preview-scaler" id="detail-preview-scaler">
+            <div class="infographic-wrapper" id="detail-wrapper">
+                <div class="detail-canvas" id="activity-canvas">
+
+                    <!-- Background Image & Tint Overlay -->
+                    <img id="detail-bg-img"
+                        src="{{ url_for('activity_photo_get', activity_id=activity.id) if has_custom_image else '' }}"
+                        alt="Activity background" class="detail-bg-image {{ '' if has_custom_image else 'hidden' }}">
+                    <div id="detail-bg-overlay" class="detail-bg-overlay"></div>
+
+                    <!-- Canvas Content Container -->
+                    <div class="detail-content">
+
+                        <!-- Top Header Row (Title on left, Date & Time on far right, no line below) -->
+                        <div class="flex items-center justify-between gap-4 mb-3">
+                            <div class="min-w-0 flex-1">
+                                <h1 class="text-xl md:text-2xl font-extrabold tracking-tight truncate"
+                                    id="canvas-activity-title">
+                                    {{ activity.name }}
+                                </h1>
+                            </div>
+
+                            <div class="text-right flex-shrink-0 self-center">
+                                <div class="text-xs md:text-sm font-medium opacity-70 whitespace-nowrap"
+                                    id="canvas-activity-date">
+                                    {% if activity.start_date_local is string %}
+                                    {{ activity.start_date_local[:10] }} at {{ activity.start_date_local[11:16] if
+                                    activity.start_date_local|length > 15 else '' }}
+                                    {% elif activity.start_date_local %}
+                                    {{ activity.start_date_local.strftime('%Y-%m-%d at %H:%M') }}
+                                    {% elif activity.start_date is string %}
+                                    {{ activity.start_date[:10] }} at {{ activity.start_date[11:16] if
+                                    activity.start_date|length > 15 else '' }}
+                                    {% elif activity.start_date %}
+                                    {{ activity.start_date.strftime('%Y-%m-%d at %H:%M') }}
+                                    {% else %}
+                                    —
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2-Column Overview: Key Metrics (Column 1) + Leaflet Route Map (Column 2) -->
+                        <div id="overview-two-col" class="grid grid-cols-2 gap-3 mb-2.5 items-stretch">
+
+                            <!-- Column 1: Key Metrics Grid (50%) -->
+                            <div class="flex flex-col justify-start h-full" id="sec-key-stats">
+                                <div id="metrics-grid" class="grid gap-2 w-full">
+                                    <div class="metric-card" id="card-km-distance">
+                                        <div class="metric-card-label">Distance</div>
+                                        <div class="metric-card-val text-blue-400">
+                                            {{ (activity.distance / 1000.0)|round(2) }}
+                                            <span class="metric-card-unit">km</span>
+                                        </div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-moving-time">
+                                        <div class="metric-card-label">Moving Time</div>
+                                        <div class="metric-card-val text-emerald-400">
+                                            {% set h = activity.moving_time // 3600 %}
+                                            {% set m = (activity.moving_time % 3600) // 60 %}
+                                            {% set s = activity.moving_time % 60 %}
+                                            {% if h > 0 %}{{ h }}h {{ "%02d"|format(m) }}m{% else %}{{ m }}m {{
+                                            "%02d"|format(s) }}s{% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-elevation-gain">
+                                        <div class="metric-card-label">Elevation Gain</div>
+                                        <div class="metric-card-val">
+                                            {{ activity.total_elevation_gain|round|int }}
+                                            <span class="metric-card-unit">m</span>
+                                        </div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-elapsed-time">
+                                        <div class="metric-card-label">Elapsed Time</div>
+                                        <div class="metric-card-val">
+                                            {% if activity.elapsed_time %}
+                                            {% set eh = activity.elapsed_time // 3600 %}
+                                            {% set em = (activity.elapsed_time % 3600) // 60 %}
+                                            {% if eh > 0 %}{{ eh }}h {{ "%02d"|format(em) }}m{% else %}{{ em }}m{% endif
+                                            %}
+                                            {% else %}—{% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-avg-speed">
+                                        <div class="metric-card-label">Avg Speed</div>
+                                        <div class="metric-card-val">{{ (activity.average_speed * 3.6)|round(1) }} <span
+                                                class="metric-card-unit">km/h</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-max-speed">
+                                        <div class="metric-card-label">Max Speed</div>
+                                        <div class="metric-card-val">{{ (activity.max_speed * 3.6)|round(1) if
+                                            activity.max_speed else '—' }} <span class="metric-card-unit">km/h</span>
+                                        </div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-avg-power">
+                                        <div class="metric-card-label">Avg Power</div>
+                                        <div class="metric-card-val text-amber-300">{{ activity.average_watts|round|int
+                                            if activity.average_watts else '—' }} <span
+                                                class="metric-card-unit">W</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-norm-power">
+                                        <div class="metric-card-label">Norm Power</div>
+                                        <div class="metric-card-val">{{ activity.weighted_average_watts|round|int if
+                                            activity.weighted_average_watts else '—' }} <span
+                                                class="metric-card-unit">W</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-max-power">
+                                        <div class="metric-card-label">Max Power</div>
+                                        <div class="metric-card-val">{{ activity.max_watts|round|int if
+                                            activity.max_watts else '—' }} <span class="metric-card-unit">W</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-avg-hr">
+                                        <div class="metric-card-label">Avg HR</div>
+                                        <div class="metric-card-val text-rose-400">{{
+                                            activity.average_heartrate|round|int if activity.average_heartrate else '—'
+                                            }} <span class="metric-card-unit">bpm</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-max-hr">
+                                        <div class="metric-card-label">Max HR</div>
+                                        <div class="metric-card-val text-rose-300">{{ activity.max_heartrate|round|int
+                                            if activity.max_heartrate else '—' }} <span
+                                                class="metric-card-unit">bpm</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-suffer-score">
+                                        <div class="metric-card-label">Suffer Score</div>
+                                        <div class="metric-card-val">{{ activity.suffer_score or '—' }}</div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-avg-cadence">
+                                        <div class="metric-card-label">Avg Cadence</div>
+                                        <div class="metric-card-val">{{ activity.average_cadence|round|int if
+                                            activity.average_cadence else '—' }} <span
+                                                class="metric-card-unit">rpm</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-calories">
+                                        <div class="metric-card-label">Calories</div>
+                                        <div class="metric-card-val">{{ activity.calories|round|int if activity.calories
+                                            else '—' }} <span class="metric-card-unit">kcal</span></div>
+                                    </div>
+                                    <div class="metric-card" id="card-km-elev-high-low">
+                                        <div class="metric-card-label">Elev High/Low</div>
+                                        <div class="metric-card-val text-[11px] md:text-xs">{{
+                                            activity.elev_high|round|int if activity.elev_high is not none else '—' }} /
+                                            {{ activity.elev_low|round|int if activity.elev_low is not none else '—' }}
+                                            <span class="metric-card-unit">m</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Column 2: Interactive Leaflet Route Map (50%) -->
+                            <div class="flex flex-col h-full min-h-[220px] relative rounded-md border border-white/10 overflow-hidden"
+                                id="sec-map">
+                                <div id="activity-map" class="flex-1 w-full h-full min-h-[220px]"></div>
+                                <div id="map-tone-overlay" class="leaflet-map-tone-overlay"
+                                    style="display: none; z-index: 250;"></div>
+                                <div id="map-no-gps"
+                                    class="hidden absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-xs text-xs text-gray-400 rounded p-2 text-center">
+                                    No GPS route recorded (Indoor)
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Telemetry Streams Section (Compact) -->
+                        <div class="metric-card mb-2.5" id="sec-streams">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <span class="text-xs font-bold uppercase tracking-wider opacity-75">Telemetry
+                                    Streams</span>
+
+                                <!-- Stream Toggle Pills -->
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <div class="stream-pill active" id="pill-altitude" data-channel="altitude"
+                                        style="color: #cbd5e1;">
+                                        <span>●</span> Elev
+                                    </div>
+                                    <div class="stream-pill active" id="pill-heartrate" data-channel="heartrate"
+                                        style="color: #f43f5e;">
+                                        <span>●</span> HR
+                                    </div>
+                                    <div class="stream-pill active" id="pill-watts" data-channel="watts"
+                                        style="color: #f59e0b;">
+                                        <span>●</span> Power
+                                    </div>
+                                    <div class="stream-pill active" id="pill-cadence" data-channel="cadence"
+                                        style="color: #10b981;">
+                                        <span>●</span> Cadence
+                                    </div>
+                                    <div class="stream-pill active" id="pill-speed" data-channel="speed"
+                                        style="color: #38bdf8;">
+                                        <span>●</span> Speed
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Canvas for Chart.js -->
+                            <div class="relative w-full h-[135px]">
+                                <canvas id="telemetry-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- AI Analysis Card (Compact) -->
+                        <div class="metric-card mb-2.5 border border-indigo-500/30 bg-indigo-950/20" id="sec-ai">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-amber-400 text-sm">✨</span>
+                                    <h3 class="font-bold text-xs text-indigo-200">AI Analysis & Coaching Insights</h3>
+                                </div>
+                            </div>
+                            <div id="ai-response-body"
+                                class="text-xs leading-relaxed text-slate-200 whitespace-pre-line max-h-20 overflow-y-auto">
+                                {% if configured_agents %}
+                                {% set active_agent_name = selected_agent or configured_agents[0].name %}
+                                {% set active_token = "agent-ai-" ~ active_agent_name|lower %}
+                                {{ (activity.ai_responses and activity.ai_responses.get(active_token)) or 'No response
+                                generated yet for this agent. Click "Run prompt" in the sidebar to generate insights.'
+                                }}
+                                {% else %}
+                                No AI agents configured. Set up an agent in Settings to get automated insights for your
+                                activities.
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- 5-Column Analytical Cards Grid (Power Zones, Peak MMP, HR Zones, Climb, Weather) -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2">
+
+                            <!-- Coggan Power Zones -->
+                            <div class="metric-card" id="sec-coggan">
+                                <div
+                                    class="text-[11px] font-bold uppercase tracking-wider opacity-75 mb-2 flex justify-between">
+                                    <span>Coggan Power Zones</span>
+                                    <span class="opacity-50">FTP: {{ profile.ftp if profile and profile.ftp else '—'
+                                        }}W</span>
+                                </div>
+                                <div class="flex flex-col gap-1 text-[11px]">
+                                    {% for z in analytics.coggan_zones %}
+                                    <div>
+                                        <div class="flex justify-between items-center text-[10px] mb-0.5">
+                                            <span class="font-semibold truncate max-w-[80px]"
+                                                style="color: {{ z.color }};">{{ z.zone }} {{ z.name }}</span>
+                                            <span class="opacity-70">{{ z.percent }}%</span>
+                                        </div>
+                                        <div class="w-full bg-black/30 rounded-full h-1 overflow-hidden">
+                                            <div class="h-1 rounded-full"
+                                                style="width: {{ z.percent }}%; background-color: {{ z.color }};"></div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Peak Power MMP Table -->
+                            <div class="metric-card" id="sec-mmp">
+                                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75 mb-2">
+                                    Peak Power (MMP)
+                                </div>
+                                <div class="grid grid-cols-3 gap-1 text-center">
+                                    {% for m in analytics.mmp_table %}
+                                    <div class="bg-black/20 rounded p-1 border border-white/5">
+                                        <div class="text-[9px] opacity-60 font-semibold uppercase">{{ m.label }}</div>
+                                        <div class="text-xs font-extrabold text-amber-300">{{ m.watts }}W</div>
+                                        {% if m.pct_ftp %}
+                                        <div class="text-[9px] text-amber-400/80">{{ m.pct_ftp }}%</div>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Heart Rate Zones -->
+                            <div class="metric-card" id="sec-hr">
+                                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75 mb-2">
+                                    Heart Rate Zones
+                                </div>
+                                <div class="flex flex-col gap-1 text-[11px]">
+                                    {% for z in analytics.hr_zones %}
+                                    <div>
+                                        <div class="flex justify-between items-center text-[10px] mb-0.5">
+                                            <span class="font-semibold truncate max-w-[80px]"
+                                                style="color: {{ z.color }};">{{ z.zone }} {{ z.name }}</span>
+                                            <span class="opacity-70">{{ z.percent }}%</span>
+                                        </div>
+                                        <div class="w-full bg-black/30 rounded-full h-1 overflow-hidden">
+                                            <div class="h-1 rounded-full"
+                                                style="width: {{ z.percent }}%; background-color: {{ z.color }};"></div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Climb & Grade Breakdown -->
+                            <div class="metric-card" id="sec-climb">
+                                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75 mb-2">
+                                    Climb & Grade
+                                </div>
+                                <div class="grid grid-cols-2 gap-1 text-center">
+                                    <div class="bg-black/20 rounded p-1">
+                                        <div class="opacity-60 text-[9px] uppercase font-semibold">Climb</div>
+                                        <div class="text-xs font-bold text-amber-400">{{ analytics.climb_stats.climb_km
+                                            }}km</div>
+                                    </div>
+                                    <div class="bg-black/20 rounded p-1">
+                                        <div class="opacity-60 text-[9px] uppercase font-semibold">Flat</div>
+                                        <div class="text-xs font-bold text-sky-400">{{ analytics.climb_stats.flat_km
+                                            }}km</div>
+                                    </div>
+                                    <div class="bg-black/20 rounded p-1">
+                                        <div class="opacity-60 text-[9px] uppercase font-semibold">Descent</div>
+                                        <div class="text-xs font-bold text-emerald-400">{{ analytics.climb_stats.desc_km
+                                            }}km</div>
+                                    </div>
+                                    <div class="bg-black/20 rounded p-1">
+                                        <div class="opacity-60 text-[9px] uppercase font-semibold">Max Grd</div>
+                                        <div class="text-xs font-bold text-rose-400">{{ analytics.climb_stats.max_grade
+                                            }}%</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Weather Conditions Card -->
+                            <div class="metric-card" id="sec-weather">
+                                <div class="text-[11px] font-bold uppercase tracking-wider opacity-75 mb-2">
+                                    Stored Activity Weather
+                                </div>
+                                {% if activity.weather_condition or activity.weather_temp_avg is not none %}
+                                <div class="grid grid-cols-2 gap-1 text-xs">
+                                    <div class="bg-black/20 rounded p-1">
+                                        <div class="opacity-60 text-[9px] uppercase font-semibold">Condition</div>
+                                        <div class="text-xs font-bold capitalize truncate">{{ activity.weather_condition
+                                            or 'Clear' }}</div>
+                                        <div class="opacity-50 text-[10px]">{{ activity.weather_temp_avg|round(1) if
+                                            activity.weather_temp_avg is not none else '—' }}°C</div>
+                                    </div>
+                                    <div class="bg-black/20 rounded p-1">
+                                        <div class="opacity-60 text-[9px] uppercase font-semibold">Wind</div>
+                                        <div class="text-xs font-bold">{{ activity.weather_wind_speed|round(1) if
+                                            activity.weather_wind_speed is not none else '—' }}<span
+                                                class="text-[9px]">km/h</span></div>
+                                        <div class="opacity-50 text-[10px]">G: {{
+                                            activity.weather_wind_gust_max|round(1) if activity.weather_wind_gust_max is
+                                            not none else '—' }}</div>
+                                    </div>
+                                    <div class="bg-black/20 rounded p-1 col-span-2 flex items-center justify-between">
+                                        <span class="opacity-60 text-[9px] uppercase font-semibold">Direction: {{
+                                            activity.weather_wind_deg or 0 }}°</span>
+                                        <div class="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center font-bold text-[10px]"
+                                            style="transform: rotate({{ activity.weather_wind_deg or 0 }}deg);">
+                                            ↑
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="text-[10px] opacity-50 py-3 text-center">
+                                    No stored weather enrichment.
+                                </div>
+                                {% endif %}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Watermark (Kinetiqo logo) - bottom-right of canvas -->
+                    <img id="canvasWatermark" class="activity-canvas-watermark"
+                        src="{{ url_for('static', filename='img/kinetiqo_logo.png', v=app_version) }}"
+                        alt="Kinetiqo logo" aria-hidden="true">
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Activity Detail Client Logic -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const activityId = {{ activity.id | tojson
+    }};
+    const isExport = {{ is_export | tojson }};
+    const tileProviders = {{ (tile_providers if tile_providers else { }) | tojson }};
+    const cachedAiResponses = {{ (activity.ai_responses or { }) | tojson }};
+
+    // Forward variable declarations to avoid Temporal Dead Zone (TDZ) ReferenceErrors
+    let map = null;
+    let mapTileLayer = null;
+    let routePolyline = null;
+    let scrubberMarker = null;
+    let chart = null;
+    let streamPoints = [];
+
+    // Canvas Elements
+    const canvas = document.getElementById('activity-canvas');
+    const wrapper = document.getElementById('detail-wrapper');
+    const scaler = document.getElementById('detail-preview-scaler');
+    const elSize = document.getElementById('detail-size');
+    const elRatio = document.getElementById('detail-ratio');
+    const elDim = document.getElementById('detail-dimensions');
+    const elBg = document.getElementById('detail-bg');
+    const elTextColor = document.getElementById('detail-text-color');
+    const elFont = document.getElementById('detail-font');
+    const elTint = document.getElementById('detail-tint');
+    const elTintVal = document.getElementById('detail-tint-val');
+    const elTintClear = document.getElementById('detail-tint-clear-btn');
+    const elOpacity = document.getElementById('detail-opacity');
+    const elOpacityVal = document.getElementById('detail-opacity-val');
+    const bgOverlay = document.getElementById('detail-bg-overlay');
+    const bgImg = document.getElementById('detail-bg-img');
+
+    // Map Panel Elements
+    const basemapSelect = document.getElementById('map-tile-provider');
+    const elMapOpacity = document.getElementById('map-opacity');
+    const elMapOpacityVal = document.getElementById('map-opacity-val');
+    const elMapTone = document.getElementById('map-tone');
+    const elMapToneVal = document.getElementById('map-tone-val');
+    const elMapToneClear = document.getElementById('map-tone-clear-btn');
+    const elToneOpacity = document.getElementById('map-tone-opacity');
+    const elToneOpacityVal = document.getElementById('map-tone-opacity-val');
+    const elRouteColor = document.getElementById('route-color');
+    const elRouteColorVal = document.getElementById('route-color-val');
+    const elRouteWidth = document.getElementById('route-width');
+    const elRouteWidthVal = document.getElementById('route-width-val');
+    const elRouteOpacity = document.getElementById('route-opacity');
+    const elRouteOpacityVal = document.getElementById('route-opacity-val');
+    let mapToneOverlay = document.getElementById('map-tone-overlay');
+
+    // Section Toggles
+    const toggleMap = {
+        'stats': { chk: document.getElementById('toggle-sec-stats'), el: document.getElementById('sec-key-stats') },
+        'map': { chk: document.getElementById('toggle-sec-map'), el: document.getElementById('sec-map') },
+        'streams': { chk: document.getElementById('toggle-sec-streams'), el: document.getElementById('sec-streams') },
+        'ai': { chk: document.getElementById('toggle-sec-ai'), el: document.getElementById('sec-ai') },
+        'coggan': { chk: document.getElementById('toggle-sec-coggan'), el: document.getElementById('sec-coggan') },
+        'mmp': { chk: document.getElementById('toggle-sec-mmp'), el: document.getElementById('sec-mmp') },
+        'hr': { chk: document.getElementById('toggle-sec-hr'), el: document.getElementById('sec-hr') },
+        'climb': { chk: document.getElementById('toggle-sec-climb'), el: document.getElementById('sec-climb') },
+        'weather': { chk: document.getElementById('toggle-sec-weather'), el: document.getElementById('sec-weather') }
+    };
+
+    // State persistence keys (Dedicated actDetail_ namespace)
+    const KEY_SIZE = 'actDetail_size';
+    const KEY_RATIO = 'actDetail_ratio';
+    const KEY_FONT_SCALE = 'actDetail_fontScale';
+    const KEY_BG = 'actDetail_bg';
+    const KEY_TEXT_COLOR = 'actDetail_textColor';
+    const KEY_FONT = 'actDetail_font';
+    const KEY_TINT = 'actDetail_tint';
+    const KEY_OPACITY = 'actDetail_opacity';
+    const KEY_COLLAPSED = 'actDetail_boxCollapsed';
+    const KEY_BASEMAP = 'actDetail_basemap';
+    const KEY_MAP_OPACITY = 'actDetail_mapOpacity';
+    const KEY_MAP_TONE = 'actDetail_mapTone';
+    const KEY_TONE_OPACITY = 'actDetail_toneOpacity';
+    const KEY_ROUTE_COLOR = 'actDetail_routeColor';
+    const KEY_ROUTE_WIDTH = 'actDetail_routeWidth';
+    const KEY_ROUTE_OPACITY = 'actDetail_routeOpacity';
+    const KEY_STREAM_AXIS = 'actDetail_streamAxis';
+    const KEY_STREAM_PREFIX = 'actDetail_stream_';
+    const KEY_AGENT = 'actDetail_agent';
+    const KEY_SECTION_PREFIX = 'actDetail_show_';
+    const KEY_METRICS_COLS = 'actDetail_metricsCols';
+    const KEY_KM_PREFIX = 'actDetail_km_';
+
+    function getStored(newKey, oldKey, defaultVal) {
+        const val = localStorage.getItem(newKey);
+        if (val !== null) return val;
+        if (oldKey) {
+            const oldVal = localStorage.getItem(oldKey);
+            if (oldVal !== null) return oldVal;
+        }
+        return defaultVal;
+    }
+
+    // ─── 1. Collapsible Box Sections (Matching Mega Stats) ────────────────
+    function applyBoxCollapsedStates() {
+        let collapsed = {};
+        try {
+            const raw = getStored(KEY_COLLAPSED, 'activityDetailBoxCollapsed', '');
+            if (raw) collapsed = JSON.parse(raw) || {};
+        } catch (_) { }
+
+        document.querySelectorAll('.control-box-header[data-box-id]').forEach(function (header) {
+            const boxId = header.getAttribute('data-box-id');
+            const isCollapsed = !!collapsed[boxId];
+            const boxContainer = header.closest('.control-box');
+            if (!boxContainer) return;
+            const body = boxContainer.querySelector('.control-box-body');
+            if (isCollapsed) {
+                header.classList.add('collapsed');
+                if (body) body.classList.add('collapsed');
+            } else {
+                header.classList.remove('collapsed');
+                if (body) body.classList.remove('collapsed');
+            }
+        });
+    }
+
+    function setupBoxCollapsibleEvents() {
+        document.querySelectorAll('.control-box-header[data-box-id]').forEach(function (header) {
+            if (header._bound) return;
+            header._bound = true;
+            header.addEventListener('click', function (e) {
+                if (e.target && (e.target.tagName === 'INPUT' || e.target.closest('button:not(.collapse-toggle-btn)'))) return;
+                const boxId = this.getAttribute('data-box-id');
+                let collapsed = {};
+                try {
+                    const raw = getStored(KEY_COLLAPSED, 'activityDetailBoxCollapsed', '');
+                    if (raw) collapsed = JSON.parse(raw) || {};
+                } catch (_) { }
+                collapsed[boxId] = !collapsed[boxId];
+                localStorage.setItem(KEY_COLLAPSED, JSON.stringify(collapsed));
+                applyBoxCollapsedStates();
+            });
+        });
+    }
+
+    setupBoxCollapsibleEvents();
+    applyBoxCollapsedStates();
+
+    // ─── 2. Size, Scaler & Dimensions ──────────────────────────────────────
+    function updateScaler(width, height) {
+        if (!scaler || !wrapper) return;
+        const availWidth = scaler.offsetWidth || (scaler.parentElement && scaler.parentElement.offsetWidth) || 800;
+        if (availWidth <= 10) return;
+        const scale = Math.min(1.0, availWidth / width);
+        wrapper.style.transform = 'scale(' + scale + ')';
+        wrapper.style.transformOrigin = 'top left';
+        scaler.style.height = Math.round(height * scale) + 'px';
+    }
+
+    function applyCanvasDimensions() {
+        if (!elSize || !canvas || !wrapper) return;
+        updateCanvasWatermark();
+        const width = Number.parseInt(elSize.value, 10) || 1440;
+        wrapper.style.width = width + 'px';
+
+        const ratio = elRatio ? elRatio.value : 'auto';
+        let height = 0;
+        if (ratio === '4:3') {
+            height = Math.round(width * 0.75);
+            wrapper.style.height = height + 'px';
+            canvas.style.minHeight = height + 'px';
+            canvas.style.height = height + 'px';
+            if (elDim) elDim.textContent = width + ' \u00d7 ' + height + ' px';
+            updateScaler(width, height);
+        } else if (ratio === '16:9') {
+            height = Math.round(width * (9 / 16));
+            wrapper.style.height = height + 'px';
+            canvas.style.minHeight = height + 'px';
+            canvas.style.height = height + 'px';
+            if (elDim) elDim.textContent = width + ' \u00d7 ' + height + ' px';
+            updateScaler(width, height);
+        } else {
+            wrapper.style.height = 'auto';
+            canvas.style.minHeight = '';
+            canvas.style.height = 'auto';
+            requestAnimationFrame(function () {
+                height = canvas.offsetHeight || 800;
+                wrapper.style.height = height + 'px';
+                if (elDim) elDim.textContent = width + ' \u00d7 ' + height + ' px (auto)';
+                updateScaler(width, height);
+            });
+        }
+    }
+
+    if (elSize) {
+        elSize.value = getStored(KEY_SIZE, 'activityDetail_size', '1440');
+        elSize.addEventListener('change', function () {
+            localStorage.setItem(KEY_SIZE, elSize.value);
+            applyCanvasDimensions();
+            ensureMapBounds();
+        });
+    }
+
+    if (elRatio) {
+        elRatio.value = getStored(KEY_RATIO, 'activityDetail_ratio', 'auto');
+        elRatio.addEventListener('change', function () {
+            localStorage.setItem(KEY_RATIO, elRatio.value);
+            applyCanvasDimensions();
+            ensureMapBounds();
+        });
+    }
+
+    // Watermark management - keep logo sized proportionally to canvas width (similar to Poster)
+    const WATERMARK_SIZE_PCT = 0.055;
+    const WATERMARK_OPACITY = 0.8;
+
+    function updateCanvasWatermark() {
+        const wm = document.getElementById('canvasWatermark');
+        if (!wm || !canvas) return;
+        const cw = canvas.offsetWidth || Number.parseInt(window.getComputedStyle(canvas).width, 10) || 1440;
+        const targetW = Math.max(36, Math.min(110, Math.round(cw * WATERMARK_SIZE_PCT)));
+        wm.style.width = targetW + 'px';
+        wm.style.opacity = String(WATERMARK_OPACITY);
+        wm.style.display = 'block';
+    }
+    window.updateCanvasWatermark = updateCanvasWatermark;
+
+    // ─── 3. Colors, Typography & Font Scale ──────────────────────────────
+    const elFontScale = document.getElementById('detail-font-scale');
+    const elFontScaleVal = document.getElementById('detail-font-scale-val');
+
+    function applyFontScale(val) {
+        const num = Number.parseInt(val, 10);
+        const clamped = Number.isNaN(num) ? 0 : Math.max(-30, Math.min(80, num));
+        const scale = 1 + (clamped / 100.0);
+        canvas.style.setProperty('--act-font-scale', scale);
+        if (elFontScale) elFontScale.value = String(clamped);
+        if (elFontScaleVal) elFontScaleVal.textContent = (clamped > 0 ? '+' : '') + clamped + '%';
+        localStorage.setItem(KEY_FONT_SCALE, String(clamped));
+        if (chart && chart.options && chart.options.scales) {
+            const fontName = elFont ? elFont.value : 'Inter';
+            const tickSize = Math.max(8, Math.round(10 * scale));
+            if (chart.options.scales.x && chart.options.scales.x.ticks) {
+                chart.options.scales.x.ticks.font = { size: tickSize, family: fontName };
+            }
+            if (chart.options.scales.yElevation && chart.options.scales.yElevation.ticks) {
+                chart.options.scales.yElevation.ticks.font = { size: tickSize, family: fontName };
+            }
+            if (chart.options.scales.yMetrics && chart.options.scales.yMetrics.ticks) {
+                chart.options.scales.yMetrics.ticks.font = { size: tickSize, family: fontName };
+            }
+            if (chart.options.plugins && chart.options.plugins.tooltip) {
+                chart.options.plugins.tooltip.titleFont = { size: Math.max(10, Math.round(12 * scale)), family: fontName };
+                chart.options.plugins.tooltip.bodyFont = { size: Math.max(9, Math.round(11 * scale)), family: fontName };
+            }
+            chart.update('none');
+        }
+    }
+
+    if (elFontScale) {
+        const savedFontScale = getStored(KEY_FONT_SCALE, 'activityDetail_fontScale', '0');
+        applyFontScale(savedFontScale);
+        elFontScale.addEventListener('input', function () {
+            applyFontScale(this.value);
+        });
+        elFontScale.addEventListener('change', function () {
+            applyFontScale(this.value);
+        });
+    }
+
+    function applyAppearance() {
+        if (elBg) {
+            canvas.style.setProperty('--detail-bg-color', elBg.value);
+        }
+        if (elTextColor) {
+            canvas.style.setProperty('--detail-text-color', elTextColor.value);
+        }
+        if (elFont) {
+            const fontVal = elFont.value;
+            canvas.style.setProperty('--detail-font-family', `"${fontVal}", sans-serif`);
+            if (document.fonts && document.fonts.load) {
+                document.fonts.load('12px "' + fontVal + '"').then(function () {
+                    if (chart) chart.update('none');
+                }).catch(function () { });
+            }
+            if (chart && chart.options && chart.options.scales) {
+                const scaleVal = elFontScale ? Number.parseInt(elFontScale.value, 10) : 0;
+                const fontMultiplier = 1 + ((Number.isNaN(scaleVal) ? 0 : scaleVal) / 100.0);
+                const tickSize = Math.max(8, Math.round(10 * fontMultiplier));
+                if (chart.options.scales.x && chart.options.scales.x.ticks) {
+                    chart.options.scales.x.ticks.font = { size: tickSize, family: fontVal };
+                }
+                if (chart.options.scales.yElevation && chart.options.scales.yElevation.ticks) {
+                    chart.options.scales.yElevation.ticks.font = { size: tickSize, family: fontVal };
+                }
+                if (chart.options.scales.yMetrics && chart.options.scales.yMetrics.ticks) {
+                    chart.options.scales.yMetrics.ticks.font = { size: tickSize, family: fontVal };
+                }
+                if (chart.options.plugins && chart.options.plugins.tooltip) {
+                    chart.options.plugins.tooltip.titleFont = { size: Math.max(10, Math.round(12 * fontMultiplier)), family: fontVal };
+                    chart.options.plugins.tooltip.bodyFont = { size: Math.max(9, Math.round(11 * fontMultiplier)), family: fontVal };
+                }
+                chart.update('none');
+            }
+        }
+        if (elOpacity && bgOverlay) {
+            const opVal = Number.parseInt(elOpacity.value, 10) / 100.0;
+            bgOverlay.style.opacity = opVal;
+            if (elOpacityVal) elOpacityVal.textContent = elOpacity.value + '%';
+        }
+        if (elTint && bgOverlay) {
+            bgOverlay.style.backgroundColor = elTint.value;
+            if (elTintVal) elTintVal.textContent = elTint.value;
+        }
+    }
+
+    if (elBg) {
+        elBg.value = getStored(KEY_BG, 'activityDetail_bg', '#0f172a');
+        elBg.addEventListener('input', function () {
+            localStorage.setItem(KEY_BG, elBg.value);
+            applyAppearance();
+        });
+    }
+
+    if (elTextColor) {
+        elTextColor.value = getStored(KEY_TEXT_COLOR, 'activityDetail_textColor', '#f8fafc');
+        elTextColor.addEventListener('input', function () {
+            localStorage.setItem(KEY_TEXT_COLOR, elTextColor.value);
+            applyAppearance();
+        });
+    }
+
+    if (elFont) {
+        elFont.value = getStored(KEY_FONT, 'activityDetail_font', 'Inter');
+        elFont.addEventListener('change', function () {
+            localStorage.setItem(KEY_FONT, elFont.value);
+            applyAppearance();
+        });
+        elFont.addEventListener('input', function () {
+            localStorage.setItem(KEY_FONT, elFont.value);
+            applyAppearance();
+        });
+    }
+
+    if (elOpacity) {
+        elOpacity.value = getStored(KEY_OPACITY, 'activityDetail_opacity', '40');
+        elOpacity.addEventListener('input', function () {
+            localStorage.setItem(KEY_OPACITY, elOpacity.value);
+            applyAppearance();
+        });
+    }
+
+    if (elTint) {
+        elTint.value = getStored(KEY_TINT, 'activityDetail_tint', '#000000');
+        elTint.addEventListener('input', function () {
+            localStorage.setItem(KEY_TINT, elTint.value);
+            applyAppearance();
+        });
+    }
+
+    if (elTintClear) {
+        elTintClear.addEventListener('click', function () {
+            if (elTint) elTint.value = '#000000';
+            localStorage.setItem(KEY_TINT, '#000000');
+            applyAppearance();
+        });
+    }
+
+    applyAppearance();
+    applyCanvasDimensions();
+
+    // ─── 4. Section Visibility Toggles ────────────────────────────────────
+    Object.keys(toggleMap).forEach(function (k) {
+        const item = toggleMap[k];
+        if (!item.chk || !item.el) return;
+        const stored = getStored(KEY_SECTION_PREFIX + k, 'activityDetail_show_' + k, 'true');
+        item.chk.checked = stored !== 'false';
+        item.el.style.display = item.chk.checked ? '' : 'none';
+
+        item.chk.addEventListener('change', function () {
+            localStorage.setItem(KEY_SECTION_PREFIX + k, String(item.chk.checked));
+            item.el.style.display = item.chk.checked ? '' : 'none';
+            if (typeof syncTwoColumnOverview === 'function') {
+                syncTwoColumnOverview();
+            }
+            applyCanvasDimensions();
+            ensureMapBounds();
+        });
+    });
+
+    // ─── 4b. Key Metrics Layout & Channel Toggles ─────────────────────────
+    const elMetricsCols = document.getElementById('detail-metrics-cols');
+    const metricsGrid = document.getElementById('metrics-grid');
+
+    function applyMetricsColumns(cols) {
+        const c = Number.parseInt(cols, 10);
+        const validCols = (c >= 1 && c <= 6) ? c : 3;
+        if (metricsGrid) {
+            metricsGrid.style.gridTemplateColumns = `repeat(${validCols}, minmax(0, 1fr))`;
+        }
+        if (elMetricsCols) elMetricsCols.value = String(validCols);
+        localStorage.setItem(KEY_METRICS_COLS, String(validCols));
+    }
+
+    function syncTwoColumnOverview() {
+        const secStats = document.getElementById('sec-key-stats');
+        const secMap = document.getElementById('sec-map');
+        const overviewContainer = document.getElementById('overview-two-col');
+        if (!secStats || !secMap || !overviewContainer) return;
+
+        const statsVis = secStats.style.display !== 'none';
+        const mapVis = secMap.style.display !== 'none';
+
+        if (statsVis && mapVis) {
+            overviewContainer.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        } else {
+            overviewContainer.style.gridTemplateColumns = '1fr';
+        }
+    }
+
+    if (elMetricsCols) {
+        const savedCols = getStored(KEY_METRICS_COLS, 'activityDetail_metricsCols', '3');
+        applyMetricsColumns(savedCols);
+        elMetricsCols.addEventListener('change', function () {
+            applyMetricsColumns(this.value);
+            applyCanvasDimensions();
+            ensureMapBounds();
+        });
+    }
+
+    const keyMetricsMap = {
+        'distance': { chk: document.getElementById('chk-km-distance'), card: document.getElementById('card-km-distance') },
+        'moving_time': { chk: document.getElementById('chk-km-moving-time'), card: document.getElementById('card-km-moving-time') },
+        'elevation_gain': { chk: document.getElementById('chk-km-elevation-gain'), card: document.getElementById('card-km-elevation-gain') },
+        'elapsed_time': { chk: document.getElementById('chk-km-elapsed-time'), card: document.getElementById('card-km-elapsed-time') },
+        'avg_speed': { chk: document.getElementById('chk-km-avg-speed'), card: document.getElementById('card-km-avg-speed') },
+        'max_speed': { chk: document.getElementById('chk-km-max-speed'), card: document.getElementById('card-km-max-speed') },
+        'avg_power': { chk: document.getElementById('chk-km-avg-power'), card: document.getElementById('card-km-avg-power') },
+        'norm_power': { chk: document.getElementById('chk-km-norm-power'), card: document.getElementById('card-km-norm-power') },
+        'max_power': { chk: document.getElementById('chk-km-max-power'), card: document.getElementById('card-km-max-power') },
+        'avg_hr': { chk: document.getElementById('chk-km-avg-hr'), card: document.getElementById('card-km-avg-hr') },
+        'max_hr': { chk: document.getElementById('chk-km-max-hr'), card: document.getElementById('card-km-max-hr') },
+        'suffer_score': { chk: document.getElementById('chk-km-suffer-score'), card: document.getElementById('card-km-suffer-score') },
+        'avg_cadence': { chk: document.getElementById('chk-km-avg-cadence'), card: document.getElementById('card-km-avg-cadence') },
+        'calories': { chk: document.getElementById('chk-km-calories'), card: document.getElementById('card-km-calories') },
+        'elev_high_low': { chk: document.getElementById('chk-km-elev-high-low'), card: document.getElementById('card-km-elev-high-low') }
+    };
+
+    Object.keys(keyMetricsMap).forEach(function (k) {
+        const item = keyMetricsMap[k];
+        if (!item.chk || !item.card) return;
+        const stored = getStored(KEY_KM_PREFIX + k, 'activityDetail_km_' + k, 'true');
+        item.chk.checked = stored !== 'false';
+        item.card.style.display = item.chk.checked ? '' : 'none';
+
+        item.chk.addEventListener('change', function () {
+            localStorage.setItem(KEY_KM_PREFIX + k, String(item.chk.checked));
+            item.card.style.display = item.chk.checked ? '' : 'none';
+            applyCanvasDimensions();
+            ensureMapBounds();
+        });
+    });
+
+    // ─── 5. Image Upload & Reset ──────────────────────────────────────────
+    const uploadInput = document.getElementById('detail-upload-input');
+    const uploadBtn = document.getElementById('detail-upload-btn');
+    const uploadSpinner = document.getElementById('detail-upload-spinner');
+    const uploadText = document.getElementById('detail-upload-text');
+    const clearImageBtn = document.getElementById('detail-clear-image-btn');
+
+    if (uploadBtn && uploadInput) {
+        uploadBtn.addEventListener('click', function () {
+            uploadInput.click();
+        });
+        uploadInput.addEventListener('change', async function () {
+            const file = this.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            if (uploadSpinner) uploadSpinner.classList.remove('hidden');
+            if (uploadText) uploadText.classList.add('hidden');
+            uploadBtn.disabled = true;
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const resp = await fetch(`/api/activity/upload/${activityId}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
+                });
+                if (!resp.ok) {
+                    alert('Upload failed: ' + (await resp.text()));
+                    return;
+                }
+                const blob = await resp.blob();
+                bgImg.src = URL.createObjectURL(blob);
+                bgImg.classList.remove('hidden');
+            } catch (err) {
+                alert('Upload error: ' + err.message);
+            } finally {
+                if (uploadSpinner) uploadSpinner.classList.add('hidden');
+                if (uploadText) uploadText.classList.remove('hidden');
+                uploadBtn.disabled = false;
+            }
+        });
+    }
+
+    if (clearImageBtn) {
+        clearImageBtn.addEventListener('click', async function () {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            try {
+                await fetch(`/api/activity/clear-image/${activityId}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken }
+                });
+                bgImg.src = '';
+                bgImg.classList.add('hidden');
+            } catch (err) {
+                console.error('Failed to clear image:', err);
+            }
+        });
+    }
+
+    // ─── 6. Leaflet Route Map Implementation (from /map) ──────────────────
+
+    function getProvider(key) {
+        if (key && tileProviders[key] && !tileProviders[key].disabled) {
+            return tileProviders[key];
+        }
+        return tileProviders['openstreetmap'] || {
+            name: 'OpenStreetMap',
+            url: '/tiles/osm/{z}/{x}/{y}.png',
+            maxZoom: 19
+        };
+    }
+
+    function ensureMapToneLayer() {
+        if (!map) return;
+        if (!mapToneOverlay) {
+            mapToneOverlay = document.getElementById('map-tone-overlay');
+        }
+        if (!mapToneOverlay) return;
+
+        let tonePane = map.getPane('tonePane');
+        if (!tonePane) {
+            tonePane = map.createPane('tonePane');
+            tonePane.style.zIndex = 250;
+            tonePane.style.pointerEvents = 'none';
+            map.on('move zoom viewreset resize', syncMapToneOverlayPosition);
+        }
+        if (mapToneOverlay.parentNode !== tonePane) {
+            tonePane.appendChild(mapToneOverlay);
+        }
+    }
+
+    function syncMapToneOverlayPosition() {
+        if (!map || !mapToneOverlay) return;
+        try {
+            const size = map.getSize();
+            if (!size || size.x === 0 || size.y === 0) return;
+            const pad = 500;
+            const topLeft = map.containerPointToLayerPoint([-pad, -pad]);
+            L.DomUtil.setPosition(mapToneOverlay, topLeft);
+            mapToneOverlay.style.width = (size.x + pad * 2) + 'px';
+            mapToneOverlay.style.height = (size.y + pad * 2) + 'px';
+        } catch (e) {
+            /* map initializing */
+        }
+    }
+
+    function updateMapToneLayer() {
+        if (!map) return;
+        ensureMapToneLayer();
+        if (!mapToneOverlay) return;
+
+        const toneColor = elMapTone ? elMapTone.value : '';
+        const toneOpacity = elToneOpacity ? Number.parseInt(elToneOpacity.value, 10) : 0;
+        const isNone = elMapToneVal && elMapToneVal.textContent === 'None';
+
+        if (toneColor && toneOpacity > 0 && !isNone) {
+            mapToneOverlay.style.display = 'block';
+            mapToneOverlay.style.backgroundColor = toneColor;
+            mapToneOverlay.style.opacity = String(toneOpacity / 100.0);
+            syncMapToneOverlayPosition();
+        } else {
+            mapToneOverlay.style.display = 'none';
+            mapToneOverlay.style.backgroundColor = 'transparent';
+            mapToneOverlay.style.opacity = '0';
+        }
+    }
+
+    function updateMapOpacityLayer() {
+        if (!mapTileLayer || typeof mapTileLayer.setOpacity !== 'function') return;
+        const opVal = elMapOpacity ? Number.parseInt(elMapOpacity.value, 10) / 100.0 : 1.0;
+        mapTileLayer.setOpacity(opVal);
+    }
+
+    function updatePolylineStyles() {
+        if (!routePolyline) return;
+        const color = elRouteColor ? elRouteColor.value : '#38bdf8';
+        const weight = elRouteWidth ? Number.parseInt(elRouteWidth.value, 10) : 4;
+        const opacity = elRouteOpacity ? Number.parseInt(elRouteOpacity.value, 10) / 100.0 : 0.95;
+
+        routePolyline.setStyle({
+            color: color,
+            weight: weight,
+            opacity: opacity
+        });
+    }
+
+    function applyMapVisualState() {
+        updateMapOpacityLayer();
+        updateMapToneLayer();
+        updatePolylineStyles();
+    }
+
+    function setTileLayer(key) {
+        if (!map) return;
+        const provider = getProvider(key);
+        if (mapTileLayer) {
+            map.removeLayer(mapTileLayer);
+        }
+
+        const tileOpts = {
+            maxZoom: provider.maxZoom || 19,
+            attribution: provider.attr || ''
+        };
+        if (provider.subdomains) {
+            tileOpts.subdomains = provider.subdomains;
+        }
+
+        mapTileLayer = L.tileLayer(provider.url, tileOpts).addTo(map);
+        updateMapOpacityLayer();
+        updateMapToneLayer();
+    }
+
+    function ensureMapBounds() {
+        if (!map) return;
+        map.invalidateSize();
+        if (routePolyline && routePolyline.getLatLngs().length > 0) {
+            map.fitBounds(routePolyline.getBounds(), { padding: [16, 16], maxZoom: 16 });
+        }
+        syncMapToneOverlayPosition();
+    }
+
+    function initMap() {
+        const mapContainer = document.getElementById('activity-map');
+        if (!mapContainer) return;
+
+        map = L.map('activity-map', {
+            zoomControl: true,
+            attributionControl: false,
+            preferCanvas: true
+        });
+
+        // Set safe initial view
+        map.setView([50.0, 14.0], 11);
+
+        // Restore Map controls from localStorage
+        const savedKey = getStored(KEY_BASEMAP, 'activityDetail_basemap', 'openstreetmap');
+        const initialKey = (tileProviders[savedKey] && !tileProviders[savedKey].disabled) ? savedKey : 'openstreetmap';
+        if (basemapSelect) {
+            basemapSelect.value = initialKey;
+            basemapSelect.addEventListener('change', function () {
+                const chosen = this.value;
+                if (tileProviders[chosen] && !tileProviders[chosen].disabled) {
+                    localStorage.setItem(KEY_BASEMAP, chosen);
+                    setTileLayer(chosen);
+                }
+            });
+        }
+
+        if (elMapOpacity) {
+            elMapOpacity.value = getStored(KEY_MAP_OPACITY, 'activityDetail_mapOpacity', '100');
+            if (elMapOpacityVal) elMapOpacityVal.textContent = elMapOpacity.value + '%';
+            elMapOpacity.addEventListener('input', function () {
+                if (elMapOpacityVal) elMapOpacityVal.textContent = this.value + '%';
+                localStorage.setItem(KEY_MAP_OPACITY, this.value);
+                updateMapOpacityLayer();
+            });
+            elMapOpacity.addEventListener('change', function () {
+                localStorage.setItem(KEY_MAP_OPACITY, this.value);
+            });
+        }
+
+        if (elMapTone) {
+            const savedTone = getStored(KEY_MAP_TONE, 'activityDetail_mapTone', '');
+            elMapTone.value = savedTone || '#ffffff';
+            if (elMapToneVal) elMapToneVal.textContent = savedTone || 'None';
+            elMapTone.addEventListener('input', function () {
+                if (elMapToneVal) elMapToneVal.textContent = this.value;
+                localStorage.setItem(KEY_MAP_TONE, this.value);
+                updateMapToneLayer();
+            });
+            elMapTone.addEventListener('change', function () {
+                if (elMapToneVal) elMapToneVal.textContent = this.value;
+                localStorage.setItem(KEY_MAP_TONE, this.value);
+                updateMapToneLayer();
+            });
+        }
+
+        if (elMapToneClear) {
+            elMapToneClear.addEventListener('click', function () {
+                if (elMapTone) elMapTone.value = '#ffffff';
+                if (elMapToneVal) elMapToneVal.textContent = 'None';
+                localStorage.removeItem(KEY_MAP_TONE);
+                updateMapToneLayer();
+            });
+        }
+
+        if (elToneOpacity) {
+            elToneOpacity.value = getStored(KEY_TONE_OPACITY, 'activityDetail_toneOpacity', '0');
+            if (elToneOpacityVal) elToneOpacityVal.textContent = elToneOpacity.value + '%';
+            elToneOpacity.addEventListener('input', function () {
+                if (elToneOpacityVal) elToneOpacityVal.textContent = this.value + '%';
+                localStorage.setItem(KEY_TONE_OPACITY, this.value);
+                updateMapToneLayer();
+            });
+            elToneOpacity.addEventListener('change', function () {
+                localStorage.setItem(KEY_TONE_OPACITY, this.value);
+            });
+        }
+
+        if (elRouteColor) {
+            elRouteColor.value = getStored(KEY_ROUTE_COLOR, 'activityDetail_routeColor', '#38bdf8');
+            if (elRouteColorVal) elRouteColorVal.textContent = elRouteColor.value;
+            elRouteColor.addEventListener('input', function () {
+                if (elRouteColorVal) elRouteColorVal.textContent = this.value;
+                localStorage.setItem(KEY_ROUTE_COLOR, this.value);
+                updatePolylineStyles();
+            });
+            elRouteColor.addEventListener('change', function () {
+                localStorage.setItem(KEY_ROUTE_COLOR, this.value);
+            });
+        }
+
+        if (elRouteWidth) {
+            elRouteWidth.value = getStored(KEY_ROUTE_WIDTH, 'activityDetail_routeWidth', '4');
+            if (elRouteWidthVal) elRouteWidthVal.textContent = elRouteWidth.value + 'px';
+            elRouteWidth.addEventListener('input', function () {
+                if (elRouteWidthVal) elRouteWidthVal.textContent = this.value + 'px';
+                localStorage.setItem(KEY_ROUTE_WIDTH, this.value);
+                updatePolylineStyles();
+            });
+            elRouteWidth.addEventListener('change', function () {
+                localStorage.setItem(KEY_ROUTE_WIDTH, this.value);
+            });
+        }
+
+        if (elRouteOpacity) {
+            elRouteOpacity.value = getStored(KEY_ROUTE_OPACITY, 'activityDetail_routeOpacity', '95');
+            if (elRouteOpacityVal) elRouteOpacityVal.textContent = elRouteOpacity.value + '%';
+            elRouteOpacity.addEventListener('input', function () {
+                if (elRouteOpacityVal) elRouteOpacityVal.textContent = this.value + '%';
+                localStorage.setItem(KEY_ROUTE_OPACITY, this.value);
+                updatePolylineStyles();
+            });
+            elRouteOpacity.addEventListener('change', function () {
+                localStorage.setItem(KEY_ROUTE_OPACITY, this.value);
+            });
+        }
+
+        setTileLayer(initialKey);
+        ensureMapToneLayer();
+        applyMapVisualState();
+
+        requestAnimationFrame(function () {
+            if (map) map.invalidateSize();
+        });
+        setTimeout(function () {
+            if (map) map.invalidateSize();
+        }, 200);
+    }
+
+    initMap();
+
+    // ─── 7. Streams Fetching & Telemetry Profile ──────────────────────────
+    let activeAxis = getStored(KEY_STREAM_AXIS, 'activityDetail_streamAxis', 'dist');
+
+    const btnAxisDist = document.getElementById('telemetry-axis-dist-btn');
+    const btnAxisTime = document.getElementById('telemetry-axis-time-btn');
+
+    const streamPills = {
+        altitude: document.getElementById('pill-altitude'),
+        heartrate: document.getElementById('pill-heartrate'),
+        watts: document.getElementById('pill-watts'),
+        cadence: document.getElementById('pill-cadence'),
+        speed: document.getElementById('pill-speed')
+    };
+
+    const streamCheckboxes = {
+        altitude: document.getElementById('stream-chk-altitude'),
+        heartrate: document.getElementById('stream-chk-heartrate'),
+        watts: document.getElementById('stream-chk-watts'),
+        cadence: document.getElementById('stream-chk-cadence'),
+        speed: document.getElementById('stream-chk-speed')
+    };
+
+    const channelIdxMap = {
+        altitude: 0,
+        heartrate: 1,
+        watts: 2,
+        cadence: 3,
+        speed: 4
+    };
+
+    function setAxisMode(mode) {
+        activeAxis = (mode === 'time') ? 'time' : 'dist';
+        localStorage.setItem(KEY_STREAM_AXIS, activeAxis);
+        if (btnAxisDist && btnAxisTime) {
+            if (activeAxis === 'dist') {
+                btnAxisDist.className = 'px-2.5 py-1 rounded font-semibold text-xs transition-colors bg-sky-600 text-white shadow-xs';
+                btnAxisTime.className = 'px-2.5 py-1 rounded font-semibold text-xs transition-colors text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white';
+            } else {
+                btnAxisTime.className = 'px-2.5 py-1 rounded font-semibold text-xs transition-colors bg-sky-600 text-white shadow-xs';
+                btnAxisDist.className = 'px-2.5 py-1 rounded font-semibold text-xs transition-colors text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white';
+            }
+        }
+        if (streamPoints.length > 0) {
+            buildTelemetryChart();
+        }
+    }
+
+    if (btnAxisDist) btnAxisDist.addEventListener('click', function () { setAxisMode('dist'); });
+    if (btnAxisTime) btnAxisTime.addEventListener('click', function () { setAxisMode('time'); });
+    setAxisMode(activeAxis);
+
+    function setChannelVisibility(channel, isVisible) {
+        localStorage.setItem(KEY_STREAM_PREFIX + channel, String(isVisible));
+        const idx = channelIdxMap[channel];
+        const chk = streamCheckboxes[channel];
+        const pill = streamPills[channel];
+        if (chk) chk.checked = isVisible;
+        if (pill) {
+            if (isVisible) {
+                pill.classList.add('active');
+                pill.classList.remove('inactive');
+            } else {
+                pill.classList.remove('active');
+                pill.classList.add('inactive');
+            }
+        }
+        if (chart) {
+            chart.setDatasetVisibility(idx, isVisible);
+            chart.update();
+        }
+    }
+
+    Object.keys(channelIdxMap).forEach(function (channel) {
+        const stored = getStored(KEY_STREAM_PREFIX + channel, 'activityDetail_stream_' + channel, 'true');
+        const isVisible = stored !== 'false';
+        const chk = streamCheckboxes[channel];
+        const pill = streamPills[channel];
+        if (chk) {
+            chk.checked = isVisible;
+            chk.addEventListener('change', function () {
+                setChannelVisibility(channel, this.checked);
+            });
+        }
+        if (pill) {
+            if (isVisible) {
+                pill.classList.add('active');
+                pill.classList.remove('inactive');
+            } else {
+                pill.classList.remove('active');
+                pill.classList.add('inactive');
+            }
+            pill.addEventListener('click', function () {
+                const current = chk ? chk.checked : (chart ? chart.isDatasetVisible(channelIdxMap[channel]) : true);
+                setChannelVisibility(channel, !current);
+            });
+        }
+    });
+
+    async function loadStreams() {
+        window.telemetryChartReady = false;
+        try {
+            const resp = await fetch(`/api/activity/${activityId}/streams?max_points=1200`);
+            const data = await resp.json();
+            if (!data.has_streams || !data.points || data.points.length === 0) {
+                const noGpsEl = document.getElementById('map-no-gps');
+                if (noGpsEl) noGpsEl.classList.remove('hidden');
+                window.telemetryChartReady = true;
+                return;
+            }
+            streamPoints = data.points;
+
+            // Plot polyline on Leaflet
+            const coords = streamPoints
+                .filter(p => p.lat !== null && p.lat !== undefined && p.lng !== null && p.lng !== undefined)
+                .map(p => [p.lat, p.lng]);
+
+            if (coords.length > 0 && map) {
+                const color = elRouteColor ? elRouteColor.value : '#38bdf8';
+                const weight = elRouteWidth ? Number.parseInt(elRouteWidth.value, 10) : 4;
+                const opacity = elRouteOpacity ? Number.parseInt(elRouteOpacity.value, 10) / 100.0 : 0.95;
+
+                routePolyline = L.polyline(coords, {
+                    color: color,
+                    weight: weight,
+                    opacity: opacity,
+                    lineJoin: 'round'
+                }).addTo(map);
+
+                // Start and Finish markers
+                L.circleMarker(coords[0], { radius: 5, color: '#ffffff', fillColor: '#22c55e', fillOpacity: 1, weight: 2 }).addTo(map);
+                L.circleMarker(coords[coords.length - 1], { radius: 5, color: '#ffffff', fillColor: '#ef4444', fillOpacity: 1, weight: 2 }).addTo(map);
+
+                // Scrubber dot marker
+                scrubberMarker = L.circleMarker(coords[0], {
+                    radius: 6,
+                    color: '#ffffff',
+                    fillColor: '#ef4444',
+                    fillOpacity: 1,
+                    weight: 2
+                });
+
+                map.invalidateSize();
+                map.fitBounds(routePolyline.getBounds(), { padding: [16, 16], maxZoom: 16 });
+
+                setTimeout(function () {
+                    ensureMapBounds();
+                }, 200);
+            } else {
+                const noGpsEl = document.getElementById('map-no-gps');
+                if (noGpsEl) noGpsEl.classList.remove('hidden');
+            }
+
+            buildTelemetryChart();
+        } catch (err) {
+            console.error('Failed to load activity streams:', err);
+            window.telemetryChartReady = true;
+        }
+    }
+
+    function buildTelemetryChart() {
+        const ctx = document.getElementById('telemetry-chart');
+        if (!ctx || streamPoints.length === 0) return;
+
+        const labels = streamPoints.map(function (p, idx) {
+            if (activeAxis === 'dist') {
+                return ((p.distance || 0) / 1000.0).toFixed(2);
+            } else {
+                const s = p.time || idx;
+                const m = Math.floor(s / 60);
+                const remS = s % 60;
+                return m + ':' + (remS < 10 ? '0' : '') + remS;
+            }
+        });
+
+        const altitudeData = streamPoints.map(p => p.altitude);
+        const hrData = streamPoints.map(p => p.heartrate);
+        const wattsData = streamPoints.map(p => p.watts);
+        const cadenceData = streamPoints.map(p => p.cadence);
+        const speedData = streamPoints.map(p => p.speed ? Number.parseFloat((p.speed * 3.6).toFixed(1)) : null);
+
+        const activeFontName = elFont ? elFont.value : 'Inter';
+        const scaleVal = elFontScale ? Number.parseInt(elFontScale.value, 10) : 0;
+        const fontMultiplier = 1 + ((Number.isNaN(scaleVal) ? 0 : scaleVal) / 100.0);
+        const tickSize = Math.max(8, Math.round(10 * fontMultiplier));
+
+        const datasets = [
+            {
+                label: 'Elevation',
+                data: altitudeData,
+                yAxisID: 'yElevation',
+                borderColor: 'rgba(203, 213, 225, 0.85)',
+                backgroundColor: 'rgba(203, 213, 225, 0.12)',
+                borderWidth: 1.5,
+                fill: true,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                hidden: false
+            },
+            {
+                label: 'Heart Rate',
+                data: hrData,
+                yAxisID: 'yMetrics',
+                borderColor: '#f43f5e',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                hidden: false
+            },
+            {
+                label: 'Power',
+                data: wattsData,
+                yAxisID: 'yMetrics',
+                borderColor: '#f59e0b',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                hidden: false
+            },
+            {
+                label: 'Cadence',
+                data: cadenceData,
+                yAxisID: 'yMetrics',
+                borderColor: '#10b981',
+                backgroundColor: 'transparent',
+                borderWidth: 1.2,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                hidden: false
+            },
+            {
+                label: 'Speed',
+                data: speedData,
+                yAxisID: 'yMetrics',
+                borderColor: '#38bdf8',
+                backgroundColor: 'transparent',
+                borderWidth: 1.2,
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                hidden: false
+            }
+        ];
+
+        datasets.forEach(function (ds, idx) {
+            const channelNames = ['altitude', 'heartrate', 'watts', 'cadence', 'speed'];
+            const ch = channelNames[idx];
+            const chk = streamCheckboxes[ch];
+            const isVisible = chk ? chk.checked : true;
+            ds.hidden = !isVisible;
+        });
+
+        if (chart) chart.destroy();
+
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        titleFont: { size: Math.max(10, Math.round(12 * fontMultiplier)), family: activeFontName },
+                        bodyFont: { size: Math.max(9, Math.round(11 * fontMultiplier)), family: activeFontName },
+                        callbacks: {
+                            label: function (context) {
+                                const dsLabel = context.dataset.label;
+                                const val = context.parsed.y;
+                                if (dsLabel === 'Elevation') return `Elevation: ${val} m`;
+                                if (dsLabel === 'Heart Rate') return `Heart Rate: ${val} bpm`;
+                                if (dsLabel === 'Power') return `Power: ${val} W`;
+                                if (dsLabel === 'Cadence') return `Cadence: ${val} rpm`;
+                                if (dsLabel === 'Speed') return `Speed: ${val} km/h`;
+                                return `${dsLabel}: ${val}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(255, 255, 255, 0.55)', maxTicksLimit: 10, font: { size: tickSize, family: activeFontName } }
+                    },
+                    yElevation: {
+                        type: 'linear',
+                        position: 'left',
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: 'rgba(203, 213, 225, 0.7)', font: { size: tickSize, family: activeFontName } },
+                        title: { display: false }
+                    },
+                    yMetrics: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { color: 'rgba(255, 255, 255, 0.7)', font: { size: tickSize, family: activeFontName } },
+                        title: { display: false }
+                    }
+                },
+                onHover: function (event, activeElements) {
+                    if (!activeElements || activeElements.length === 0 || !map || !scrubberMarker) {
+                        return;
+                    }
+                    const idx = activeElements[0].index;
+                    const pt = streamPoints[idx];
+                    if (pt && pt.lat && pt.lng) {
+                        scrubberMarker.setLatLng([pt.lat, pt.lng]);
+                        if (!map.hasLayer(scrubberMarker)) {
+                            scrubberMarker.addTo(map);
+                        }
+                    }
+                }
+            }
+        });
+        window.telemetryChart = chart;
+        window.telemetryChartReady = true;
+        if (document.fonts && document.fonts.load) {
+            document.fonts.load('12px "' + activeFontName + '"').then(function () {
+                if (chart) chart.update('none');
+            }).catch(function () { });
+        }
+    }
+
+    loadStreams();
+
+    // ─── 8. AI Agent Selection & Prompt Actions ───────────────────────────
+    const agentSelect = document.getElementById('detail-agent-select');
+    const repromptBtn = document.getElementById('btn-reprompt-agent');
+    const agentStatusMsg = document.getElementById('agent-status-msg');
+    const aiResponseBody = document.getElementById('ai-response-body');
+    const canvasAgentBadge = document.getElementById('canvas-agent-badge');
+    const saveIndicator = document.getElementById('agent-save-indicator');
+
+    function refreshAgentSelectOptions() {
+        if (!agentSelect) return;
+        Array.from(agentSelect.options).forEach(function (opt) {
+            const name = opt.value;
+            const token = 'agent-ai-' + name.toLowerCase();
+            const hasCached = !!cachedAiResponses[token];
+            opt.textContent = name + (hasCached ? ' (cached)' : '');
+        });
+    }
+
+    function updateActiveAgentResponse() {
+        if (!agentSelect) return;
+        const selectedAgent = agentSelect.value;
+        if (!selectedAgent) return;
+
+        if (canvasAgentBadge) canvasAgentBadge.textContent = selectedAgent;
+
+        const token = 'agent-ai-' + selectedAgent.toLowerCase();
+        const cached = cachedAiResponses[token];
+        const hasCached = !!cached;
+
+        if (aiResponseBody) {
+            aiResponseBody.textContent = cached || 'No response generated yet for this agent. Click "Run prompt" in the sidebar to generate insights.';
+        }
+        if (agentStatusMsg) {
+            agentStatusMsg.textContent = hasCached ? 'Cached response ready' : 'No prompt generated yet';
+        }
+        if (repromptBtn) {
+            repromptBtn.innerHTML = hasCached ? '<span>✨ Re-prompt</span>' : '<span>✨ Run prompt</span>';
+        }
+    }
+
+    if (agentSelect) {
+        refreshAgentSelectOptions();
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlAgent = urlParams.get('agent');
+        const savedAgent = urlAgent || getStored(KEY_AGENT, 'activityDetail_agent', '');
+        if (savedAgent) {
+            const matchedOpt = Array.from(agentSelect.options).find(o => o.value.toLowerCase() === savedAgent.toLowerCase());
+            if (matchedOpt) {
+                agentSelect.value = matchedOpt.value;
+                if (urlAgent) {
+                    localStorage.setItem(KEY_AGENT, matchedOpt.value);
+                }
+            }
+        }
+        agentSelect.addEventListener('change', function () {
+            localStorage.setItem(KEY_AGENT, this.value);
+            updateActiveAgentResponse();
+        });
+        updateActiveAgentResponse();
+    }
+
+    if (repromptBtn) {
+        repromptBtn.addEventListener('click', async function () {
+            const agentName = agentSelect ? agentSelect.value : '';
+            if (!agentName) {
+                alert('Please select an agent first.');
+                return;
+            }
+
+            const token = 'agent-ai-' + agentName.toLowerCase();
+            const isExisting = !!cachedAiResponses[token];
+
+            repromptBtn.disabled = true;
+            repromptBtn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+            if (agentStatusMsg) agentStatusMsg.textContent = isExisting ? `Re-prompting with ${agentName}...` : `Running prompt with ${agentName}...`;
+
+            if (aiResponseBody) {
+                aiResponseBody.innerHTML = '<div class="flex items-center gap-2 py-2 text-indigo-300 opacity-80"><img src="/static/img/kinetiqo-loading-32x32.webp" alt="" class="h-4 w-4 inline-block" width="16" height="16"><span>Generating AI analysis and coaching insights...</span></div>';
+            }
+
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const resp = await fetch(`/api/activity/${activityId}/ai-analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        agent_name: agentName
+                    })
+                });
+
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to generate AI response');
+                }
+
+                // Update cached and view
+                cachedAiResponses[token] = data.response;
+                if (aiResponseBody) aiResponseBody.textContent = data.response;
+                if (canvasAgentBadge) canvasAgentBadge.textContent = agentName;
+                if (agentStatusMsg) agentStatusMsg.textContent = `Generated (${data.status})`;
+
+                // Update pulldown and button
+                refreshAgentSelectOptions();
+                repromptBtn.innerHTML = '<span>✨ Re-prompt</span>';
+
+                // Show green Saved indicator
+                if (saveIndicator) {
+                    saveIndicator.classList.remove('hidden');
+                    setTimeout(() => saveIndicator.classList.add('hidden'), 3000);
+                }
+            } catch (err) {
+                if (agentStatusMsg) agentStatusMsg.textContent = 'Error: ' + err.message;
+                if (aiResponseBody) {
+                    const cached = cachedAiResponses[token];
+                    aiResponseBody.textContent = cached || ('Error generating prompt: ' + err.message);
+                }
+                repromptBtn.innerHTML = isExisting ? '<span>✨ Re-prompt</span>' : '<span>✨ Run prompt</span>';
+            } finally {
+                repromptBtn.disabled = false;
+            }
+        });
+    }
+
+    // ─── 9. PNG & PDF Export ──────────────────────────────────────────────
+    const btnPng = document.getElementById('btn-download-png');
+    const btnPdf = document.getElementById('btn-download-pdf');
+
+    async function triggerExport(format) {
+        const btn = format === 'pdf' ? btnPdf : btnPng;
+        if (!btn) return;
+
+        const origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.classList.add('opacity-60', 'cursor-wait');
+        btn.innerHTML = '<img src="/static/img/kinetiqo-loading-32x32.webp" alt="Loading" class="h-4 w-4 inline-block mx-auto" width="16" height="16">';
+
+        try {
+            const width = Number.parseInt(elSize ? elSize.value : '1440', 10);
+            const ratio = elRatio ? elRatio.value : 'auto';
+            const payload = {
+                format: format,
+                width: width,
+                ratio: ratio,
+                fontScale: elFontScale ? elFontScale.value : '0',
+                height: ratio === '4:3' ? Math.round(width * 0.75) : (ratio === '16:9' ? Math.round(width * (9 / 16)) : null),
+                bg: elBg ? elBg.value : '#0f172a',
+                textColor: elTextColor ? elTextColor.value : '#f8fafc',
+                fontFamily: elFont ? elFont.value : 'Inter',
+                hasImage: !bgImg.classList.contains('hidden') && !!bgImg.src,
+                tint: elTint ? elTint.value : '#000000',
+                opacity: elOpacity ? Number.parseInt(elOpacity.value, 10) : 40,
+                mapProvider: basemapSelect ? basemapSelect.value : 'openstreetmap',
+                mapOpacity: elMapOpacity ? Number.parseInt(elMapOpacity.value, 10) : 100,
+                mapTone: (elMapToneVal && elMapToneVal.textContent === 'None') ? '' : (elMapTone ? elMapTone.value : ''),
+                toneOpacity: elToneOpacity ? Number.parseInt(elToneOpacity.value, 10) : 0,
+                routeColor: elRouteColor ? elRouteColor.value : '#38bdf8',
+                routeWidth: elRouteWidth ? Number.parseInt(elRouteWidth.value, 10) : 4,
+                routeOpacity: elRouteOpacity ? Number.parseInt(elRouteOpacity.value, 10) : 95,
+                streamAxis: activeAxis,
+                visibleStreams: Object.keys(streamCheckboxes).reduce((acc, k) => {
+                    acc[k] = streamCheckboxes[k] ? streamCheckboxes[k].checked : true;
+                    return acc;
+                }, {}),
+                selectedAgent: agentSelect ? agentSelect.value : '',
+                aiResponseText: aiResponseBody ? aiResponseBody.textContent : '',
+                metricsCols: elMetricsCols ? elMetricsCols.value : '3',
+                visibleMetrics: Object.keys(keyMetricsMap).reduce((acc, k) => {
+                    if (keyMetricsMap[k].chk) acc[k] = keyMetricsMap[k].chk.checked;
+                    return acc;
+                }, {}),
+                visibleStats: Object.keys(toggleMap).reduce((acc, k) => {
+                    acc[k] = toggleMap[k] && toggleMap[k].chk ? toggleMap[k].chk.checked : true;
+                    return acc;
+                }, {})
+            };
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const resp = await fetch(`/api/activity/export/${activityId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                let msg = 'HTTP ' + resp.status;
+                try { msg = (await resp.json()).error || msg; } catch (_) { }
+                alert('Export failed: ' + msg);
+                return;
+            }
+
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.download = `kinetiqo-activity-${activityId}.${format}`;
+            a.href = url;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        } catch (e) {
+            alert('Export failed: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('opacity-60', 'cursor-wait');
+            btn.innerHTML = origHtml;
+        }
+    }
+
+    if (btnPng) btnPng.addEventListener('click', () => triggerExport('png'));
+    if (btnPdf) btnPdf.addEventListener('click', () => triggerExport('pdf'));
+
+    // ─── 10. Playwright Export Ingestion Bridge ────────────────────────────
+    window.applyExportSettings = function (settings) {
+        if (!settings) return;
+        if (settings.width && elSize) elSize.value = settings.width;
+        if (settings.ratio && elRatio) elRatio.value = settings.ratio;
+        if (settings.fontScale !== undefined) applyFontScale(settings.fontScale);
+        if (settings.bg && elBg) elBg.value = settings.bg;
+        if (settings.textColor && elTextColor) elTextColor.value = settings.textColor;
+        if (settings.fontFamily && elFont) elFont.value = settings.fontFamily;
+        if (settings.tint && elTint) elTint.value = settings.tint;
+        if (settings.opacity !== undefined && elOpacity) elOpacity.value = settings.opacity;
+
+        // Ensure Leaflet zoom controls are hidden during export
+        document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-container .leaflet-top.leaflet-left, .leaflet-control-container').forEach(function (el) {
+            el.style.setProperty('display', 'none', 'important');
+        });
+
+        if (settings.mapProvider && basemapSelect) {
+            basemapSelect.value = settings.mapProvider;
+            setTileLayer(settings.mapProvider);
+        }
+        if (settings.mapOpacity !== undefined && elMapOpacity) {
+            elMapOpacity.value = settings.mapOpacity;
+            if (elMapOpacityVal) elMapOpacityVal.textContent = settings.mapOpacity + '%';
+        }
+        if (settings.mapTone !== undefined && elMapTone) {
+            if (settings.mapTone && settings.mapTone !== '') {
+                elMapTone.value = settings.mapTone;
+                if (elMapToneVal) elMapToneVal.textContent = settings.mapTone;
+            } else {
+                elMapTone.value = '#ffffff';
+                if (elMapToneVal) elMapToneVal.textContent = 'None';
+            }
+        }
+        if (settings.toneOpacity !== undefined && elToneOpacity) {
+            elToneOpacity.value = settings.toneOpacity;
+            if (elToneOpacityVal) elToneOpacityVal.textContent = settings.toneOpacity + '%';
+        }
+        if (settings.routeColor && elRouteColor) {
+            elRouteColor.value = settings.routeColor;
+            if (elRouteColorVal) elRouteColorVal.textContent = settings.routeColor;
+        }
+        if (settings.routeWidth && elRouteWidth) {
+            elRouteWidth.value = settings.routeWidth;
+            if (elRouteWidthVal) elRouteWidthVal.textContent = settings.routeWidth + 'px';
+        }
+        if (settings.routeOpacity !== undefined && elRouteOpacity) {
+            elRouteOpacity.value = settings.routeOpacity;
+            if (elRouteOpacityVal) elRouteOpacityVal.textContent = settings.routeOpacity + '%';
+        }
+
+        if (settings.metricsCols && typeof applyMetricsColumns === 'function') {
+            applyMetricsColumns(settings.metricsCols);
+        }
+        if (settings.visibleMetrics && typeof keyMetricsMap !== 'undefined') {
+            Object.keys(settings.visibleMetrics).forEach(k => {
+                if (keyMetricsMap[k] && keyMetricsMap[k].card) {
+                    keyMetricsMap[k].card.style.display = settings.visibleMetrics[k] ? '' : 'none';
+                    if (keyMetricsMap[k].chk) keyMetricsMap[k].chk.checked = !!settings.visibleMetrics[k];
+                }
+            });
+        }
+
+        if (settings.streamAxis && typeof setAxisMode === 'function') {
+            setAxisMode(settings.streamAxis);
+        }
+        if (settings.visibleStreams && typeof setChannelVisibility === 'function') {
+            Object.keys(settings.visibleStreams).forEach(function (channel) {
+                setChannelVisibility(channel, settings.visibleStreams[channel]);
+            });
+        }
+
+        if (settings.selectedAgent && agentSelect) {
+            const matchedOpt = Array.from(agentSelect.options).find(o => o.value.toLowerCase() === settings.selectedAgent.toLowerCase());
+            if (matchedOpt) {
+                agentSelect.value = matchedOpt.value;
+            } else {
+                agentSelect.value = settings.selectedAgent;
+            }
+            if (typeof updateActiveAgentResponse === 'function') {
+                updateActiveAgentResponse();
+            }
+        }
+        if (settings.aiResponseText && aiResponseBody) {
+            aiResponseBody.textContent = settings.aiResponseText;
+        }
+
+        applyAppearance();
+        applyMapVisualState();
+        applyCanvasDimensions();
+        updateCanvasWatermark();
+
+        if (settings.visibleStats) {
+            Object.keys(settings.visibleStats).forEach(k => {
+                if (toggleMap[k]) {
+                    toggleMap[k].chk.checked = !!settings.visibleStats[k];
+                    toggleMap[k].el.style.display = settings.visibleStats[k] ? '' : 'none';
+                }
+            });
+        }
+
+        if (typeof syncTwoColumnOverview === 'function') {
+            syncTwoColumnOverview();
+        }
+    };
+
+    // ─── 11. Window Resize & Map Invalidation ──────────────────────────────
+    window.addEventListener('resize', function () {
+        applyCanvasDimensions();
+        ensureMapBounds();
+        updateCanvasWatermark();
+    });
+    window.ensureMapBounds = ensureMapBounds;
+    updateCanvasWatermark();
+});
+</script>
+{% endblock %}

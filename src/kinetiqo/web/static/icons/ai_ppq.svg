@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <!-- PayPerQ (PPQ.AI) Vector Logo -->
+  <defs>
+    <linearGradient id="ppq-grad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="ppq-bolt" x1="16" y1="8" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+  <!-- Stylized Q Outer Loop -->
+  <circle cx="15" cy="14" r="9" stroke="url(#ppq-grad)" stroke-width="3" stroke-linecap="round"/>
+  <!-- Inner P stem and loop -->
+  <path d="M12 9v10M12 9h4a3 3 0 0 1 0 6h-4" stroke="url(#ppq-grad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Q Dynamic Query Tail / Arrow -->
+  <path d="M21 20l6 6M27 22.5v3.5h-3.5" stroke="url(#ppq-bolt)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+

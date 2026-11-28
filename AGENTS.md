@@ -17,9 +17,12 @@ Kinetiqo is a self-hosted Python fitness-data platform that synchronizes activit
 - **Activity Goals**: Weekly, monthly, and yearly distance/elevation goals per activity type.
 - **MEGA Stats Infographic**: Infographic with selectable period/activity groups, custom photo background upload & reset, configurable tint overlay and opacity slider, font selector (Inter, Italiana, Outfit, etc.), unified collapsible control panels (Stats Options, Appearance, Size, Period), responsive column width with stacked default (20%) and expanded full-width row layout (>20% up to 50%), most active month by distance & elevation metrics, custom date formatting, full localStorage state persistence, and vector PDF / PNG export.
 - **Fondo-o-meter Infographic**: Dynamic endurance showcase infographic displaying up to 8 harmonic concentric rings with smart distance binning, sport thresholds (100km cycling, 42.2km marathon running/walking, 50km skiing, 10km swimming), KOMs, PRs, custom background photo upload with tint/opacity controls, arc color and arch width customization, and vector PDF / PNG export via Playwright.
+- **Activity Detail Infographic**: Single-workout analytical showcase featuring 2-column hero split (50% Key metrics grid 1–6 cols, 50% Leaflet route map), interactive multi-stream telemetry chart (Elevation fill, HR, Power, Cadence, Speed) with Distance vs. Time X-axis mode toggle, on-demand AI Coach analysis with Run prompt / Re-prompt execution and real-time generation indicator, 5-column analytical card grid (Power Zones, Peak MMP, HR Zones, Climbs, Stored Weather), font scale slider (-30% to +80%), custom background photo upload, and Playwright-powered pixel-perfect PNG/vector PDF export with Kinetiqo brand watermark.
 - **Activity Poster Generator**: WYSIWYG poster builder with elevation profile, custom fonts, 4:3 / 16:9 / 1:1 aspect ratios, background photo mode (with clear image option) or interactive Leaflet map mode (tile provider selection, map opacity control, route line color/opacity/weight), collapsible control boxes with element checkboxes, and Playwright-powered PNG export.
 - **Strava Description Auto-Update (`UPDATE_STRAVA_*`)**: Description template engine with 150+ placeholders, 6 activity buckets, milestone triggers (`🎉`), configurable placement (`begin`/`end`), workout summary with power zones / NP (% FTP), sustained blocks, and high-power sprint peak surge detection (`≥ 1000W` adjectives).
+- **Historical Activity Weather**: Optional `VISUAL_CROSSING_API_KEY` enriches eligible outdoor GPS activities during enabled syncs with stored hourly weather and calculated headwind (free tier provides 1,000 records/day via [visualcrossing.com/weather-api](https://www.visualcrossing.com/weather-api)). Never expose route coordinates or fetch weather on demand; a valid `X-RateLimit-Remaining: 0` or HTTP 429 stops weather enrichment across all Gunicorn workers via shared in-memory state until UTC midnight (automatically resetting after UTC midnight), without a database quota counter, and skips subsequent activity weather requests during the sync pass to prevent gateway slamming.
 - **HTMX Reactivity & SSE**: Real-time progress updates for sync operations.
+- **Model Context Protocol (MCP) Server**: FastMCP server connecting AI assistants (Antigravity IDE, Claude Desktop, Cursor, OpenClaw) via STDIO or FastMCP SSE over HTTP (`0.0.0.0:8000/sse`). Exposes 32 read-only tools by default (up to 36 tools with gated mutation flags: `KINETIQO_MCP_ALLOW_SYNC`, `KINETIQO_MCP_ALLOW_PROFILE_WRITE`, `KINETIQO_MCP_ALLOW_STRAVA_WRITE`) across activity discovery, telemetry streams, power curves (MMP), personal records, fitness & freshness (CTL/ATL/TSB), VO₂max trends, and Playwright visual artifact exports.
 - **Security & Performance**: Session auth (`flask-login`), CSRF validation (`flask-wtf`), response compression (`flask-compress`), self-hosted base fonts, and compiled Tailwind CSS.
 
 ---
@@ -52,18 +55,21 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 | Session & CSRF | **Flask-WTF** / **flask-login** | 1.3.0 / 0.6.3 | CSRF tokens on all POST/PUT/DELETE routes |
 | Response Compression | **flask-compress** | 1.25 | Automatic gzip/brotli compression |
 | Frontend CSS | **Tailwind CSS** | v4 CLI (4.3.3) | Compiled to `static/css/tailwind.css` via `download-tailwind.sh` |
-| Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.2 | SSE for sync progress bar |
+| Reactivity | **HTMX** + **htmx-ext-sse** | 2.0.10 / 2.2.4 | SSE for sync progress bar |
 | Data Tables | **DataTables** + **Buttons** + **ColReorder** | 2.3.7 / 3.2.6 / 2.1.2 | Client-side processing mode with SRI |
 | Charting | **Chart.js** + **chartjs-adapter-moment** | 4.5.1 / 1.0 | Client-side Canvas rendering |
 | Maps | **Leaflet.js** | 1.9.4 | Canvas renderer, self-hosted vendor files, server-side tile proxy |
-| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`) |
+| CLI | **Click** | 8.5.0 | Entry point: `python src/kinetiqo.py <command>` (`web`, `sync`, `flightcheck`, `benchmark`, `mcp`, `scan-trophies`, `backfill-weather`, `version`) |
+| AI & MCP Protocol | **FastMCP** (`mcp[cli]`) | 1.30.0 | FastMCP server for AI agent integration (STDIO & SSE) |
 | Database Drivers | **psycopg2-binary**, **mysql-connector-python**, **firebird-driver** | 2.9.13 / 26.7.0 / 2.0.3 | Parameterized raw SQL — **no ORM** |
 | HTTP Client | **httpx** / **requests** | 0.28.1 / 2.34.2 | Async/sync clients for Strava & GitHub APIs |
-| Data Processing | **pandas** | 3.0.6 | CTL/ATL/TSB calculation |
-| Browser Automation | **Playwright** | ≥1.64.0 | PNG poster and infographic rendering |
-| Image Processing | **Pillow** / **pillow-heif** | ≥13.0.0 / ≥1.8.1 | Poster and image processing (HEIC/HEIF support) |
-| Date Parsing | **python-dateutil** | ≥2.9.0.post0 | Date parsing utilities |
-| Versioning | **packaging** | ≥26.3 | SemVer comparisons |
+| Data Processing | **pandas** / **pydantic** | 3.0.6 / 2.14.1 | CTL/ATL/TSB calculation and data schemas |
+| Browser Automation | **Playwright** | 1.64.0 | PNG poster and infographic rendering |
+| Image Processing | **Pillow** / **pillow-heif** | 13.0.0 / 1.8.1 | Poster and image processing (HEIC/HEIF support) |
+| Cryptography | **cryptography** | 46.0.5 | Secure key generation & crypto primitives |
+| Date Parsing | **python-dateutil** | 2.9.0.post0 | Date parsing utilities |
+| YAML Parsing | **PyYAML** | 6.0.3 | Configuration & library metadata parsing |
+| Versioning | **packaging** | 26.3 | SemVer comparisons |
 
 ---
 
@@ -219,6 +225,18 @@ Note: Tests must not make real network or database calls. Use unittest.mock, loc
 - **JavaScript Object Property Uniqueness (`javascript:S1534`)**: Duplicate keys in JavaScript object literals (e.g. within inline DataTables configuration objects or chart options in Jinja templates) cause silent configuration overwrites and trigger SonarQube `javascript:S1534`. Always merge option groups (such as DataTables `language: { processing: ..., search: ... }`) into a single unified key.
 - **Anonymous User Safety in Web Endpoints & Templates**: Never access `current_user.id` or user-specific attributes without first verifying authentication status (`if current_user.is_authenticated:`). For unauthenticated requests or public views, access user attributes defensively via `getattr(current_user, 'id', None)` to prevent `AttributeError: 'AnonymousUserMixin' object has no attribute 'id'`.
 
+### 4.18 GitHub Actions Workflow Security Standard (Sonar githubactions:S7630)
+- **Expression Evaluation in `run:` Steps**: Never evaluate GitHub context expressions (`${{ github.event... }}`, `${{ inputs... }}`, or `${{ steps... }}`) directly inside bash/sh `run:` script bodies to prevent arbitrary command injection.
+- **Mandatory Environment Mapping**: Always map GitHub expressions to step-level environment variables under `env:` and reference them via standard shell syntax (e.g. `"$EVENT_NAME"`, `"$MSG"`, `"$VERSION"`).
+
+### 4.19 Prohibition of Bare Assert in Production Code & Test Class Standard (Sonar python:S5905 / python:S5960)
+- **Production Code Assertion Prohibition**: Never use `assert` statements in non-test application code, CLI tools, or repository classes. Because `assert` can be disabled with Python `-O` optimization flags, production logic must rely on explicit `if` statements with default fallbacks or raise appropriate exceptions (`ValueError`, `RuntimeError`).
+- **TestCase Test Structure**: All unit tests in `tests/` must belong to a `unittest.TestCase` class and utilize standard assertion methods (`self.assertEqual`, `self.assertGreater`, `self.assertIn`, etc.) rather than bare `assert` statements to ensure compatibility with SonarQube static analysis and native test discovery.
+
+### 4.20 JavaScript Promise Handling & Regular Expression Safety (Sonar javascript:S6544 & javascript:S5852)
+- **Floating Promise Prevention (`javascript:S6544`)**: Promises created by `async` functions or API calls must never be left unhandled. They must be awaited, chained with `.catch(...)`, or explicitly marked as intentionally unawaited with the `void` operator (e.g., `void loadSessions().catch(console.error);`).
+- **Catastrophic Backtracking Prevention (`javascript:S5852`)**: Never use nested quantifiers (`(?:A+)+`, `(?:.*?)+`) or unconstrained dot-all lazy patterns (`[\s\S]*?`) across multiline blocks in regular expressions. Prefer deterministic character exclusions (`[^*\n\r]+` for inline markup, `(?:[^`]|`(?!``))*` for code blocks, and bounded repetitions) to guarantee linear execution time.
+
 
 ---
 
@@ -308,12 +326,44 @@ When adding a new Google Font to the offline font library, execute every step be
 
 ---
 
-## 7. Development Environment Notes
+## 7. Available AI Skills (Use by Default)
+
+All AI agents should leverage these specialized domain skills to enhance code quality, consistency, and validation:
+
+### 7.1 Core Kinetiqo Skills
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| **python-standards** | Enforce SonarQube rules and modern Python standards: cryptographic randomness with `secrets` (python:S2245), timezone-aware UTC datetimes, path traversal validation (pythonsecurity:S8707), and anonymous user safety. | `.agents/skills/python-standards/SKILL.md` |
+| **python-type-safety** | Python type safety with type hints, generics, protocols, and strict type checking. Use when adding type annotations, implementing generic classes, defining structural interfaces, or configuring mypy/pyright. | `.agents/skills/python-type-safety/SKILL.md` |
+| **javascript-standards** | Enforce SonarQube rules and modern ECMAScript standards for JavaScript code: avoid legacy global number methods (javascript:S7773), object property uniqueness (javascript:S1534), and modern ES2015+ patterns. | `.agents/skills/javascript-standards/SKILL.md` |
+| **ui-loading-standards** | Enforce uniform UI loading and waiting indicators across Kinetiqo using `kinetiqo-loading-32x32.webp` without accompanying text in action buttons. Covers DataTables, sync progress, chart overlays, and file uploads. | `.agents/skills/ui-loading-standards/SKILL.md` |
+| **ai-implementation** | Follow AI provider contracts, metadata normalization, unified Settings tables, and the mocked-test checklist when adding or modifying AI providers. | `.agents/skills/ai-implementation/SKILL.md` |
+| **sync-ai-documentation** | Keep AI provider specifications and user documentation synchronized across `docs/concepts/ai-concept.md` and `docs/AI.md`. | `.agents/skills/sync-ai-documentation/SKILL.md` |
+| **sync-documentation** | Keep modular documentation across `docs/<feature>.md`, `docs/concepts/`, `docs/usage.md`, and concise `README.md` strictly synchronized with codebase changes. | `.agents/skills/sync-documentation/SKILL.md` |
+| **grill-me** | Interview the user relentlessly about a plan, spec, or ticket until every branch of the decision tree is resolved. Produces a per-dimension ambiguity report (Goals / Acceptance / Boundaries / Alternatives / Assumptions) and an aggregate gate. Use whenever drafting specs, proposing designs, debating approaches, or finalizing work. | `.agents/skills/grill-me/SKILL.md` |
+
+### 7.2 Marketing Site Skill (kinetiqo-web)
+
+| Skill | Purpose | Location |
+|-------|---------|----------|
+| **sync-marketing-features** | Instructions and standards to keep the 8 core fitness telemetry features, 16 basemaps, 4x2 grid layout, top navigation dropdown, environment variables, and CLI reference synchronized across the Kinetiqo marketing site (`src/` and `site/`). | `.agents/skills/sync-marketing-features/SKILL.md` |
+
+### 7.3 How to Use Skills
+
+1. **Automatic Discovery**: All skills are automatically discovered by AI agents from the `.agents/skills/` directory in this repository.
+2. **Default Behavior**: Skills are applied by default — you do not need to explicitly request them. When a task touches code that falls within a skill's domain, the agent will automatically apply the skill's guidelines.
+3. **Explicit Invocation**: You can explicitly request a skill by name (e.g., "grill me on this proposal" or "check this against python-standards").
+4. **Subroutine Mode**: Some skills (like `grill-me`) can be invoked as subroutines by other skills to enhance their output.
+5. **Central & Repo Copies**: The central `.agents/skills/` library at the workspace root is the source of truth. Each repository maintains exact independent copies for full self-containment.
+
+---
+
+## 8. Development Environment Notes
 
 When running commands in developer environments (e.g., PyCharm SSH terminal vs. local Windows shell):
 - Windows path: `H:\WORKING\kinetiqo`
 - SSH / POSIX path: `~/WORKING/kinetiqo`
 
 Commands run inside an SSH session must use POSIX paths (`cd ~/WORKING/kinetiqo && python -m pytest -o pythonpath=src`).
-
 

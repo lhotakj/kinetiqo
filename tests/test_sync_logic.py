@@ -57,6 +57,7 @@ class TestSyncMatrix(unittest.TestCase):
                 self.assertEqual(result.exit_code, 0)
                 self.assertEqual(mock_repo.write_activity.call_count, 2)
                 mock_repo.delete_activities.assert_not_called()
+                mock_repo.update_statistics.assert_called_once()
 
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')
@@ -111,6 +112,7 @@ class TestSyncMatrix(unittest.TestCase):
                 self.assertEqual(result.exit_code, 0)
                 self.assertEqual(mock_repo.write_activity.call_count, 2)
                 mock_repo.delete_activities.assert_called_once_with(['9999'])
+                mock_repo.update_statistics.assert_not_called()
 
     @patch('kinetiqo.sync.StravaClient')
     @patch('kinetiqo.cli.create_repository')
